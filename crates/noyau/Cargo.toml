@@ -4,7 +4,6 @@ description = "Le noyau de théorie de pupitre et l'écriture de ses pages en SV
 edition.workspace = true
 version.workspace = true
 publish.workspace = true
-license.workspace = true
 
 [dependencies]
 ttf-parser = "0.25.1"
