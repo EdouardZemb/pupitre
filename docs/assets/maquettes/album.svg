@@ -1,0 +1,150 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" width="1200" height="760" font-family="Helvetica, Arial, sans-serif">
+  <title>Maquette — le plan d'album (établi)</title>
+  <defs>
+    <pattern id="hachures" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#111" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="760" fill="#ffffff"/>
+  <rect x="10" y="10" width="1180" height="740" rx="10" fill="#fff" stroke="#111" stroke-width="2"/>
+  <path d="M10 66 H1190" stroke="#111" stroke-width="2"/>
+
+  <!-- En-tête -->
+  <text x="32" y="46" font-size="22" font-weight="700" fill="#111">Pupitre</text>
+  <text x="130" y="46" font-size="14" fill="#555">Fonds ›</text>
+  <text x="188" y="46" font-size="16" font-weight="700" fill="#111">Premier album</text>
+  <text x="320" y="46" font-size="12" fill="#555">assiette : 9 morceaux dans l'ordre · décidés : tonalités 7, tempos 8, intensités 8</text>
+  <g font-size="12" fill="#111">
+    <rect x="800" y="26" width="110" height="28" rx="5" fill="#111"/><text x="855" y="45" fill="#fff" text-anchor="middle">Ordre A · retenu</text>
+    <rect x="914" y="26" width="70" height="28" rx="5" fill="#fff" stroke="#111"/><text x="949" y="45" text-anchor="middle">Ordre B</text>
+    <rect x="988" y="26" width="80" height="28" rx="5" fill="#fff" stroke="#111"/><text x="1028" y="45" text-anchor="middle">Piste 1 ✦</text>
+    <rect x="1072" y="26" width="100" height="28" rx="5" fill="#fff" stroke="#111"/><text x="1122" y="45" text-anchor="middle">Comparer…</text>
+  </g>
+
+  <!-- Libellés des couloirs -->
+  <g font-size="12" fill="#555">
+    <text x="30" y="104">Position</text>
+    <text x="30" y="166">Tonalité</text><text x="30" y="182" font-size="10">début → fin</text>
+    <text x="30" y="262">Tempo</text><text x="30" y="278" font-size="10">BPM</text>
+    <text x="30" y="350">Intensité</text>
+    <text x="30" y="402">Durée</text><text x="30" y="416" font-size="10">cumul de la face</text>
+    <text x="30" y="430">Fin</text>
+    <text x="30" y="470">Transition</text>
+  </g>
+
+  <!-- Colonnes : x0 = 150 + i × 113 -->
+  <g stroke="#e2e2e2"><path d="M150 84 V488"/><path d="M263 84 V488"/><path d="M376 84 V488"/><path d="M489 84 V488"/><path d="M602 84 V488"/><path d="M715 84 V488"/><path d="M828 84 V488"/><path d="M941 84 V488"/><path d="M1054 84 V488"/><path d="M1167 84 V488"/></g>
+  <!-- coupure de faces -->
+  <path d="M715 76 V496" stroke="#111" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="706" y="82" font-size="11" fill="#111" text-anchor="end">Face A · <tspan font-style="italic">16:43 ~</tspan> / 22:00</text>
+  <text x="724" y="82" font-size="11" fill="#111">Face B · 15:43 / 22:00</text>
+
+  <!-- Positions et titres -->
+  <g font-size="12" fill="#111" text-anchor="middle">
+    <text x="206" y="104" font-weight="700">1 · Glasshouse</text>
+    <text x="319" y="104" font-weight="700">2 · Northbound</text>
+    <text x="432" y="104" font-weight="700">3 · Low Tide</text>
+    <text x="545" y="104" font-weight="700">4 · Paper Gulls</text>
+    <text x="658" y="104" font-weight="700">5 · Quiet Engine</text>
+    <text x="771" y="104" font-weight="700">6 · Salt and Wire</text>
+    <text x="884" y="104" font-weight="700">7 · Long Room</text>
+    <text x="997" y="104" font-weight="700">8 · Ember Street</text>
+    <text x="1110" y="104" font-weight="700">9 · Last Ferry</text>
+  </g>
+
+  <!-- Tonalités : cercle des quintes, do en haut ; point plein = majeur, creux = mineur (placé sur sa relative) -->
+  <g stroke="#111" fill="#fff">
+    <circle cx="186" cy="152" r="14"/><circle cx="299" cy="152" r="14"/><circle cx="412" cy="152" r="14"/><circle cx="525" cy="152" r="14"/><circle cx="638" cy="152" r="14"/><circle cx="751" cy="152" r="14"/><circle cx="864" cy="152" r="14"/><circle cx="977" cy="152" r="14"/><circle cx="1090" cy="152" r="14"/>
+  </g>
+  <g stroke="#111" stroke-width="1.4">
+    <circle cx="198.1" cy="145" r="4" fill="#111"/>
+    <circle cx="311.1" cy="145" r="4" fill="#fff"/>
+    <circle cx="424.1" cy="145" r="4" fill="#111" stroke-dasharray="2 1"/>
+    <circle cx="532" cy="139.9" r="4" fill="#fff"/>
+    <circle cx="645" cy="139.9" r="4" fill="#fff"/>
+    <circle cx="765" cy="152" r="4" fill="#111"/>
+    <circle cx="864" cy="138" r="4" fill="#fff" stroke-dasharray="2 1"/>
+    <circle cx="991" cy="152" r="4" fill="#fff"/>
+    <circle cx="1102.1" cy="145" r="4" fill="#111"/>
+  </g>
+  <g font-size="12" fill="#111">
+    <text x="206" y="157">Ré</text>
+    <text x="319" y="157">si m</text>
+    <text x="432" y="157" font-style="italic">Ré ~</text>
+    <text x="545" y="157">mi m</text>
+    <text x="658" y="157">mi m</text>
+    <text x="771" y="157">La</text>
+    <text x="884" y="151" font-style="italic">do ~</text><text x="884" y="166" font-style="italic">la m ~</text>
+    <text x="997" y="157">fa♯ m</text>
+    <text x="1110" y="157">Ré</text>
+  </g>
+  <g font-size="10" fill="#555" text-anchor="middle">
+    <text x="206" y="186">Ré → Ré</text><text x="319" y="186">si m → si m</text><text x="432" y="186" font-style="italic">Ré ~ → Ré ~</text><text x="545" y="186">mi m → mi m</text><text x="658" y="186">mi m → Sol</text><text x="771" y="186">La → La</text><text x="884" y="186">indécise</text><text x="997" y="186">fa♯ m → fa♯ m</text><text x="1110" y="186">Ré → Ré</text>
+  </g>
+
+  <!-- Tempo : y = 300 − (bpm − 60) × 0,78 -->
+  <g stroke="#ddd"><path d="M150 230 H1167"/><path d="M150 300 H1167"/></g>
+  <text x="146" y="234" font-size="9" fill="#777" text-anchor="end">150</text><text x="146" y="303" font-size="9" fill="#777" text-anchor="end">60</text>
+  <polyline points="206,270.4 319,280.5 432,290.7 545,289.1 658,287.6 771,265.8 884,237.8 997,254.9 1110,276.7" fill="none" stroke="#111" stroke-width="2"/>
+  <g fill="#111"><circle cx="206" cy="270.4" r="4"/><circle cx="319" cy="280.5" r="4"/><circle cx="432" cy="290.7" r="4"/><circle cx="545" cy="289.1" r="4"/><circle cx="658" cy="287.6" r="4"/><circle cx="771" cy="265.8" r="4"/><circle cx="884" cy="237.8" r="4"/><circle cx="997" cy="254.9" r="4"/><circle cx="1110" cy="276.7" r="4"/></g>
+  <g font-size="11" fill="#111" text-anchor="middle">
+    <text x="206" y="262">98</text><text x="319" y="272">85</text><text x="432" y="282" font-style="italic">72 ~</text><text x="545" y="280">74</text><text x="658" y="279">76</text><text x="771" y="257">104</text><text x="884" y="229">140</text><text x="997" y="246">118</text><text x="1110" y="268">90</text>
+  </g>
+  <rect x="412" y="266" width="266" height="34" fill="none" stroke="#111" stroke-dasharray="3 3"/>
+  <text x="545" y="314" font-size="10" fill="#111" text-anchor="middle">grappe de tempo (DG-A3)</text>
+
+  <!-- Intensité : 12 px par niveau, sol à 380 -->
+  <g fill="#111">
+    <rect x="186" y="344" width="40" height="36"/><rect x="299" y="332" width="40" height="48"/><rect x="412" y="356" width="40" height="24"/><rect x="525" y="356" width="40" height="24"/><rect x="638" y="356" width="40" height="24"/><rect x="751" y="344" width="40" height="36"/><rect x="864" y="320" width="40" height="60"/><rect x="977" y="332" width="40" height="48"/>
+  </g>
+  <rect x="1090" y="320" width="40" height="60" fill="url(#hachures)" stroke="#111"/>
+  <g font-size="11" fill="#111" text-anchor="middle">
+    <text x="232" y="374">3</text><text x="345" y="374">4</text><text x="458" y="374">2</text><text x="571" y="374">2</text><text x="684" y="374">2</text><text x="797" y="374">3</text><text x="910" y="374">5</text><text x="1023" y="374">4</text><text x="1140" y="374">?</text>
+  </g>
+
+  <!-- Durées et fins -->
+  <g font-size="12" fill="#111" text-anchor="middle">
+    <text x="206" y="402">3:10</text><text x="319" y="402">2:55</text><text x="432" y="402" font-style="italic">2:58 ~</text><text x="545" y="402">3:25</text><text x="658" y="402">4:12</text><text x="771" y="402">4:05</text><text x="884" y="402">3:30</text><text x="997" y="402">3:48</text><text x="1110" y="402">4:20</text>
+    <text x="206" y="430">nette</text><text x="319" y="430">fondue</text><text x="432" y="430">nette</text><text x="545" y="430">en suspens</text><text x="658" y="430">fondue</text><text x="771" y="430">nette</text><text x="884" y="430">nette</text><text x="997" y="430">fondue</text><text x="1110" y="430">en suspens</text>
+  </g>
+
+  <!-- Cumul par face : une valeur engendrée prend le statut le plus faible de ses entrées -->
+  <g font-size="10" fill="#555" text-anchor="middle">
+    <text x="206" y="416">3:10</text><text x="319" y="416">6:05</text><text x="432" y="416" font-style="italic">9:03 ~</text><text x="545" y="416" font-style="italic">12:28 ~</text><text x="658" y="416" font-style="italic">16:43 ~</text>
+    <text x="771" y="416">4:05</text><text x="884" y="416">7:35</text><text x="997" y="416">11:23</text><text x="1110" y="416">15:43</text>
+  </g>
+
+  <!-- Transitions, aux frontières de colonnes -->
+  <g font-size="10" fill="#111" text-anchor="middle">
+    <text x="263" y="464">relative</text><text x="263" y="477">−13 BPM</text>
+    <text x="376" y="464">relative ~</text><text x="376" y="477" font-style="italic">−13 BPM ~</text>
+    <text x="489" y="464">un ton ~</text><text x="489" y="477" font-style="italic">+2 BPM ~</text>
+    <text x="602" y="464" font-weight="700">même tonalité</text><text x="602" y="477">+2 · silence 3 s</text>
+    <rect x="652" y="453" width="126" height="28" fill="#fff"/><text x="715" y="464">un ton</text><text x="715" y="477">+28 · changement de face</text>
+    <text x="828" y="464">indécidable</text><text x="828" y="477">+36 BPM</text>
+    <text x="941" y="464">indécidable</text><text x="941" y="477">−22 BPM</text>
+    <text x="1054" y="464">tierce</text><text x="1054" y="477">−28 · fondu</text>
+  </g>
+
+  <!-- Constats -->
+  <path d="M24 500 H1176" stroke="#bbb"/>
+  <text x="30" y="528" font-size="15" font-weight="700" fill="#111">Constats — l'inventaire d'abord, chacun avec son assiette</text>
+  <g font-size="12" fill="#111">
+    <text x="30" y="554">Inventaire : 9 morceaux · <tspan font-style="italic">32:26 ~</tspan> · 4 majeures (dont 1 proposée), 4 mineures, 1 indécise · tempos de <tspan font-style="italic">72 ~</tspan> à 140 BPM</text>
+    <text x="30" y="580"><tspan font-weight="700">DG-A1</tspan> · positions 4–5 : même tonalité, mi mineur — présent · 8 paires, 6 avec leurs deux tonalités, 4 décidées</text>
+    <text x="30" y="602"><tspan font-weight="700">DG-A3</tspan> · positions 3–5 : grappe de tempo, <tspan font-style="italic">72 ~</tspan> · 74 · 76 — présent · 9 tempos, 8 décidés</text>
+    <text x="30" y="624"><tspan font-weight="700">DG-A5</tspan> · positions 3–5 : trois morceaux calmes, intensité 2 — présent · 8 intensités sur 9, 8 décidées</text>
+    <text x="30" y="646"><tspan font-weight="700">DG-A6</tspan> · fin de l'album : intensité du dernier morceau inconnue — indécidable · 8 intensités sur 9 · manque : Last Ferry</text>
+    <text x="30" y="668"><tspan font-weight="700">DG-A9</tspan> · faces : A <tspan font-style="italic">16:43 ~</tspan>, B 15:43, pour 22:00 au plus — absent · 9 durées, 8 décidées</text>
+  </g>
+  <g font-size="12" fill="#111">
+    <rect x="30" y="690" width="140" height="30" rx="5" fill="#fff" stroke="#111"/><text x="100" y="710" text-anchor="middle">Pistes d'ordre…</text>
+    <rect x="180" y="690" width="140" height="30" rx="5" fill="#fff" stroke="#111"/><text x="250" y="710" text-anchor="middle">Écouter 4 → 5</text>
+    <rect x="330" y="690" width="140" height="30" rx="5" fill="#fff" stroke="#111"/><text x="400" y="710" text-anchor="middle">Feuille d'album</text>
+  </g>
+  <text x="490" y="710" font-size="11" fill="#555">Un constat ouvre le morceau en cause ; aucun ne réordonne l'album.</text>
+  <g font-size="11" fill="#555" text-anchor="end">
+    <text x="1170" y="524">● majeure · ○ mineure (sur sa relative) · pointillé, ~ : proposée</text>
+    <text x="1170" y="541">hachures : intensité inconnue · filet tireté : coupure de faces</text>
+  </g>
+</svg>

@@ -1,0 +1,59 @@
+name: ci
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  socle:
+    uses: ./.github/workflows/modele-socle.yml
+    secrets: inherit
+
+  # Refuse les fuites de données personnelles détectables mécaniquement : e-mail,
+  # secret, export de mémoire, audio ou MIDI, chemin absolu de machine.
+  # Nommé `contenu` pour ne pas se confondre avec `socle / confidentialite`. Voir CONVENTIONS.md.
+  contenu:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Vérification de confidentialité
+        run: bash scripts/verif-confidentialite.sh
+
+  # Deux vérifications de la documentation : chaque lien interne mène quelque part,
+  # chaque diagramme se rend. Ajoutées après des diagrammes cassés pendant la refonte
+  # d'octobre 2026. Voir CONVENTIONS.md.
+  documentation:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Vérification des liens internes
+        run: node scripts/verif-liens.mjs
+      - name: Installer mermaid-cli
+        run: npm install --no-save --no-package-lock --no-audit --no-fund @mermaid-js/mermaid-cli@12.0.0
+      # Explicite : npm n'exécute bientôt plus les scripts d'installation par défaut,
+      # et c'est l'un d'eux qui télécharge le navigateur de Puppeteer.
+      - name: Installer le navigateur de Puppeteer
+        run: npx --no-install puppeteer browsers install chrome
+      - name: Vérification des diagrammes
+        run: node scripts/verif-diagrammes.mjs
+
+# Les vérifications propres au projet (tests, lint, construction) s'ajoutent ici, dans un job `verifier`.
+# Ce fichier est au projet : `copier update` n'y touche plus.

@@ -1,0 +1,56 @@
+# Rien de personnel, jamais. Cette liste est une ceinture, pas une autorisation :
+# la regle est dans CONVENTIONS.md.
+
+# Memoire et etats d'assistants
+.claude/*
+# fichier géré par modele-projet : ne jamais le masquer (LE-23 du registre de modele-projet)
+!.claude/settings.json
+# fichier géré par modele-projet : ne jamais le masquer (LE-23 du registre de modele-projet)
+!.claude/skills/
+# les plans de lot, méthode du modèle
+!.claude/plans/
+.claude/settings.local.json
+.cursor/
+.superpowers/
+*.memory.json
+
+# Audio, MIDI, partitions exportees
+*.mp3
+*.m4a
+*.wav
+*.aif
+*.aiff
+*.flac
+*.ogg
+*.mid
+*.midi
+*.musicxml
+*.mxl
+
+# Paroles et matiere d'album (ne doivent pas etre ici du tout)
+paroles/
+lyrics/
+album/
+demos/
+
+# Secrets
+.env
+.env.*
+*.pem
+*.key
+id_rsa*
+secrets.*
+# fichier géré par modele-projet : ne jamais le masquer (LE-23 du registre de modele-projet)
+!scripts/modele/secrets.ps1
+
+# Bruit
+__pycache__/
+*.pyc
+node_modules/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+
+# Ajouté par le modèle
+.venv/

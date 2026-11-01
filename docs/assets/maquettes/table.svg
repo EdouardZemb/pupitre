@@ -1,0 +1,135 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 1120" width="840" height="1120" font-family="Helvetica, Arial, sans-serif">
+  <title>Maquette — la table de la tonalité au lutrin : do majeur (tablette à encre, noir et blanc)</title>
+  <rect width="840" height="1120" fill="#fff"/>
+  <rect x="20" y="20" width="800" height="1080" rx="28" fill="#fff" stroke="#000" stroke-width="3"/>
+  <!-- En-tête : la tonalité, le gabarit, et les réglages que la table lit -->
+  <text x="64" y="90" font-size="32" font-weight="700" fill="#000">do majeur</text>
+  <text x="776" y="90" font-size="18" fill="#000" text-anchor="end">table de la tonalité</text>
+  <text x="64" y="124" font-size="20" fill="#000">tonalité choisie · instrument : guitare · couche sombre : masquée</text>
+  <path d="M44 142 H796" stroke="#000" stroke-width="1.5"/>
+  <!-- Au-dessus : les dominantes secondaires. Chacune au-dessus de sa cible ; cadre en pointe, la pointe vers la cible -->
+  <text x="45" y="198" font-size="20" font-weight="700" fill="#000">Dominantes secondaires <tspan font-size="16" font-weight="400">· au-dessus, chacune fléchée vers sa cible</tspan></text>
+  <path d="M153 214 H255 V318 L204 334 L153 318 Z" fill="#fff" stroke="#000" stroke-width="1.6"/>
+  <text x="204" y="278" font-size="32" font-weight="700" fill="#000" text-anchor="middle">A7</text>
+  <text x="204" y="240" font-size="18" fill="#000" text-anchor="middle">V7/ii</text>
+  <text x="204" y="308" font-size="16" fill="#000" text-anchor="middle">tire vers Dm</text>
+  <path d="M261 214 H363 V318 L312 334 L261 318 Z" fill="#fff" stroke="#000" stroke-width="1.6"/>
+  <text x="312" y="278" font-size="32" font-weight="700" fill="#000" text-anchor="middle">B7</text>
+  <text x="312" y="240" font-size="18" fill="#000" text-anchor="middle">V7/iii</text>
+  <text x="312" y="308" font-size="16" fill="#000" text-anchor="middle">tire vers Em</text>
+  <path d="M369 214 H471 V318 L420 334 L369 318 Z" fill="#fff" stroke="#000" stroke-width="1.6"/>
+  <text x="420" y="278" font-size="32" font-weight="700" fill="#000" text-anchor="middle">C7</text>
+  <text x="420" y="240" font-size="18" fill="#000" text-anchor="middle">V7/IV</text>
+  <text x="420" y="308" font-size="16" fill="#000" text-anchor="middle">tire vers F</text>
+  <path d="M477 214 H579 V318 L528 334 L477 318 Z" fill="#fff" stroke="#000" stroke-width="1.6"/>
+  <text x="528" y="278" font-size="32" font-weight="700" fill="#000" text-anchor="middle">D7</text>
+  <text x="528" y="240" font-size="18" fill="#000" text-anchor="middle">V7/V</text>
+  <text x="528" y="308" font-size="16" fill="#000" text-anchor="middle">tire vers G</text>
+  <path d="M585 214 H687 V318 L636 334 L585 318 Z" fill="#fff" stroke="#000" stroke-width="1.6"/>
+  <text x="636" y="278" font-size="32" font-weight="700" fill="#000" text-anchor="middle">E7</text>
+  <text x="636" y="240" font-size="18" fill="#000" text-anchor="middle">V7/vi</text>
+  <text x="636" y="308" font-size="16" fill="#000" text-anchor="middle">tire vers Am</text>
+  <!-- Flèches de résolution : trait plein, pointe pleine posée sur la cible ; chacune relie exactement deux cases -->
+  <g stroke="#000" stroke-width="2">
+    <path d="M204 336 V412"/>
+    <path d="M312 336 V412"/>
+    <path d="M420 336 V412"/>
+    <path d="M528 336 V412"/>
+    <path d="M636 336 V412"/>
+  </g>
+  <g fill="#000">
+    <path d="M197 410 L211 410 L204 425 Z"/>
+    <path d="M305 410 L319 410 L312 425 Z"/>
+    <path d="M413 410 L427 410 L420 425 Z"/>
+    <path d="M521 410 L535 410 L528 425 Z"/>
+    <path d="M629 410 L643 410 L636 425 Z"/>
+  </g>
+  <!-- Centre : les diatoniques, cadre droit. Ligne d'effet = la fonction, redoublée par la pastille : ○ repos · ◐ éloignement · ● tension -->
+  <text x="45" y="390" font-size="20" font-weight="700" fill="#000">Diatoniques</text>
+  <text x="45" y="414" font-size="16" fill="#000">au centre</text>
+  <rect x="45" y="426" width="102" height="112" fill="#fff" stroke="#000" stroke-width="1.6"/>
+  <text x="96" y="494" font-size="32" font-weight="700" fill="#000" text-anchor="middle">C</text>
+  <text x="93" y="454" font-size="18" fill="#000" text-anchor="end">I</text>
+  <circle cx="108" cy="448" r="8" fill="#fff" stroke="#000" stroke-width="1.6"/>
+  <text x="96" y="524" font-size="16" fill="#000" text-anchor="middle">repos</text>
+  <rect x="153" y="426" width="102" height="112" fill="#fff" stroke="#000" stroke-width="1.6"/>
+  <text x="204" y="494" font-size="32" font-weight="700" fill="#000" text-anchor="middle">Dm</text>
+  <text x="201" y="454" font-size="18" fill="#000" text-anchor="end">ii</text>
+  <circle cx="216" cy="448" r="8" fill="#fff" stroke="#000" stroke-width="1.6"/><path d="M216 440 A8 8 0 0 1 216 456 Z" fill="#000"/>
+  <text x="204" y="524" font-size="16" fill="#000" text-anchor="middle">éloignement</text>
+  <rect x="261" y="426" width="102" height="112" fill="#fff" stroke="#000" stroke-width="1.6"/>
+  <text x="312" y="494" font-size="32" font-weight="700" fill="#000" text-anchor="middle">Em</text>
+  <text x="309" y="454" font-size="18" fill="#000" text-anchor="end">iii</text>
+  <circle cx="324" cy="448" r="8" fill="#fff" stroke="#000" stroke-width="1.6"/>
+  <text x="312" y="524" font-size="16" fill="#000" text-anchor="middle">repos</text>
+  <rect x="369" y="426" width="102" height="112" fill="#fff" stroke="#000" stroke-width="1.6"/>
+  <text x="420" y="494" font-size="32" font-weight="700" fill="#000" text-anchor="middle">F</text>
+  <text x="417" y="454" font-size="18" fill="#000" text-anchor="end">IV</text>
+  <circle cx="432" cy="448" r="8" fill="#fff" stroke="#000" stroke-width="1.6"/><path d="M432 440 A8 8 0 0 1 432 456 Z" fill="#000"/>
+  <text x="420" y="524" font-size="16" fill="#000" text-anchor="middle">éloignement</text>
+  <rect x="477" y="426" width="102" height="112" fill="#fff" stroke="#000" stroke-width="1.6"/>
+  <text x="528" y="494" font-size="32" font-weight="700" fill="#000" text-anchor="middle">G</text>
+  <text x="525" y="454" font-size="18" fill="#000" text-anchor="end">V</text>
+  <circle cx="540" cy="448" r="8" fill="#000" stroke="#000" stroke-width="1.6"/>
+  <text x="528" y="524" font-size="16" fill="#000" text-anchor="middle">tension</text>
+  <rect x="585" y="426" width="102" height="112" fill="#fff" stroke="#000" stroke-width="1.6"/>
+  <text x="636" y="494" font-size="32" font-weight="700" fill="#000" text-anchor="middle">Am</text>
+  <text x="633" y="454" font-size="18" fill="#000" text-anchor="end">vi</text>
+  <circle cx="648" cy="448" r="8" fill="#fff" stroke="#000" stroke-width="1.6"/>
+  <text x="636" y="524" font-size="16" fill="#000" text-anchor="middle">repos</text>
+  <rect x="693" y="426" width="102" height="112" fill="#fff" stroke="#000" stroke-width="1.6"/>
+  <text x="744" y="494" font-size="32" font-weight="700" fill="#000" text-anchor="middle">B°</text>
+  <text x="741" y="454" font-size="18" fill="#000" text-anchor="end">vii°</text>
+  <circle cx="756" cy="448" r="8" fill="#000" stroke="#000" stroke-width="1.6"/>
+  <text x="744" y="524" font-size="16" fill="#000" text-anchor="middle">tension</text>
+  <!-- Couche sombre : masquée par défaut. Affichée, elle forme sa propre rangée ici, entre le centre et les emprunts -->
+  <text x="45" y="590" font-size="18" font-weight="700" fill="#000">Couche sombre : masquée</text>
+  <text x="45" y="614" font-size="16" fill="#000">Elle s'affiche à la demande, dans sa propre rangée, ici : diminués secondaires, sixte napolitaine.</text>
+  <!-- Au-dessous : les emprunts au mode parallèle (do mineur), chacun sous son degré ; cadre aux coins arrondis -->
+  <text x="45" y="664" font-size="20" font-weight="700" fill="#000">Emprunts au mode parallèle <tspan font-size="16" font-weight="400">· au-dessous : do mineur</tspan></text>
+  <rect x="45" y="680" width="102" height="104" rx="26" fill="#fff" stroke="#000" stroke-width="1.6"/>
+  <text x="96" y="744" font-size="32" font-weight="700" fill="#000" text-anchor="middle">Cm</text>
+  <text x="96" y="706" font-size="18" fill="#000" text-anchor="middle">i</text>
+  <text x="96" y="774" font-size="16" fill="#000" text-anchor="middle">assombrit</text>
+  <rect x="153" y="680" width="102" height="104" rx="26" fill="#fff" stroke="#000" stroke-width="1.6"/>
+  <text x="204" y="744" font-size="32" font-weight="700" fill="#000" text-anchor="middle">D°</text>
+  <text x="204" y="706" font-size="18" fill="#000" text-anchor="middle">ii°</text>
+  <text x="204" y="774" font-size="16" fill="#000" text-anchor="middle">assombrit</text>
+  <rect x="261" y="680" width="102" height="104" rx="26" fill="#fff" stroke="#000" stroke-width="1.6"/>
+  <text x="312" y="744" font-size="32" font-weight="700" fill="#000" text-anchor="middle">E♭</text>
+  <text x="312" y="706" font-size="18" fill="#000" text-anchor="middle">♭III</text>
+  <text x="312" y="774" font-size="16" fill="#000" text-anchor="middle">assombrit</text>
+  <rect x="369" y="680" width="102" height="104" rx="26" fill="#fff" stroke="#000" stroke-width="1.6"/>
+  <text x="420" y="744" font-size="32" font-weight="700" fill="#000" text-anchor="middle">Fm</text>
+  <text x="420" y="706" font-size="18" fill="#000" text-anchor="middle">iv</text>
+  <text x="420" y="774" font-size="16" fill="#000" text-anchor="middle">assombrit</text>
+  <rect x="477" y="680" width="102" height="104" rx="26" fill="#fff" stroke="#000" stroke-width="1.6"/>
+  <text x="528" y="744" font-size="32" font-weight="700" fill="#000" text-anchor="middle">Gm</text>
+  <text x="528" y="706" font-size="18" fill="#000" text-anchor="middle">v</text>
+  <text x="528" y="774" font-size="16" fill="#000" text-anchor="middle">assombrit</text>
+  <rect x="585" y="680" width="102" height="104" rx="26" fill="#fff" stroke="#000" stroke-width="1.6"/>
+  <text x="636" y="744" font-size="32" font-weight="700" fill="#000" text-anchor="middle">A♭</text>
+  <text x="636" y="706" font-size="18" fill="#000" text-anchor="middle">♭VI</text>
+  <text x="636" y="774" font-size="16" fill="#000" text-anchor="middle">assombrit</text>
+  <rect x="693" y="680" width="102" height="104" rx="26" fill="#fff" stroke="#000" stroke-width="1.6"/>
+  <text x="744" y="744" font-size="32" font-weight="700" fill="#000" text-anchor="middle">B♭</text>
+  <text x="744" y="706" font-size="18" fill="#000" text-anchor="middle">♭VII</text>
+  <text x="744" y="774" font-size="16" fill="#000" text-anchor="middle">assombrit</text>
+  <!-- Légende : un cadre par famille, tous au même trait fin ; l'épaisseur est réservée à l'accord employé (MOR-14) -->
+  <text x="45" y="846" font-size="18" font-weight="700" fill="#000">Les cadres <tspan font-size="16" font-weight="400">· la famille se lit par la rangée et par la forme du cadre, jamais par l'épaisseur</tspan></text>
+  <rect x="45" y="866" width="52" height="34" fill="#fff" stroke="#000" stroke-width="1.6"/>
+  <text x="107" y="889" font-size="16" fill="#000">diatonique</text>
+  <path d="M201 866 H253 V892 L227 906 L201 892 Z" fill="#fff" stroke="#000" stroke-width="1.6"/>
+  <text x="263" y="889" font-size="16" fill="#000">dominante secondaire</text>
+  <rect x="440" y="866" width="52" height="34" rx="11" fill="#fff" stroke="#000" stroke-width="1.6"/>
+  <text x="502" y="889" font-size="16" fill="#000">emprunt</text>
+  <path d="M592 866 H622 L633 877 V889 L622 900 H592 L581 889 V877 Z" fill="#fff" stroke="#000" stroke-width="1.6"/>
+  <text x="643" y="889" font-size="16" fill="#000">harmonie sombre</text>
+  <rect x="45" y="932" width="64" height="40" fill="#fff" stroke="#000" stroke-width="3.5"/>
+  <text x="102" y="949" font-size="13" fill="#000" text-anchor="end">× 2</text>
+  <text x="125" y="947" font-size="16" fill="#000">Sur la table d'un morceau (MOR-14), un accord employé garde le cadre de sa famille,</text>
+  <text x="125" y="969" font-size="16" fill="#000">en trait épais, avec son nombre d'emplois.</text>
+  <path d="M44 1022 H796" stroke="#000" stroke-width="1.5"/>
+  <text x="64" y="1056" font-size="16" fill="#000">page 1 / 2 · rendu le 27 oct. 2026 · empreinte 4d2a9c</text>
+  <text x="776" y="1056" font-size="16" fill="#000" text-anchor="end">verso : diagrammes et palettes du centre</text>
+</svg>

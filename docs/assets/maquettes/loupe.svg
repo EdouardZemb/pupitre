@@ -1,0 +1,155 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" width="1200" height="720" font-family="Helvetica, Arial, sans-serif">
+  <title>Maquette — la loupe : une phrase en grand (établi)</title>
+  <rect width="1200" height="720" fill="#ffffff"/>
+  <rect x="10" y="10" width="1180" height="700" rx="10" fill="#fff" stroke="#111" stroke-width="2"/>
+  <path d="M10 66 H1190" stroke="#111" stroke-width="2"/>
+
+  <!-- En-tête -->
+  <text x="32" y="46" font-size="22" font-weight="700" fill="#111">Pupitre</text>
+  <text x="130" y="46" font-size="14" fill="#555">Fonds › Northbound › Refrain ›</text>
+  <text x="338" y="46" font-size="16" font-weight="700" fill="#111">Phrase 2</text>
+  <text x="414" y="46" font-size="12" fill="#555">mesures 5 à 8 du bloc · paroles de Refrain 2</text>
+  <g font-size="12" fill="#111">
+    <text x="842" y="45">Modifier :</text>
+    <rect x="904" y="28" width="70" height="26" rx="4" fill="#111"/><text x="939" y="46" fill="#fff" text-anchor="middle">le bloc</text>
+    <rect x="978" y="28" width="196" height="26" rx="4" fill="#fff" stroke="#111"/><text x="1076" y="46" text-anchor="middle">cette occurrence seulement</text>
+  </g>
+
+  <!-- Contexte et mesures -->
+  <rect x="34" y="84" width="88" height="300" fill="#f4f4f4"/>
+  <rect x="734" y="84" width="70" height="300" fill="#f4f4f4"/>
+  <text x="40" y="100" font-size="11" fill="#777">mes. 4 · contexte</text>
+  <text x="740" y="100" font-size="11" fill="#777">mes. 9</text>
+  <g stroke="#bbb"><path d="M130 84 V384"/><path d="M281 84 V384"/><path d="M432 84 V384"/><path d="M583 84 V384"/><path d="M734 84 V384"/></g>
+  <g font-size="11" fill="#555"><text x="136" y="100">5</text><text x="287" y="100">6</text><text x="438" y="100">7</text><text x="589" y="100">8</text></g>
+
+  <!-- Accords, degrés, pastilles -->
+  <g font-size="26" font-weight="700" fill="#111">
+    <text x="62" y="136" font-size="18" fill="#888" font-weight="400">A</text>
+    <text x="150" y="136">Bm</text><text x="301" y="136">G</text><text x="452" y="136">Em</text><text x="603" y="136" font-style="italic" font-weight="400">F♯7 ~</text>
+    <text x="748" y="136" font-size="18" fill="#888" font-weight="400">?</text>
+  </g>
+  <g font-size="12" fill="#111">
+    <circle cx="156" cy="152" r="5" fill="#fff" stroke="#111"/><text x="166" y="156">i · tonique</text>
+    <circle cx="307" cy="152" r="5" fill="#fff" stroke="#111"/><path d="M307 147 A5 5 0 0 1 307 157 Z" fill="#111"/><text x="317" y="156">VI · sous-dominante</text>
+    <circle cx="458" cy="152" r="5" fill="#fff" stroke="#111"/><path d="M458 147 A5 5 0 0 1 458 157 Z" fill="#111"/><text x="468" y="156">iv · sous-dominante</text>
+    <circle cx="609" cy="152" r="5" fill="#111"/><text x="619" y="156">V · dominante</text>
+  </g>
+
+  <!-- Portée -->
+  <g stroke="#111" stroke-width="1"><path d="M40 196 H800"/><path d="M40 206 H800"/><path d="M40 216 H800"/><path d="M40 226 H800"/><path d="M40 236 H800"/></g>
+  <text x="44" y="226" font-size="22" fill="#111">♯♯</text>
+  <g fill="#111" stroke="#111">
+    <!-- mes. 5 : ré 5, do♯ 5 (blanches) -->
+    <ellipse cx="160" cy="206" rx="6.5" ry="4.5" transform="rotate(-20 160 206)" fill="#fff" stroke-width="1.6"/><path d="M154 208 V237"/>
+    <ellipse cx="230" cy="211" rx="6.5" ry="4.5" transform="rotate(-20 230 211)" fill="#fff" stroke-width="1.6"/><path d="M224 213 V242"/>
+    <!-- mes. 6 : si 4, la 4 -->
+    <ellipse cx="311" cy="216" rx="6.5" ry="4.5" transform="rotate(-20 311 216)" fill="#fff" stroke-width="1.6"/><path d="M305 218 V247"/>
+    <ellipse cx="381" cy="221" rx="6.5" ry="4.5" transform="rotate(-20 381 221)" fill="#fff" stroke-width="1.6"/><path d="M387 219 V190"/>
+    <!-- mes. 7 : sol 4, fa♯ 4 -->
+    <ellipse cx="462" cy="226" rx="6.5" ry="4.5" transform="rotate(-20 462 226)" fill="#fff" stroke-width="1.6"/><path d="M468 224 V195"/>
+    <ellipse cx="532" cy="231" rx="6.5" ry="4.5" transform="rotate(-20 532 231)" fill="#fff" stroke-width="1.6"/><path d="M538 229 V200"/>
+    <!-- mes. 8 : mi 4 (ronde, proposée : entre parenthèses) -->
+    <ellipse cx="613" cy="236" rx="7.5" ry="5" fill="#fff" stroke-width="1.8"/>
+  </g>
+  <text x="597" y="241" font-size="18" fill="#111">(</text><text x="624" y="241" font-size="18" fill="#111">)</text>
+  <text x="680" y="256" font-size="11" fill="#555">gravée depuis le modèle</text>
+
+  <!-- Temps forts et syllabes -->
+  <g fill="#111"><rect x="156" y="262" width="8" height="4"/><rect x="307" y="262" width="8" height="4"/><rect x="458" y="262" width="8" height="4"/><rect x="609" y="262" width="8" height="4"/></g>
+  <g fill="#888"><rect x="227" y="263" width="6" height="2"/><rect x="378" y="263" width="6" height="2"/><rect x="529" y="263" width="6" height="2"/></g>
+  <text x="40" y="267" font-size="10" fill="#555">temps forts</text>
+  <g font-size="16" fill="#111" text-anchor="middle">
+    <text x="160" y="296" font-weight="700">RI-</text>
+    <text x="230" y="296">ver</text>
+    <text x="311" y="296" font-weight="700">TURNS</text>
+    <text x="381" y="296">a-</text>
+    <text x="462" y="296" font-weight="700">WAY</text>
+    <text x="532" y="296" text-decoration="underline">from</text>
+    <text x="613" y="296" font-weight="700" font-style="italic">ME ~</text>
+  </g>
+  <g font-size="11" fill="#555"><text x="40" y="296">syllabes</text><text x="40" y="312">accent lexical en capitales</text></g>
+  <path d="M526 306 L532 316 L538 306 Z" fill="#111"/>
+  <text x="544" y="316" font-size="11" fill="#111">DG-P2 : voyelle réduite tenue sur une blanche</text>
+
+  <!-- Rôles des notes -->
+  <text x="40" y="344" font-size="11" fill="#555">rôle des notes</text>
+  <g stroke="#111" stroke-width="1.2">
+    <circle cx="160" cy="340" r="5" fill="#111"/>
+    <path d="M225 335 L235 345 M235 335 L225 345"/>
+    <circle cx="311" cy="340" r="5" fill="#111"/>
+    <path d="M376 335 L386 345 M386 335 L376 345"/>
+    <circle cx="462" cy="340" r="5" fill="#111"/>
+    <path d="M527 335 L537 345 M537 335 L527 345"/>
+    <circle cx="613" cy="340" r="5" fill="#111"/>
+  </g>
+  <text x="40" y="372" font-size="11" fill="#555">● note de l'accord · ○ tension · × note de passage : relie deux notes d'accord par degrés conjoints, même en neuvième</text>
+
+  <!-- Transformations -->
+  <text x="40" y="414" font-size="13" font-weight="700" fill="#111">Transformer — produit une variante, jamais un remplacement</text>
+  <g font-size="12" fill="#111">
+    <rect x="40" y="426" width="84" height="28" rx="5" fill="#fff" stroke="#111"/><text x="82" y="445" text-anchor="middle">Transposer</text>
+    <rect x="130" y="426" width="84" height="28" rx="5" fill="#fff" stroke="#111"/><text x="172" y="445" text-anchor="middle">Renverser</text>
+    <rect x="220" y="426" width="96" height="28" rx="5" fill="#fff" stroke="#111"/><text x="268" y="445" text-anchor="middle">Rétrograder</text>
+    <rect x="322" y="426" width="86" height="28" rx="5" fill="#fff" stroke="#111"/><text x="365" y="445" text-anchor="middle">Augmenter</text>
+    <rect x="414" y="426" width="80" height="28" rx="5" fill="#fff" stroke="#111"/><text x="454" y="445" text-anchor="middle">Diminuer</text>
+    <rect x="500" y="426" width="72" height="28" rx="5" fill="#fff" stroke="#111"/><text x="536" y="445" text-anchor="middle">Décaler</text>
+    <rect x="578" y="426" width="84" height="28" rx="5" fill="#fff" stroke="#111"/><text x="620" y="445" text-anchor="middle">Séquencer</text>
+    <rect x="668" y="426" width="96" height="28" rx="5" fill="#fff" stroke="#111"/><text x="716" y="445" text-anchor="middle">▶ en boucle</text>
+  </g>
+
+  <!-- Diagnostic de phrase -->
+  <rect x="40" y="476" width="724" height="120" rx="6" fill="#fff" stroke="#111"/>
+  <text x="54" y="500" font-size="13" font-weight="700" fill="#111">Diagnostic de phrase — inventaire d'abord</text>
+  <g font-size="12" fill="#111">
+    <text x="54" y="522">7 syllabes · 7 notes · ambitus : septième (mi 4 – ré 5) · dans la tessiture déclarée · langue : anglais</text>
+    <text x="54" y="546">DG-P1 · absent · les quatre syllabes accentuées tombent sur des temps forts</text>
+    <text x="54" y="566">DG-P2 · présent · mes. 7, « from » : voyelle réduite tenue sur une blanche, difficile à chanter</text>
+    <text x="54" y="586" fill="#555">DG-P7 · information · aucune rime avec la phrase 1</text>
+  </g>
+  <text x="40" y="626" font-size="11" fill="#555">Un constat ne propose rien de lui-même : les pistes se demandent, à droite.</text>
+
+  <!-- Panneau des pistes -->
+  <path d="M820 80 V700" stroke="#bbb"/>
+  <text x="836" y="100" font-size="15" font-weight="700" fill="#111">Pistes — après <tspan font-style="italic" font-weight="400">F♯7 ~</tspan> (mes. 8)</text>
+  <text x="836" y="118" font-size="11" fill="#555">depuis la suite Em – F♯7 ~ (iv – V, F♯7 proposé), en si mineur</text>
+  <g font-size="12" fill="#111">
+    <rect x="832" y="128" width="340" height="56" rx="6" fill="#fff" stroke="#111"/>
+    <text x="846" y="150" font-weight="700">Conclusion franche</text><text x="846" y="170">Bm · V → i</text>
+    <rect x="1040" y="142" width="36" height="26" rx="4" fill="#fff" stroke="#111"/><text x="1058" y="160" text-anchor="middle">▶</text>
+    <rect x="1082" y="142" width="80" height="26" rx="4" fill="#111"/><text x="1122" y="160" fill="#fff" text-anchor="middle">Garder</text>
+
+    <rect x="832" y="190" width="340" height="56" rx="6" fill="#fff" stroke="#111"/>
+    <text x="846" y="212" font-weight="700">Surprise : cadence rompue</text><text x="846" y="232">G · V → VI</text>
+    <rect x="1040" y="204" width="36" height="26" rx="4" fill="#fff" stroke="#111"/><text x="1058" y="222" text-anchor="middle">▶</text>
+    <rect x="1082" y="204" width="80" height="26" rx="4" fill="#111"/><text x="1122" y="222" fill="#fff" text-anchor="middle">Garder</text>
+
+    <rect x="832" y="252" width="340" height="56" rx="6" fill="#fff" stroke="#111"/>
+    <text x="846" y="274" font-weight="700">Suspens prolongé</text><text x="846" y="294">F♯sus4 → F♯7 · retard</text>
+    <rect x="1040" y="266" width="36" height="26" rx="4" fill="#fff" stroke="#111"/><text x="1058" y="284" text-anchor="middle">▶</text>
+    <rect x="1082" y="266" width="80" height="26" rx="4" fill="#111"/><text x="1122" y="284" fill="#fff" text-anchor="middle">Garder</text>
+  </g>
+  <text x="836" y="326" font-size="11" fill="#555">groupées par effet · jamais classées par qualité · gardée : ✦</text>
+
+  <text x="836" y="364" font-size="15" font-weight="700" fill="#111">Rimes pour « me »</text>
+  <g font-size="12" fill="#111">
+    <text x="836" y="386">rimes : see · free · sea · tree</text>
+    <text x="836" y="406">assonances : leave · dream · need</text>
+    <text x="836" y="426" fill="#555">dictionnaire phonétique, hors ligne · 1 syllabe chacune</text>
+  </g>
+
+  <text x="836" y="466" font-size="15" font-weight="700" fill="#111">Variantes de la ligne</text>
+  <text x="836" y="484" font-size="11" fill="#555">ligne : « river turns away from me » · passerelle IA, modèle local</text>
+  <g font-size="12" fill="#111">
+    <rect x="832" y="494" width="340" height="62" rx="6" fill="#fff" stroke="#111"/>
+    <text x="846" y="516" font-style="italic">« river turns away so slow » ~</text>
+    <text x="846" y="536" fill="#555">7 syllabes ✓ · accents ✓ · voyelle tenue ouverte ✓</text>
+    <text x="846" y="550" fill="#555">doctrine « pas de rime ajoutée » ✓</text>
+    <rect x="832" y="562" width="340" height="62" rx="6" fill="#fff" stroke="#111"/>
+    <text x="846" y="584" font-style="italic">« harbour lights go down so low » ~</text>
+    <text x="846" y="604" fill="#555">7 syllabes ✓ · accents ✓ · voyelle tenue ouverte ✓</text>
+    <text x="846" y="618" fill="#555">doctrine « pas de rime ajoutée » ✓</text>
+  </g>
+  <text x="836" y="648" font-size="11" fill="#555">+ 3 autres · 3 rejetées : compte syllabique (2), rime ajoutée (1)</text>
+  <text x="836" y="668" font-size="11" fill="#555">Hors ligne : « disponible à la maison ».</text>
+</svg>

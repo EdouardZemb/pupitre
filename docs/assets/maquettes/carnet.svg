@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 820" width="1000" height="820" font-family="Helvetica, Arial, sans-serif">
+  <title>Maquette — le carnet : capter et accompagner (téléphone)</title>
+  <rect width="1000" height="820" fill="#ffffff"/>
+
+  <!-- ============ Téléphone 1 : capter ============ -->
+  <rect x="80" y="30" width="340" height="720" rx="36" fill="#fff" stroke="#111" stroke-width="3"/>
+  <rect x="220" y="42" width="60" height="6" rx="3" fill="#111"/>
+
+  <text x="108" y="90" font-size="20" font-weight="700" fill="#111">Pupitre</text>
+  <text x="392" y="90" font-size="13" fill="#555" text-anchor="end">Carnet</text>
+  <rect x="106" y="104" width="288" height="30" rx="6" fill="#fff" stroke="#111"/>
+  <text x="250" y="124" font-size="13" fill="#111" text-anchor="middle">⊘ Hors ligne · 3 captations à envoyer</text>
+
+  <!-- le bouton occupe le tiers de l'écran -->
+  <circle cx="250" cy="280" r="104" fill="#111"/>
+  <circle cx="250" cy="246" r="15" fill="#fff"/>
+  <text x="250" y="298" font-size="22" font-weight="700" fill="#fff" text-anchor="middle">Enregistrer</text>
+  <text x="250" y="322" font-size="12" fill="#bbb" text-anchor="middle">aucun nom demandé</text>
+
+  <g font-size="16" fill="#111" text-anchor="middle">
+    <rect x="106" y="404" width="138" height="44" rx="8" fill="#fff" stroke="#111" stroke-width="1.5"/><text x="175" y="432">Aa  Texte</text>
+    <rect x="256" y="404" width="138" height="44" rx="8" fill="#fff" stroke="#111" stroke-width="1.5"/><text x="325" y="432">▣  Photo</text>
+  </g>
+
+  <text x="108" y="484" font-size="14" font-weight="700" fill="#111">Dernières captations</text>
+  <g stroke="#e2e2e2"><path d="M106 538 H394"/><path d="M106 582 H394"/><path d="M106 626 H394"/></g>
+  <g fill="#111">
+    <text x="110" y="520" font-size="16">◉</text>
+    <text x="136" y="514" font-size="14">Prise · 0:42</text>
+    <text x="136" y="530" font-size="11" fill="#555">il y a 2 min · à envoyer</text>
+
+    <text x="110" y="564" font-size="13" font-weight="700">Aa</text>
+    <text x="136" y="558" font-size="14">« quiet engine in the rain… »</text>
+    <text x="136" y="574" font-size="11" fill="#555">hier, 23:10 · texte</text>
+
+    <text x="110" y="608" font-size="16">▣</text>
+    <text x="136" y="602" font-size="14">Photo</text>
+    <text x="136" y="618" font-size="11" fill="#555">hier, 18:02 · à envoyer</text>
+
+    <text x="110" y="652" font-size="16">◉</text>
+    <text x="136" y="646" font-size="14">Prise · 3:05</text>
+    <text x="136" y="662" font-size="11" fill="#555">hier, 17:40 · rattachée à Low Tide · à envoyer</text>
+  </g>
+
+  <path d="M94 690 H406" stroke="#111"/>
+  <g font-size="13" fill="#111" text-anchor="middle">
+    <text x="150" y="716" font-weight="700">Capter</text><path d="M124 722 H176" stroke="#111" stroke-width="2"/>
+    <text x="250" y="716">Compagnon</text>
+    <text x="350" y="716">Fonds</text>
+  </g>
+  <rect x="200" y="736" width="100" height="4" rx="2" fill="#111"/>
+
+  <!-- ============ Téléphone 2 : compagnon ============ -->
+  <rect x="580" y="30" width="340" height="720" rx="36" fill="#fff" stroke="#111" stroke-width="3"/>
+  <rect x="720" y="42" width="60" height="6" rx="3" fill="#111"/>
+
+  <text x="608" y="90" font-size="20" font-weight="700" fill="#111">Compagnon</text>
+  <text x="892" y="90" font-size="13" fill="#555" text-anchor="end">Low Tide</text>
+  <rect x="606" y="104" width="288" height="30" rx="6" fill="#fff" stroke="#111"/>
+  <text x="750" y="124" font-size="13" fill="#111" text-anchor="middle">« Garder » insère à : Couplet 1 › mesure 6</text>
+
+  <text x="750" y="178" font-size="13" fill="#555" text-anchor="middle">dernier accord entendu</text>
+  <text x="750" y="268" font-size="84" font-weight="700" font-style="italic" fill="#111" text-anchor="middle">F♯m7<tspan font-size="60"> ~</tspan></text>
+
+  <!-- confiance calibrée, dite en fréquence -->
+  <g stroke="#111" stroke-width="1.5">
+    <circle cx="678" cy="304" r="5" fill="#111"/><circle cx="694" cy="304" r="5" fill="#111"/><circle cx="710" cy="304" r="5" fill="#111"/><circle cx="726" cy="304" r="5" fill="#111"/><circle cx="742" cy="304" r="5" fill="#111"/><circle cx="758" cy="304" r="5" fill="#111"/><circle cx="774" cy="304" r="5" fill="#111"/><circle cx="790" cy="304" r="5" fill="#111"/><circle cx="806" cy="304" r="5" fill="#fff"/><circle cx="822" cy="304" r="5" fill="#fff"/>
+  </g>
+  <text x="750" y="332" font-size="13" fill="#111" text-anchor="middle">juste environ 8 fois sur 10</text>
+
+  <text x="750" y="378" font-size="13" fill="#555" text-anchor="middle">autre lecture : <tspan font-size="20" font-style="italic" fill="#111">A6/F♯ ~</tspan></text>
+  <text x="750" y="410" font-size="12" fill="#555" text-anchor="middle">basse entendue : fa♯</text>
+  <text x="750" y="428" font-size="12" fill="#555" text-anchor="middle">notes : fa♯ · la · do♯ · mi</text>
+
+  <g font-size="14" fill="#111" text-anchor="middle">
+    <rect x="596" y="456" width="148" height="40" rx="8" fill="#fff" stroke="#111"/><text x="670" y="481">Accordeur</text>
+    <rect x="756" y="456" width="148" height="40" rx="8" fill="#fff" stroke="#111"/><text x="830" y="481">Métronome · <tspan font-style="italic">72 ~</tspan></text>
+    <rect x="596" y="512" width="308" height="44" rx="8" fill="#fff" stroke="#111" stroke-width="1.5"/><text x="750" y="540" font-size="16">Rejouer</text>
+  </g>
+  <!-- « Garder » sur toute la largeur : se touche sans viser -->
+  <rect x="594" y="572" width="312" height="100" rx="12" fill="#111"/>
+  <text x="750" y="632" font-size="30" font-weight="700" fill="#fff" text-anchor="middle">Garder</text>
+
+  <path d="M594 690 H906" stroke="#111"/>
+  <g font-size="13" fill="#111" text-anchor="middle">
+    <text x="650" y="716">Capter</text>
+    <text x="750" y="716" font-weight="700">Compagnon</text><path d="M712 722 H788" stroke="#111" stroke-width="2"/>
+    <text x="850" y="716">Fonds</text>
+  </g>
+  <rect x="700" y="736" width="100" height="4" rx="2" fill="#111"/>
+
+  <!-- Légendes -->
+  <g font-size="13" fill="#111" text-anchor="middle">
+    <text x="250" y="782">Capter : un toucher, rien à remplir, hors ligne</text>
+    <text x="750" y="782">Compagnon : lisible à un mètre, « Garder » sans viser</text>
+  </g>
+  <text x="500" y="808" font-size="11" fill="#555" text-anchor="middle">droit : décidé · italique et ~ : proposé, rien n'est inséré sans « Garder » · ◉ prise · Aa texte · ▣ photo</text>
+</svg>
