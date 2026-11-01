@@ -781,9 +781,6 @@ struct Accord {
     appuis: &'static [u8],
     tensions: &'static [u8],
     frottent: &'static [u8],
-    /// La fondamentale sur la portée : sa note naturelle (do = 0 … si = 6) et
-    /// son octave (do 3 = MIDI 60).
-    portee: (u8, i8),
 }
 
 const ACCORDS: [Accord; 7] = [
@@ -798,7 +795,6 @@ const ACCORDS: [Accord; 7] = [
         appuis: &[9, 0, 4],
         tensions: &[11, 2],
         frottent: &[5, 7],
-        portee: (5, 3),
     },
     Accord {
         nom: "B°",
@@ -811,7 +807,6 @@ const ACCORDS: [Accord; 7] = [
         appuis: &[11, 2, 5],
         tensions: &[4],
         frottent: &[0, 7, 9],
-        portee: (6, 2),
     },
     Accord {
         nom: "C",
@@ -824,7 +819,6 @@ const ACCORDS: [Accord; 7] = [
         appuis: &[0, 4, 7],
         tensions: &[2, 9],
         frottent: &[5, 11],
-        portee: (0, 3),
     },
     Accord {
         nom: "Dm",
@@ -837,7 +831,6 @@ const ACCORDS: [Accord; 7] = [
         appuis: &[2, 5, 9],
         tensions: &[4, 7, 11],
         frottent: &[0],
-        portee: (1, 3),
     },
     Accord {
         nom: "Em",
@@ -850,7 +843,6 @@ const ACCORDS: [Accord; 7] = [
         appuis: &[4, 7, 11],
         tensions: &[9],
         frottent: &[5, 0, 2],
-        portee: (2, 3),
     },
     Accord {
         nom: "F",
@@ -863,7 +855,6 @@ const ACCORDS: [Accord; 7] = [
         appuis: &[5, 9, 0],
         tensions: &[7, 11, 2],
         frottent: &[4],
-        portee: (3, 3),
     },
     Accord {
         nom: "G",
@@ -876,7 +867,6 @@ const ACCORDS: [Accord; 7] = [
         appuis: &[7, 11, 2],
         tensions: &[9, 4],
         frottent: &[0, 5],
-        portee: (4, 3),
     },
 ];
 
@@ -939,10 +929,18 @@ const PALETTE_CLAVIER_H: f32 = 9.5;
 const PALETTE_NOIRE_H: f32 = 6.0;
 // La palette sur le clavier, neuf touches blanches, tient dans sa colonne.
 const _: () = assert!(9.0 * TOUCHE <= COLONNE);
-// La portée.
-const ESPACE: f32 = 1.6;
+// La portée, sans clé, sur la largeur utile de la colonne.
+const ESPACE: f32 = 1.8;
+const LARGEUR_PORTEE: f32 = COLONNE - 2.0 * RETRAIT;
+/// Le jour entre deux noms voisins d'une même ligne, sous la portée.
+const JOUR_NOMS: f32 = 1.0;
+/// Le pas des sept notes : deux noms d'une même ligne sont à deux pas, et ceux
+/// des notes extrêmes ne débordent pas la portée (2 × (pas − jour / 2) + 6 pas).
+const PAS_NOTES: f32 = (LARGEUR_PORTEE + JOUR_NOMS) / 8.0;
+/// La chasse la plus large qu'un nom de note peut prendre.
+const NOM_DE_NOTE: f32 = 2.0 * PAS_NOTES - JOUR_NOMS;
 // Les blancs du verso, entre deux diagrammes et après une ligne de titre.
-const ENTRE_BLOCS: f32 = 3.2;
+const ENTRE_BLOCS: f32 = 4.5;
 const APRES_NOM: f32 = 1.5;
 /// La place d'une marque devant le texte qu'elle précède.
 const DEVANT_TEXTE: f32 = 3.2;
@@ -1170,101 +1168,48 @@ fn palette_clavier(f: &mut Feuille, a: &Accord) {
     }
 }
 
-/// La palette sur une portée d'une octave, en clé de sol : les sept notes à
-/// partir de la fondamentale, chacune par la forme de son rôle.
-fn portee(f: &mut Feuille, a: &Accord, largeur: f32) {
-    // La portée : le haut à y = 0, la ligne du bas (mi 3) à 4 espaces.
+/// Les sept notes de la palette, de la fondamentale vers l'aigu, de note
+/// naturelle en note naturelle (les sept accords du centre n'en ont pas d'autre).
+fn notes_de_la_portee(a: &Accord) -> [u8; 7] {
+    let racine = NATURELLES
+        .iter()
+        .position(|c| *c == a.clavier[0] % 12)
+        .expect("la fondamentale est une note naturelle");
+    std::array::from_fn(|i| NATURELLES[(racine + i) % 7])
+}
+
+/// La palette sur une portée d'une octave, sans clé : sans clé, la portée ne dit
+/// pas la hauteur absolue. La fondamentale est donc toujours dans le premier
+/// interligne, et les six autres notes montent de degré en degré, chacune par la
+/// forme de son rôle. Le nom de chaque note est dessous, à 11 pt, sur deux lignes
+/// alternées : sept noms ne tiennent pas sur une seule.
+fn portee(f: &mut Feuille, a: &Accord) {
+    let t = Corps::MIN;
     for k in 0..5 {
         let y = k as f32 * ESPACE;
-        f.ligne((0.0, y), (largeur, y), TRAIT_FIN);
+        f.ligne((0.0, y), (LARGEUR_PORTEE, y), TRAIT_FIN);
     }
-    cle_de_sol(f, (2.3, 3.0 * ESPACE));
-    let (lettre, octave) = a.portee;
-    // Le degré sur la portée, depuis la ligne du bas (mi 3 = 0).
-    let depart = (i32::from(octave) - 3) * 7 + i32::from(lettre) - 2;
-    for i in 0..7u8 {
-        let degre = depart + i32::from(i);
-        let classe = NATURELLES[usize::from((lettre + i) % 7)];
-        let x = 7.0 + f32::from(i) * 2.75;
+    for (i, classe) in notes_de_la_portee(a).into_iter().enumerate() {
+        let x = PAS_NOTES - JOUR_NOMS / 2.0 + i as f32 * PAS_NOTES;
+        // Depuis la ligne du bas : le premier interligne, puis un degré par note.
+        let degre = 1 + i;
         let y = 4.0 * ESPACE - degre as f32 * ESPACE / 2.0;
-        // Les lignes supplémentaires, sous la portée.
-        let mut d = -2;
-        while d >= degre {
-            let yl = 4.0 * ESPACE - d as f32 * ESPACE / 2.0;
-            f.ligne((x - 1.3, yl), (x + 1.3, yl), TRAIT_MOYEN);
-            d -= 2;
-        }
         if let Some(role) = a.role(classe) {
-            marque(f, role, (x, y), 0.78);
+            marque(f, role, (x, y), 0.85);
         }
+        let haut = 4.0 * ESPACE + 0.6 + (i % 2) as f32 * interligne(&t);
+        f.texte_centre(
+            SOLFEGE[usize::from(classe)],
+            &t,
+            x,
+            haut + jusqua_la_base(&t),
+        );
     }
 }
 
-/// Une clé de sol tracée, son enroulement centré sur la ligne de sol.
-fn cle_de_sol(f: &mut Feuille, sol: (f32, f32)) {
-    const POINTS: [(f32, f32); 28] = [
-        (0.12, 0.42),
-        (0.75, 0.40),
-        (0.80, -0.55),
-        (0.10, -0.62),
-        (-0.65, -0.66),
-        (-0.95, 0.20),
-        (-0.55, 0.75),
-        (-0.15, 1.30),
-        (0.95, 1.20),
-        (1.05, 0.30),
-        (1.15, -0.55),
-        (0.45, -1.15),
-        (-0.15, -1.75),
-        (-0.75, -2.40),
-        (-0.65, -3.40),
-        (-0.20, -4.00),
-        (0.05, -4.35),
-        (0.55, -4.50),
-        (0.55, -3.95),
-        (0.55, -3.10),
-        (-0.20, -2.70),
-        (-0.05, -1.90),
-        (-0.05, -1.90),
-        (0.30, 2.10),
-        (0.30, 2.10),
-        (0.38, 2.70),
-        (-0.20, 2.95),
-        (-0.55, 2.55),
-    ];
-    let p = |(x, y): (f32, f32)| format!("{} {}", n(sol.0 + x * ESPACE), n(sol.1 + y * ESPACE));
-    let mut d = format!("M{}", p(POINTS[0]));
-    for trio in POINTS[1..].chunks(3) {
-        d.push_str(&format!("C{} {} {}", p(trio[0]), p(trio[1]), p(trio[2])));
-    }
-    f.chemin(d, None, Some((Couleur::Noir, 0.28)));
-    f.cercle(
-        (sol.0 - 0.42 * ESPACE, sol.1 + 2.42 * ESPACE),
-        0.28 * ESPACE,
-        Some(Couleur::Noir),
-        None,
-    );
-}
-
-/// La hauteur de la portée et de sa clé : 1,5 espace au-dessus, 2 au-dessous.
+/// La portée et ses deux lignes de noms.
 fn hauteur_portee() -> f32 {
-    7.5 * ESPACE
-}
-
-/// Les noms de la palette, en solfège, une ligne par rôle, précédée de sa forme.
-fn noms_de_la_palette(a: &Accord) -> [(Role, String); 3] {
-    let noms = |classes: &[u8]| {
-        classes
-            .iter()
-            .map(|c| SOLFEGE[usize::from(*c)])
-            .collect::<Vec<_>>()
-            .join(" ")
-    };
-    [
-        (Role::Appui, noms(a.appuis)),
-        (Role::Tension, noms(a.tensions)),
-        (Role::Frotte, noms(a.frottent)),
-    ]
+    4.0 * ESPACE + 0.6 + 2.0 * interligne(&Corps::MIN)
 }
 
 fn verso(date: &Date) -> Result<(PageDuCahier, Vec<String>), ErreurTemoin> {
@@ -1275,17 +1220,20 @@ fn verso(date: &Date) -> Result<(PageDuCahier, Vec<String>), ErreurTemoin> {
     let titre_palette = "palette :";
     let fin_max = ACCORDS.iter().map(Accord::fin_de_zone).max().unwrap_or(0);
     let h_palette_manche = RANG_A_VIDE + f32::from(fin_max) * CASE_PALETTE;
-    let mut noms = Vec::new();
+    // Chaque nom de note tient dans sa place sous la portée, ou c'est un mot trop long.
     for a in &ACCORDS {
-        let mut lignes = Vec::new();
-        for (role, l) in noms_de_la_palette(a) {
-            for ligne in couper(&l, &t, COLONNE - 2.0 * RETRAIT - DEVANT_TEXTE)? {
-                lignes.push((role, ligne));
+        for classe in notes_de_la_portee(a) {
+            let mot = SOLFEGE[usize::from(classe)];
+            let c = chasse(mot, &t);
+            if c > NOM_DE_NOTE {
+                return Err(ErreurTemoin::MotTropLong(MotTropLong {
+                    mot: mot.to_string(),
+                    chasse: c,
+                    largeur: NOM_DE_NOTE,
+                }));
             }
         }
-        noms.push(lignes);
     }
-    let h_noms = noms.iter().map(Vec::len).max().unwrap_or(0) as f32 * il;
 
     // La mise en page, de haut en bas, commune aux sept colonnes.
     let y_filet = MARGE_V + entete.len() as f32 * il + SOUS_FILET / 2.0;
@@ -1295,16 +1243,15 @@ fn verso(date: &Date) -> Result<(PageDuCahier, Vec<String>), ErreurTemoin> {
     let y_legende = y_clavier + hauteur_clavier() + ENTRE_BLOCS;
     let y_palette = y_legende + 2.0 * SOUS_FILET + il + APRES_NOM + RANG_A_VIDE;
     let y_palette_clavier = y_palette - RANG_A_VIDE + h_palette_manche + ENTRE_BLOCS;
-    let y_portee = y_palette_clavier + PALETTE_CLAVIER_H + ENTRE_BLOCS + 1.5 * ESPACE;
-    let y_noms = y_portee - 1.5 * ESPACE + hauteur_portee() + APRES_NOM;
-    let hauteur = y_noms + h_noms - MARGE_V + hauteur_pied(&pied_l);
+    let y_portee = y_palette_clavier + PALETTE_CLAVIER_H + ENTRE_BLOCS;
+    let hauteur = y_portee + hauteur_portee() - MARGE_V + hauteur_pied(&pied_l);
     deborde("le verso de la mineur", hauteur)?;
 
     let mut f = Feuille::default();
     f.lignes(&entete, MARGE_H, MARGE_V);
     f.filet(y_filet);
 
-    for (col, (a, lignes)) in ACCORDS.iter().zip(&noms).enumerate() {
+    for (col, a) in ACCORDS.iter().enumerate() {
         let x = x_colonne(col);
         let cx = x + COLONNE / 2.0;
         // Le nom à 14 pt et le chiffre à 11 pt, centrés ensemble.
@@ -1327,21 +1274,7 @@ fn verso(date: &Date) -> Result<(PageDuCahier, Vec<String>), ErreurTemoin> {
         f.groupe("clavier", (cx - l_palette / 2.0, y_palette_clavier), |g| {
             palette_clavier(g, a);
         });
-        let l_portee = COLONNE - 1.0;
-        f.groupe("portee", (cx - l_portee / 2.0, y_portee), |g| {
-            portee(g, a, l_portee);
-        });
-        for (k, (role, ligne)) in lignes.iter().enumerate() {
-            let haut = y_noms + k as f32 * il;
-            let base = haut + jusqua_la_base(&t);
-            marque(
-                &mut f,
-                *role,
-                (x + RETRAIT + 1.0, base - mi_capitale(&t)),
-                1.0,
-            );
-            f.texte(ligne, &t, x + RETRAIT + DEVANT_TEXTE, base);
-        }
+        f.groupe("portee", (x + RETRAIT, y_portee), |g| portee(g, a));
     }
 
     // La ligne qui sépare le doigté de la palette, et dit ses formes.
@@ -1386,6 +1319,14 @@ mod tests {
                 assert!(glyphe_present(c), "{c:?} manque à DejaVu Sans, dans {t:?}");
             }
         }
+    }
+
+    #[test]
+    fn la_portee_part_de_la_fondamentale_et_monte_de_note_en_note() {
+        // la mineur : la si do ré mi fa sol ; si diminué : si do ré mi fa sol la.
+        assert_eq!(notes_de_la_portee(&ACCORDS[0]), [9, 11, 0, 2, 4, 5, 7]);
+        assert_eq!(notes_de_la_portee(&ACCORDS[1]), [11, 0, 2, 4, 5, 7, 9]);
+        assert!(chasse("sol", &Corps::MIN) <= NOM_DE_NOTE);
     }
 
     #[test]
