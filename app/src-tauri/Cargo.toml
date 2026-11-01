@@ -1,0 +1,16 @@
+[package]
+name = "etabli"
+description = "L'établi de pupitre : l'application de bureau et d'appareil, en Tauri 2"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+
+[lib]
+name = "etabli_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.4", features = [] }
+
+[dependencies]
+tauri = { version = "2.12.5", features = [] }

@@ -57,3 +57,5 @@ desktop.ini
 
 # Rust
 target/
+app/ui/dist/
+app/src-tauri/gen/

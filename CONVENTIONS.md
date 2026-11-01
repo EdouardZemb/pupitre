@@ -88,8 +88,8 @@ jamais dans ce dépôt ») :
 
 ## Portes de CI
 
-**Cinq, aujourd'hui.** Chacune marque la PR en échec. La règle de protection (voir plus bas)
-n'exige que les deux contrôles du socle ; `contenu`, `documentation` et `verifier` ne la bloquent pas : on ne
+**Six, aujourd'hui.** Chacune marque la PR en échec. La règle de protection (voir plus bas)
+n'exige que les deux contrôles du socle ; `contenu`, `documentation`, `verifier` et `windows` ne la bloquent pas : on ne
 fusionne pas une PR rouge.
 
 | Porte | Ce qu'elle refuse | Script | Pourquoi elle existe |
@@ -98,7 +98,8 @@ fusionne pas une PR rouge.
 | `socle / confidentialite` | Une donnée d'identité dans le diff, les messages de commit ou le texte de la PR | [`scripts/modele/confidentialite.py`](scripts/modele/confidentialite.py) | Le modèle protège tous ses dépôts de la même façon |
 | `contenu` | Une donnée personnelle dans les fichiers du dépôt : e-mail, secret, export de mémoire, fichier audio ou MIDI, chemin absolu de machine | [`verif-confidentialite.sh`](scripts/verif-confidentialite.sh) | Le dépôt ne doit rien dire de personne. Nommée `contenu` pour ne pas se confondre avec `socle / confidentialite` |
 | `documentation` | Un diagramme qui ne se rend pas ; un lien interne ou une ancre qui ne mène nulle part | [`verif-diagrammes.mjs`](scripts/verif-diagrammes.mjs), [`verif-liens.mjs`](scripts/verif-liens.mjs) | Pendant la refonte d'octobre 2026, des diagrammes se sont cassés sur leur syntaxe ; sur GitHub, un diagramme cassé s'affiche comme un message d'erreur |
-| `verifier` | Un code Rust mal formaté, un avertissement de `clippy`, un test rouge (le noyau, le cahier) ; il dépose aussi la fiche témoin d'H09 en artefact, `fiche-temoin` | `cargo fmt`, `cargo clippy`, `cargo test` | Le noyau calcule la théorie et dessine les pages : une erreur y fausse tous les rendus. La chaîne est épinglée par `rust-toolchain.toml` |
+| `verifier` | Un code Rust mal formaté, un avertissement de `clippy`, un test rouge (le noyau, le cahier, l'interface, dont `clippy` pour WebAssembly) ; il dépose aussi la fiche témoin d'H09 en artefact, `fiche-temoin` | `cargo fmt`, `cargo clippy`, `cargo test` | Le noyau calcule la théorie et dessine les pages : une erreur y fausse tous les rendus. La chaîne est épinglée par `rust-toolchain.toml` |
+| `windows` | Un établi qui ne se construit pas en installateur Windows (NSIS), ou un avertissement de `clippy` sur l'établi ; il dépose l'installateur en artefact, `etabli-installateur` | `cargo tauri build`, `cargo clippy -p etabli` | H10 : l'application doit s'ouvrir sur un PC Windows, et seule une construction sur Windows le prouve. Son `timeout-minutes` vaut deux fois la durée du premier passage mesuré (LE-29 de `modele-projet`) |
 
 `contenu` et `documentation` ignorent les chemins gérés par le modèle (`.githooks/`,
 `scripts/modele/`, `docs/modele/`, `.github/modele/`, `.github/workflows/modele-*.yml`,
@@ -117,7 +118,8 @@ npx --no-install puppeteer browsers install chrome    # une fois, ou CHROME_PATH
 node scripts/verif-diagrammes.mjs
 cargo fmt --all --check
 cargo clippy -p noyau -p cahier --all-targets -- -D warnings
-cargo test -p noyau -p cahier
+cargo clippy -p interface --target wasm32-unknown-unknown -- -D warnings
+cargo test -p noyau -p cahier -p interface
 ```
 
 **Une porte se corrige par le document qu'elle refuse**, pas en l'affaiblissant à son
