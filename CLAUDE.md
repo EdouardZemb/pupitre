@@ -11,8 +11,8 @@ Ce dépôt porte la conception d'une application d'aide à la composition, écri
 - Le dépôt est né le 01/11/2026, d'un seul commit, de la scission de pupitre (M-0006 § 7). L'historique de la conception jusque-là, ses PR #1 à #15 et l'étiquette `v0.1.0` restent dans le dépôt privé `pupitre-donnees`.
 - La conception est écrite : `docs/10-vision.md` à `docs/90-questions-ouvertes.md`, et 21 ADR dans `docs/adr/` (10 acceptées, 8 proposées, 3 remplacées). La pile est Rust (ADR-019 à 021) ; la table de la tonalité est conçue (MIC-12, MIC-13, MOR-14, REN-08, ADR-018).
 - Le dépôt est né de `modele-projet` v0.7.1 : nature `code`, cible `aucune`, fusion `session`.
-- Le lot C est en cours : après la naissance du dépôt, l'issue d'INC-0 et la PR de son plan. Le plan s'écrit d'après la spec d'INC-0 du 01/11, que la session reçoit d'Edouard ; il dit lui-même ce qui doit survivre.
-- Aucune ligne de code encore : INC-0 s'ouvre par les essais H09 et H10 (§ 40 · 11).
+- Le lot C s'est clos sur le plan d'INC-0 : l'issue #1, sous la milestone « INC-0 · la table », et `.claude/plans/inc-0-la-table.md`. Le plan recopie les décisions de la spec d'INC-0 du 01/11, qui vit hors du dépôt, avec les corrections tranchées en l'écrivant (la page en paysage, les doigtés par les formes du recueil). Il dit lui-même ce qui doit survivre à la clôture.
+- Aucune ligne de code encore : INC-0 s'ouvre par les essais H09 et H10 (§ 40 · 11), la PR 2 du plan.
 
 ## Commandes
 
