@@ -91,8 +91,8 @@ jobs:
   # suivant ne les recompile pas. Pas d'action de binaires prébâtis : une action de moins à épingler.
   windows:
     runs-on: windows-latest
-    # Provisoire (60) : à fixer à deux fois la durée du premier passage mesuré (LE-29 de modele-projet).
-    timeout-minutes: 60
+    # Deux fois le premier passage mesuré, à froid : 19 min 28 s le 2026-11-01, PR #3 (LE-29 de modele-projet).
+    timeout-minutes: 40
     permissions:
       contents: read
     steps:
