@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/noyau"]
+members = ["crates/noyau", "crates/cahier"]
 resolver = "3"
 
 [workspace.package]

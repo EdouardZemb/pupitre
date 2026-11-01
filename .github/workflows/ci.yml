@@ -55,7 +55,9 @@ jobs:
       - name: Vérification des diagrammes
         run: node scripts/verif-diagrammes.mjs
 
-  # Le code Rust : format, lint, tests du noyau. La chaîne vient de rust-toolchain.toml.
+  # Le code Rust : format, lint, tests du noyau et du cahier, puis la fiche témoin
+  # d'H09, déposée en artefact pour l'essai sur la tablette et à l'impression.
+  # La chaîne vient de rust-toolchain.toml.
   verifier:
     runs-on: ubuntu-latest
     permissions:
@@ -69,8 +71,15 @@ jobs:
       - name: Format
         run: cargo fmt --all --check
       - name: Lint
-        run: cargo clippy -p noyau --all-targets -- -D warnings
+        run: cargo clippy -p noyau -p cahier --all-targets -- -D warnings
       - name: Tests
-        run: cargo test -p noyau
+        run: cargo test -p noyau -p cahier
+      - name: Fiche témoin d'H09
+        run: cargo run -p cahier --example temoin -- fiche-temoin.pdf
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fiche-temoin
+          path: fiche-temoin.pdf
+          if-no-files-found: error
 
 # Ce fichier est au projet : `copier update` n'y touche plus.

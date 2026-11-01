@@ -262,7 +262,7 @@ pas dans ce budget.
 | Application | Une bibliothèque d'inférence ONNX en Rust, choisie au banc (H04) | Transcrire un fredonnement |
 | Noyau | Une crate d'identifiants ULID | Identifiants stables ([§ 30](30-modele-de-domaine.md)) |
 | Noyau | `ttf-parser` | Lire les contours des glyphes de DejaVu Sans, pour écrire le texte des pages en tracés ([§ 50 · 3.7](50-interfaces-et-appareils.md#37-la-table-de-la-tonalité)) |
-| Nœud, établi | `svg2pdf` | PDF, depuis les pages SVG |
+| Nœud, établi | `svg2pdf`, `pdf-writer` | PDF, depuis les pages SVG : `svg2pdf` convertit chaque page, `pdf-writer` les assemble avec leurs liens (le cahier des tables, crate `cahier`) |
 | Nœud | `axum` | HTTP et WebSocket : captations, appairage, synchronisation, passerelle |
 | Nœud | Une pile TLS et un échange PAKE, éprouvés | La clé du nœud et l'appairage ([ADR-021](adr/adr-021-cle-du-noeud-epinglee.md)) |
 | Analyseur | demucs, beat-this, librosa, faster-whisper, pymupdf ; basic-pitch dans son propre environnement ; essentia, facultatif | Analyse lourde, encre des PDF — isolés dans leur conteneur |
