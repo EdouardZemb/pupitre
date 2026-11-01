@@ -257,7 +257,6 @@ pas dans ce budget.
 |---|---|---|
 | Application | `leptos` | Interface |
 | Application | `tauri`, et ses greffons pour les fichiers et le micro | Applications |
-| Application | `wasm-bindgen`, `wasm-bindgen-futures`, `js-sys`, `serde`, `serde-wasm-bindgen` | Les crates de liaison que la pile impose : l'appel du navigateur et de l'établi depuis l'interface en WebAssembly |
 | Application, nœud | `automerge` | Documents, synchronisation |
 | Application | Verovio, en WebAssembly | Portée, à partir d'INC-2 |
 | Application | Une bibliothèque d'inférence ONNX en Rust, choisie au banc (H04) | Transcrire un fredonnement |
