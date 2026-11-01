@@ -54,3 +54,6 @@ desktop.ini
 
 # Ajouté par le modèle
 .venv/
+
+# Rust
+target/

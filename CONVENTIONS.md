@@ -88,8 +88,8 @@ jamais dans ce dépôt ») :
 
 ## Portes de CI
 
-**Quatre, aujourd'hui.** Chacune marque la PR en échec. La règle de protection (voir plus bas)
-n'exige que les deux contrôles du socle ; `contenu` et `documentation` ne la bloquent pas : on ne
+**Cinq, aujourd'hui.** Chacune marque la PR en échec. La règle de protection (voir plus bas)
+n'exige que les deux contrôles du socle ; `contenu`, `documentation` et `verifier` ne la bloquent pas : on ne
 fusionne pas une PR rouge.
 
 | Porte | Ce qu'elle refuse | Script | Pourquoi elle existe |
@@ -98,13 +98,13 @@ fusionne pas une PR rouge.
 | `socle / confidentialite` | Une donnée d'identité dans le diff, les messages de commit ou le texte de la PR | [`scripts/modele/confidentialite.py`](scripts/modele/confidentialite.py) | Le modèle protège tous ses dépôts de la même façon |
 | `contenu` | Une donnée personnelle dans les fichiers du dépôt : e-mail, secret, export de mémoire, fichier audio ou MIDI, chemin absolu de machine | [`verif-confidentialite.sh`](scripts/verif-confidentialite.sh) | Le dépôt ne doit rien dire de personne. Nommée `contenu` pour ne pas se confondre avec `socle / confidentialite` |
 | `documentation` | Un diagramme qui ne se rend pas ; un lien interne ou une ancre qui ne mène nulle part | [`verif-diagrammes.mjs`](scripts/verif-diagrammes.mjs), [`verif-liens.mjs`](scripts/verif-liens.mjs) | Pendant la refonte d'octobre 2026, des diagrammes se sont cassés sur leur syntaxe ; sur GitHub, un diagramme cassé s'affiche comme un message d'erreur |
+| `verifier` | Un code Rust mal formaté, un avertissement de `clippy`, un test rouge (le noyau) | `cargo fmt`, `cargo clippy`, `cargo test` | Le noyau calcule la théorie et dessine les pages : une erreur y fausse tous les rendus. La chaîne est épinglée par `rust-toolchain.toml` |
 
 `contenu` et `documentation` ignorent les chemins gérés par le modèle (`.githooks/`,
 `scripts/modele/`, `docs/modele/`, `.github/modele/`, `.github/workflows/modele-*.yml`,
 `.claude/skills/consigner/`) : ils sont l'affaire de `socle`.
 
-Pas de lint, pas de matrice, pas de release. On ajoutera une porte quand il y aura du code à
-protéger, et une seule à la fois
+Pas de matrice, pas de release. On ajoute une porte à la fois, quand il y a du code à protéger
 ([§ 70 · 8](docs/70-qualite-et-verification.md#8-les-portes-de-ci)).
 
 Les lancer avant de pousser :
@@ -115,6 +115,9 @@ node scripts/verif-liens.mjs
 npm install --no-save --no-package-lock @mermaid-js/mermaid-cli@12.0.0   # une fois
 npx --no-install puppeteer browsers install chrome    # une fois, ou CHROME_PATH=…
 node scripts/verif-diagrammes.mjs
+cargo fmt --all --check
+cargo clippy -p noyau --all-targets -- -D warnings
+cargo test -p noyau
 ```
 
 **Une porte se corrige par le document qu'elle refuse**, pas en l'affaiblissant à son

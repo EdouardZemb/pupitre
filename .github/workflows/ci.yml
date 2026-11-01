@@ -55,5 +55,22 @@ jobs:
       - name: Vérification des diagrammes
         run: node scripts/verif-diagrammes.mjs
 
-# Les vérifications propres au projet (tests, lint, construction) s'ajoutent ici, dans un job `verifier`.
+  # Le code Rust : format, lint, tests du noyau. La chaîne vient de rust-toolchain.toml.
+  verifier:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Depuis rustup 1.28, `rustup show` n'installe plus la chaîne.
+      - name: Installer la chaîne de rust-toolchain.toml
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Lint
+        run: cargo clippy -p noyau --all-targets -- -D warnings
+      - name: Tests
+        run: cargo test -p noyau
+
 # Ce fichier est au projet : `copier update` n'y touche plus.
