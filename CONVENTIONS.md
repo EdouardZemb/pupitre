@@ -88,8 +88,9 @@ jamais dans ce dépôt ») :
 
 ## Portes de CI
 
-**Quatre, aujourd'hui.** Chacune marque la PR en échec. Faute de protection de branche
-(voir plus bas), GitHub n'empêche pas la fusion : on ne fusionne pas une PR rouge.
+**Quatre, aujourd'hui.** Chacune marque la PR en échec. La règle de protection (voir plus bas)
+n'exige que les deux contrôles du socle ; `contenu` et `documentation` ne la bloquent pas : on ne
+fusionne pas une PR rouge.
 
 | Porte | Ce qu'elle refuse | Script | Pourquoi elle existe |
 |---|---|---|---|
