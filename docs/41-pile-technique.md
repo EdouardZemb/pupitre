@@ -240,10 +240,26 @@ couche en étoile est maison (A21).
 La mise en page maison calcule des pages SVG de taille fixe, identiques à l'écran du lutrin
 et à l'impression ; le PDF n'en est que la conversion. **Typst** est un excellent moteur de
 composition, mais il mettrait les pages en page une seconde fois : deux paginations à tenir
-identiques (A20). `svg2pdf` ne couvre pas tout SVG : la mise en page n'émet qu'un
-sous-ensemble limité, avec des polices embarquées et le texte converti en tracés, et H09
-vérifie que la page et son PDF coïncident. **Paged.js** pagine dans un navigateur, et sa
-dernière version date de 2024.
+identiques (A20). **Paged.js** pagine dans un navigateur, et sa dernière version date de 2024.
+
+`svg2pdf` ne couvre pas tout SVG : la mise en page n'émet qu'un **sous-ensemble limité**, que
+le noyau contrôle sur chaque page (`noyau::rendu::sous_ensemble`) :
+
+- les éléments `svg`, `g`, `path`, `rect`, `circle` et `line` ;
+- les attributs de géométrie, de trait (`stroke`, `stroke-width`, `stroke-linecap`,
+  `stroke-linejoin`), `fill`, `fill-rule`, `transform` et `id`. Un identifiant est unique dans
+  sa page : un préfixe et un numéro d'ordre (`t-12`, `manche-3`), par lesquels les tests mesurent ;
+- les couleurs `#000`, `#fff` et `none`. Ni texte, ni dégradé, ni filtre, ni opacité, ni
+  feuille de style, ni script, ni animation.
+
+Une unité du SVG vaut 1 mm. **Les glyphes sont des tracés** : chaque caractère devient le tracé
+de son glyphe de DejaVu Sans 2.37, lu par `ttf-parser` en unités de police. Un texte est un
+groupe `<g id="t-n" transform="translate(x y) scale(k -k)">`, où k vaut le corps en mm divisé
+par 2048, les unités par cadratin de la police. Un glyphe avance de sa chasse : ni crénage, ni
+ligature, ni césure. La police entre dans le noyau par `include_bytes!` ; le PDF n'en porte
+aucune, et aucun lecteur ne peut la remplacer. H09 a vu au lutrin la page et son PDF coïncider ;
+les tests du cahier (`crates/cahier/tests/pdf.rs`) le gardent pour ses 49 pages, chacune de la
+taille de son SVG et posée sans mise à l'échelle.
 
 ---
 
@@ -262,6 +278,7 @@ pas dans ce budget.
 | Application | Une bibliothèque d'inférence ONNX en Rust, choisie au banc (H04) | Transcrire un fredonnement |
 | Noyau | Une crate d'identifiants ULID | Identifiants stables ([§ 30](30-modele-de-domaine.md)) |
 | Noyau | `ttf-parser` | Lire les contours des glyphes de DejaVu Sans, pour écrire le texte des pages en tracés ([§ 50 · 3.7](50-interfaces-et-appareils.md#37-la-table-de-la-tonalité)) |
+| Noyau | `sha2` | L'empreinte d'une page, au pied du cahier des tables : les six premiers caractères hexadécimaux du SHA-256 de son SVG sans pied ([REN-01](20-sfd/28-rendus-encre-impression.md#ren-01--fiche-de-travail)) |
 | Nœud, établi | `svg2pdf`, `pdf-writer` | PDF, depuis les pages SVG : `svg2pdf` convertit chaque page, `pdf-writer` les assemble avec leurs liens (le cahier des tables, crate `cahier`) |
 | Nœud | `axum` | HTTP et WebSocket : captations, appairage, synchronisation, passerelle |
 | Nœud | Une pile TLS et un échange PAKE, éprouvés | La clé du nœud et l'appairage ([ADR-021](adr/adr-021-cle-du-noeud-epinglee.md)) |
