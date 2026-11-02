@@ -97,16 +97,20 @@ button:disabled {
   outline-offset: 0.125rem;
 }
 
+/* L'export : le bouton parmi les réglages, et son message sur une ligne à lui, toujours
+   réservée, pour que la hauteur de l'en-tête ne change pas pendant l'export. */
 .export {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.25rem 0.75rem;
+  display: contents;
 }
 
 .etat-export {
+  flex-basis: 100%;
   margin: 0;
-  max-width: 40rem;
+  height: 1.25em;
+  line-height: 1.25;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 /* --- La table et la palette ------------------------------------------------------------- */
@@ -153,22 +157,21 @@ button:disabled {
   background: transparent;
 }
 
-/* À côté de la case touchée, par-dessus les cases voisines. */
+/* Au bas de la case touchée, par-dessus son bouton, à la taille que la page lui donne : 15 ×
+   4,6 mm de la page, son texte à 2,9 mm. Il ne couvre aucune autre case. */
 .bouton-palette {
   position: absolute;
   z-index: 1;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   border-width: 2px;
+  font-size: calc(2.9 * var(--mm));
+  line-height: 1;
   white-space: nowrap;
-}
-
-/* Un texte pour les lecteurs d'écran seulement. */
-.lecteur {
-  position: absolute;
-  width: 1px;
-  height: 1px;
   overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
 }
 
 .place-palette {
