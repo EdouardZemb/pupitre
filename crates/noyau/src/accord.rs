@@ -99,8 +99,9 @@ impl Accord {
         t.note(self.fondamentale)
     }
 
-    /// L'écart de lettre vers son
-    /// enharmonique simple, 0 si elle porte au plus une altération (−1 pour si𝄫 → la, +1 pour fa𝄪 → sol), comme dans `meme_son`.
+    /// L'écart de lettre de la fondamentale juste vers son enharmonique simple, compté
+    /// comme dans `meme_son` : 0 si elle porte au plus une altération, −1 pour si𝄫 → la,
+    /// +1 pour fa𝄪 → sol.
     pub fn ecart_d_ecriture(&self, t: Tonalite) -> i8 {
         let juste = self.fondamentale_juste(t);
         let ecart = juste.enharmonique_simple().lettre as i8 - juste.lettre as i8;
