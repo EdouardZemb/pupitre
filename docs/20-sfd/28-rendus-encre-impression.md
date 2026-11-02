@@ -46,7 +46,25 @@ flowchart LR
   clavier, ou les deux selon le réglage) et leurs palettes
   ([MIC-13](22-micro-motif-et-phrase.md#mic-13--lire-la-palette-dun-accord)).
 - Le **cahier des tables** : les 24 tonalités, un sommaire à liens, au format de l'écran du
-  lutrin, imprimable avec la même pagination (I19).
+  lutrin, imprimable avec la même pagination (I19). Il compte 49 pages en paysage,
+  209,5 × 157 mm :
+  - **l'ordre** : le sommaire, puis les 24 tonalités dans l'ordre du cahier, le cycle des
+    quintes, chaque majeure suivie de sa relative (la relative de fa♯ majeur s'écrit mi♭ mineur,
+    A17). Chaque tonalité a sa page de table, couche sombre masquée comme par défaut, suivie de
+    son verso. La table de la k-ième tonalité, comptée depuis 0, est la page 2 + 2k ;
+  - **le sommaire** : le titre « Cahier des tables », une ligne qui dit l'instrument et la couche
+    sombre (« instrument : guitare et clavier · couche sombre : masquée »), puis une entrée par
+    tonalité, qui dit son nom et sa page. Les entrées se lisent de ligne en ligne et de gauche à
+    droite, dans l'ordre du cahier : deux paires par ligne, une majeure et sa relative, que
+    sépare un blanc plus étroit que celui qui sépare deux paires. Chaque entrée est encadrée, et
+    son cadre est la zone de son lien vers sa table : 16 mm de haut, pour 12 au moins
+    ([§ 50 · 6.3](../50-interfaces-et-appareils.md#63-les-contraintes-physiques-en-millimètres)) ;
+  - **le pied**, sur chaque page, sommaire compris : « page 2 / 49 · rendu le 1er nov. 2026 ·
+    empreinte 7c1e4a », et sur une page de table « · verso : diagrammes et palettes des accords
+    du centre ». L'empreinte est faite des six premiers caractères hexadécimaux du SHA-256 du
+    SVG de la page sans son pied. Le pied se coupe aux « · », à 11 pt, sur les deux lignes
+    que chaque page lui réserve au bas de sa hauteur utile, sous un filet : il ne passe jamais
+    sur le contenu.
 - Déterministe : mêmes données, même gabarit, mêmes pages (I25).
 - Maquettes : une page de fiche, [§ 50 · 3.6](../50-interfaces-et-appareils.md#36-le-lutrin--une-page-de-fiche-de-travail) ; une page du gabarit « table », [§ 50 · 3.7](../50-interfaces-et-appareils.md#37-la-table-de-la-tonalité).
 

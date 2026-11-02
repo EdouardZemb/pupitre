@@ -172,12 +172,18 @@ La table de
 [MIC-12](20-sfd/22-micro-motif-et-phrase.md#mic-12--parcourir-la-table-de-la-tonalité)
 montre d'un coup d'œil tous les accords qu'une tonalité met à portée, une rangée par
 famille ([§ 60](60-moteur-musical.md#12-les-familles-daccords)). La maquette en est la page
-au lutrin, en do majeur, la couche sombre masquée : c'est aussi une page du cahier des
-tables ([REN-01](20-sfd/28-rendus-encre-impression.md#ren-01--fiche-de-travail)).
+au lutrin, en do majeur, instrument guitare, la couche sombre masquée : c'est aussi une page
+du cahier des tables engendré pour la guitare
+([REN-01](20-sfd/28-rendus-encre-impression.md#ren-01--fiche-de-travail)), sans son pied. Le
+cahier par défaut, et celui que dépose la CI, sont pour la guitare et le clavier.
 La page est en paysage, 209,5 × 157 mm : l'écran du lutrin tourné
-([A22](90-questions-ouvertes.md#les-arbitrages-pris-dans-cette-conception)). La
-maquette, dessinée en portrait avant l'essai H09, ne tient qu'en composant ses lignes
-d'effet sous les 11 pt du [§ 6.3](#63-les-contraintes-physiques-en-millimètres).
+([A22](90-questions-ouvertes.md#les-arbitrages-pris-dans-cette-conception)).
+
+La maquette n'est plus un dessin : c'est la page que le noyau rend, à 11 pt au moins
+([§ 6.3](#63-les-contraintes-physiques-en-millimètres)), écrite dans
+`docs/assets/maquettes/table.svg`. Le test `la_maquette_de_la_table_est_la_page_du_noyau`
+(`crates/noyau/tests/cahier.rs`) compare le fichier au rendu, et échoue quand la page change ;
+`PUPITRE_ECRIRE_MAQUETTE=1 cargo test -p noyau --test cahier maquette` le réécrit d'abord.
 
 | Zone | Contenu |
 |---|---|
@@ -186,8 +192,8 @@ d'effet sous les 11 pt du [§ 6.3](#63-les-contraintes-physiques-en-millimètres
 | Centre | Les sept diatoniques sous leur chiffre romain. Leur ligne d'effet est leur fonction, `repos`, `éloignement` ou `tension`, redoublée par sa pastille (§ 6.2) ; ni filet ni décalage vertical : dans la table, l'épaisseur du trait est à l'accord employé, et la hauteur aux rangées. La fonction de chaque degré est celle du [§ 60](60-moteur-musical.md#12-les-familles-daccords) ([Q20](90-questions-ouvertes.md#q20--quelle-fonction-porte-chaque-degré-du-centre-de-la-table-)) |
 | Couche sombre | Masquée par défaut, et la page le dit à l'endroit où elle s'insère. Affichée, elle forme sa propre rangée, entre le centre et les emprunts |
 | Au-dessous | Les emprunts au mode parallèle, chacun sous son degré : en do majeur, les accords de do mineur, avec la ligne d'effet `assombrit` |
-| Légende | Les quatre formes de cadre, et le cadre épais d'un accord employé |
-| Pied | La pagination, la date du rendu, l'empreinte, et ce que porte le verso : les diagrammes et les palettes des accords du centre |
+| Légende | Les quatre formes de cadre ; avec un morceau posé sur la table, le cadre épais d'un accord employé |
+| Pied | La pagination, la date du rendu, l'empreinte, et ce que porte le verso : les diagrammes et les palettes des accords du centre. Le cahier le pose ([REN-01](20-sfd/28-rendus-encre-impression.md#ren-01--fiche-de-travail)) ; la maquette, page sans pied, n'en montre que la place |
 
 **La grammaire de la table.** Elle vaut sur les trois appareils, et en noir et blanc pur.
 

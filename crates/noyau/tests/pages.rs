@@ -195,5 +195,7 @@ fn les_nombres_s_ecrivent_sans_zero_final() {
         svg.contains(r#"x1="1.5" y1="0" x2="2" y2="3.123""#),
         "{svg}"
     );
-    assert!(svg.contains(r#"stroke-width="0.088""#), "{svg}");
+    // Une épaisseur s'arrondit par excès au dix-millième : 0,25 pt s'écrit 0.0882, car 0.088
+    // ne ferait que 0,2494 pt, sous le minimum.
+    assert!(svg.contains(r#"stroke-width="0.0882""#), "{svg}");
 }

@@ -11,6 +11,23 @@ examine_globs = [
     "crates/noyau/src/guitare.rs",
 ]
 
+# Chaque mutant ne rejoue que les tests de ces sept modules, et les tests unitaires : les tests du
+# rendu dessinent les 48 pages de table, les 72 versos et les fiches de chaque case, et la suite
+# complète prend une minute et demie en debug, contre deux secondes et demie sans eux. Ils
+# appellent la théorie sans la vérifier : ses propres tests tuent tous ses mutants (0 survivant
+# en PR 4, avant le rendu). Un nouveau fichier de tests de ces modules s'ajoute à cette liste.
+additional_cargo_test_args = [
+    "--lib",
+    "--test", "hauteur",
+    "--test", "tonalite",
+    "--test", "accord",
+    "--test", "table",
+    "--test", "palette",
+    "--test", "oracle_palette",
+    "--test", "clavier",
+    "--test", "guitare",
+]
+
 # Un mutant réellement équivalent s'exclut ici, nommément, avec sa raison.
 exclude_re = [
     # Équivalent : à 0, `signe` rend la chaîne vide, que l'altération soit rangée

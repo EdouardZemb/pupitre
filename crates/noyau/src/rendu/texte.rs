@@ -149,3 +149,24 @@ pub fn couper(texte: &str, corps: &Corps, largeur: f32) -> Result<Vec<String>, M
     }
     Ok(lignes)
 }
+
+/// Coupe un texte de la forme « a · b · c » de préférence aux « · », et chaque segment trop
+/// long entre deux mots : l'en-tête et le pied d'une page.
+pub(crate) fn couper_aux_points(
+    texte: &str,
+    corps: &Corps,
+    largeur: f32,
+) -> Result<Vec<String>, MotTropLong> {
+    let mut lignes: Vec<String> = Vec::new();
+    for segment in texte.split(" · ") {
+        if let Some(ligne) = lignes.last_mut() {
+            let essai = format!("{ligne} · {segment}");
+            if chasse(&essai, corps) <= largeur {
+                *ligne = essai;
+                continue;
+            }
+        }
+        lignes.extend(couper(segment, corps, largeur)?);
+    }
+    Ok(lignes)
+}
