@@ -13,10 +13,10 @@ permissions:
 jobs:
   mutants:
     runs-on: ubuntu-latest
-    # Deux fois le passage complet mesuré, 309 mutants sur quatre cœurs : 9 min 19 s le
-    # 2026-11-02, PR #5 (LE-29 de modele-projet). À remesurer quand le périmètre
-    # de la mutation s'étend.
-    timeout-minutes: 19
+    # Deux fois le passage complet mesuré, 309 mutants sur quatre cœurs : 12 min 21 s le
+    # 2026-11-02, PR #6, chaque mutant construisant aussi les tests du rendu (LE-29 de
+    # modele-projet). À remesurer quand le périmètre de la mutation s'étend.
+    timeout-minutes: 25
     permissions:
       contents: read
     steps:
