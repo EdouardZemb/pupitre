@@ -102,12 +102,20 @@ impl OutlineBuilder for Trace {
 
 /// Un texte : un groupe `t`, dont le tracé est en unités de police et que
 /// `scale(k -k)` ramène en mm (`k` = corps en mm / 2048).
+///
+/// Un caractère absent de la police se dessinerait par le glyphe `.notdef`, un rectangle, sans
+/// rien dire : en debug, et donc dans les tests des pages, `composer` le nomme et s'arrête.
 pub fn composer(texte: &str, corps: &Corps, x: f32, ligne_de_base: f32) -> Element {
     let mut trace = Trace {
         d: String::new(),
         decalage: 0.0,
     };
     for c in texte.chars() {
+        debug_assert!(
+            glyphe_present(c),
+            "« {c} » (U+{:04X}) n'a pas de glyphe dans la police, dans « {texte} »",
+            u32::from(c)
+        );
         // Un glyphe sans contour (l'espace) n'écrit rien, mais avance.
         face().outline_glyph(glyphe(c), &mut trace);
         trace.decalage += avance(c);
