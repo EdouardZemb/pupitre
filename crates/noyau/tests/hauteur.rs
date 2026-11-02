@@ -32,6 +32,29 @@ fn additionner_et_soustraire_des_intervalles() {
 }
 
 #[test]
+fn intervalles_hors_de_l_octave() {
+    assert_eq!(i(2, 3).moins(i(4, 7)), i(-2, -4));
+    assert_eq!(n(Lettre::C, 0).plus(i(9, 16)), n(Lettre::E, 0));
+}
+
+#[test]
+fn triple_alteration() {
+    use Lettre::*;
+    assert_eq!(n(F, -1).plus(i(3, 4)), n(B, -3));
+    assert_eq!(n(B, -3).intervalle_vers(n(F, -1)), i(4, 8));
+    assert_eq!(n(B, -3).plus(i(4, 8)), n(F, -1));
+}
+
+#[test]
+fn franchir_l_octave() {
+    use Lettre::*;
+    assert_eq!(n(B, -1).meme_son(1), n(C, -2));
+    assert_eq!(n(C, -1).meme_son(-1), n(B, 0));
+    assert_eq!(n(C, -2).enharmonique_simple(), n(B, -1));
+    assert_eq!(n(B, 2).enharmonique_simple(), n(C, 1));
+}
+
+#[test]
 fn nommer() {
     use Lettre::*;
     assert_eq!(n(C, 0).plus(i(2, 4)), n(E, 0));
@@ -84,6 +107,10 @@ fn noms() {
     assert_eq!(n(B, -2).solfege(), "si𝄫");
     assert_eq!(n(F, 2).anglais(), "F𝄪");
     assert_eq!(n(D, 0).solfege(), "ré");
+    assert_eq!(n(B, -3).anglais(), "B𝄫♭");
+    assert_eq!(n(B, -3).solfege(), "si𝄫♭");
+    assert_eq!(n(F, 3).anglais(), "F𝄪♯");
+    assert_eq!(n(F, 3).solfege(), "fa𝄪♯");
 }
 
 fn note_simple() -> impl Strategy<Value = NomDeNote> {
@@ -113,5 +140,9 @@ proptest! {
     fn transposer_puis_revenir(n in note_simple(), i in intervalle_simple()) {
         prop_assert_eq!(n.plus(i).plus(Intervalle::new(0, 0).moins(i)), n);
         prop_assert_eq!(n.intervalle_vers(n.plus(i)), i.reduit());
+        let arrivee = n.plus(i);
+        let simple = arrivee.enharmonique_simple();
+        prop_assert_eq!(simple.classe(), arrivee.classe());
+        prop_assert!(simple.alteration.abs() <= 1);
     }
 }

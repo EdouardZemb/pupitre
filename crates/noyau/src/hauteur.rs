@@ -65,6 +65,15 @@ impl Lettre {
         self as i8
     }
 
+    /// La lettre `ecart` crans plus loin, avec le nombre d'octaves franchies (négatif vers le bas).
+    fn decalee(self, ecart: i8) -> (Lettre, i8) {
+        let total = self.rang() + ecart;
+        (
+            Lettre::TOUTES[total.rem_euclid(7) as usize],
+            total.div_euclid(7),
+        )
+    }
+
     fn naturel(self) -> i8 {
         NATURELS[self as usize]
     }
@@ -88,9 +97,7 @@ pub struct NomDeNote {
 impl NomDeNote {
     /// La note d'arrivée, orthographiée exactement : l'altération n'est jamais réduite modulo 12.
     pub fn plus(self, i: Intervalle) -> NomDeNote {
-        let total = self.lettre.rang() + i.degres;
-        let octaves = total.div_euclid(7);
-        let lettre = Lettre::TOUTES[total.rem_euclid(7) as usize];
+        let (lettre, octaves) = self.lettre.decalee(i.degres);
         let ecart_naturel = lettre.naturel() + 12 * octaves - self.lettre.naturel();
         NomDeNote {
             lettre,
@@ -121,9 +128,7 @@ impl NomDeNote {
 
     /// Le même son, la lettre décalée de `ecart_de_lettre` : ré♭ décalé de −1 donne do♯.
     pub fn meme_son(self, ecart_de_lettre: i8) -> NomDeNote {
-        let total = self.lettre.rang() + ecart_de_lettre;
-        let octaves = total.div_euclid(7);
-        let lettre = Lettre::TOUTES[total.rem_euclid(7) as usize];
+        let (lettre, octaves) = self.lettre.decalee(ecart_de_lettre);
         NomDeNote {
             lettre,
             alteration: self.alteration + self.lettre.naturel() - lettre.naturel() - 12 * octaves,
