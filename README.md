@@ -93,10 +93,10 @@ flowchart TB
 | | |
 |---|---|
 | **Conception** | Refondue le 2026-10-11, à partir du besoin ; la table de la tonalité et la pile Rust y sont entrées le 2026-10-27. Écrite et relue |
-| **Code** | Aucune ligne encore : INC-0, la table, commence par son plan |
+| **Code** | Le code d'INC-0, la table, en Rust : les crates `noyau` (la théorie et l'écriture des pages en SVG), `cahier` (le cahier des tables en PDF), `interface` (l'établi, en Leptos) et `etabli` (son enveloppe Tauri, et l'export du cahier) |
 | **Décisions** | 21 ADR, dont 10 acceptées, 8 proposées et 3 remplacées ([registre](docs/adr/README.md)) |
 | **Bloquant pour démarrer** | Rien : les ADR [001](docs/adr/adr-001-un-seul-materiau.md), [008](docs/adr/adr-008-hauteurs-relatives.md) et [010](docs/adr/adr-010-trois-appareils-mode-encre.md), que met en jeu INC-0, sont acceptées depuis le 2026-10-28 ([§ 40 · 9](docs/40-architecture.md#9-trajectoire-de-construction)). Aucune question ouverte ne bloque le début ; Q01, la capacité du nœud maison, ne bloque que l'analyse lourde et l'IA locale ([§ 90](docs/90-questions-ouvertes.md)) |
-| **Prochaine étape** | Le plan de l'incrément INC-0 — la table ([§ 40 · 9](docs/40-architecture.md#9-trajectoire-de-construction)) |
+| **Prochaine étape** | La clôture d'INC-0, puis l'incrément INC-1 — carnet et fonds ([§ 40 · 9](docs/40-architecture.md#9-trajectoire-de-construction)) |
 | **Historique** | Ce dépôt est né le 2026-11-01, d'un seul commit. L'historique de la conception jusque-là, ses PR et l'étiquette `v0.1.0` restent dans le dépôt privé `pupitre-donnees` |
 
 ### La série précédente
@@ -110,8 +110,8 @@ privé `pupitre-donnees` ; son dernier état y est le commit `0044944`.
 
 Voir [CONVENTIONS.md](CONVENTIONS.md) : le format de commit du modèle de projet
 (Conventional Commits), un format de branche, le gabarit de PR du modèle, avec trois
-contrôles propres à pupitre, et quatre portes de CI. La méthode, qui est celle du modèle,
-est dans
+contrôles propres à pupitre, et les portes de CI, dont il tient la liste. La méthode, qui est
+celle du modèle, est dans
 [`docs/modele/methode.md`](docs/modele/methode.md).
 
 - **`socle / secrets`** cherche les secrets dans les commits et l'historique ;
@@ -122,7 +122,9 @@ est dans
   ([script](scripts/verif-confidentialite.sh)) ; noms et paroles restent l'affaire de la
   relecture ;
 - **`documentation`** vérifie que chaque diagramme se rend et que chaque lien interne mène
-  quelque part ([liens](scripts/verif-liens.mjs), [diagrammes](scripts/verif-diagrammes.mjs)).
+  quelque part ([liens](scripts/verif-liens.mjs), [diagrammes](scripts/verif-diagrammes.mjs)) ;
+- **`verifier`**, **`windows`** et **`mutants`** gardent le code : son format, son lint et ses
+  tests, l'installateur Windows de l'établi, et la mutation du noyau.
 
 ## Confidentialité
 

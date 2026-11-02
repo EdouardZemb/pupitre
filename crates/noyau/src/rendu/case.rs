@@ -2,7 +2,7 @@
 //! résolution (§ 50 · 3.7) ; et les marques des rôles de la palette, que le verso pose sur la
 //! portée, le manche et le clavier (MIC-13).
 //!
-//! Les quatre cadres sont au même trait fin : droit (diatoniques), en pointe vers la cible
+//! Les quatre cadres sont au même trait : droit (diatoniques), en pointe vers la cible
 //! (dominantes secondaires), aux coins arrondis (emprunts), aux coins coupés (harmonie
 //! sombre). Ils se distinguent par la forme seule, en noir et blanc (I17).
 //!

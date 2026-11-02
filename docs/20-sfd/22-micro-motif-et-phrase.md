@@ -605,6 +605,12 @@ rien sans geste.
     mineure (`m`, `dim`, `dim7`).
 - La palette se lit sur une portée d'une octave, sur le manche autour du doigté de l'accord
   (sa zone, à ± 2 frettes) et sur le clavier.
+- **La portée est sans clé** : elle ne dit pas la hauteur absolue. Chaque note porte son nom
+  dessous, en solfège, sur des lignes en quinconce. La fondamentale est toujours au premier
+  interligne, et chaque note monte de l'écart de sa lettre à celle de la fondamentale. Deux
+  notes d'une même lettre (do et do♯) se posent côte à côte, à la même hauteur, sans
+  altération dessinée : leur nom la porte. La portée gravée, avec sa clé, attend Verovio, en
+  INC-2 ([§ 41 · 5.3](../41-pile-technique.md#53-la-gravure-de-portée)).
 - Les appuis s'affichent tous, même hors de la tonalité : un accord se lit d'abord par ses
   notes. Les tensions et les notes qui frottent sont prises parmi les notes de la tonalité ;
   aucune autre note hors tonalité ne s'affiche.
@@ -619,6 +625,11 @@ qui frotte : un frottement est une information, pas une faute, comme dans
 **Cas limites**
 - La septième d'un accord sans septième frotte
   ([Q17](../90-questions-ouvertes.md#q17--quel-rôle-a-la-septième-dun-accord-sans-septième-)).
+- La croix a deux sens. Au diagramme de manche, elle marque une corde étouffée
+  ([REN-04](28-rendus-encre-impression.md#ren-04--diagrammes-de-manche)) ; à la palette sur le
+  manche, une note qui frotte, et sur une corde à vide elle se pose sur la même rangée, au-dessus
+  du sillet. La maîtrise d'ouvrage l'a gardée à l'essai H09 : la croix est la forme de MIC-06,
+  et, au verso, la bande de la légende sépare les diagrammes des palettes.
 - Un accord hors du centre de la table montre tous ses appuis, même hors de la tonalité
   ([Q18](../90-questions-ouvertes.md#q18--que-montre-la-palette-dun-accord-hors-du-centre-de-la-table-)).
 - Une case dont le nom est réécrit à l'enharmonique simple a toutes ses notes réécrites avec

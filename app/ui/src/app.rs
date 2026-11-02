@@ -58,8 +58,8 @@ impl Etat {
         self.instrument.set(i);
     }
 
-    /// Toucher une case : sa cible passe en inverse, et « Palette » s'affiche à côté d'elle. Une
-    /// palette ouverte suit la case touchée.
+    /// Toucher une case : sa cible passe en inverse, et « Palette » s'affiche au bas de la case.
+    /// Une palette ouverte suit la case touchée.
     pub fn toucher(self, p: Position) {
         self.touchee.set(Some(p));
     }
