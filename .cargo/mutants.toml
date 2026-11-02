@@ -1,0 +1,24 @@
+# Le test de mutation du noyau (famille 3 des garde-fous de la méthode).
+# En PR 3, seuls les modules de la théorie existent ; palette, clavier et guitare
+# s'ajouteront en PR 4. Le rendu (`rendu/`) n'est pas examiné.
+examine_globs = [
+    "crates/noyau/src/hauteur.rs",
+    "crates/noyau/src/tonalite.rs",
+    "crates/noyau/src/accord.rs",
+    "crates/noyau/src/table.rs",
+]
+
+# Un mutant réellement équivalent s'exclut ici, nommément, avec sa raison.
+exclude_re = [
+    # Équivalent : à 0, `signe` rend la chaîne vide, que l'altération soit rangée
+    # parmi les bémols ou parmi les dièses. Aucun test ne peut les distinguer.
+    "replace < with <= in signe",
+    # Boucle sans fin, non un survivant : `enharmonique_simple` boucle tant que
+    # l'altération dépasse un cran, et ces mutants (rang ou naturel de la lettre faussés,
+    # décalage ou condition de la boucle faussés) l'empêchent de converger. Le délai les
+    # attrape (TIMEOUT), mais cargo-mutants sort alors en 3 et ferait échouer la porte.
+    "replace Lettre::rang -> i8 with",
+    "replace Lettre::naturel -> i8 with",
+    'replace \+ with \* in Lettre::decalee',
+    "replace > with (==|<|>=) in NomDeNote::enharmonique_simple",
+]
