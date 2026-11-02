@@ -133,12 +133,14 @@ fn tient_les_contraintes(d: &Doigte, v: &NotesVoulues) -> Result<(), String> {
     {
         return Err(format!("{} : étendue {}", d.notation(), haut - bas));
     }
-    if d.nombre_de_doigts() > 4 {
-        return Err(format!(
-            "{} : {} doigts",
-            d.notation(),
-            d.nombre_de_doigts()
-        ));
+    // Le compte des doigts, sans le module : au-delà de quatre cordes appuyées, un barré à la
+    // frette la plus basse, plus un doigt par autre note ; sinon, un doigt par note.
+    let doigts = match f.iter().min() {
+        Some(bas) if f.len() > 4 => 1 + f.iter().filter(|n| *n != bas).count(),
+        _ => f.len(),
+    };
+    if doigts > 4 {
+        return Err(format!("{} : {doigts} doigts", d.notation()));
     }
     Ok(())
 }
@@ -577,8 +579,11 @@ fn le_chemin_saute_un_accord_sans_doigte() {
     assert!(en_contexte(&[]).is_empty());
 }
 
+/// Un constat du recueil des 27 formes, non une règle : un accord seul en contexte départage par
+/// les cordes à vide avant le rang, et avec ce recueil, aucun candidat moins bien rangé n'a plus
+/// de cordes à vide. Un changement de `FORMES` peut défaire cette égalité.
 #[test]
-fn seul_hors_contexte_sans_voisin() {
+fn avec_le_recueil_un_accord_seul_prend_son_doigte_hors_contexte() {
     for nom in ["C", "F", "B°", "G♯°7", "D♭/F"] {
         let v = voulues(nom);
         assert_eq!(
@@ -586,5 +591,21 @@ fn seul_hors_contexte_sans_voisin() {
             vec![hors_contexte(&v)],
             "{nom}"
         );
+    }
+}
+
+#[test]
+fn une_forme_mobile_monte_jusqu_a_la_frette_15() {
+    // La forme D décalée de 12 atteint la frette 15 : elle sert D.
+    let re_haut = doigte("x-x-12-14-15-14");
+    tient_les_contraintes(&re_haut, &voulues("D")).unwrap();
+    assert!(candidats(&voulues("D")).contains(&re_haut));
+    // Décalée de 13, elle tiendrait les contraintes de E♭, mais irait à la frette 16.
+    let mib_trop_haut = doigte("x-x-13-15-16-15");
+    tient_les_contraintes(&mib_trop_haut, &voulues("E♭")).unwrap();
+    let mib = candidats(&voulues("E♭"));
+    assert!(!mib.contains(&mib_trop_haut));
+    for d in &mib {
+        assert!(appuyees(d).iter().all(|&f| f <= 15), "{}", d.notation());
     }
 }

@@ -139,10 +139,10 @@ impl Doigte {
             }
         }
         autres.sort();
-        let premier: u8 = if barre.is_some() { 2 } else { 1 };
-        if autres.len() > DOIGTS_MAX + 1 - usize::from(premier) {
+        if usize::from(barre.is_some()) + autres.len() > DOIGTS_MAX {
             return None;
         }
+        let premier: u8 = if barre.is_some() { 2 } else { 1 };
         for (n, &(_, k)) in (0u8..).zip(&autres) {
             doigts[k] = Some(premier + n);
         }
@@ -438,7 +438,7 @@ fn plus_court_chemin(listes: Vec<Vec<Doigte>>) -> Vec<Option<Doigte>> {
                         rangs: [c.rangs.as_slice(), &[rang]].concat(),
                     })
                     .min_by(Chemin::ordre)
-                    .expect("un maillon joué a au moins un candidat"),
+                    .expect("le maillon joué précédent a au moins un chemin"),
             })
             .collect();
         chemins = suivants;
@@ -462,11 +462,12 @@ fn plus_court_chemin(listes: Vec<Vec<Doigte>>) -> Vec<Option<Doigte>> {
         .collect()
 }
 
-/// Les règles que les formes du recueil ne départagent jamais seules. Avec elles, une recherche
-/// exhaustive sur toutes les notes voulues le montre : retirer un des critères 2 à 4 du départage
-/// ne change l'ordre d'aucune liste de candidats, aucun candidat placé n'excède trois frettes
-/// d'étendue, et un candidat plus loin dans l'ordre n'a jamais plus de cordes à vide. Ces règles
-/// s'éprouvent donc ici, sur des doigtés hors du recueil.
+/// Les règles que le recueil ne départage jamais seules. Avec le recueil des 27 formes, une
+/// recherche exhaustive sur toutes les notes voulues le montre : retirer un des critères 2 à 4 du
+/// départage ne change l'ordre d'aucune liste de candidats, aucun candidat placé n'excède trois
+/// frettes d'étendue, et un candidat plus loin dans l'ordre n'a jamais plus de cordes à vide. Ce
+/// constat tient au recueil, non aux règles : un changement de `FORMES` le remet en cause. Ces
+/// règles s'éprouvent donc ici, sur des doigtés hors du recueil.
 #[cfg(test)]
 mod tests {
     use super::*;
