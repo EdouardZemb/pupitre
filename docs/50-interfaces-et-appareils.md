@@ -171,7 +171,7 @@ sont dessinées en noir et blanc à dessein : ce qui se lit sans couleur se lira
 La table de
 [MIC-12](20-sfd/22-micro-motif-et-phrase.md#mic-12--parcourir-la-table-de-la-tonalité)
 montre d'un coup d'œil tous les accords qu'une tonalité met à portée, une rangée par
-famille ([§ 60](60-moteur-musical.md#les-familles-daccords)). La maquette en est la page
+famille ([§ 60](60-moteur-musical.md#12-les-familles-daccords)). La maquette en est la page
 au lutrin, en do majeur, la couche sombre masquée : c'est aussi une page du cahier des
 tables ([REN-01](20-sfd/28-rendus-encre-impression.md#ren-01--fiche-de-travail)).
 La page est en paysage, 209,5 × 157 mm : l'écran du lutrin tourné
@@ -183,7 +183,7 @@ d'effet sous les 11 pt du [§ 6.3](#63-les-contraintes-physiques-en-millimètres
 |---|---|
 | En-tête | La tonalité, le gabarit, et les réglages que la table lit : « do majeur · table de la tonalité · tonalité choisie · instrument : guitare · couche sombre : masquée » |
 | Au-dessus | Les dominantes secondaires, chacune au-dessus de sa cible et fléchée vers elle : `A7` sous `V7/ii`, avec la ligne d'effet `tire vers Dm` |
-| Centre | Les sept diatoniques sous leur chiffre romain. Leur ligne d'effet est leur fonction, `repos`, `éloignement` ou `tension`, redoublée par sa pastille (§ 6.2) ; ni filet ni décalage vertical : dans la table, l'épaisseur du trait est à l'accord employé, et la hauteur aux rangées. La fonction de chaque degré est celle du [§ 60](60-moteur-musical.md#les-familles-daccords) ([Q20](90-questions-ouvertes.md#q20--quelle-fonction-porte-chaque-degré-du-centre-de-la-table-)) |
+| Centre | Les sept diatoniques sous leur chiffre romain. Leur ligne d'effet est leur fonction, `repos`, `éloignement` ou `tension`, redoublée par sa pastille (§ 6.2) ; ni filet ni décalage vertical : dans la table, l'épaisseur du trait est à l'accord employé, et la hauteur aux rangées. La fonction de chaque degré est celle du [§ 60](60-moteur-musical.md#12-les-familles-daccords) ([Q20](90-questions-ouvertes.md#q20--quelle-fonction-porte-chaque-degré-du-centre-de-la-table-)) |
 | Couche sombre | Masquée par défaut, et la page le dit à l'endroit où elle s'insère. Affichée, elle forme sa propre rangée, entre le centre et les emprunts |
 | Au-dessous | Les emprunts au mode parallèle, chacun sous son degré : en do majeur, les accords de do mineur, avec la ligne d'effet `assombrit` |
 | Légende | Les quatre formes de cadre, et le cadre épais d'un accord employé |

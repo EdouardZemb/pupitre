@@ -122,9 +122,10 @@ jobs:
   mutants:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    # Deux fois le premier passage mesuré, 160 mutants : 3 min 22 s le 2026-11-02, PR #4
-    # (LE-29 de modele-projet). À remesurer quand le périmètre de la mutation s'étend.
-    timeout-minutes: 7
+    # Deux fois le passage complet mesuré, 309 mutants sur quatre cœurs : 9 min 19 s le
+    # 2026-11-02, PR #5 (LE-29 de modele-projet). Le job d'une PR mute, au pire, autant. À remesurer quand le périmètre
+    # de la mutation s'étend.
+    timeout-minutes: 19
     permissions:
       contents: read
     steps:
@@ -142,6 +143,6 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: git diff "origin/$BASE_REF...HEAD" > pr.diff
       - name: Mutation du noyau
-        run: cargo mutants -p noyau --in-diff pr.diff
+        run: cargo mutants -p noyau --in-diff pr.diff --jobs "$(nproc)"
 
 # Ce fichier est au projet : `copier update` n'y touche plus.

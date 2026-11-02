@@ -43,6 +43,76 @@ R-DO-03 nature=doctrine echelle=phrase actif=oui parametres= source=Sacha | Pas 
 - Les **seuils** (6 BPM, trois voisins…) sont des **paramètres** de départ, réglables.
   Aucun n'est codé en dur.
 
+### 1.2 Les familles d'accords
+
+Une tonalité met à portée quatre **familles** d'accords. Ce sont des données de théorie,
+livrées avec l'application, et deux vues y puisent : la [carte des chemins](#la-carte-des-chemins)
+(§ 4.2) et la **table de la tonalité**,
+[MIC-12](20-sfd/22-micro-motif-et-phrase.md#mic-12--parcourir-la-table-de-la-tonalité). La
+table n'est pas une piste : elle montre tous les accords des quatre familles, sans en
+classer ni en recommander aucun.
+
+| Famille | Rangée de la table | Ce qu'elle rassemble | Flèche de résolution |
+|---|---|---|---|
+| **Diatoniques** | Centre | Les accords bâtis sur les sept degrés de la tonalité | Aucune |
+| **Dominantes secondaires** | Au-dessus | La dominante, en accord de septième (V7), d'un accord du centre : sa cible | Vers sa cible, au centre |
+| **Emprunts au mode parallèle** | Au-dessous | Les accords de la tonalité de même tonique et de mode opposé : do mineur pour do majeur, la majeur pour la mineur | Aucune |
+| **Harmonie sombre** | Couche sombre, à la demande | Le mineur harmonique, les diminués secondaires (vii°7), la sixte napolitaine (♭II6) | Un diminué vers sa cible, la napolitaine vers la dominante ; l'augmenté n'en a pas |
+
+**Les rangées.** L'exemple est en do majeur et en la mineur. La table se calcule en degrés,
+puis se nomme dans la tonalité ([ADR-008](adr/adr-008-hauteurs-relatives.md)).
+
+| Rangée | Majeur | Mineur |
+|---|---|---|
+| **Au-dessus** · dominantes secondaires, chacune fléchée vers sa cible | V7/ii `A7`→Dm, V7/iii `B7`→Em, V7/IV `C7`→F, V7/V `D7`→G, V7/vi `E7`→Am | V7/i `E7`→Am (la dominante du mineur harmonique), V7/III `G7`→C, V7/iv `A7`→Dm, V7/v `B7`→Em, V7/VI `C7`→F, V7/VII `D7`→G |
+| **Centre** · diatoniques | I `C`, ii `Dm`, iii `Em`, IV `F`, V `G`, vi `Am`, vii° `B°` | i `Am`, ii° `B°`, III `C`, iv `Dm`, v `Em`, VI `F`, VII `G` |
+| **Au-dessous** · emprunts au mode parallèle | i `Cm`, ii° `D°`, ♭III `E♭`, iv `Fm`, v `Gm`, ♭VI `A♭`, ♭VII `B♭` | I `A`, ii `Bm`, iii `C♯m`, IV `D`, V `E`, vi `F♯m`, vii° `G♯°` |
+| **Couche sombre**, à la demande | vii°7 de chaque cible du centre (`C♯°7`→Dm, `D♯°7`→Em, `E°7`→F, `F♯°7`→G, `G♯°7`→Am), vii°7 `B°7`→C, la napolitaine ♭II6 `D♭/F`→G | Le mineur harmonique : III+ `C+`, vii°7 `G♯°7`→Am ; les vii°7 des autres cibles ; la napolitaine ♭II6 `B♭/D`→E |
+
+**Ce que porte une case.** Le nom de l'accord, son chiffre romain (son degré), sa famille et
+une ligne d'effet. La famille se lit **par la rangée et par une forme de cadre**, jamais par
+la seule couleur (P6).
+
+**Les flèches de résolution.** Une flèche relie une case à sa **cible**, l'accord où elle se
+résout : `A7`→Dm se lit « `A7` tire vers Dm ». Chaque flèche relie exactement deux cases. Les
+diatoniques et les emprunts au mode parallèle n'en portent pas, ni l'augmenté de l'harmonie
+sombre.
+
+**Les lignes d'effet.** La ligne d'effet d'une case est l'une de celles-ci, mot pour mot ;
+`<cible>` y est le nom de l'accord où mène sa flèche.
+
+| Case | Ligne d'effet |
+|---|---|
+| Une dominante secondaire | `tire vers <cible>` |
+| Un emprunt au mineur, dans une tonalité majeure | `assombrit` |
+| Un emprunt au majeur, dans une tonalité mineure | `éclaire` |
+| Un diminué de la couche sombre (vii°7) | `glisse vers <cible>` |
+| La napolitaine | `tension sombre avant la dominante` |
+| L'augmenté | `suspend` |
+| Au centre, la fonction : tonique, sous-dominante, dominante | `repos`, `éloignement`, `tension`, dans cet ordre |
+
+Au centre, chaque degré porte une fonction, selon le regroupement courant en harmonie de
+chanson ([Q20](90-questions-ouvertes.md#q20--quelle-fonction-porte-chaque-degré-du-centre-de-la-table-)) :
+
+| Mode | `repos` | `éloignement` | `tension` |
+|---|---|---|---|
+| Majeur | I, iii, vi | ii, IV | V, vii° |
+| Mineur | i, III | ii°, iv, VI | v, VII |
+
+**Changer de tonalité.** Chaque case garde sa place et son chiffre ; seul le nom change
+([I26](70-qualite-et-verification.md#3-les-invariants-et-leurs-tests)).
+L'orthographe des tonalités est celle de l'arbitrage A17
+([§ 90](90-questions-ouvertes.md#les-arbitrages-pris-dans-cette-conception)). De do à mi♭
+majeur, `C` devient `E♭`, `A7` devient `C7` et `B°` devient `D°`. En fa♯ majeur, le iii
+s'écrit `A♯m` ; en mi♭ mineur, le V7/i s'écrit `B♭7`. Une case dont le nom porterait une
+double altération s'écrit à l'enharmonique simple, sous le même chiffre romain : en ré♭
+majeur, le ♭VI s'écrit `A`, et non `B𝄫`. La préférence d'orthographe ne s'applique pas à la
+table ([Q21](90-questions-ouvertes.md#q21--comment-sécrivent-les-cases-de-la-table-)).
+
+**La couche sombre.** Elle est masquée par défaut et s'affiche à la demande. Elle n'ajoute
+aucune case aux trois rangées : elle forme sa propre rangée, qui porte son nom. Affichée,
+elle nourrit aussi les accords suivants de la [carte des chemins](#la-carte-des-chemins).
+
 ---
 
 ## 2. Comment un diagnostic se calcule
@@ -228,79 +298,10 @@ Depuis un emprunt, elle montre d'abord les **retours**, puisque c'est la questio
 quand on est sorti.
 
 La carte et la table de la tonalité puisent dans les mêmes
-[familles d'accords](#les-familles-daccords) : la table montre tout, la carte part de ce qui
-précède réellement. Si la **couche sombre** est affichée, ses accords nourrissent aussi les
-accords suivants.
-
-#### Les familles d'accords
-
-Une tonalité met à portée quatre **familles** d'accords. Ce sont des données de théorie
-(§ 1), livrées avec l'application, et deux vues y puisent : la carte des chemins, ci-dessus,
-et la **table de la tonalité**,
-[MIC-12](20-sfd/22-micro-motif-et-phrase.md#mic-12--parcourir-la-table-de-la-tonalité). La
-table n'est pas une piste : elle montre tous les accords des quatre familles, sans en
-classer ni en recommander aucun.
-
-| Famille | Rangée de la table | Ce qu'elle rassemble | Flèche de résolution |
-|---|---|---|---|
-| **Diatoniques** | Centre | Les accords bâtis sur les sept degrés de la tonalité | Aucune |
-| **Dominantes secondaires** | Au-dessus | La dominante, en accord de septième (V7), d'un accord du centre : sa cible | Vers sa cible, au centre |
-| **Emprunts au mode parallèle** | Au-dessous | Les accords de la tonalité de même tonique et de mode opposé : do mineur pour do majeur, la majeur pour la mineur | Aucune |
-| **Harmonie sombre** | Couche sombre, à la demande | Le mineur harmonique, les diminués secondaires (vii°7), la sixte napolitaine (♭II6) | Un diminué vers sa cible, la napolitaine vers la dominante ; l'augmenté n'en a pas |
-
-**Les rangées.** L'exemple est en do majeur et en la mineur. La table se calcule en degrés,
-puis se nomme dans la tonalité ([ADR-008](adr/adr-008-hauteurs-relatives.md)).
-
-| Rangée | Majeur | Mineur |
-|---|---|---|
-| **Au-dessus** · dominantes secondaires, chacune fléchée vers sa cible | V7/ii `A7`→Dm, V7/iii `B7`→Em, V7/IV `C7`→F, V7/V `D7`→G, V7/vi `E7`→Am | V7/i `E7`→Am (la dominante du mineur harmonique), V7/III `G7`→C, V7/iv `A7`→Dm, V7/v `B7`→Em, V7/VI `C7`→F, V7/VII `D7`→G |
-| **Centre** · diatoniques | I `C`, ii `Dm`, iii `Em`, IV `F`, V `G`, vi `Am`, vii° `B°` | i `Am`, ii° `B°`, III `C`, iv `Dm`, v `Em`, VI `F`, VII `G` |
-| **Au-dessous** · emprunts au mode parallèle | i `Cm`, ii° `D°`, ♭III `E♭`, iv `Fm`, v `Gm`, ♭VI `A♭`, ♭VII `B♭` | I `A`, ii `Bm`, iii `C♯m`, IV `D`, V `E`, vi `F♯m`, vii° `G♯°` |
-| **Couche sombre**, à la demande | vii°7 de chaque cible du centre (`C♯°7`→Dm, `D♯°7`→Em, `E°7`→F, `F♯°7`→G, `G♯°7`→Am), vii°7 `B°7`→C, la napolitaine ♭II6 `D♭/F`→G | Le mineur harmonique : III+ `C+`, vii°7 `G♯°7`→Am ; les vii°7 des autres cibles ; la napolitaine ♭II6 `B♭/D`→E |
-
-**Ce que porte une case.** Le nom de l'accord, son chiffre romain (son degré), sa famille et
-une ligne d'effet. La famille se lit **par la rangée et par une forme de cadre**, jamais par
-la seule couleur (P6).
-
-**Les flèches de résolution.** Une flèche relie une case à sa **cible**, l'accord où elle se
-résout : `A7`→Dm se lit « `A7` tire vers Dm ». Chaque flèche relie exactement deux cases. Les
-diatoniques et les emprunts au mode parallèle n'en portent pas, ni l'augmenté de l'harmonie
-sombre.
-
-**Les lignes d'effet.** La ligne d'effet d'une case est l'une de celles-ci, mot pour mot ;
-`<cible>` y est le nom de l'accord où mène sa flèche.
-
-| Case | Ligne d'effet |
-|---|---|
-| Une dominante secondaire | `tire vers <cible>` |
-| Un emprunt au mineur, dans une tonalité majeure | `assombrit` |
-| Un emprunt au majeur, dans une tonalité mineure | `éclaire` |
-| Un diminué de la couche sombre (vii°7) | `glisse vers <cible>` |
-| La napolitaine | `tension sombre avant la dominante` |
-| L'augmenté | `suspend` |
-| Au centre, la fonction : tonique, sous-dominante, dominante | `repos`, `éloignement`, `tension`, dans cet ordre |
-
-Au centre, chaque degré porte une fonction, selon le regroupement courant en harmonie de
-chanson ([Q20](90-questions-ouvertes.md#q20--quelle-fonction-porte-chaque-degré-du-centre-de-la-table-)) :
-
-| Mode | `repos` | `éloignement` | `tension` |
-|---|---|---|---|
-| Majeur | I, iii, vi | ii, IV | V, vii° |
-| Mineur | i, III | ii°, iv, VI | v, VII |
-
-**Changer de tonalité.** Chaque case garde sa place et son chiffre ; seul le nom change
-([I26](70-qualite-et-verification.md#3-les-invariants-et-leurs-tests)).
-L'orthographe des tonalités est celle de l'arbitrage A17
-([§ 90](90-questions-ouvertes.md#les-arbitrages-pris-dans-cette-conception)). De do à mi♭
-majeur, `C` devient `E♭`, `A7` devient `C7` et `B°` devient `D°`. En fa♯ majeur, le iii
-s'écrit `A♯m` ; en mi♭ mineur, le V7/i s'écrit `B♭7`. Une case dont le nom porterait une
-double altération s'écrit à l'enharmonique simple, sous le même chiffre romain : en ré♭
-majeur, le ♭VI s'écrit `A`, et non `B𝄫`. La préférence d'orthographe ne s'applique pas à la
-table ([Q21](90-questions-ouvertes.md#q21--comment-sécrivent-les-cases-de-la-table-)).
-
-**La couche sombre.** Elle est masquée par défaut et s'affiche à la demande. Elle n'ajoute
-aucune case aux trois rangées : elle forme sa propre rangée, qui porte son nom. Affichée,
-elle nourrit aussi les accords suivants de la carte des chemins.
+[familles d'accords](#12-les-familles-daccords) (§ 1.2) : la table montre tout, la carte part
+de ce qui précède réellement. Si la **couche sombre** est affichée, ses accords nourrissent
+aussi les accords suivants. La table n'est pas une piste : ses données, les rangées, les
+flèches de résolution et les lignes d'effet sont au § 1.2.
 
 ### 4.3 Les pistes génératives
 
@@ -368,29 +369,76 @@ Seul l'**épinglage** par Sacha est une décision.
 
 ### 6.1 Comment le doigté par défaut se choisit
 
-Un doigté candidat doit tenir **trois contraintes**, toutes obligatoires et calculables :
+L'accordage est `EADGBE`, MIDI [40, 45, 50, 55, 59, 64], sans réglage ni capodastre au calcul
+(§ 6.2).
 
-- **Jouabilité** : au plus quatre doigts ; une étendue d'au plus trois frettes entre la
-  frette la plus basse et la plus haute ; un barré compte pour un doigt.
-- **Basse juste** : la fondamentale, ou la basse voulue, est la corde la plus grave jouée.
-- **Complétude** : toutes les notes ; seule la quinte peut manquer, jamais la tierce ni la
-  septième.
+**Les candidats sont les formes du recueil.** Une forme se décrit par ses frettes en position
+ouverte, de la corde grave à l'aiguë (`x` : corde étouffée). Une forme **mobile** se déplace
+d'un même nombre de frettes sur toutes ses cordes, tant qu'aucune frette ne dépasse 15. Une
+forme **fixe** ne sert qu'à sa place. Une forme placée sert tout accord dont elle tient les
+contraintes, quel que soit son nom.
 
-Parmi les candidats qui les tiennent, **deux préférences** départagent, dans l'ordre :
+| Accord | Formes mobiles | Formes fixes |
+|---|---|---|
+| Majeur | E `022100`, A `x02220`, D `xx0232` | C `x32010`, G `320003` |
+| Mineur | Em `022000`, Am `x02210`, Dm `xx0231` | — |
+| Septième | E7 `020100`, A7 `x02020`, D7 `xx0212` | C7 `x32310`, G7 `320001`, B7 `x21202` |
+| Diminué | B° `x2343x`, D° `xx0131` | — |
+| Diminué 7 | D°7 `xx0101`, A°7 `x01212`, A♯°7 `x1202x`, E°7 `012020` | — |
+| Augmenté | D+ `xx0332` | C+ `x32110`, E+ `032110` |
+| Premier renversement (la napolitaine) | C/E `xx2010`, G/B `x20003` | B♭/D `xx0331`, F/A `x03211` |
 
-1. **Contexte** : le doigté vit dans la même zone du manche que ses voisins. On minimise
-   le **déplacement total** sur la suite d'accords de la section — un calcul de plus court
-   chemin sur les candidats de chaque accord. Un accord jouable en position ouverte et en
-   barré à la septième frette prend l'ouverte si ses voisins sont ouverts, le barré s'ils
-   sont en haut du manche. C'est ce qui distingue un outil d'un dictionnaire d'accords.
-2. **Cordes à vide** : à déplacement égal, celui qui en fait sonner le plus.
+**Les contraintes** sont toutes obligatoires : une forme placée n'est candidate que si elle les
+tient toutes.
+
+- **Notes justes** : elle ne fait sonner que des notes de l'accord.
+- **Basse juste** : la corde la plus grave jouée sonne la basse de l'accord, la fondamentale
+  ou la basse voulue.
+- **Complétude** : elle a toutes les notes ; seule la quinte peut manquer, jamais la tierce ni
+  la septième.
+- **Étendue** : au plus trois frettes entre la frette appuyée la plus basse et la plus haute.
+- **Jouabilité** : au plus quatre doigts, un barré comptant pour un.
+
+**Le barré** ne s'emploie que s'il faudrait plus de quatre doigts sans lui. L'index couvre alors
+la frette appuyée la plus basse, de la corde la plus grave qui y est appuyée à la plus aiguë.
+Il faut que ces deux cordes soient distinctes et que toute corde entre elles soit jouée, à
+cette frette ou plus haut : une corde étouffée ou à vide entre les bornes interdit le barré.
+
+**Les numéros de doigts.** L'index (1) prend le barré, ou sinon la note appuyée la plus basse
+en frette (la plus grave, à frette égale). Les autres notes appuyées prennent 2, 3 et 4, dans
+l'ordre des frettes croissantes, puis des cordes de la plus grave à la plus aiguë. Lus de la
+corde grave à l'aiguë :
+
+- `x32010` donne 3, 2, 1 ;
+- `x02220` donne 1, 2, 3 ;
+- `133211` donne un barré, puis 3, 4, 2 ;
+- `x24432` donne un barré, puis 3, 4, 2.
+
+**Hors contexte**, dans la table, les candidats se départagent dans cet ordre :
+
+1. la frette appuyée la plus basse, la plus basse (0 si aucune corde n'est appuyée) ;
+2. le plus de cordes à vide ;
+3. le plus de cordes jouées ;
+4. le moins de doigts ;
+5. le premier dans l'ordre des frettes lues de la grave à l'aiguë, une corde étouffée avant 0.
+
+**En contexte**, le doigté vit dans la même zone du manche que ses voisins : c'est le plus
+court chemin sur la suite d'accords de la section. La **zone** d'un doigté vaut 0 s'il fait
+sonner une corde à vide, et sinon sa frette appuyée la plus basse. Le **déplacement** entre
+deux doigtés est l'écart de leurs zones, et on minimise le déplacement total. À égalité, on
+prend le chemin qui fait sonner le plus de cordes à vide, puis, accord par accord dans l'ordre
+de la suite, l'ordre hors contexte. Un accord jouable en position ouverte et en barré à la
+septième frette prend l'ouverte si ses voisins sont ouverts, le barré s'ils sont en haut du
+manche. C'est ce qui distingue un outil d'un dictionnaire d'accords.
+
+Un **maillon fixé**, un doigté épinglé (§ 6.2), n'a que son doigté pour candidat. Un accord
+sans candidat reste sans doigté, et le chemin le saute.
 
 Une préférence ne rachète jamais une contrainte : pour `C`, `032010` fait sonner plus de
 cordes à vide que `x32010`, mais sa basse est un mi ; il est écarté.
 
-Un accord **injouable** (agrégat serré, cinq notes) — aucun candidat ne tient les trois
-contraintes — produit « pas de doigté jouable » et la liste des notes, jamais un diagramme
-approximatif.
+Un accord **sans candidat** (agrégat serré, cinq notes) produit « pas de doigté jouable » et la
+liste des notes, jamais un diagramme approximatif.
 
 ### 6.2 Épingler, transposer, capodastre
 
@@ -415,6 +463,18 @@ est [REN-08](20-sfd/28-rendus-encre-impression.md#ren-08--diagrammes-de-clavier)
   prend le renversement qui déplace le moins la main depuis `G`.
 - **La position fondamentale hors contexte.** Hors contexte, dans une table, l'accord est en
   position fondamentale : pour `C`, la main y joue do, mi, sol.
+  La napolitaine fait exception : sa basse est imposée (voir les candidats).
+- **Les candidats.** Un accord a un candidat par renversement, en **position serrée** : la
+  basse est la note du renversement, entre do 3 et si 3 (do 3 = MIDI 60, la 3 = 440 Hz), et
+  chaque autre note, prise dans l'ordre de l'accord à partir de la basse, se place à la hauteur
+  la plus proche **strictement** au-dessus de la précédente. Pour `C`, les candidats sont
+  [60, 64, 67], [64, 67, 72] et [67, 72, 76]. Un accord à basse imposée, comme la napolitaine
+  `D♭/F`, ne garde que le candidat de sa basse : [65, 68, 73] en do majeur.
+- **Le déplacement.** Le déplacement entre deux voicings additionne, pour chaque note de l'un,
+  la distance en demi-tons à la note la plus proche de l'autre, dans les deux sens. Après `G`
+  [67, 71, 74], `C` en [67, 72, 76] coûte 6, contre 7 pour [64, 67, 72] et 21 pour
+  [60, 64, 67] : le premier l'emporte. **À égalité, la basse la plus grave l'emporte.** Sans
+  accord précédent, l'accord se joue comme hors contexte.
 - **L'épinglage.** Un épinglage lie un accord absolu à un renversement, qui l'emporte alors
   sur le calcul. Il a les trois portées et la priorité d'un épinglage de doigté (§ 6.2) : la
   plus spécifique gagne. Après une transposition, un renversement épinglé qui ne correspond
@@ -492,4 +552,4 @@ nature (manière ou objet) en données, modifiable par Sacha.
 | 8 | Une demande de pistes rend au moins deux pistes ou « pas de piste valable » | Elle en rend une seule |
 | 9 | La carte des chemins d'un morceau en si mineur, grille vide, part de `Bm` (i) et nomme sa dominante `F♯` ou `F♯7` | Elle part d'un autre accord que `Bm`, ou nomme V autrement que `F♯`/`F♯7` |
 | 10 | Pour un même accord, deux contextes différents donnent deux doigtés différents quand le déplacement l'exige | Le doigté ignore le contexte |
-| 11 | Tout doigté proposé tient les trois contraintes, sur les douze tonalités et un vocabulaire de référence | Une préférence l'emporte sur une contrainte : basse fausse, note manquante autre que la quinte, plus de quatre doigts |
+| 11 | Tout doigté proposé tient les cinq contraintes du § 6.1, sur les douze tonalités et un vocabulaire de référence | Une préférence l'emporte sur une contrainte : note étrangère à l'accord, basse fausse, note manquante autre que la quinte, étendue de plus de trois frettes, plus de quatre doigts |

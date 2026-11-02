@@ -13,7 +13,7 @@
   ([MIC-12](../20-sfd/22-micro-motif-et-phrase.md#mic-12--parcourir-la-table-de-la-tonalité))
   montre d'un coup d'œil tous les accords qu'une tonalité met à portée, une rangée par
   famille, chacun avec l'accord où il mène
-  ([§ 60](../60-moteur-musical.md#les-familles-daccords)). Depuis un morceau ouvert, Sacha
+  ([§ 60](../60-moteur-musical.md#12-les-familles-daccords)). Depuis un morceau ouvert, Sacha
   peut y **prendre** un accord, qui s'insère à la position courante.
 - Une vue qui offre des accords ressemble à une piste. Or l'[ADR-004](adr-004-proposer-n-est-pas-decider.md)
   fait de tout ce que la machine mesure ou imagine une proposition, et la part d'origine

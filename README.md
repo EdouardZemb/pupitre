@@ -82,7 +82,7 @@ flowchart TB
 | [40 — Architecture](docs/40-architecture.md) | Conteneurs, flux, analyse en deux étages, passerelle IA, réseau, trajectoire INC-0 à INC-6 | Avant de choisir une dépendance |
 | [41 — Pile technique](docs/41-pile-technique.md) | Chaque choix de pile, ses concurrents écartés, ce qui change par rapport à la pile précédente | Avant d'ajouter une bibliothèque |
 | [50 — Interfaces et appareils](docs/50-interfaces-et-appareils.md) | Rôles des appareils, zoom sémantique, l'écran de la table, grammaire des propositions, mode encre | Pour tout écran |
-| [60 — Moteur musical](docs/60-moteur-musical.md) | Théorie, doctrine et règles d'outil ; diagnostics ; pistes ; familles d'accords ; prosodie ; doigtés et voicing au clavier | Pour un diagnostic, une piste ou la table |
+| [60 — Moteur musical](docs/60-moteur-musical.md) | Théorie, doctrine et règles d'outil, dont les familles d'accords ; diagnostics ; pistes ; prosodie ; doigtés et voicing au clavier | Pour un diagnostic, une piste ou la table |
 | [70 — Qualité et vérification](docs/70-qualite-et-verification.md) | Invariants I01–I27, bancs d'évaluation, profils d'appareils, portes de CI | Pour écrire un test |
 | [80 — Glossaire](docs/80-glossaire.md) | Le vocabulaire, un mot pour une chose | Dès qu'un mot hésite |
 | [90 — Questions ouvertes](docs/90-questions-ouvertes.md) | Q01–Q22 triées par ce qu'elles débloquent ; arbitrages A01–A22 et leur coût de renversement | Avant de supposer |

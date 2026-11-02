@@ -204,7 +204,7 @@ maquettes :
 - en mineur, i et III : `repos` ; ii°, iv et VI : `éloignement` ; v et VII : `tension`.
 
 **Ce que ça règle.** Les lignes d'effet du centre, que calcule le noyau d'INC-0
-([§ 60](60-moteur-musical.md#les-familles-daccords)), et la maquette de la table
+([§ 60](60-moteur-musical.md#12-les-familles-daccords)), et la maquette de la table
 ([§ 50 · 3.7](50-interfaces-et-appareils.md#37-la-table-de-la-tonalité)), qui les suivait
 déjà.
 
@@ -219,7 +219,7 @@ altération s'écrit à l'enharmonique simple, sous le même chiffre romain : `A
 ré♭ majeur, `G°7` pour `F𝄪°7`.
 
 **Ce que ça règle.** [MIC-12](20-sfd/22-micro-motif-et-phrase.md#mic-12--parcourir-la-table-de-la-tonalité),
-SYN-09, le [§ 60](60-moteur-musical.md#les-familles-daccords) et l'invariant
+SYN-09, le [§ 60](60-moteur-musical.md#12-les-familles-daccords) et l'invariant
 [I26](70-qualite-et-verification.md#3-les-invariants-et-leurs-tests), qui translate les noms
 « à l'enharmonie près pour ces cases ».
 
