@@ -7,8 +7,6 @@
 //! calcule depuis la [`Table`]. Le pied est réservé au bas de la page, sur deux lignes à
 //! 11 pt : le cahier le pose, puisqu'il porte l'empreinte de la page sans pied.
 
-use std::fmt::Display;
-
 use super::case::{
     Etat, PASTILLE, PICTOGRAMME_H, PICTOGRAMME_L, POINTE, cadre, fleche, pastille, pictogramme,
 };
@@ -21,7 +19,7 @@ use super::grille::{
 use super::pages::{HAUTEUR, LARGEUR, Rect};
 use super::svg::{Couleur, Element, Page, TRAIT_FIN};
 use super::texte::{Corps, chasse, composer, couper, couper_aux_points};
-use super::{Debordement, Instrument, en_mm};
+use super::{Contexte, Debordement, Instrument, en_mm};
 use crate::table::{Case, CoucheSombre, Famille, Position, Rangee, Table};
 use crate::tonalite::{Mode, Tonalite};
 
@@ -100,26 +98,6 @@ const LEGENDE: [(Famille, &str); 4] = [
     (Famille::Emprunt, "emprunt"),
     (Famille::Sombre, "harmonie sombre"),
 ];
-
-/// La page dont on parle, en tête de chaque débordement.
-struct Contexte(String);
-
-impl Contexte {
-    fn deborde(&self, quoi: impl Display) -> Debordement {
-        Debordement {
-            quoi: format!("{} : {quoi}", self.0),
-        }
-    }
-
-    /// Un texte plus large que sa place.
-    fn trop_large(&self, texte: &str, largeur: f32, place: f32) -> Debordement {
-        self.deborde(format_args!(
-            "« {texte} » mesure {}, sa place {}",
-            en_mm(largeur),
-            en_mm(place)
-        ))
-    }
-}
 
 // --- Les cases -----------------------------------------------------------------
 

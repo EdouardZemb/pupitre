@@ -1,5 +1,6 @@
 //! Les cases de la table : les quatre cadres, la pastille de fonction, la flèche de
-//! résolution (§ 50 · 3.7).
+//! résolution (§ 50 · 3.7) ; et les marques des rôles de la palette, que le verso pose sur la
+//! portée, le manche et le clavier (MIC-13).
 //!
 //! Les quatre cadres sont au même trait fin : droit (diatoniques), en pointe vers la cible
 //! (dominantes secondaires), aux coins arrondis (emprunts), aux coins coupés (harmonie
@@ -13,6 +14,7 @@ use std::f32::consts::SQRT_2;
 
 use super::pages::Rect;
 use super::svg::{Couleur, Element, TRAIT_FIN, nombre};
+use crate::palette::Role;
 use crate::table::{Famille, Fonction};
 
 /// Une case ordinaire, ou la cible de la case touchée à l'établi.
@@ -310,5 +312,91 @@ pub fn fleche(de: (f32, f32), a: (f32, f32)) -> Element {
                 trait_: None,
             },
         ],
+    }
+}
+
+// --- Les marques de la palette ---------------------------------------------------
+
+/// Le trait d'un cercle creux : la tension, la corde à vide.
+pub(crate) const TRAIT_CREUX: f32 = 0.22;
+/// Le trait d'une croix de palette.
+const TRAIT_CROIX: f32 = 0.3;
+/// La demi-largeur d'une croix de palette, rapportée au rayon de sa marque.
+const CROIX: f32 = 0.8;
+
+/// Où se pose une marque de palette : son support fixe son rayon et sa couleur. Sur une touche
+/// noire, la marque est blanche.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Support {
+    /// Sur la portée, entre deux lignes de 1,8 mm.
+    Portee,
+    /// Sur le manche, entre deux cordes de 3,7 mm ; et dans la légende du verso.
+    Manche,
+    /// Sur une touche blanche de 3 mm.
+    ToucheBlanche,
+    /// Sur une touche noire de 1,8 mm.
+    ToucheNoire,
+}
+
+impl Support {
+    /// Les rayons de la fiche témoin qu'H09 a validée ; sur une touche noire, la marque laisse
+    /// 0,15 mm de noir de chaque côté.
+    fn rayon(self) -> f32 {
+        match self {
+            Support::Portee => 0.85,
+            Support::Manche => 1.0,
+            Support::ToucheBlanche => 0.95,
+            Support::ToucheNoire => 0.75,
+        }
+    }
+}
+
+/// Une croix de deux traits, de demi-largeur `demi`, centrée en `c`.
+pub(crate) fn croix(c: (f32, f32), demi: f32, epaisseur: f32, couleur: Couleur) -> Element {
+    let trait_ = |s: f32| Element::Ligne {
+        de: (c.0 - demi, c.1 - s * demi),
+        a: (c.0 + demi, c.1 + s * demi),
+        trait_: (couleur, epaisseur),
+    };
+    Element::Groupe {
+        id: None,
+        translation: (0.0, 0.0),
+        echelle: None,
+        enfants: vec![trait_(-1.0), trait_(1.0)],
+    }
+}
+
+/// Les formes de MIC-06 : l'appui plein, la tension creuse, la note qui frotte en croix. Le
+/// creux et la croix ont un fond qui masque les lignes qu'ils recouvrent.
+pub fn marque(role: Role, c: (f32, f32), support: Support) -> Element {
+    let r = support.rayon();
+    let cercle = |r: f32, plein: Couleur, trait_: Option<(Couleur, f32)>| Element::Cercle {
+        cx: c.0,
+        cy: c.1,
+        r,
+        id: None,
+        plein: Some(plein),
+        trait_,
+    };
+    let sur_blanc = match role {
+        Role::Appui => cercle(r, Couleur::Noir, None),
+        Role::Tension => cercle(
+            r - TRAIT_CREUX / 2.0,
+            Couleur::Blanc,
+            Some((Couleur::Noir, TRAIT_CREUX)),
+        ),
+        Role::Frotte => Element::Groupe {
+            id: None,
+            translation: (0.0, 0.0),
+            echelle: None,
+            enfants: vec![
+                cercle(r, Couleur::Blanc, None),
+                croix(c, r * CROIX, TRAIT_CROIX, Couleur::Noir),
+            ],
+        },
+    };
+    match support {
+        Support::ToucheNoire => sur_blanc.inverse(),
+        _ => sur_blanc,
     }
 }

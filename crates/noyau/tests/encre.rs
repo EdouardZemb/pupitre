@@ -5,11 +5,16 @@
 mod commun;
 
 use commun::difference;
+use noyau::clavier::Voicing;
+use noyau::guitare::Corde;
 use noyau::hauteur::{Lettre, NomDeNote};
+use noyau::palette::Role;
 use noyau::rendu::Instrument;
-use noyau::rendu::case::{Etat, cadre, pastille, pictogramme};
+use noyau::rendu::case::{Etat, Support, cadre, marque, pastille, pictogramme};
+use noyau::rendu::clavier::diagramme_de_clavier;
+use noyau::rendu::manche::{marque_de_corde, trait_de_barre};
 use noyau::rendu::pages::Rect;
-use noyau::rendu::svg::{Element, Page};
+use noyau::rendu::svg::{Couleur, Element, Page};
 use noyau::rendu::table::page_table;
 use noyau::rendu::texte::{Corps, chasse, composer};
 use noyau::table::{CoucheSombre, Famille, Fonction, Rangee, table};
@@ -195,6 +200,142 @@ fn i17_la_case_cible() {
                 &recadrer(&svg_ordinaire, &r, 0.5),
             );
             assert!(d >= SEUIL, "{} {pos:?} : {d}", t.nom());
+        }
+    }
+}
+
+#[test]
+fn i17_les_marques_du_manche() {
+    // Chaque valeur, posée sur deux cordes voisines du diagramme (3,7 mm) : deux doigts, deux
+    // cordes à vide ou étouffées, contre l'index qui barre les deux cordes.
+    let ecart = 3.7;
+    let page = |valeur: &Option<Corde>| {
+        let (a, b, y) = (MARGE, MARGE + ecart, MARGE);
+        let elements = match valeur {
+            Some(c) => vec![marque_de_corde(c, (a, y)), marque_de_corde(c, (b, y))],
+            None => vec![trait_de_barre(a, b, y)],
+        };
+        svg(ecart + 2.0 * MARGE, 2.0 * MARGE, elements)
+    };
+    let valeurs = [
+        ("doigt", Some(Corde::Frette(1))),
+        ("corde à vide", Some(Corde::AVide)),
+        ("corde étouffée", Some(Corde::Etouffee)),
+        ("barré", None),
+    ];
+    for (i, (a, va)) in valeurs.iter().enumerate() {
+        for (b, vb) in &valeurs[i + 1..] {
+            let d = difference(&page(va), &page(vb));
+            assert!(d >= SEUIL, "{a} et {b} : {d}");
+        }
+    }
+}
+
+/// Les touches d'un clavier dessiné, de gauche à droite, en coordonnées de la page.
+fn touches(clavier: &Element, id: &str) -> Vec<Rect> {
+    let Element::Groupe {
+        translation: (ox, oy),
+        enfants,
+        ..
+    } = clavier
+    else {
+        unreachable!("un clavier est un groupe")
+    };
+    let mut touches: Vec<Rect> = enfants
+        .iter()
+        .filter_map(|e| match e {
+            Element::Rect { r, id: Some(i), .. } if *i == id => Some(Rect {
+                x: r.x + ox,
+                y: r.y + oy,
+                ..*r
+            }),
+            _ => None,
+        })
+        .collect();
+    touches.sort_by(|a, b| a.x.total_cmp(&b.x));
+    touches
+}
+
+/// Le dessin vu par une seule touche : la page réduite à son rectangle.
+fn sur_la_touche(clavier: &Element, r: &Rect) -> String {
+    svg(
+        r.l,
+        r.h,
+        vec![Element::Groupe {
+            id: None,
+            translation: (-r.x, -r.y),
+            echelle: None,
+            enfants: vec![clavier.clone()],
+        }],
+    )
+}
+
+#[test]
+fn i17_le_clavier() {
+    // Do majeur et do mineur couvrent les mêmes touches, de si 2 à la 3 : mi 3 est jouée dans
+    // l'un et libre dans l'autre, mi♭ 3 l'inverse.
+    let do_ = NomDeNote {
+        lettre: Lettre::C,
+        alteration: 0,
+    };
+    let dessin = |notes: &[u8]| {
+        diagramme_de_clavier(
+            &Voicing {
+                notes: notes.to_vec(),
+            },
+            do_,
+            (MARGE, MARGE),
+        )
+    };
+    let (majeur, mineur) = (dessin(&[60, 64, 67]), dessin(&[60, 63, 67]));
+    assert_eq!(
+        touches(&majeur, "touche-blanche"),
+        touches(&mineur, "touche-blanche")
+    );
+    // Les blanches : si, do, ré, mi… ; les noires : do♯, ré♯…
+    let mi = touches(&majeur, "touche-blanche")[3];
+    let mi_bemol = touches(&majeur, "touche-noire")[1];
+    for (touche, r) in [("blanche", mi), ("noire", mi_bemol)] {
+        let d = difference(&sur_la_touche(&majeur, &r), &sur_la_touche(&mineur, &r));
+        assert!(d >= SEUIL, "touche {touche} jouée et libre : {d}");
+    }
+}
+
+#[test]
+fn i17_les_roles_de_la_palette() {
+    // Appui, tension et frotte, sur chacun de leurs supports : sur une touche noire, en blanc.
+    let roles = [Role::Appui, Role::Tension, Role::Frotte];
+    let supports = [
+        Support::Portee,
+        Support::Manche,
+        Support::ToucheBlanche,
+        Support::ToucheNoire,
+    ];
+    for s in supports {
+        let page = |r: Role| {
+            let mut elements = Vec::new();
+            if s == Support::ToucheNoire {
+                // Une touche noire de 1,8 mm, sous la marque.
+                elements.push(Element::Rect {
+                    r: Rect {
+                        x: 2.1,
+                        y: 2.1,
+                        l: 1.8,
+                        h: 1.8,
+                    },
+                    id: None,
+                    plein: Some(Couleur::Noir),
+                    trait_: None,
+                });
+            }
+            elements.push(marque(r, (3.0, 3.0), s));
+            svg(6.0, 6.0, elements)
+        };
+        for (i, a) in roles.iter().enumerate() {
+            for b in &roles[i + 1..] {
+                let d = difference(&page(*a), &page(*b));
+                assert!(d >= SEUIL, "{s:?}, {a:?} et {b:?} : {d}");
+            }
         }
     }
 }
