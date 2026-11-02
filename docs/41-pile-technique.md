@@ -243,7 +243,7 @@ composition, mais il mettrait les pages en page une seconde fois : deux paginati
 identiques (A20). **Paged.js** pagine dans un navigateur, et sa dernière version date de 2024.
 
 `svg2pdf` ne couvre pas tout SVG : la mise en page n'émet qu'un **sous-ensemble limité**, que
-le noyau contrôle sur chaque page (`noyau::rendu::sous_ensemble`) :
+les tests vérifient sur chaque page, par `noyau::rendu::sous_ensemble::verifier` :
 
 - les éléments `svg`, `g`, `path`, `rect`, `circle` et `line` ;
 - les attributs de géométrie, de trait (`stroke`, `stroke-width`, `stroke-linecap`,

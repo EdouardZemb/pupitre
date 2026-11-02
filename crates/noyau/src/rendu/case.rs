@@ -339,8 +339,8 @@ pub enum Support {
 }
 
 impl Support {
-    /// Les rayons qu'H09 a validés ; sur une touche noire, la marque laisse
-    /// 0,15 mm de noir de chaque côté.
+    /// Les rayons qu'H09 a validés ; sur une touche noire, la marque laisse 0,15 mm de noir de
+    /// chaque côté.
     fn rayon(self) -> f32 {
         match self {
             Support::Portee => 0.85,

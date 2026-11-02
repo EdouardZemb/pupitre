@@ -173,8 +173,9 @@ La table de
 montre d'un coup d'œil tous les accords qu'une tonalité met à portée, une rangée par
 famille ([§ 60](60-moteur-musical.md#12-les-familles-daccords)). La maquette en est la page
 au lutrin, en do majeur, instrument guitare, la couche sombre masquée : c'est aussi une page
-du cahier des tables ([REN-01](20-sfd/28-rendus-encre-impression.md#ren-01--fiche-de-travail)),
-sans le pied que le cahier pose.
+du cahier des tables engendré pour la guitare
+([REN-01](20-sfd/28-rendus-encre-impression.md#ren-01--fiche-de-travail)), sans son pied. Le
+cahier par défaut, et celui que dépose la CI, sont pour la guitare et le clavier.
 La page est en paysage, 209,5 × 157 mm : l'écran du lutrin tourné
 ([A22](90-questions-ouvertes.md#les-arbitrages-pris-dans-cette-conception)).
 

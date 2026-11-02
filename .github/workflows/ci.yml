@@ -81,7 +81,8 @@ jobs:
   # `tauri-cli` s'installent par `cargo install --locked`, à version épinglée ; installés
   # après `rust-cache`, leurs binaires (~/.cargo/bin) entrent dans le cache, et le passage
   # suivant ne les recompile pas. Pas d'action de binaires prébâtis : une action de moins à épingler.
-  # Le job dépose aussi le cahier des tables, daté du commit, pour la tablette et l'impression.
+  # Le job dépose aussi le cahier des tables, daté du commit construit, pour la tablette et
+  # l'impression.
   windows:
     runs-on: windows-latest
     # Deux fois le premier passage mesuré, à froid : 19 min 28 s le 2026-11-01, PR #3 (LE-29 de modele-projet).
@@ -109,8 +110,10 @@ jobs:
           name: etabli-installateur
           path: target/release/bundle/nsis/*.exe
           if-no-files-found: error
-      # La date du rendu est une entrée (I25) : celle du commit. Le shell par défaut du runner
-      # Windows est PowerShell, où `$(…)` substitue la commande.
+      # La date du rendu est une entrée (I25) : celle du commit construit. Sur une PR, c'est le
+      # commit de fusion d'essai que GitHub fabrique (refs/pull/N/merge) : le cahier porte alors
+      # la date du jour du passage, et non celle de la tête de la branche. Le shell par défaut du
+      # runner Windows est PowerShell, où `$(…)` substitue la commande.
       - name: Cahier des tables
         run: cargo run -p cahier --release -- --date $(git log -1 --format=%cs) --sortie cahier-des-tables.pdf
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

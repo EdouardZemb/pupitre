@@ -39,6 +39,8 @@ const MM_PAR_PT: f32 = 25.4 / 72.0;
 const UNITES: f32 = 2048.0;
 /// Le bas de la hauteur utile : la page a des marges de 6 mm en haut et en bas.
 const BAS_UTILE: f32 = HAUTEUR - 6.0;
+/// Les marges de gauche et de droite.
+const MARGE_H: f32 = 5.0;
 /// Le haut de la zone que la page réserve au pied : un filet et deux lignes à 11 pt, à
 /// 1,2 cadratin l'une (R3).
 const HAUT_DU_PIED: f32 = BAS_UTILE - (1.2 + 2.0 * 1.2 * 11.0 * MM_PAR_PT);
@@ -373,7 +375,7 @@ fn le_pied_porte_page_date_et_empreinte() {
         for l in lignes {
             let ((x, base), k) = transformation(l);
             let corps = k * UNITES;
-            assert!(x >= 5.0 - EPS, "page {} : ligne à {x}", n + 1);
+            assert!(x >= MARGE_H - EPS, "page {} : ligne à {x}", n + 1);
             assert!(
                 base - 0.928 * corps >= HAUT_DU_PIED - EPS
                     && base + 0.236 * corps <= BAS_UTILE + EPS,
@@ -386,6 +388,36 @@ fn le_pied_porte_page_date_et_empreinte() {
             "page {} : le pied n'est que du texte et un filet",
             n + 1
         );
+        // Mesuré par usvg, glyphes et traits compris : le contenu, la page sans pied, s'arrête
+        // au-dessus de la zone du pied ; le pied seul tient entre le haut de cette zone et le bas
+        // de la hauteur utile ; chacune de ses lignes, entre les deux marges.
+        let contenu = commun::boite_du_dessin(sans_pied);
+        assert!(
+            contenu.bas <= HAUT_DU_PIED + EPS,
+            "page {} : le contenu descend à {} mm, le pied commence à {HAUT_DU_PIED} mm",
+            n + 1,
+            contenu.bas
+        );
+        // Le début du SVG jusqu'au fond de la page compris : de quoi dessiner une partie seule.
+        let fond = &page.svg[..page.svg.find("/>").expect("le fond de la page") + 2];
+        let seul = commun::boite_du_dessin(&format!("{fond}{pied}</svg>"));
+        assert!(
+            seul.haut >= HAUT_DU_PIED - EPS && seul.bas <= BAS_UTILE + EPS,
+            "page {} : le pied va de {} à {} mm",
+            n + 1,
+            seul.haut,
+            seul.bas
+        );
+        for l in pied.split(r#"<g id="t-"#).skip(1) {
+            let ligne = commun::boite_du_dessin(&format!(r#"{fond}<g id="t-{l}</svg>"#));
+            assert!(
+                ligne.gauche >= MARGE_H - EPS && ligne.droite <= LARGEUR - MARGE_H + EPS,
+                "page {} : une ligne du pied va de {} à {} mm en largeur",
+                n + 1,
+                ligne.gauche,
+                ligne.droite
+            );
+        }
     }
 }
 

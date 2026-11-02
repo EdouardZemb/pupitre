@@ -2,10 +2,10 @@
 //! rangées dans l'ordre (dessus, centre, couche sombre affichée, dessous), chacune sous son
 //! nom, leurs cadres et leurs flèches, puis la légende des quatre cadres.
 //!
-//! La grille est celle qu'H09 a validée ([`super::grille`]) ; les cases
-//! sombres, d'un huitième de la largeur, se placent au plus près de leur cible. Le contenu se
-//! calcule depuis la [`Table`]. Le pied est réservé au bas de la page, sur deux lignes à
-//! 11 pt : le cahier le pose, puisqu'il porte l'empreinte de la page sans pied.
+//! La grille est celle qu'H09 a validée ([`super::grille`]) ; les cases sombres, d'un huitième de
+//! la largeur, se placent au plus près de leur cible. Le contenu se calcule depuis la [`Table`]. Le
+//! pied est réservé au bas de la page, sur deux lignes à 11 pt : le cahier le pose, puisqu'il porte
+//! l'empreinte de la page sans pied.
 
 use super::case::{
     Etat, PASTILLE, PICTOGRAMME_H, PICTOGRAMME_L, POINTE, cadre, fleche, pastille, pictogramme,

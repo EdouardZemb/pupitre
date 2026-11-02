@@ -269,9 +269,10 @@ pub fn pages_du_cahier(i: Instrument, date: &Date) -> Result<Vec<PageDuCahier>, 
         liens: sommaire.liens,
         annonce_le_verso: false,
     }];
-    for t in Tonalite::les_24() {
+    for (k, t) in Tonalite::les_24().into_iter().enumerate() {
         let tb = table(t, COUCHE);
-        debug_assert_eq!(pages.len(), index_de_la_table(pages.len() / 2));
+        // La table de la k-ième tonalité entre à l'index que vise le k-ième lien du sommaire.
+        debug_assert_eq!(pages.len(), index_de_la_table(k));
         pages.push(SansPied {
             page: page_table(&tb, i, None)?.page,
             liens: Vec::new(),

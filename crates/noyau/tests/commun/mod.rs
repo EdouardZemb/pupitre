@@ -83,6 +83,41 @@ fn parcourir(groupe: &usvg::Group, px_par_mm: f32, m: &mut Mesures) {
     }
 }
 
+/// Une boîte englobante, en mm depuis le coin haut gauche de la page.
+#[derive(Debug, Clone, Copy)]
+pub struct Boite {
+    pub gauche: f32,
+    pub haut: f32,
+    pub droite: f32,
+    pub bas: f32,
+}
+
+/// La boîte de ce que la page dessine, lue par usvg : les contours des glyphes et les traits,
+/// épaisseur comprise. Le fond blanc de toute la page, son premier `rect`, n'en est pas.
+pub fn boite_du_dessin(svg: &str) -> Boite {
+    let debut = svg.find("<rect").expect("le fond de la page");
+    let fin = debut + svg[debut..].find("/>").expect("un rect fermé") + 2;
+    let fond = &svg[debut..fin];
+    assert!(
+        fond.contains(r#"x="0" y="0""#) && fond.contains(r##"fill="#fff""##),
+        "le premier rect n'est pas le fond : {fond}"
+    );
+    let sans_fond = format!("{}{}", &svg[..debut], &svg[fin..]);
+    let arbre = usvg::Tree::from_str(&sans_fond, &usvg::Options::default()).expect("SVG lisible");
+    let px_par_mm = arbre.size().width() / LARGEUR;
+    let b = arbre.root().abs_stroke_bounding_box();
+    assert!(
+        b.width() > 0.0 && b.height() > 0.0,
+        "la page ne dessine rien"
+    );
+    Boite {
+        gauche: b.left() / px_par_mm,
+        haut: b.top() / px_par_mm,
+        droite: b.right() / px_par_mm,
+        bas: b.bottom() / px_par_mm,
+    }
+}
+
 /// Le facteur d'échelle d'une transformation sans cisaillement.
 fn echelle(t: usvg::Transform) -> f32 {
     (t.sx * t.sy - t.kx * t.ky).abs().sqrt()
