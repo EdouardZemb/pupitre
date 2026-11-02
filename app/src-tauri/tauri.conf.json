@@ -1,0 +1,24 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "pupitre",
+  "version": "0.0.0",
+  "identifier": "app.pupitre.etabli",
+  "build": {
+    "beforeBuildCommand": { "script": "trunk build --release", "cwd": "../ui" },
+    "beforeDevCommand": { "script": "trunk serve", "cwd": "../ui" },
+    "frontendDist": "../ui/dist",
+    "devUrl": "http://localhost:1420"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      { "label": "main", "title": "pupitre", "width": 1440, "height": 900 }
+    ],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/256x256.png", "icons/icon.ico"]
+  }
+}

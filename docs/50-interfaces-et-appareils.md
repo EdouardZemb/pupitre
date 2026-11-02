@@ -174,6 +174,10 @@ montre d'un coup d'œil tous les accords qu'une tonalité met à portée, une ra
 famille ([§ 60](60-moteur-musical.md#les-familles-daccords)). La maquette en est la page
 au lutrin, en do majeur, la couche sombre masquée : c'est aussi une page du cahier des
 tables ([REN-01](20-sfd/28-rendus-encre-impression.md#ren-01--fiche-de-travail)).
+La page est en paysage, 209,5 × 157 mm : l'écran du lutrin tourné
+([A22](90-questions-ouvertes.md#les-arbitrages-pris-dans-cette-conception)). La
+maquette, dessinée en portrait avant l'essai H09, ne tient qu'en composant ses lignes
+d'effet sous les 11 pt du [§ 6.3](#63-les-contraintes-physiques-en-millimètres).
 
 | Zone | Contenu |
 |---|---|

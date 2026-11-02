@@ -1,0 +1,21 @@
+/* Mode encre : noir et blanc. Ni animation ni transition (I18). */
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #fff;
+  color: #000;
+}
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page {
+  /* La page garde son rapport 209,5 × 157 et tient dans la fenêtre. */
+  width: min(100vw, calc(100vh * 209.5 / 157));
+  height: auto;
+  display: block;
+}

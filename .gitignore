@@ -54,3 +54,8 @@ desktop.ini
 
 # Ajouté par le modèle
 .venv/
+
+# Rust
+target/
+app/ui/dist/
+app/src-tauri/gen/

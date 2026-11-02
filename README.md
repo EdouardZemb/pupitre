@@ -85,7 +85,7 @@ flowchart TB
 | [60 — Moteur musical](docs/60-moteur-musical.md) | Théorie, doctrine et règles d'outil ; diagnostics ; pistes ; familles d'accords ; prosodie ; doigtés et voicing au clavier | Pour un diagnostic, une piste ou la table |
 | [70 — Qualité et vérification](docs/70-qualite-et-verification.md) | Invariants I01–I27, bancs d'évaluation, profils d'appareils, portes de CI | Pour écrire un test |
 | [80 — Glossaire](docs/80-glossaire.md) | Le vocabulaire, un mot pour une chose | Dès qu'un mot hésite |
-| [90 — Questions ouvertes](docs/90-questions-ouvertes.md) | Q01–Q22 triées par ce qu'elles débloquent ; arbitrages A01–A21 et leur coût de renversement | Avant de supposer |
+| [90 — Questions ouvertes](docs/90-questions-ouvertes.md) | Q01–Q22 triées par ce qu'elles débloquent ; arbitrages A01–A22 et leur coût de renversement | Avant de supposer |
 | [ADR](docs/adr/README.md) | Vingt et une décisions d'architecture, une par fichier, avec leurs dépendances | Avant de contredire une décision |
 
 ## Statut
