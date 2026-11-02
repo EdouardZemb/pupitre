@@ -49,12 +49,17 @@ struct Regle {
 /// retire les commentaires, coupe sur `{` et `}`, les sélecteurs sur `,` et les déclarations sur
 /// `;` (la propriété est avant le premier `:`). Un bloc `@media` (ou tout `@…` qui contient
 /// des blocs) n'est pas une règle : on l'ouvre et ses règles imbriquées comptent.
+///
+/// Ce qu'il ne gère pas, faute d'en avoir besoin ici : le CSS imbriqué (`&:hover { … }` dans une
+/// règle), une chaîne qui contient `{`, `}` ou `;`, et un sélecteur d'attribut comme
+/// `[class*="sem-"]` (seul le texte `.sem-` d'un sélecteur est reconnu). Si la feuille de style
+/// en vient à en employer, il faut étendre l'analyseur avant de s'y fier.
 fn regles(css: &str) -> Vec<Regle> {
     let css = sans_commentaires_css(css);
     let mut resultat = Vec::new();
     let mut tete = String::new();
     let mut corps = String::new();
-    // Profondeur dans le bloc de déclarations courant (0 : hors règle).
+    // Vrai tant qu'on lit les déclarations d'une règle (entre son `{` et son `}`).
     let mut dans_regle = false;
     for c in css.chars() {
         match c {
@@ -157,6 +162,8 @@ fn i18_aucune_animation_ni_minuterie() {
         "<animate",
         "scroll-behavior: smooth",
     ];
+    // La recherche se fait en sous-chaîne, sensible à la casse, sur la liste exacte ci-dessus : un
+    // identifiant comme `transitions_de_page` la fait échouer, et c'est voulu.
     // La feuille de style est lue sans ses commentaires (le sien dit « rien ne bouge » et peut
     // citer ces mots) ; les sources Rust et la page HTML sont lues telles quelles, commentaires
     // compris : aucun n'a de raison de les nommer.
@@ -187,6 +194,13 @@ fn i18_aucune_animation_ni_minuterie() {
 #[test]
 fn i17_toute_classe_sem_qui_colore_a_un_indice_non_colorimetrique() {
     let css = lire(&racine().join("style.css"));
+    // Garde-fou : un analyseur cassé ne doit pas laisser le test vert à vide.
+    assert!(
+        regles(&css)
+            .iter()
+            .any(|r| r.selecteurs.iter().any(|s| s == ".page svg")),
+        "l'analyseur ne retrouve pas la règle `.page svg` de style.css"
+    );
     if let Err(e) = controler_classes_sem(&css) {
         panic!("{e}");
     }
