@@ -552,4 +552,4 @@ nature (manière ou objet) en données, modifiable par Sacha.
 | 8 | Une demande de pistes rend au moins deux pistes ou « pas de piste valable » | Elle en rend une seule |
 | 9 | La carte des chemins d'un morceau en si mineur, grille vide, part de `Bm` (i) et nomme sa dominante `F♯` ou `F♯7` | Elle part d'un autre accord que `Bm`, ou nomme V autrement que `F♯`/`F♯7` |
 | 10 | Pour un même accord, deux contextes différents donnent deux doigtés différents quand le déplacement l'exige | Le doigté ignore le contexte |
-| 11 | Tout doigté proposé tient les cinq contraintes du § 6.1, sur les douze tonalités et un vocabulaire de référence | Une préférence l'emporte sur une contrainte : note étrangère à l'accord, basse fausse, note manquante autre que la quinte, plus de quatre doigts |
+| 11 | Tout doigté proposé tient les cinq contraintes du § 6.1, sur les douze tonalités et un vocabulaire de référence | Une préférence l'emporte sur une contrainte : note étrangère à l'accord, basse fausse, note manquante autre que la quinte, étendue de plus de trois frettes, plus de quatre doigts |
