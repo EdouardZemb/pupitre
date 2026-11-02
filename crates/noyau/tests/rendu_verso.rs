@@ -681,7 +681,6 @@ fn la_fiche_a_la_largeur_de_sa_colonne() {
         (accord(5, 9, Qualite::Septieme), "A7"),
         (neuf.accord, "C♯°7"),
     ];
-    let mut hauteurs = Vec::new();
     for (a, nom) in fiches {
         for i in INSTRUMENTS {
             let p = fiche_d_accord(&a, do_majeur, i).unwrap();
@@ -702,10 +701,14 @@ fn la_fiche_a_la_largeur_de_sa_colonne() {
                 "{quoi} : du blanc en bas, {b:?} dans {}",
                 p.hauteur
             );
-            hauteurs.push(p.hauteur);
+            // La fiche suit son contenu : ni vide, ni démesurée (les mesures vont de 117 à 185 mm).
+            assert!(
+                (100.0..=190.0).contains(&p.hauteur),
+                "{quoi} : {} de haut",
+                p.hauteur
+            );
         }
     }
-    eprintln!("hauteurs des fiches : {hauteurs:?}");
 }
 
 #[test]
@@ -749,17 +752,6 @@ fn la_fiche_dit_l_accord_son_chiffre_et_l_instrument() {
     };
     let p = fiche_d_accord(&la_7, do_majeur, Instrument::LesDeux).unwrap();
     let svg = p.svg();
-    // L'en-tête se coupe dans la colonne : ses lignes sont celles de l'autre test.
-    for ligne in [
-        "A7",
-        "V7/ii en do",
-        "majeur",
-        "instrument :",
-        "guitare et",
-        "clavier",
-    ] {
-        assert!(svg.contains(&trace(ligne, &Corps::MIN)), "{ligne}");
-    }
     // Une colonne seule, ses minimums gardés ; sa palette a huit notes (do et do♯).
     let m = commun::mesurer(&svg);
     assert_eq!(m.manches.len(), 2);
