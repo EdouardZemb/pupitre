@@ -3,12 +3,13 @@
 //!
 //! Un diagramme part de son coin haut gauche, la corde grave, au haut de la bande des cordes à
 //! vide : le sillet ou la première frette est sous cette bande. Le numéro de la frette de
-//! départ, s'il y en a un, déborde à gauche de la corde grave.
+//! départ, s'il y en a un, déborde à gauche de la corde grave. Les points des doigts sont des
+//! `point`, le barré un groupe `barre`, les numéros de doigts un groupe `doigts`.
 
 use super::case::{Support, TRAIT_CREUX, croix, marque};
 use super::grille::{COLONNE, RETRAIT, interligne, jusqua_la_base, mi_capitale};
 use super::svg::{Couleur, Element, TRAIT_MOYEN, nombre};
-use super::texte::{Corps, chasse, composer, couper};
+use super::texte::{Corps, MotTropLong, chasse, composer, couper};
 use crate::guitare::{ACCORDAGE, Corde, Doigte, PAS_DE_DOIGTE};
 use crate::hauteur::NomDeNote;
 use crate::palette::NoteDePalette;
@@ -40,8 +41,9 @@ const ETOUFFEE: f32 = 0.75;
 const BARRE: f32 = 0.75;
 /// Le blanc entre le numéro de frette et le point le plus à gauche.
 const AVANT_LE_NUMERO: f32 = 0.4;
-/// La place d'un texte dans une colonne de la table, ses retraits ôtés.
-const PLACE: f32 = COLONNE - 2.0 * RETRAIT;
+/// La place d'un texte dans une colonne de la table, ses retraits ôtés : celle du diagramme
+/// sans doigté quand nulle colonne ne la donne.
+const PLACE_D_UNE_COLONNE: f32 = COLONNE - 2.0 * RETRAIT;
 
 fn n(v: f32) -> String {
     nombre(v, 3)
@@ -167,39 +169,50 @@ fn y_a_vide() -> f32 {
 /// Ce qu'une corde montre au diagramme : un point plein pour un doigt, un cercle pour une
 /// corde à vide, une croix pour une corde étouffée.
 pub fn marque_de_corde(corde: &Corde, c: (f32, f32)) -> Element {
-    let cercle = |r: f32, plein: Couleur, trait_: Option<(Couleur, f32)>| Element::Cercle {
+    let cercle = |id, r: f32, plein: Couleur, trait_: Option<(Couleur, f32)>| Element::Cercle {
         cx: c.0,
         cy: c.1,
         r,
-        id: None,
+        id,
         plein: Some(plein),
         trait_,
     };
     match corde {
-        Corde::Frette(_) => cercle(POINT, Couleur::Noir, None),
-        Corde::AVide => cercle(A_VIDE, Couleur::Blanc, Some((Couleur::Noir, TRAIT_CREUX))),
+        Corde::Frette(_) => cercle(Some("point"), POINT, Couleur::Noir, None),
+        Corde::AVide => cercle(
+            None,
+            A_VIDE,
+            Couleur::Blanc,
+            Some((Couleur::Noir, TRAIT_CREUX)),
+        ),
         Corde::Etouffee => croix(c, ETOUFFEE, TRAIT_CREUX, Couleur::Noir),
     }
 }
 
-/// Le barré : un trait épais aux bouts arrondis, de l'abscisse `de` à `a`, à la hauteur `y`.
+/// Le barré : un groupe `barre`, un trait épais aux bouts arrondis, de l'abscisse `de` à `a`, à
+/// la hauteur `y`.
 pub fn trait_de_barre(de: f32, a: f32, y: f32) -> Element {
     let r = BARRE;
     let arc = format!("A{} {} 0 0 1", n(r), n(r));
-    Element::Chemin {
-        d: format!(
-            "M{} {}H{}{arc} {} {}H{}{arc} {} {}Z",
-            n(de),
-            n(y - r),
-            n(a),
-            n(a),
-            n(y + r),
-            n(de),
-            n(de),
-            n(y - r)
-        ),
-        plein: Some(Couleur::Noir),
-        trait_: None,
+    Element::Groupe {
+        id: Some("barre"),
+        translation: (0.0, 0.0),
+        echelle: None,
+        enfants: vec![Element::Chemin {
+            d: format!(
+                "M{} {}H{}{arc} {} {}H{}{arc} {} {}Z",
+                n(de),
+                n(y - r),
+                n(a),
+                n(a),
+                n(y + r),
+                n(de),
+                n(de),
+                n(y - r)
+            ),
+            plein: Some(Couleur::Noir),
+            trait_: None,
+        }],
     }
 }
 
@@ -217,33 +230,46 @@ fn lignes_centrees(lignes: &[String]) -> Vec<Element> {
         .collect()
 }
 
-/// « pas de doigté jouable », puis les notes en solfège, coupés dans la place d'une colonne.
-fn lignes_sans_doigte(notes: &[NomDeNote]) -> Vec<String> {
+/// « pas de doigté jouable », puis les notes en solfège, coupés dans `place` mm ; un mot plus
+/// large est une erreur.
+fn lignes_sans_doigte(notes: &[NomDeNote], place: f32) -> Result<Vec<String>, MotTropLong> {
     let t = Corps::MIN;
     let noms: Vec<String> = notes.iter().map(|n| n.solfege()).collect();
-    // Le plus long mot de ces textes (« jouable », 14,2 mm) tient dans une colonne.
-    let mut lignes = couper(PAS_DE_DOIGTE, &t, PLACE).expect("chaque mot tient dans sa colonne");
-    lignes.extend(couper(&noms.join(" "), &t, PLACE).expect("un nom de note tient"));
-    lignes
+    let mut lignes = couper(PAS_DE_DOIGTE, &t, place)?;
+    lignes.extend(couper(&noms.join(" "), &t, place)?);
+    Ok(lignes)
 }
 
 /// Le diagramme de manche (REN-04) : six cordes, quatre frettes, plus si un doigté parti du
 /// sillet monte plus haut ; le numéro de la frette de départ s'il dépasse 1. Un point plein
 /// marque un doigt, un cercle une corde à vide, une croix une corde étouffée, un trait épais le
 /// barré ; les numéros de doigts sont dessous. Sans doigté : « pas de doigté jouable » et les
-/// notes, sans grille.
+/// notes, sans grille, coupés dans la place d'une colonne de la table, où leurs mots tiennent
+/// tous (le plus long, « jouable », fait 14,2 mm pour 25,2).
 pub fn diagramme_de_manche(
     d: Option<&Doigte>,
     notes: &[NomDeNote],
     origine: (f32, f32),
 ) -> Element {
+    diagramme(d, notes, origine, PLACE_D_UNE_COLONNE)
+        .expect("chaque mot de ces textes tient dans une colonne")
+}
+
+/// Le diagramme de manche ; sans doigté, ses textes coupés dans `place` mm, centrés sur le
+/// manche.
+pub(crate) fn diagramme(
+    d: Option<&Doigte>,
+    notes: &[NomDeNote],
+    origine: (f32, f32),
+    place: f32,
+) -> Result<Element, MotTropLong> {
     let Some(d) = d else {
-        return Element::Groupe {
+        return Ok(Element::Groupe {
             id: None,
             translation: origine,
             echelle: None,
-            enfants: lignes_centrees(&lignes_sans_doigte(notes)),
-        };
+            enfants: lignes_centrees(&lignes_sans_doigte(notes, place)?),
+        });
     };
     let t = Corps::MIN;
     let f = fenetre_du_diagramme(d);
@@ -254,6 +280,7 @@ pub fn diagramme_de_manche(
     }
     let base_des_doigts =
         haut + f32::from(f.frettes) * CASE_DOIGTE + SOUS_LA_GRILLE + jusqua_la_base(&t);
+    let mut doigts = Vec::new();
     for (c, corde) in d.cordes.iter().enumerate() {
         let x = x_corde(c);
         match corde {
@@ -263,7 +290,7 @@ pub fn diagramme_de_manche(
         }
         if let Some(doigt) = d.doigts[c] {
             let texte = doigt.to_string();
-            e.push(composer(
+            doigts.push(composer(
                 &texte,
                 &t,
                 x - chasse(&texte, &t) / 2.0,
@@ -278,25 +305,35 @@ pub fn diagramme_de_manche(
             haut + f.y(b.frette, CASE_DOIGTE),
         ));
     }
-    Element::Groupe {
+    e.push(Element::Groupe {
+        id: Some("doigts"),
+        translation: (0.0, 0.0),
+        echelle: None,
+        enfants: doigts,
+    });
+    Ok(Element::Groupe {
         id: Some("manche"),
         translation: origine,
         echelle: None,
         enfants: e,
-    }
+    })
 }
 
 /// La hauteur du diagramme : la bande des cordes à vide, la grille et les numéros de doigts ;
-/// sans doigté, ses lignes de texte.
-pub(crate) fn hauteur_du_diagramme(d: Option<&Doigte>, notes: &[NomDeNote]) -> f32 {
+/// sans doigté, ses lignes de texte, coupées dans `place` mm.
+pub(crate) fn hauteur_du_diagramme(
+    d: Option<&Doigte>,
+    notes: &[NomDeNote],
+    place: f32,
+) -> Result<f32, MotTropLong> {
     let il = interligne(&Corps::MIN);
-    match d {
+    Ok(match d {
         Some(d) => {
             let f = fenetre_du_diagramme(d);
             RANG_A_VIDE + f32::from(f.frettes) * CASE_DOIGTE + SOUS_LA_GRILLE + il
         }
-        None => lignes_sans_doigte(notes).len() as f32 * il,
-    }
+        None => lignes_sans_doigte(notes, place)?.len() as f32 * il,
+    })
 }
 
 /// Ce que le diagramme déborde à gauche de la corde grave ; sans doigté, rien de plus que ses
@@ -357,6 +394,26 @@ pub(crate) fn debord_de_la_palette(d: &Doigte) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::hauteur::Lettre;
+
+    #[test]
+    fn sans_doigte_les_textes_se_coupent_dans_la_place_donnee() {
+        let notes = [Lettre::A, Lettre::C, Lettre::E].map(|lettre| NomDeNote {
+            lettre,
+            alteration: 0,
+        });
+        let il = interligne(&Corps::MIN);
+        // Dans une colonne de la table : « pas de », « doigté », « jouable », puis les notes.
+        assert_eq!(
+            hauteur_du_diagramme(None, &notes, PLACE_D_UNE_COLONNE),
+            Ok(4.0 * il)
+        );
+        // Dans une place plus large, « pas de doigté jouable » tient sur une ligne.
+        assert_eq!(hauteur_du_diagramme(None, &notes, 60.0), Ok(2.0 * il));
+        // Plus étroite que « doigté » : une erreur, jamais un mot coupé.
+        let e = diagramme(None, &notes, (0.0, 0.0), 10.0).unwrap_err();
+        assert_eq!(e.mot, "doigté");
+    }
 
     fn d(notation: &str) -> Doigte {
         Doigte::depuis(notation).expect(notation)

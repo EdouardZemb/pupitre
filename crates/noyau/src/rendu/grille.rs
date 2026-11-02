@@ -4,7 +4,9 @@
 //! la partagent.
 
 use super::pages::{HAUTEUR, LARGEUR};
-use super::texte::Corps;
+use super::svg::{Couleur, Element, TRAIT_FIN};
+use super::texte::{Corps, composer, couper_aux_points};
+use super::{Contexte, Debordement};
 
 pub(crate) const MARGE_V: f32 = 6.0;
 pub(crate) const MARGE_H: f32 = 5.0;
@@ -56,6 +58,41 @@ pub(crate) fn jusqua_la_base(c: &Corps) -> f32 {
 /// une pastille ou un pictogramme posé devant un texte.
 pub(crate) fn mi_capitale(c: &Corps) -> f32 {
     0.365 * c.mm()
+}
+
+/// L'en-tête d'une page : `texte` coupé aux « · » dans la largeur utile, en `lignes_max` lignes
+/// au plus, à 11 pt, puis un filet de toute la largeur. Il réserve au moins `lignes_reservees`
+/// lignes. Rend ses éléments et la hauteur du filet ; un mot plus large que la page, ou des
+/// lignes de trop, sont un `Debordement`. La page de la table, son verso et la fiche d'un
+/// accord le partagent.
+pub(crate) fn composer_l_en_tete(
+    texte: &str,
+    lignes_reservees: usize,
+    lignes_max: usize,
+    contexte: &Contexte,
+) -> Result<(Vec<Element>, f32), Debordement> {
+    let t = Corps::MIN;
+    let il = interligne(&t);
+    let lignes = couper_aux_points(texte, &t, UTILE_L)
+        .map_err(|e| contexte.trop_large(&e.mot, e.chasse, e.largeur))?;
+    if lignes.len() > lignes_max {
+        return Err(contexte.deborde(format_args!(
+            "l'en-tête prend {} lignes, pour {lignes_max}",
+            lignes.len()
+        )));
+    }
+    let mut elements: Vec<Element> = lignes
+        .iter()
+        .enumerate()
+        .map(|(k, l)| composer(l, &t, MARGE_H, MARGE_V + k as f32 * il + jusqua_la_base(&t)))
+        .collect();
+    let y_filet = MARGE_V + lignes.len().max(lignes_reservees) as f32 * il + SOUS_FILET / 2.0;
+    elements.push(Element::Ligne {
+        de: (MARGE_H, y_filet),
+        a: (MARGE_H + UTILE_L, y_filet),
+        trait_: (Couleur::Noir, TRAIT_FIN),
+    });
+    Ok((elements, y_filet))
 }
 
 /// La hauteur réservée au pied, filet compris.

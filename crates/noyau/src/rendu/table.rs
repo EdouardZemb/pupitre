@@ -12,13 +12,13 @@ use super::case::{
 };
 use super::fleches::{self, Bout};
 use super::grille::{
-    COLONNE, LIGNES_D_EN_TETE, MARGE_H, MARGE_V, RETRAIT, SOUS_FILET, UTILE_H, UTILE_L,
-    au_plus_pres, corps_nom, hauteur_du_pied, interligne, jusqua_la_base, largeur_sombre,
+    COLONNE, LIGNES_D_EN_TETE, MARGE_H, MARGE_V, RETRAIT, UTILE_H, UTILE_L, au_plus_pres,
+    composer_l_en_tete, corps_nom, hauteur_du_pied, interligne, jusqua_la_base, largeur_sombre,
     mi_capitale, milieu_de_colonne, x_colonne,
 };
 use super::pages::{HAUTEUR, LARGEUR, Rect};
-use super::svg::{Couleur, Element, Page, TRAIT_FIN};
-use super::texte::{Corps, chasse, composer, couper, couper_aux_points};
+use super::svg::{Element, Page};
+use super::texte::{Corps, chasse, composer, couper};
 use super::{Contexte, Debordement, Instrument, en_mm};
 use crate::table::{Case, CoucheSombre, Famille, Position, Rangee, Table};
 use crate::tonalite::{Mode, Tonalite};
@@ -271,19 +271,16 @@ pub fn page_table(
         table.tonalite.nom(),
         dite(table.couche_sombre)
     ));
-    let lignes_d_entete = couper_aux_points(&entete(table, instrument), &t, UTILE_L)
-        .map_err(|e| contexte.trop_large(&e.mot, e.chasse, e.largeur))?;
-    if lignes_d_entete.len() > LIGNES_D_EN_TETE {
-        return Err(contexte.deborde(format_args!(
-            "l'en-tête prend {} lignes, pour {LIGNES_D_EN_TETE}",
-            lignes_d_entete.len()
-        )));
-    }
+    // L'en-tête réserve toujours ses deux lignes.
+    let (en_tete, y_filet) = composer_l_en_tete(
+        &entete(table, instrument),
+        LIGNES_D_EN_TETE,
+        LIGNES_D_EN_TETE,
+        &contexte,
+    )?;
 
     // La mise en page, de haut en bas : chaque rangée prend la hauteur de sa case la plus
-    // haute, et le nom de la rangée qui suit se loge entre deux. L'en-tête réserve toujours
-    // ses deux lignes.
-    let y_filet = MARGE_V + LIGNES_D_EN_TETE as f32 * il + SOUS_FILET / 2.0;
+    // haute, et le nom de la rangée qui suit se loge entre deux.
     let masquee = table.couche_sombre == CoucheSombre::Masquee;
     let mut ordre = vec![Rangee::Dessus, Rangee::Centre];
     if !masquee {
@@ -384,20 +381,7 @@ pub fn page_table(
     );
 
     // Le dessin.
-    let mut elements = Vec::new();
-    for (k, ligne) in lignes_d_entete.iter().enumerate() {
-        elements.push(composer(
-            ligne,
-            &t,
-            MARGE_H,
-            MARGE_V + k as f32 * il + jusqua_la_base(&t),
-        ));
-    }
-    elements.push(Element::Ligne {
-        de: (MARGE_H, y_filet),
-        a: (MARGE_H + UTILE_L, y_filet),
-        trait_: (Couleur::Noir, TRAIT_FIN),
-    });
+    let mut elements = en_tete;
     for r in &rangees {
         if r.rangee == Rangee::Dessous
             && let Some(y) = y_masquee

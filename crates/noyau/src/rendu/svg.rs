@@ -72,7 +72,7 @@ pub enum Element {
 
 /// 0,25 pt en mm : le trait fin.
 pub const TRAIT_FIN: f32 = 0.25 * 25.4 / 72.0;
-/// 0,5 pt : le trait des diagrammes, deux fois le trait fin.
+/// 0,5 pt, deux fois le trait fin : le trait des cadres, des flèches et des diagrammes.
 pub(crate) const TRAIT_MOYEN: f32 = 2.0 * TRAIT_FIN;
 
 /// Un nombre à `decimales` décimales au plus, sans zéro final.

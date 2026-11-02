@@ -125,9 +125,19 @@ pub(crate) fn portee(
 /// La palette sur une portée d'une octave, sans clé, les noms dessous, sur la largeur d'une
 /// colonne de la table : la fondamentale dans le premier interligne, les autres notes plus haut
 /// de l'écart de leur lettre, chacune par la forme de son rôle.
+///
+/// Les noms prennent le moins de lignes où chacun tient sous sa note. Si un nom ne tenait pas
+/// même seul sur sa ligne, la portée prendrait une ligne par nom, et ce nom déborderait sans le
+/// dire : cette fonction rend un dessin, pas un `Debordement`. Aucun nom de note n'en approche
+/// (le plus large, « sol♯ », fait 7,4 mm pour une portée de 25,2 mm), et une colonne, elle,
+/// vérifie ses noms et rend `Debordement`.
 pub fn palette_sur_la_portee(p: &[NoteDePalette], origine: (f32, f32)) -> Element {
-    let lignes = lignes_de_noms(p, LARGEUR_PORTEE).unwrap_or(p.len().max(2));
-    portee(p, origine, LARGEUR_PORTEE, lignes)
+    let lignes = lignes_de_noms(p, LARGEUR_PORTEE);
+    debug_assert!(
+        lignes.is_some(),
+        "un nom de note tient toujours seul sur une ligne de la portée"
+    );
+    portee(p, origine, LARGEUR_PORTEE, lignes.unwrap_or(p.len().max(2)))
 }
 
 #[cfg(test)]

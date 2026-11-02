@@ -13,13 +13,14 @@ use std::slice;
 
 use super::case::{Support, marque};
 use super::grille::{
-    COLONNE, LIGNES_D_EN_TETE, MARGE_H, MARGE_V, RETRAIT, SOUS_FILET, UTILE_H, UTILE_L, corps_nom,
-    hauteur_du_pied, interligne, jusqua_la_base, mi_capitale, x_colonne,
+    COLONNE, LIGNES_D_EN_TETE, MARGE_H, MARGE_V, RETRAIT, SOUS_FILET, UTILE_H, UTILE_L,
+    composer_l_en_tete, corps_nom, hauteur_du_pied, interligne, jusqua_la_base, mi_capitale,
+    x_colonne,
 };
 use super::manche::{LARGEUR_MANCHE, POINT};
 use super::pages::{HAUTEUR, LARGEUR, Rect};
 use super::svg::{Couleur, Element, Page, TRAIT_FIN};
-use super::texte::{Corps, chasse, composer, couper_aux_points};
+use super::texte::{Corps, chasse, composer};
 use super::{Contexte, Debordement, Instrument, clavier, en_mm, manche, portee};
 use crate::accord::Accord;
 use crate::clavier::Voicing;
@@ -131,9 +132,9 @@ impl Gabarit {
         let place = largeur - 2.0 * RETRAIT;
         for c in contenus {
             g.titre_sur_deux_lignes |= c.largeur_du_titre() > place;
-            g.manche = g
-                .manche
-                .max(manche::hauteur_du_diagramme(c.doigte.as_ref(), &c.notes));
+            let h = manche::hauteur_du_diagramme(c.doigte.as_ref(), &c.notes, place)
+                .map_err(|e| contexte.trop_large(&e.mot, e.chasse, e.largeur))?;
+            g.manche = g.manche.max(h);
             if let Some(d) = &c.doigte {
                 g.palette_manche = g.palette_manche.max(manche::hauteur_de_la_palette(d));
             }
@@ -264,11 +265,9 @@ fn colonne(c: &Contenu, r: Rect, g: &Gabarit, contexte: &Contexte) -> Result<Ele
         let debord = manche::debord_du_diagramme(c.doigte.as_ref());
         let x = x_du_manche(&r, debord, &c.nom, contexte)?;
         let origine = (x, r.y + places.manche);
-        e.push(manche::diagramme_de_manche(
-            c.doigte.as_ref(),
-            &c.notes,
-            origine,
-        ));
+        let diagramme = manche::diagramme(c.doigte.as_ref(), &c.notes, origine, place)
+            .map_err(|e| contexte.trop_large(&e.mot, e.chasse, e.largeur))?;
+        e.push(diagramme);
         // Sans doigté, la palette n'a pas de zone sur le manche.
         if let Some(d) = &c.doigte {
             let x = x_du_manche(&r, manche::debord_de_la_palette(d), &c.nom, contexte)?;
@@ -378,38 +377,6 @@ fn legende(haut: f32, contexte: &Contexte) -> Result<Vec<Element>, Debordement> 
     Ok(e)
 }
 
-/// L'en-tête coupé aux « · », en au plus `lignes_max` lignes, et son filet : rend les éléments
-/// et le haut des colonnes, sous le filet. L'en-tête réserve au moins `lignes_min` lignes.
-fn entete(
-    texte: &str,
-    lignes_min: usize,
-    lignes_max: usize,
-    contexte: &Contexte,
-) -> Result<(Vec<Element>, f32), Debordement> {
-    let t = Corps::MIN;
-    let il = interligne(&t);
-    let lignes = couper_aux_points(texte, &t, UTILE_L)
-        .map_err(|e| contexte.trop_large(&e.mot, e.chasse, e.largeur))?;
-    if lignes.len() > lignes_max {
-        return Err(contexte.deborde(format_args!(
-            "l'en-tête prend {} lignes, pour {lignes_max}",
-            lignes.len()
-        )));
-    }
-    let mut e: Vec<Element> = lignes
-        .iter()
-        .enumerate()
-        .map(|(k, l)| composer(l, &t, MARGE_H, MARGE_V + k as f32 * il + jusqua_la_base(&t)))
-        .collect();
-    let y_filet = MARGE_V + lignes.len().max(lignes_min) as f32 * il + SOUS_FILET / 2.0;
-    e.push(Element::Ligne {
-        de: (MARGE_H, y_filet),
-        a: (MARGE_H + UTILE_L, y_filet),
-        trait_: (Couleur::Noir, TRAIT_FIN),
-    });
-    Ok((e, y_filet + SOUS_FILET))
-}
-
 // --- Les pages -------------------------------------------------------------------
 
 /// Le verso de la table : pour les sept accords du centre, dans leur ordre, une colonne
@@ -423,7 +390,9 @@ pub fn page_verso(table: &Table, i: Instrument) -> Result<Page, Debordement> {
         "{} · verso de la table · diagrammes et palettes des accords du centre",
         ton.nom()
     );
-    let (mut elements, haut) = entete(&texte, LIGNES_D_EN_TETE, LIGNES_D_EN_TETE, &contexte)?;
+    let (mut elements, y_filet) =
+        composer_l_en_tete(&texte, LIGNES_D_EN_TETE, LIGNES_D_EN_TETE, &contexte)?;
+    let haut = y_filet + SOUS_FILET;
     let bas = MARGE_V + UTILE_H - hauteur_du_pied();
     let cases = table.rangee(Rangee::Centre);
     let contenus: Vec<Contenu> = cases
@@ -468,7 +437,8 @@ pub fn fiche_d_accord(a: &Accord, t: Tonalite, i: Instrument) -> Result<Page, De
         Some(ch) => format!("{nom} · {ch} en {} · instrument : {}", t.nom(), i.nom()),
         None => format!("{nom} · {} · instrument : {}", t.nom(), i.nom()),
     };
-    let (mut elements, haut) = entete(&texte, 1, usize::MAX, &contexte)?;
+    let (mut elements, y_filet) = composer_l_en_tete(&texte, 1, usize::MAX, &contexte)?;
+    let haut = y_filet + SOUS_FILET;
     let r = Rect {
         x: x_colonne(0),
         y: haut,

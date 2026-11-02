@@ -13,7 +13,7 @@
 use std::f32::consts::SQRT_2;
 
 use super::pages::Rect;
-use super::svg::{Couleur, Element, TRAIT_FIN, nombre};
+use super::svg::{Couleur, Element, TRAIT_FIN, TRAIT_MOYEN, nombre};
 use crate::palette::Role;
 use crate::table::{Famille, Fonction};
 
@@ -30,9 +30,9 @@ pub(crate) const POINTE: f32 = 3.0;
 /// Le diamètre d'une pastille de fonction (§ 50 · 6.3).
 pub(crate) const PASTILLE: f32 = 3.0;
 /// 0,5 pt : le trait des quatre cadres, le même pour tous (R21).
-const TRAIT_CADRE: f32 = 2.0 * TRAIT_FIN;
+const TRAIT_CADRE: f32 = TRAIT_MOYEN;
 /// 0,5 pt : le trait d'une flèche.
-const TRAIT_FLECHE: f32 = 2.0 * TRAIT_FIN;
+const TRAIT_FLECHE: f32 = TRAIT_MOYEN;
 /// La longueur de la pointe d'une flèche.
 const LONGUEUR_POINTE: f32 = 1.8;
 /// La demi-largeur de la pointe d'une flèche.
