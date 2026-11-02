@@ -1,6 +1,6 @@
 # Le test de mutation du noyau (famille 3 des garde-fous de la méthode).
-# La théorie (hauteurs, tonalités, accords, table) et la palette sont examinées, ainsi que le clavier ;
-# seule la guitare s'ajoutera dans cette PR. Le rendu (`rendu/`) n'est pas examiné.
+# Sept modules sont examinés : la théorie (hauteurs, tonalités, accords, table), la palette, le
+# clavier et la guitare. Le rendu (`rendu/`) n'est pas examiné.
 examine_globs = [
     "crates/noyau/src/hauteur.rs",
     "crates/noyau/src/tonalite.rs",
@@ -8,6 +8,7 @@ examine_globs = [
     "crates/noyau/src/table.rs",
     "crates/noyau/src/palette.rs",
     "crates/noyau/src/clavier.rs",
+    "crates/noyau/src/guitare.rs",
 ]
 
 # Un mutant réellement équivalent s'exclut ici, nommément, avec sa raison.
