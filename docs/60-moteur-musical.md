@@ -415,6 +415,17 @@ est [REN-08](20-sfd/28-rendus-encre-impression.md#ren-08--diagrammes-de-clavier)
   prend le renversement qui déplace le moins la main depuis `G`.
 - **La position fondamentale hors contexte.** Hors contexte, dans une table, l'accord est en
   position fondamentale : pour `C`, la main y joue do, mi, sol.
+- **Les candidats.** Un accord a un candidat par renversement, en **position serrée** : la
+  basse est la note du renversement, entre do 3 et si 3 (do 3 = MIDI 60, la 3 = 440 Hz), et
+  chaque autre note, prise dans l'ordre de l'accord à partir de la basse, se place à la hauteur
+  la plus proche **strictement** au-dessus de la précédente. Pour `C`, les candidats sont
+  [60, 64, 67], [64, 67, 72] et [67, 72, 76]. Un accord à basse imposée, comme la napolitaine
+  `D♭/F`, ne garde que le candidat de sa basse : [65, 68, 73] en do majeur.
+- **Le déplacement.** Le déplacement entre deux voicings additionne, pour chaque note de l'un,
+  la distance en demi-tons à la note la plus proche de l'autre, dans les deux sens. Après `G`
+  [67, 71, 74], `C` en [67, 72, 76] coûte 6, contre 7 pour [64, 67, 72] et 21 pour
+  [60, 64, 67] : le premier l'emporte. **À égalité, la basse la plus grave l'emporte.** Sans
+  accord précédent, l'accord se joue comme hors contexte.
 - **L'épinglage.** Un épinglage lie un accord absolu à un renversement, qui l'emporte alors
   sur le calcul. Il a les trois portées et la priorité d'un épinglage de doigté (§ 6.2) : la
   plus spécifique gagne. Après une transposition, un renversement épinglé qui ne correspond
