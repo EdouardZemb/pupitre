@@ -1,10 +1,11 @@
 //! L'export du cahier des tables : l'interface demande à l'établi de l'écrire, par la commande
-//! `exporter_cahier` de Tauri, avec la date du jour et l'instrument choisi. Hors de
-//! l'application, le bouton le dit, et ne fait rien.
+//! `exporter_cahier` de Tauri, avec la date du jour, l'instrument et la couche sombre choisis.
+//! Hors de l'application, le bouton le dit, et ne fait rien.
 
 use js_sys::{Function, Object, Promise, Reflect};
 use leptos::prelude::*;
 use noyau::rendu::Instrument;
+use noyau::table::CoucheSombre;
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 
@@ -14,6 +15,14 @@ pub(crate) fn nom_d_instrument(i: Instrument) -> &'static str {
         Instrument::Guitare => "guitare",
         Instrument::Clavier => "clavier",
         Instrument::LesDeux => "les-deux",
+    }
+}
+
+/// La couche sombre telle que l'établi la lit : « masquee » ou « affichee ».
+pub(crate) fn nom_de_couche(c: CoucheSombre) -> &'static str {
+    match c {
+        CoucheSombre::Masquee => "masquee",
+        CoucheSombre::Affichee => "affichee",
     }
 }
 
@@ -58,11 +67,13 @@ async fn exporter(
     core: JsValue,
     invoke: Function,
     instrument: Instrument,
+    couche: CoucheSombre,
 ) -> Result<Option<String>, String> {
     let arguments = Object::new();
     for (cle, valeur) in [
         ("date", date_du_jour()),
         ("instrument", nom_d_instrument(instrument).to_string()),
+        ("couche", nom_de_couche(couche).to_string()),
     ] {
         Reflect::set(
             &arguments,
@@ -88,10 +99,13 @@ async fn exporter(
         .ok_or_else(|| "l'établi a répondu sans nom de fichier".to_string())
 }
 
-/// « Exporter le cahier ». Pendant l'export, le bouton est désactivé, et un texte fixe dit
-/// « Export en cours… ».
+/// « Exporter le cahier », pour l'instrument et dans la couche sombre de l'en-tête. Pendant
+/// l'export, le bouton est désactivé, et un texte fixe dit « Export en cours… ».
 #[component]
-pub fn BoutonExport(#[prop(into)] instrument: Signal<Instrument>) -> impl IntoView {
+pub fn BoutonExport(
+    #[prop(into)] instrument: Signal<Instrument>,
+    #[prop(into)] couche: Signal<CoucheSombre>,
+) -> impl IntoView {
     let disponible = invoke_de_tauri().is_some();
     let en_cours = RwSignal::new(false);
     let dit = RwSignal::new(None::<String>);
@@ -104,9 +118,9 @@ pub fn BoutonExport(#[prop(into)] instrument: Signal<Instrument>) -> impl IntoVi
         };
         en_cours.set(true);
         dit.set(None);
-        let i = instrument.get_untracked();
+        let (i, c) = (instrument.get_untracked(), couche.get_untracked());
         leptos::task::spawn_local(async move {
-            dit.set(message(exporter(core, invoke, i).await));
+            dit.set(message(exporter(core, invoke, i, c).await));
             en_cours.set(false);
         });
     };
@@ -138,6 +152,12 @@ mod tests {
         assert_eq!(nom_d_instrument(Instrument::Guitare), "guitare");
         assert_eq!(nom_d_instrument(Instrument::Clavier), "clavier");
         assert_eq!(nom_d_instrument(Instrument::LesDeux), "les-deux");
+    }
+
+    #[test]
+    fn la_couche_se_nomme_comme_l_etabli_la_lit() {
+        assert_eq!(nom_de_couche(CoucheSombre::Masquee), "masquee");
+        assert_eq!(nom_de_couche(CoucheSombre::Affichee), "affichee");
     }
 
     #[test]

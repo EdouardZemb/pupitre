@@ -6,6 +6,7 @@ use std::path::Path;
 
 use noyau::rendu::Instrument;
 use noyau::rendu::pages::Date;
+use noyau::table::CoucheSombre;
 #[cfg(desktop)]
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
@@ -16,6 +17,15 @@ fn lire_instrument(s: &str) -> Option<Instrument> {
         "guitare" => Some(Instrument::Guitare),
         "clavier" => Some(Instrument::Clavier),
         "les-deux" => Some(Instrument::LesDeux),
+        _ => None,
+    }
+}
+
+/// La couche sombre que l'interface nomme : « masquee » ou « affichee ».
+fn lire_couche(s: &str) -> Option<CoucheSombre> {
+    match s {
+        "masquee" => Some(CoucheSombre::Masquee),
+        "affichee" => Some(CoucheSombre::Affichee),
         _ => None,
     }
 }
@@ -68,18 +78,22 @@ fn ecrire_le_cahier(
 }
 
 /// Exporte le cahier des tables : la boîte d'enregistrement propose
-/// `cahier-des-tables-AAAA-MM-JJ.pdf`, puis le cahier s'engendre pour cet instrument, daté du
-/// jour que l'interface donne (I25), et s'écrit. `Ok(None)` : la boîte a été fermée, rien n'est
-/// écrit ; `Ok(Some(nom du fichier))` ; `Err(message en français)`.
+/// `cahier-des-tables-AAAA-MM-JJ.pdf`, puis le cahier s'engendre pour cet instrument et dans la
+/// couche sombre de l'en-tête, daté du jour que l'interface donne (I25), et s'écrit.
+/// `Ok(None)` : la boîte a été fermée, rien n'est écrit ; `Ok(Some(nom du fichier))` ;
+/// `Err(message en français)`.
 #[tauri::command]
 async fn exporter_cahier(
     app: tauri::AppHandle,
     date: String,
     instrument: String,
+    couche: String,
 ) -> Result<Option<String>, String> {
     let i = lire_instrument(&instrument).ok_or_else(|| {
         format!("instrument inconnu : « {instrument} », attendu guitare, clavier ou les-deux")
     })?;
+    let c = lire_couche(&couche)
+        .ok_or_else(|| format!("couche inconnue : « {couche} », attendue masquee ou affichee"))?;
     let d = Date::depuis_iso(&date)
         .ok_or_else(|| format!("date invalide : « {date} », attendue sous la forme AAAA-MM-JJ"))?;
     // La boîte attend sa réponse, et le cahier prend quelques secondes : l'un et l'autre hors du
@@ -102,7 +116,7 @@ async fn exporter_cahier(
             .transpose()
             .map_err(|e| format!("l'emplacement choisi ne se lit pas : {e}"))?;
         ecrire_le_cahier(chemin.as_deref(), || {
-            cahier::engendrer(i, &d).map_err(|e| e.to_string())
+            cahier::engendrer(i, c, &d).map_err(|e| e.to_string())
         })
     })
     .await
@@ -129,6 +143,16 @@ mod tests {
         assert_eq!(lire_instrument("clavier"), Some(Instrument::Clavier));
         assert_eq!(lire_instrument("les-deux"), Some(Instrument::LesDeux));
         assert_eq!(lire_instrument("piano"), None);
+    }
+
+    #[test]
+    fn lire_les_couches() {
+        assert_eq!(lire_couche("masquee"), Some(CoucheSombre::Masquee));
+        assert_eq!(lire_couche("affichee"), Some(CoucheSombre::Affichee));
+        // Les noms sont ceux de la commande `cahier`, sans accent.
+        assert_eq!(lire_couche("affichée"), None);
+        assert_eq!(lire_couche("sombre"), None);
+        assert_eq!(lire_couche(""), None);
     }
 
     #[test]

@@ -1,9 +1,9 @@
-//! La commande du cahier des tables :
-//! `cahier --date AAAA-MM-JJ [--instrument guitare|clavier|les-deux] --sortie <fichier>`.
+//! La commande du cahier des tables : `cahier --date AAAA-MM-JJ
+//! [--instrument guitare|clavier|les-deux] [--couche masquee|affichee] --sortie <fichier>`.
 //!
 //! La date du rendu est une entrée, jamais l'horloge (I25). L'instrument vaut `les-deux` par
-//! défaut. Une erreur d'usage sort en 2 ; une page qui ne tient pas, un PDF qui ne s'assemble
-//! pas ou un fichier qui ne s'écrit pas, en 1.
+//! défaut, et la couche sombre, `masquee` (REN-01). Une erreur d'usage sort en 2 ; une page qui
+//! ne tient pas, un PDF qui ne s'assemble pas ou un fichier qui ne s'écrit pas, en 1.
 
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -12,15 +12,19 @@ use std::process::ExitCode;
 use cahier::engendrer;
 use noyau::rendu::Instrument;
 use noyau::rendu::pages::Date;
+use noyau::table::CoucheSombre;
 
-const USAGE: &str =
-    "usage : cahier --date AAAA-MM-JJ [--instrument guitare|clavier|les-deux] --sortie <fichier>";
+const USAGE: &str = concat!(
+    "usage : cahier --date AAAA-MM-JJ [--instrument guitare|clavier|les-deux] ",
+    "[--couche masquee|affichee] --sortie <fichier>"
+);
 
 /// Ce que la commande a reçu.
 #[derive(Debug, PartialEq)]
 struct Commande {
     date: Date,
     instrument: Instrument,
+    couche: CoucheSombre,
     sortie: PathBuf,
 }
 
@@ -29,6 +33,7 @@ struct Commande {
 fn lire(args: impl IntoIterator<Item = OsString>) -> Result<Commande, String> {
     let mut date = None;
     let mut instrument = None;
+    let mut couche = None;
     let mut sortie = None;
     let mut args = args.into_iter();
     while let Some(option) = args.next() {
@@ -36,6 +41,7 @@ fn lire(args: impl IntoIterator<Item = OsString>) -> Result<Commande, String> {
         let deja = match option.as_str() {
             "--date" => date.is_some(),
             "--instrument" => instrument.is_some(),
+            "--couche" => couche.is_some(),
             "--sortie" => sortie.is_some(),
             _ => return Err(format!("option inconnue : « {option} »")),
         };
@@ -64,12 +70,24 @@ fn lire(args: impl IntoIterator<Item = OsString>) -> Result<Commande, String> {
                     }
                 });
             }
+            "--couche" => {
+                couche = Some(match valeur.to_string_lossy().as_ref() {
+                    "masquee" => CoucheSombre::Masquee,
+                    "affichee" => CoucheSombre::Affichee,
+                    autre => {
+                        return Err(format!(
+                            "couche inconnue : « {autre} », attendue masquee ou affichee"
+                        ));
+                    }
+                });
+            }
             _ => sortie = Some(PathBuf::from(valeur)),
         }
     }
     Ok(Commande {
         date: date.ok_or("--date manque")?,
         instrument: instrument.unwrap_or_default(),
+        couche: couche.unwrap_or_default(),
         sortie: sortie.ok_or("--sortie manque")?,
     })
 }
@@ -82,7 +100,7 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let pdf = match engendrer(commande.instrument, &commande.date) {
+    let pdf = match engendrer(commande.instrument, commande.couche, &commande.date) {
         Ok(pdf) => pdf,
         Err(e) => {
             eprintln!("cahier : {e}");
@@ -120,6 +138,7 @@ mod tests {
             Ok(Commande {
                 date: DATE,
                 instrument: Instrument::LesDeux,
+                couche: CoucheSombre::Masquee,
                 sortie: PathBuf::from("cahier.pdf"),
             })
         );
@@ -141,8 +160,22 @@ mod tests {
     }
 
     #[test]
+    fn la_couche_sombre_vaut_masquee_par_defaut() {
+        // REN-01 : sans `--couche`, la couche sombre est masquée.
+        let c = lire_(&["--date", "2026-11-01", "--sortie", "c.pdf"]);
+        assert_eq!(c.map(|c| c.couche), Ok(CoucheSombre::Masquee));
+        for (nom, couche) in [
+            ("masquee", CoucheSombre::Masquee),
+            ("affichee", CoucheSombre::Affichee),
+        ] {
+            let c = lire_(&["--couche", nom, "--date", "2026-11-01", "--sortie", "c.pdf"]);
+            assert_eq!(c.map(|c| c.couche), Ok(couche), "{nom}");
+        }
+    }
+
+    #[test]
     fn un_usage_faux_se_dit() {
-        let cas: [(&[&str], &str); 7] = [
+        let cas: [(&[&str], &str); 10] = [
             (&[], "--date manque"),
             (&["--date", "2026-11-01"], "--sortie manque"),
             (&["--date"], "--date attend une valeur"),
@@ -157,6 +190,19 @@ mod tests {
             (
                 &["--instrument", "violon"],
                 "instrument inconnu : « violon », attendu guitare, clavier ou les-deux",
+            ),
+            (
+                &["--couche", "grise"],
+                "couche inconnue : « grise », attendue masquee ou affichee",
+            ),
+            // Les valeurs s'écrivent sans accent, comme les noms des options.
+            (
+                &["--couche", "affichée"],
+                "couche inconnue : « affichée », attendue masquee ou affichee",
+            ),
+            (
+                &["--couche", "masquee", "--couche", "affichee"],
+                "--couche est donnée deux fois",
             ),
             (&["--aide"], "option inconnue : « --aide »"),
         ];
