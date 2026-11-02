@@ -2,7 +2,7 @@
 //! rangées dans l'ordre (dessus, centre, couche sombre affichée, dessous), chacune sous son
 //! nom, leurs cadres et leurs flèches, puis la légende des quatre cadres.
 //!
-//! La grille est celle de la fiche témoin qu'H09 a validée ([`super::grille`]) ; les cases
+//! La grille est celle qu'H09 a validée ([`super::grille`]) ; les cases
 //! sombres, d'un huitième de la largeur, se placent au plus près de leur cible. Le contenu se
 //! calcule depuis la [`Table`]. Le pied est réservé au bas de la page, sur deux lignes à
 //! 11 pt : le cahier le pose, puisqu'il porte l'empreinte de la page sans pied.
@@ -56,7 +56,7 @@ pub struct PageTable {
 // --- Les textes ----------------------------------------------------------------
 
 /// « masquée » ou « affichée ».
-fn dite(c: CoucheSombre) -> &'static str {
+pub(crate) fn dite(c: CoucheSombre) -> &'static str {
     match c {
         CoucheSombre::Masquee => "masquée",
         CoucheSombre::Affichee => "affichée",

@@ -9,7 +9,7 @@ use crate::table::{Famille, Position};
 
 /// Le jour entre le nom d'une rangée et la pointe d'une flèche qui passe à côté (2,5 mm
 /// jusqu'à son trait). À 1,7 mm, aucune flèche du mineur ne glisse : sa page garde les
-/// flèches de la fiche témoin.
+/// flèches de l'essai H09.
 const JOUR_NOM: f32 = 1.7;
 /// La butée d'une flèche : la plus petite distance de sa pointe au côté de sa cible.
 const BUTEE: f32 = 4.0;
@@ -227,7 +227,7 @@ fn essayer(x: f32, largeurs: &[f32], traits: &[Trait]) -> Option<Vec<(usize, f32
 }
 
 /// L'abscisse commune des noms de rangée : celle, de gauche à droite, qui demande le moins
-/// de flèches à pousser. Une colonne d'abord, comme la fiche témoin ; sinon, juste à droite
+/// de flèches à pousser. Une colonne d'abord, comme dans l'essai H09 ; sinon, juste à droite
 /// d'une flèche droite poussée au bord de sa case. Les flèches poussées glissent.
 pub(crate) fn placer_les_noms(largeurs: &[f32], traits: &mut [Trait]) -> Option<f32> {
     let mut candidats: Vec<f32> = (0..7).map(|k| x_colonne(k) + RETRAIT).collect();

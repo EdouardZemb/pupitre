@@ -16,8 +16,8 @@ use crate::palette::NoteDePalette;
 
 /// L'écart de deux lignes de la portée.
 const ESPACE: f32 = 1.8;
-/// Le blanc entre deux noms voisins d'une même ligne : 0,8 mm, et non le millimètre de la fiche
-/// témoin, qui demandait une troisième ligne de noms à sol majeur et à mi mineur pour 0,03 mm.
+/// Le blanc entre deux noms voisins d'une même ligne : 0,8 mm, et non le millimètre de l'essai
+/// H09, qui demandait une troisième ligne de noms à sol majeur et à mi mineur pour 0,03 mm.
 const JOUR: f32 = 0.8;
 /// Le blanc entre la ligne du bas et les noms.
 const SOUS_LA_PORTEE: f32 = 0.6;

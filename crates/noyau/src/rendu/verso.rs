@@ -2,7 +2,7 @@
 //! une colonne par accord, alignée sur les colonnes de la table. Et la fiche d'un accord : une
 //! colonne seule, pour l'établi.
 //!
-//! Une colonne porte, de haut en bas, dans l'ordre de la fiche témoin qu'H09 a validée : le nom
+//! Une colonne porte, de haut en bas, dans l'ordre qu'H09 a validé : le nom
 //! et le chiffre de l'accord ; avec la guitare, le diagramme de manche ; avec le clavier, le
 //! diagramme de clavier ; la bande de la légende de la palette, que la page trace sur toute sa
 //! largeur ; la palette sur le manche, puis sur le clavier, puis sur la portée, qui figure
@@ -30,7 +30,7 @@ use crate::palette::{NoteDePalette, Role, palette};
 use crate::table::{CoucheSombre, Rangee, Table, table};
 use crate::tonalite::Tonalite;
 
-/// Le blanc entre deux blocs d'une colonne. La fiche témoin en laissait 4,5 mm, avec un
+/// Le blanc entre deux blocs d'une colonne. L'essai H09 en laissait 4,5 mm, avec un
 /// en-tête et un pied d'une ligne ; l'en-tête et le pied réservent ici deux lignes chacun, et la
 /// palette sur le manche prend jusqu'à huit cases hors de la mineur.
 const ENTRE_BLOCS: f32 = 2.5;

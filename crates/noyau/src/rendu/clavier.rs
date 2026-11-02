@@ -1,5 +1,5 @@
-//! Le diagramme de clavier (REN-08) et la palette sur le clavier (MIC-13), à la géométrie de
-//! la fiche témoin qu'H09 a validée : des touches blanches de 3 mm, les noires par-dessus.
+//! Le diagramme de clavier (REN-08) et la palette sur le clavier (MIC-13), à la géométrie
+//! qu'H09 a validée : des touches blanches de 3 mm, les noires par-dessus.
 //!
 //! Un clavier part de son coin haut gauche. Ses touches blanches sont des `touche-blanche`, ses
 //! noires des `touche-noire`, de gauche à droite.

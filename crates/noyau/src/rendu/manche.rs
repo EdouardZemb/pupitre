@@ -1,5 +1,5 @@
-//! Le diagramme de manche (REN-04) et la palette sur le manche (MIC-13), à la géométrie de la
-//! fiche témoin qu'H09 a validée : six cordes à 3,7 mm, soit 18,5 mm de large.
+//! Le diagramme de manche (REN-04) et la palette sur le manche (MIC-13), à la géométrie
+//! qu'H09 a validée : six cordes à 3,7 mm, soit 18,5 mm de large.
 //!
 //! Un diagramme part de son coin haut gauche, la corde grave, au haut de la bande des cordes à
 //! vide : le sillet ou la première frette est sous cette bande. Le numéro de la frette de

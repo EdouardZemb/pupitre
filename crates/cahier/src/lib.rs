@@ -1,15 +1,16 @@
-//! Le cahier des tables : l'assemblage des pages SVG du noyau en un PDF.
+//! Le cahier des tables : ses 49 pages, que le noyau dessine, assemblées en un PDF.
 //!
 //! Chaque page SVG devient, par `svg2pdf`, un XObject de formulaire, posé sur une
 //! page de la même taille : 1 mm du SVG fait 1 mm de la page. Le PDF ne porte ni
 //! horloge ni identifiant : deux assemblages à la même date sont identiques à
 //! l'octet (I25).
 
-pub mod temoin;
-
 use std::collections::BTreeMap;
+use std::fmt;
 
+use noyau::rendu::cahier::pages_du_cahier;
 use noyau::rendu::pages::{Date, HAUTEUR, LARGEUR, PageDuCahier, Rect};
+use noyau::rendu::{Debordement, Instrument};
 use pdf_writer::types::AnnotationType;
 use pdf_writer::writers::Destination;
 use pdf_writer::{Content, Finish, Name, Pdf, Ref, TextStr};
@@ -26,6 +27,60 @@ pub enum ErreurPdf {
     Svg { page: usize, message: String },
     /// Le SVG se lit, mais ne se convertit pas, ou un lien mène hors du cahier.
     Conversion { page: usize, message: String },
+}
+
+impl fmt::Display for ErreurPdf {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ErreurPdf::Svg { page, message } => {
+                write!(f, "la page {} ne se lit pas : {message}", page + 1)
+            }
+            ErreurPdf::Conversion { page, message } => {
+                write!(f, "la page {} ne se convertit pas : {message}", page + 1)
+            }
+        }
+    }
+}
+
+impl std::error::Error for ErreurPdf {}
+
+/// Ce qui empêche d'engendrer le cahier : une page qui ne tient pas, ou un PDF qui ne
+/// s'assemble pas.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ErreurCahier {
+    Debordement(Debordement),
+    Pdf(ErreurPdf),
+}
+
+impl fmt::Display for ErreurCahier {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ErreurCahier::Debordement(d) => d.fmt(f),
+            ErreurCahier::Pdf(e) => write!(f, "le PDF ne s'assemble pas : {e}"),
+        }
+    }
+}
+
+impl std::error::Error for ErreurCahier {}
+
+impl From<Debordement> for ErreurCahier {
+    fn from(d: Debordement) -> Self {
+        ErreurCahier::Debordement(d)
+    }
+}
+
+impl From<ErreurPdf> for ErreurCahier {
+    fn from(e: ErreurPdf) -> Self {
+        ErreurCahier::Pdf(e)
+    }
+}
+
+/// Le PDF du cahier des tables pour cet instrument, daté du rendu : les 49 pages de
+/// `pages_du_cahier`, assemblées. La date du rendu est une entrée, jamais l'horloge : deux
+/// engendrements des mêmes entrées sont identiques à l'octet (I25).
+pub fn engendrer(i: Instrument, date: &Date) -> Result<Vec<u8>, ErreurCahier> {
+    let pages = pages_du_cahier(i, date)?;
+    Ok(assembler(&pages, date)?)
 }
 
 /// Assemble les pages en un PDF : une page par SVG, de MediaBox

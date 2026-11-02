@@ -2,6 +2,7 @@
 
 use std::fmt::{self, Display};
 
+pub mod cahier;
 pub mod case;
 pub mod clavier;
 mod fleches;

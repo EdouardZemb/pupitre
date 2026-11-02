@@ -1,4 +1,4 @@
-//! La grille des pages en paysage, celle de la fiche témoin qu'H09 a validée : marges de
+//! La grille des pages en paysage, celle qu'H09 a validée : marges de
 //! 5 mm à gauche et à droite, de 6 mm en haut et en bas, gouttières de 1,5 mm, sept colonnes
 //! de 27,21 mm, et la mesure des lignes de texte. La page de la table, son verso et le cahier
 //! la partagent.

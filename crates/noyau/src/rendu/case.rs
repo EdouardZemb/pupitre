@@ -6,7 +6,7 @@
 //! (dominantes secondaires), aux coins arrondis (emprunts), aux coins coupés (harmonie
 //! sombre). Ils se distinguent par la forme seule, en noir et blanc (I17).
 //!
-//! Ce trait vaut 0,5 pt, et non les 0,25 pt de la fiche témoin : à 0,25 pt, deux cadres d'une
+//! Ce trait vaut 0,5 pt, et non les 0,25 pt de l'essai H09 : à 0,25 pt, deux cadres d'une
 //! case sombre (23,6 × 35 mm) ne diffèrent que par 1,4 % des pixels de leur boîte, sous les
 //! 2 % d'I17 ; à 0,5 pt, la pire paire en diffère de 2,1 %.
 
@@ -198,8 +198,8 @@ pub(crate) const PICTOGRAMME_L: f32 = 10.0;
 /// La hauteur d'un pictogramme de la légende : celle d'une ligne à 11 pt.
 pub(crate) const PICTOGRAMME_H: f32 = 4.6;
 /// L'arrondi et la coupe d'un pictogramme, bien au-delà du quart de sa hauteur : au quart
-/// d'un pictogramme de 4,2 mm, les coins de 1,05 mm de la fiche témoin ne distinguaient pas
-/// l'emprunt de l'harmonie sombre sans lire leur nom (H09).
+/// d'un pictogramme de 4,2 mm, les coins de 1,05 mm de l'essai H09 ne distinguaient pas
+/// l'emprunt de l'harmonie sombre sans lire leur nom.
 const PICTOGRAMME_COIN: f32 = 2.0;
 /// La pointe d'un pictogramme de dominante secondaire.
 const PICTOGRAMME_POINTE: f32 = 1.8;
@@ -339,7 +339,7 @@ pub enum Support {
 }
 
 impl Support {
-    /// Les rayons de la fiche témoin qu'H09 a validée ; sur une touche noire, la marque laisse
+    /// Les rayons qu'H09 a validés ; sur une touche noire, la marque laisse
     /// 0,15 mm de noir de chaque côté.
     fn rayon(self) -> f32 {
         match self {
