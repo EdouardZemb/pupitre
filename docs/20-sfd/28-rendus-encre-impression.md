@@ -161,8 +161,9 @@ flowchart LR
 1. *Étant donné* un même accord dans deux grilles, l'une en position ouverte et l'autre en
    haut du manche, *alors* les doigtés diffèrent, et le déplacement total de la seconde grille
    est minimal avec le doigté choisi.
-2. *Alors* tous les doigtés proposés respectent : au plus quatre doigts, une étendue d'au
-   plus trois frettes, la basse juste, toutes les notes sauf éventuellement la quinte —
+2. *Alors* tous les doigtés proposés respectent : aucune note étrangère à l'accord, la basse
+   juste, toutes les notes sauf éventuellement la quinte, une étendue d'au plus trois frettes,
+   au plus quatre doigts —
    vérifié sur les douze tonalités et un vocabulaire de référence.
 3. *Quand* un doigté est épinglé, *alors* il apparaît dans la grille, la fiche, la carte des
    chemins et l'impression, sans autre saisie.
