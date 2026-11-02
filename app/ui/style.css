@@ -1,4 +1,5 @@
-/* Mode encre : noir et blanc. Ni animation ni transition (I18). */
+/* Mode encre : noir et blanc, et rien ne bouge de soi-même (I18). Aucune information n'est
+   portée par la seule couleur : le focus se voit par un contour en tirets, une forme. */
 html,
 body {
   margin: 0;
@@ -8,14 +9,200 @@ body {
 }
 
 body {
+  font-family: sans-serif;
+}
+
+/* Les mesures du noyau, en mm : la page de la table (209,5 × 157) et la largeur de la fiche
+   d'un accord (une colonne et ses marges). Un test de l'interface les compare au noyau. */
+.etabli {
+  --page-l: 209.5;
+  --page-h: 157;
+  --fiche-l: 37.214;
+  /* L'écart entre la table et la palette, et la place de la barre de défilement de la palette. */
+  --ecart: 0.5rem;
+  --defilement: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* --- L'en-tête ------------------------------------------------------------------------ */
+
+.entete {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.25rem 1rem;
+  padding: 0.25rem 0.75rem 0.5rem;
+  border-bottom: 1px solid #000;
+}
+
+fieldset {
+  margin: 0;
+  padding: 0.125rem 0.5rem 0.25rem;
+  border: 1px solid #000;
+}
+
+legend {
+  padding: 0 0.25rem;
+}
+
+/* Deux rangs, majeur et mineur : chaque majeure au-dessus de sa relative. */
+.tonalites {
+  display: grid;
+  grid-template-rows: auto auto;
+  grid-auto-flow: column;
+  column-gap: 0.5rem;
+}
+
+.mode {
+  font-style: italic;
+}
+
+.choix-en-ligne {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.75rem;
+}
+
+.choix {
+  white-space: nowrap;
+}
+
+/* Le choix fait se voit au point plein du bouton radio, une forme. */
+input[type="radio"] {
+  margin: 0 0.2rem 0 0;
+  accent-color: #000;
+}
+
+button {
+  font: inherit;
+  color: #000;
+  background: #fff;
+  border: 1px solid #000;
+  padding: 0.25rem 0.625rem;
+  cursor: pointer;
+}
+
+/* Désactivé, un bouton le dit par son cadre en tirets, et non par un gris. */
+button:disabled {
+  color: #000;
+  border-style: dashed;
+  cursor: default;
+}
+
+:focus-visible {
+  outline: 0.1875rem dashed #000;
+  outline-offset: 0.125rem;
+}
+
+/* L'export : le bouton parmi les réglages, et son message sur une ligne à lui, toujours
+   réservée, pour que la hauteur de l'en-tête ne change pas pendant l'export. */
+.export {
+  display: contents;
+}
+
+.etat-export {
+  flex-basis: 100%;
+  margin: 0;
+  height: 1.25em;
+  line-height: 1.25;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* --- La table et la palette ------------------------------------------------------------- */
+
+/* Sous l'en-tête : la table, aussi grande que la fenêtre le permet à son rapport 209,5 : 157,
+   puis la place de la palette, toujours réservée à sa droite : la table ne bouge pas quand la
+   palette s'ouvre. `--mm` est la longueur d'un mm de la page à l'écran ; la fiche s'affiche à
+   la même échelle, à l'échelle des colonnes de la table. */
+.plan {
+  flex: 1;
+  min-height: 0;
+  container-type: size;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: var(--ecart);
+  --mm: min(
+    (100cqw - var(--ecart) - var(--defilement)) / (var(--page-l) + var(--fiche-l)),
+    100cqh / var(--page-h)
+  );
+}
+
+.table {
+  position: relative;
+  flex: none;
+  width: calc(var(--page-l) * var(--mm));
+  height: calc(var(--page-h) * var(--mm));
+}
+
+/* Un SVG du noyau a sa largeur en mm : ici, il suit son contenant. */
+.page svg,
+.fiche svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* Le bouton d'une case : transparent, à la place de la case. */
+.case {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+/* Au bas de la case touchée, par-dessus son bouton, à la taille que la page lui donne : 15 ×
+   4,6 mm de la page, son texte à 2,9 mm. Il ne couvre aucune autre case. */
+.bouton-palette {
+  position: absolute;
+  z-index: 1;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
+  border-width: 2px;
+  font-size: calc(2.9 * var(--mm));
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
-.page {
-  /* La page garde son rapport 209,5 × 157 et tient dans la fenêtre. */
-  width: min(100vw, calc(100vh * 209.5 / 157));
-  height: auto;
-  display: block;
+.place-palette {
+  flex: none;
+  width: calc(var(--fiche-l) * var(--mm) + var(--defilement));
+  height: calc(var(--page-h) * var(--mm));
+}
+
+.panneau {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border-left: 1px solid #000;
+}
+
+.panneau-haut {
+  flex: none;
+  padding: 0.25rem;
+  text-align: right;
+}
+
+/* La fiche peut être plus haute que la table : elle défile. */
+.defile {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.erreur {
+  margin: 0.5rem;
+  padding: 0.5rem;
+  border: 2px solid #000;
 }

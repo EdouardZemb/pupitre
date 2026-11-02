@@ -59,20 +59,21 @@ pub(crate) fn mi_capitale(c: &Corps) -> f32 {
     0.365 * c.mm()
 }
 
-/// L'en-tête d'une page : `texte` coupé aux « · » dans la largeur utile, en `lignes_max` lignes
-/// au plus, à 11 pt, puis un filet de toute la largeur. Il réserve au moins `lignes_reservees`
-/// lignes. Rend ses éléments et la hauteur du filet ; un mot plus large que la page, ou des
-/// lignes de trop, sont un `Debordement`. La page de la table, son verso et la fiche d'un
-/// accord le partagent.
+/// L'en-tête d'une page : `texte` coupé aux « · » dans `largeur` mm, en `lignes_max` lignes
+/// au plus, à 11 pt, puis un filet de cette largeur. Il réserve au moins `lignes_reservees`
+/// lignes. Rend ses éléments et la hauteur du filet ; un mot plus large que `largeur`, ou des
+/// lignes de trop, sont un `Debordement`. La page de la table et son verso y mettent toute la
+/// largeur utile ; la fiche d'un accord, la largeur de sa colonne.
 pub(crate) fn composer_l_en_tete(
     texte: &str,
+    largeur: f32,
     lignes_reservees: usize,
     lignes_max: usize,
     contexte: &Contexte,
 ) -> Result<(Vec<Element>, f32), Debordement> {
     let t = Corps::MIN;
     let il = interligne(&t);
-    let lignes = couper_aux_points(texte, &t, UTILE_L)
+    let lignes = couper_aux_points(texte, &t, largeur)
         .map_err(|e| contexte.trop_large(&e.mot, e.chasse, e.largeur))?;
     if lignes.len() > lignes_max {
         return Err(contexte.deborde(format_args!(
@@ -88,7 +89,7 @@ pub(crate) fn composer_l_en_tete(
     let y_filet = MARGE_V + lignes.len().max(lignes_reservees) as f32 * il + SOUS_FILET / 2.0;
     elements.push(Element::Ligne {
         de: (MARGE_H, y_filet),
-        a: (MARGE_H + UTILE_L, y_filet),
+        a: (MARGE_H + largeur, y_filet),
         trait_: (Couleur::Noir, TRAIT_FIN),
     });
     Ok((elements, y_filet))

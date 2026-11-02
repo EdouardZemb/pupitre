@@ -6,5 +6,8 @@ version.workspace = true
 publish.workspace = true
 
 [dependencies]
+js-sys = "0.3.107"
 leptos = { version = "0.8.23", features = ["csr"] }
 noyau = { path = "../../crates/noyau" }
+wasm-bindgen = "0.2.130"
+wasm-bindgen-futures = "0.4.80"
