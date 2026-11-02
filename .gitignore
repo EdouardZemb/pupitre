@@ -59,3 +59,4 @@ desktop.ini
 target/
 app/ui/dist/
 app/src-tauri/gen/
+mutants.out*/

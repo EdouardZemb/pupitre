@@ -117,4 +117,31 @@ jobs:
           path: target/release/bundle/nsis/*.exe
           if-no-files-found: error
 
+  # Le test de mutation du noyau, sur les lignes que la PR modifie (le passage complet est
+  # `mutants-complet.yml`). Un diff qui ne touche pas le noyau ne laisse rien à muter : sortie 0.
+  mutants:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    # Deux fois le premier passage mesuré, 160 mutants : 3 min 22 s le 2026-11-02, PR #4
+    # (LE-29 de modele-projet). À remesurer quand le périmètre de la mutation s'étend.
+    timeout-minutes: 7
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      # Depuis rustup 1.28, `rustup show` n'installe plus la chaîne.
+      - name: Installer la chaîne de rust-toolchain.toml
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - name: Installer cargo-mutants
+        run: cargo install --locked cargo-mutants --version 27.1.0
+      - name: Diff de la PR
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: git diff "origin/$BASE_REF...HEAD" > pr.diff
+      - name: Mutation du noyau
+        run: cargo mutants -p noyau --in-diff pr.diff
+
 # Ce fichier est au projet : `copier update` n'y touche plus.

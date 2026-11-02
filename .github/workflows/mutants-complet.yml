@@ -1,0 +1,31 @@
+name: mutants-complet
+
+# Le passage complet du test de mutation du noyau : chaque lundi, et à la demande.
+# Le job `mutants` de ci.yml, lui, n'examine que les lignes d'une PR.
+on:
+  schedule:
+    - cron: '0 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mutants:
+    runs-on: ubuntu-latest
+    # Deux fois le premier passage mesuré, 160 mutants : 3 min 22 s le 2026-11-02, par le job
+    # `mutants` de la PR #4, qui les mutait tous (LE-29 de modele-projet). À remesurer quand
+    # le périmètre de la mutation s'étend.
+    timeout-minutes: 7
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Depuis rustup 1.28, `rustup show` n'installe plus la chaîne.
+      - name: Installer la chaîne de rust-toolchain.toml
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - name: Installer cargo-mutants
+        run: cargo install --locked cargo-mutants --version 27.1.0
+      - name: Passage complet
+        run: cargo mutants -p noyau
