@@ -214,6 +214,16 @@ ou la capture, et consigné avec sa date.
 | Une page du cahier des tables, à bout de bras, couche sombre affichée | 📖 🖨 | La famille de chaque case se lit à la forme de son cadre, sans lire le nom de la rangée ; chaque flèche mène à une case de la rangée voisine |
 | Impression d'une fiche en noir et blanc | 🖨 | Doigts, cordes à vide, cordes étouffées, barré et épinglage distinguables |
 
+**Les relevés.** Chaque passage se consigne ici : sa date, la version, le contrôle et ce
+qu'on a vu.
+
+| Date | Version | Contrôle | Résultat |
+|---|---|---|---|
+| 2026-11-02 | PR #3 | H09 : la fiche témoin, en SVG puis en PDF, sur la Note Air (📖) | Passe : mêmes pages, mêmes glyphes, rien ne déborde, les quatre cadres distincts. Le papier n'a pas pu se faire ([EM-1](registre.md)) |
+| 2026-11-02 | `2111d3f` (PR #7) | L'établi installé (💻) : la tonalité d'un geste, la couche sombre, la cible en inverse, « Palette » et la fiche de l'accord, le focus au clavier, l'export du cahier, enregistré puis abandonné | Passe |
+| 2026-11-02 | `2111d3f` (PR #7) | Les 24 tables, couche sombre affichée, à bout de bras (📖) ; un verso du cahier | Passe. Ces tables ont été rendues à part, depuis le même code : depuis la PR de la revue finale, la commande les rend (`cahier --couche affichee`) |
+| 2026-11-02 | — | L'impression en noir et blanc d'une page du cahier et des diagrammes (🖨) | Reportée, faute d'imprimante disponible ([A23](90-questions-ouvertes.md#les-arbitrages-pris-dans-cette-conception)) |
+
 ---
 
 ## 8. Les portes de CI
