@@ -122,8 +122,9 @@ jobs:
   mutants:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    # Provisoire jusqu'au premier passage en CI : deux fois les 17 min 22 s du passage complet mesuré en local (160 mutants, par tranches).
-    timeout-minutes: 35
+    # Deux fois le premier passage mesuré, 160 mutants : 3 min 22 s le 2026-11-02, PR #4
+    # (LE-29 de modele-projet). À remesurer quand le périmètre de la mutation s'étend.
+    timeout-minutes: 7
     permissions:
       contents: read
     steps:
@@ -137,7 +138,9 @@ jobs:
       - name: Installer cargo-mutants
         run: cargo install --locked cargo-mutants --version 27.1.0
       - name: Diff de la PR
-        run: git diff origin/${{ github.base_ref }}...HEAD > pr.diff
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: git diff "origin/$BASE_REF...HEAD" > pr.diff
       - name: Mutation du noyau
         run: cargo mutants -p noyau --in-diff pr.diff
 

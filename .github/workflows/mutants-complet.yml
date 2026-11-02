@@ -13,8 +13,10 @@ permissions:
 jobs:
   mutants:
     runs-on: ubuntu-latest
-    # Provisoire jusqu'au premier passage en CI : deux fois la durée mesurée en local (17 min 22 s en local, voir ci.yml).
-    timeout-minutes: 35
+    # Deux fois le premier passage mesuré, 160 mutants : 3 min 22 s le 2026-11-02, par le job
+    # `mutants` de la PR #4, qui les mutait tous (LE-29 de modele-projet). À remesurer quand
+    # le périmètre de la mutation s'étend.
+    timeout-minutes: 7
     permissions:
       contents: read
     steps:
