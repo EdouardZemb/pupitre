@@ -3,4 +3,5 @@
 pub mod accord;
 pub mod hauteur;
 pub mod rendu;
+pub mod table;
 pub mod tonalite;
