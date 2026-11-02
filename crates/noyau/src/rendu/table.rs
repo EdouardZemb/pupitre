@@ -274,6 +274,7 @@ pub fn page_table(
     // L'en-tête réserve toujours ses deux lignes.
     let (en_tete, y_filet) = composer_l_en_tete(
         &entete(table, instrument),
+        UTILE_L,
         LIGNES_D_EN_TETE,
         LIGNES_D_EN_TETE,
         &contexte,

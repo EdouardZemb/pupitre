@@ -667,6 +667,78 @@ fn toute_case_a_sa_fiche() {
     assert!(verifiees >= 2 * 4 * 3, "{verifiees} fiches vérifiées");
 }
 
+/// Les marges d'une page, et la largeur d'une colonne de la table.
+const MARGE_H: f32 = 5.0;
+const MARGE_V: f32 = 6.0;
+const COLONNE: f32 = (LARGEUR - 2.0 * MARGE_H - 6.0 * 1.5) / 7.0;
+
+#[test]
+fn la_fiche_a_la_largeur_de_sa_colonne() {
+    let do_majeur = tonalite(Lettre::C, 0, Mode::Majeur);
+    let tb = table(do_majeur, CoucheSombre::Affichee);
+    let neuf = tb.cases.iter().find(|c| tb.nom(c) == "C♯°7").unwrap();
+    let fiches = [
+        (accord(5, 9, Qualite::Septieme), "A7"),
+        (neuf.accord, "C♯°7"),
+    ];
+    let mut hauteurs = Vec::new();
+    for (a, nom) in fiches {
+        for i in INSTRUMENTS {
+            let p = fiche_d_accord(&a, do_majeur, i).unwrap();
+            let quoi = format!("{nom}, {}", i.nom());
+            assert!(
+                (p.largeur - (2.0 * MARGE_H + COLONNE)).abs() < EPS,
+                "{quoi} : {} de large",
+                p.largeur
+            );
+            let b = commun::boite_du_dessin(&p.svg());
+            assert!(b.gauche >= MARGE_H - EPS, "{quoi} : {b:?}");
+            assert!(b.droite <= p.largeur - MARGE_H + EPS, "{quoi} : {b:?}");
+            assert!(b.haut >= MARGE_V - EPS, "{quoi} : {b:?}");
+            assert!(b.bas <= p.hauteur - MARGE_V + EPS, "{quoi} : {b:?}");
+            // Pas de blanc en bas : la page s'arrête au dessin, sa marge en plus.
+            assert!(
+                p.hauteur - MARGE_V - b.bas < 3.0,
+                "{quoi} : du blanc en bas, {b:?} dans {}",
+                p.hauteur
+            );
+            hauteurs.push(p.hauteur);
+        }
+    }
+    eprintln!("hauteurs des fiches : {hauteurs:?}");
+}
+
+#[test]
+fn la_fiche_coupe_son_en_tete_aux_points_puis_aux_espaces() {
+    // La colonne mesure 27 mm. Le segment « V7/ii en do majeur » est trop large pour la
+    // colonne : il se coupe aux espaces, de même que « instrument : guitare et clavier ».
+    // Aucun mot ne se coupe, et un segment qui tient reste entier.
+    let do_majeur = tonalite(Lettre::C, 0, Mode::Majeur);
+    let p = fiche_d_accord(
+        &accord(5, 9, Qualite::Septieme),
+        do_majeur,
+        Instrument::LesDeux,
+    )
+    .unwrap();
+    let svg = p.svg();
+    for ligne in [
+        "A7",
+        "V7/ii en do",
+        "majeur",
+        "instrument :",
+        "guitare et",
+        "clavier",
+    ] {
+        assert!(
+            svg.contains(&trace(ligne, &Corps::MIN)),
+            "la ligne « {ligne} »"
+        );
+    }
+    // Pas de ligne plus large que la colonne : le dessin tient dans les marges.
+    let b = commun::boite_du_dessin(&svg);
+    assert!(b.droite <= p.largeur - MARGE_H + EPS, "{b:?}");
+}
+
 #[test]
 fn la_fiche_dit_l_accord_son_chiffre_et_l_instrument() {
     let do_majeur = tonalite(Lettre::C, 0, Mode::Majeur);
@@ -677,14 +749,17 @@ fn la_fiche_dit_l_accord_son_chiffre_et_l_instrument() {
     };
     let p = fiche_d_accord(&la_7, do_majeur, Instrument::LesDeux).unwrap();
     let svg = p.svg();
-    assert!(
-        compose_en_lignes(
-            &svg,
-            "A7 · V7/ii en do majeur · instrument : guitare et clavier",
-            " · "
-        ),
-        "l'en-tête de la fiche"
-    );
+    // L'en-tête se coupe dans la colonne : ses lignes sont celles de l'autre test.
+    for ligne in [
+        "A7",
+        "V7/ii en do",
+        "majeur",
+        "instrument :",
+        "guitare et",
+        "clavier",
+    ] {
+        assert!(svg.contains(&trace(ligne, &Corps::MIN)), "{ligne}");
+    }
     // Une colonne seule, ses minimums gardés ; sa palette a huit notes (do et do♯).
     let m = commun::mesurer(&svg);
     assert_eq!(m.manches.len(), 2);

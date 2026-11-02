@@ -4,10 +4,12 @@
 // Chaque fichier de test n'emploie qu'une partie des aides.
 #![allow(dead_code)]
 
-use noyau::rendu::pages::LARGEUR;
 use resvg::{tiny_skia, usvg};
 
 const PT_PAR_MM: f32 = 72.0 / 25.4;
+/// Les pixels d'usvg par mm : 96 ppp. La largeur d'une page n'y entre pas, une fiche étant
+/// plus étroite qu'une table.
+const PX_PAR_MM: f32 = 96.0 / 25.4;
 /// Unités par cadratin de DejaVu Sans.
 const UNITES: f32 = 2048.0;
 /// La résolution du test de différence (§ 50 · 6.5).
@@ -31,7 +33,7 @@ pub struct Mesures {
 /// l'infini et passerait tout seuil.
 pub fn mesurer(svg: &str) -> Mesures {
     let arbre = usvg::Tree::from_str(svg, &usvg::Options::default()).expect("SVG lisible");
-    let px_par_mm = arbre.size().width() / LARGEUR;
+    let px_par_mm = PX_PAR_MM;
     let mut m = Mesures {
         corps_min_pt: f32::INFINITY,
         trait_min_pt: f32::INFINITY,
@@ -104,7 +106,7 @@ pub fn boite_du_dessin(svg: &str) -> Boite {
     );
     let sans_fond = format!("{}{}", &svg[..debut], &svg[fin..]);
     let arbre = usvg::Tree::from_str(&sans_fond, &usvg::Options::default()).expect("SVG lisible");
-    let px_par_mm = arbre.size().width() / LARGEUR;
+    let px_par_mm = PX_PAR_MM;
     let b = arbre.root().abs_stroke_bounding_box();
     assert!(
         b.width() > 0.0 && b.height() > 0.0,

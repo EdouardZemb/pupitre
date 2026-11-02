@@ -100,6 +100,8 @@ struct Gabarit {
     palette_manche: f32,
     /// Les lignes de noms sous la portée : le plus grand nombre qu'une colonne demande.
     lignes_de_noms: usize,
+    /// Les lignes de la bande de la légende.
+    lignes_de_legende: usize,
 }
 
 /// Le haut de chaque bloc, sous le haut de la colonne, et la hauteur de la colonne.
@@ -118,6 +120,7 @@ impl Gabarit {
         contenus: &[Contenu],
         i: Instrument,
         largeur: f32,
+        lignes_de_legende: usize,
         contexte: &Contexte,
     ) -> Result<Gabarit, Debordement> {
         let mut g = Gabarit {
@@ -127,6 +130,7 @@ impl Gabarit {
             manche: 0.0,
             palette_manche: 0.0,
             lignes_de_noms: 2,
+            lignes_de_legende,
         };
         let place = largeur - 2.0 * RETRAIT;
         for c in contenus {
@@ -163,7 +167,7 @@ impl Gabarit {
             y += clavier::hauteur_du_diagramme() + ENTRE_BLOCS;
         }
         let legende = y;
-        y += SOUS_FILET + il + SOUS_FILET;
+        y += SOUS_FILET + self.lignes_de_legende as f32 * il + SOUS_FILET;
         let palette_manche = y;
         if self.guitare {
             y += self.palette_manche + ENTRE_BLOCS;
@@ -316,7 +320,7 @@ pub fn colonne_d_accord(
 ) -> Result<Element, Debordement> {
     let contexte = Contexte(format!("{} en {}", a.nom(t), t.nom()));
     let c = Contenu::de(a, t, chiffre_de(a, t));
-    let g = Gabarit::de(slice::from_ref(&c), i, r.l, &contexte)?;
+    let g = Gabarit::de(slice::from_ref(&c), i, r.l, 1, &contexte)?;
     colonne(&c, r, &g, &contexte)
 }
 
@@ -343,27 +347,55 @@ fn largeur_de_legende() -> f32 {
         + (LEGENDE.len() - 1) as f32 * ENTRE_LES_ROLES
 }
 
-/// La légende de la palette, sous un filet de toute la largeur, dès `haut` : ce qui sépare les
-/// diagrammes des palettes, et dit leurs formes.
-fn legende(haut: f32, contexte: &Contexte) -> Result<Vec<Element>, Debordement> {
-    if largeur_de_legende() > UTILE_L {
+/// Les lignes de la légende dans `largeur` mm : une seule si elle tient, sinon le titre, puis
+/// une ligne par rôle.
+fn lignes_de_legende(largeur: f32) -> usize {
+    if largeur_de_legende() <= largeur {
+        1
+    } else {
+        1 + LEGENDE.len()
+    }
+}
+
+/// La légende de la palette, sous un filet de `largeur` mm, dès `haut` : ce qui sépare les
+/// diagrammes des palettes, et dit leurs formes. Sur une ligne si elle tient ; sinon le titre,
+/// puis une ligne par rôle, sa marque devant son mot.
+fn legende(haut: f32, largeur: f32, contexte: &Contexte) -> Result<Vec<Element>, Debordement> {
+    let t = Corps::MIN;
+    let en_une_ligne = lignes_de_legende(largeur) == 1;
+    let plus_large = if en_une_ligne {
+        largeur_de_legende()
+    } else {
+        LEGENDE
+            .iter()
+            .map(|(_, mot)| RETRAIT + DEVANT_LE_MOT + chasse(mot, &t))
+            .fold(chasse(TITRE_DE_LEGENDE, &t), f32::max)
+    };
+    if plus_large > largeur + EPS {
         return Err(contexte.deborde(format_args!(
             "la légende de la palette mesure {}, pour {} utiles",
-            en_mm(largeur_de_legende()),
-            en_mm(UTILE_L)
+            en_mm(plus_large),
+            en_mm(largeur)
         )));
     }
-    let t = Corps::MIN;
     let base = haut + SOUS_FILET + jusqua_la_base(&t);
     let mut e = vec![Element::Ligne {
         de: (MARGE_H, haut),
-        a: (MARGE_H + UTILE_L, haut),
+        a: (MARGE_H + largeur, haut),
         trait_: (Couleur::Noir, TRAIT_FIN),
     }];
     let mut x = MARGE_H;
     e.push(composer(TITRE_DE_LEGENDE, &t, x, base));
-    x += chasse(TITRE_DE_LEGENDE, &t) + APRES_LE_TITRE;
-    for (role, mot) in LEGENDE {
+    if en_une_ligne {
+        x += chasse(TITRE_DE_LEGENDE, &t) + APRES_LE_TITRE;
+    }
+    for (k, (role, mot)) in LEGENDE.into_iter().enumerate() {
+        let base = if en_une_ligne {
+            base
+        } else {
+            x = MARGE_H + RETRAIT;
+            base + (k + 1) as f32 * interligne(&t)
+        };
         e.push(marque(
             role,
             (x + 1.0, base - mi_capitale(&t)),
@@ -389,8 +421,13 @@ pub fn page_verso(table: &Table, i: Instrument) -> Result<Page, Debordement> {
         "{} · verso de la table · diagrammes et palettes des accords du centre",
         ton.nom()
     );
-    let (mut elements, y_filet) =
-        composer_l_en_tete(&texte, LIGNES_D_EN_TETE, LIGNES_D_EN_TETE, &contexte)?;
+    let (mut elements, y_filet) = composer_l_en_tete(
+        &texte,
+        UTILE_L,
+        LIGNES_D_EN_TETE,
+        LIGNES_D_EN_TETE,
+        &contexte,
+    )?;
     let haut = y_filet + SOUS_FILET;
     let bas = MARGE_V + UTILE_H - hauteur_du_pied();
     let cases = table.rangee(Rangee::Centre);
@@ -398,7 +435,7 @@ pub fn page_verso(table: &Table, i: Instrument) -> Result<Page, Debordement> {
         .iter()
         .map(|c| Contenu::de(&c.accord, ton, Some(c.chiffre.clone())))
         .collect();
-    let g = Gabarit::de(&contenus, i, COLONNE, &contexte)?;
+    let g = Gabarit::de(&contenus, i, COLONNE, 1, &contexte)?;
     let places = g.places();
     if haut + places.hauteur > bas + EPS {
         return Err(contexte.deborde(format_args!(
@@ -416,7 +453,7 @@ pub fn page_verso(table: &Table, i: Instrument) -> Result<Page, Debordement> {
         };
         elements.push(colonne(c, r, &g, &contexte)?);
     }
-    elements.extend(legende(haut + places.legende, &contexte)?);
+    elements.extend(legende(haut + places.legende, UTILE_L, &contexte)?);
     Ok(Page {
         largeur: LARGEUR,
         hauteur: HAUTEUR,
@@ -425,8 +462,10 @@ pub fn page_verso(table: &Table, i: Instrument) -> Result<Page, Debordement> {
 }
 
 /// La fiche d'un accord, pour l'établi : « A7 · V7/ii en do majeur · instrument : guitare et
-/// clavier », puis la colonne de l'accord, à la largeur d'une colonne de la table, et la
-/// légende de sa palette. La fiche n'a pas de pied. Un accord hors de la table n'a pas de
+/// clavier », puis la colonne de l'accord et la légende de sa palette. La page a la largeur
+/// d'une colonne de la table et de ses marges, pour s'afficher à l'échelle des colonnes ; elle
+/// s'arrête au bas de la colonne. L'en-tête se coupe aux « · », puis aux espaces, dans la
+/// largeur de la colonne. La fiche n'a pas de pied. Un accord hors de la table n'a pas de
 /// chiffre : l'en-tête dit la tonalité seule.
 pub fn fiche_d_accord(a: &Accord, t: Tonalite, i: Instrument) -> Result<Page, Debordement> {
     let nom = a.nom(t);
@@ -436,21 +475,28 @@ pub fn fiche_d_accord(a: &Accord, t: Tonalite, i: Instrument) -> Result<Page, De
         Some(ch) => format!("{nom} · {ch} en {} · instrument : {}", t.nom(), i.nom()),
         None => format!("{nom} · {} · instrument : {}", t.nom(), i.nom()),
     };
-    let (mut elements, y_filet) = composer_l_en_tete(&texte, 1, usize::MAX, &contexte)?;
+    let (mut elements, y_filet) = composer_l_en_tete(&texte, COLONNE, 1, usize::MAX, &contexte)?;
     let haut = y_filet + SOUS_FILET;
+    let c = Contenu::de(a, t, chiffre);
+    let g = Gabarit::de(
+        slice::from_ref(&c),
+        i,
+        COLONNE,
+        lignes_de_legende(COLONNE),
+        &contexte,
+    )?;
+    let places = g.places();
     let r = Rect {
         x: x_colonne(0),
         y: haut,
         l: COLONNE,
-        h: MARGE_V + UTILE_H - haut,
+        h: places.hauteur,
     };
-    let c = Contenu::de(a, t, chiffre);
-    let g = Gabarit::de(slice::from_ref(&c), i, r.l, &contexte)?;
     elements.push(colonne(&c, r, &g, &contexte)?);
-    elements.extend(legende(haut + g.places().legende, &contexte)?);
+    elements.extend(legende(haut + places.legende, COLONNE, &contexte)?);
     Ok(Page {
-        largeur: LARGEUR,
-        hauteur: HAUTEUR,
+        largeur: 2.0 * MARGE_H + COLONNE,
+        hauteur: haut + places.hauteur + MARGE_V,
         elements,
     })
 }
