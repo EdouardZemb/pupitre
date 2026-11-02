@@ -127,7 +127,7 @@ fn dessus(mode: Mode) -> Vec<Case> {
         .enumerate()
         // Un accord diminué n'a pas de dominante secondaire.
         .filter(|(_, (_, qualite, _, _))| *qualite != Qualite::Diminue)
-        // En majeur, la tonique n a pas de dominante secondaire : elle est déjà le repos.
+        // En majeur, la tonique n'a pas de dominante secondaire : elle est déjà le repos.
         .filter(|(rang, _)| mode == Mode::Mineur || (1..=5).contains(rang))
         .map(|(rang, (fond, _, chiffre, _))| Case {
             cible: Some(au_centre(rang)),
