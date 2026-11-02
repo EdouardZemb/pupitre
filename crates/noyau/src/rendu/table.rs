@@ -2,37 +2,28 @@
 //! rangées dans l'ordre (dessus, centre, couche sombre affichée, dessous), chacune sous son
 //! nom, leurs cadres et leurs flèches, puis la légende des quatre cadres.
 //!
-//! La grille est celle de la fiche témoin qu'H09 a validée : marges de 5 mm à gauche et à
-//! droite, de 6 mm en haut et en bas, gouttières de 1,5 mm, sept colonnes de 27,21 mm ; les
-//! cases sombres se partagent la largeur. Le contenu se calcule depuis la [`Table`]. Le pied
-//! est réservé au bas de la page, sur deux lignes à 11 pt : le cahier le pose, puisqu'il
-//! porte l'empreinte de la page sans pied.
+//! La grille est celle de la fiche témoin qu'H09 a validée ([`super::grille`]) ; les cases
+//! sombres, d'un huitième de la largeur, se placent au plus près de leur cible. Le contenu se
+//! calcule depuis la [`Table`]. Le pied est réservé au bas de la page, sur deux lignes à
+//! 11 pt : le cahier le pose, puisqu'il porte l'empreinte de la page sans pied.
+
+use std::fmt::Display;
 
 use super::case::{
-    self, DEMI_POINTE, Etat, PASTILLE, POINTE, cadre, fleche, pastille, pictogramme,
+    Etat, PASTILLE, PICTOGRAMME_H, PICTOGRAMME_L, POINTE, cadre, fleche, pastille, pictogramme,
+};
+use super::fleches::{self, Bout};
+use super::grille::{
+    COLONNE, LIGNES_D_EN_TETE, MARGE_H, MARGE_V, RETRAIT, SOUS_FILET, UTILE_H, UTILE_L,
+    au_plus_pres, corps_nom, hauteur_du_pied, interligne, jusqua_la_base, largeur_sombre,
+    mi_capitale, milieu_de_colonne, x_colonne,
 };
 use super::pages::{HAUTEUR, LARGEUR, Rect};
 use super::svg::{Couleur, Element, Page, TRAIT_FIN};
-use super::texte::{Corps, MotTropLong, chasse, composer, couper};
-use super::{Debordement, Instrument};
+use super::texte::{Corps, chasse, composer, couper, couper_aux_points};
+use super::{Debordement, Instrument, en_mm};
 use crate::table::{Case, CoucheSombre, Famille, Position, Rangee, Table};
 use crate::tonalite::{Mode, Tonalite};
-
-// --- La grille ---------------------------------------------------------------
-
-pub(crate) const MARGE_V: f32 = 6.0;
-pub(crate) const MARGE_H: f32 = 5.0;
-pub(crate) const GOUTTIERE: f32 = 1.5;
-pub(crate) const UTILE_L: f32 = LARGEUR - 2.0 * MARGE_H;
-pub(crate) const UTILE_H: f32 = HAUTEUR - 2.0 * MARGE_V;
-/// Une colonne par degré : sept colonnes et six gouttières.
-pub(crate) const COLONNE: f32 = (UTILE_L - 6.0 * GOUTTIERE) / 7.0;
-/// Le retrait du texte dans sa case, de chaque côté.
-pub(crate) const RETRAIT: f32 = 1.0;
-/// L'espace entre un filet et le texte qui le suit ou le précède.
-pub(crate) const SOUS_FILET: f32 = 1.2;
-/// Le pied, que le cahier pose : un filet et deux lignes à 11 pt (R3).
-pub(crate) const LIGNES_DU_PIED: usize = 2;
 
 /// Au-dessus et au-dessous du nom d'une rangée, entre deux rangées.
 const AUTOUR_DU_NOM: f32 = 0.5;
@@ -46,72 +37,6 @@ const APRES_LA_COUCHE_MASQUEE: f32 = 1.5;
 const AVANT_LA_LEGENDE: f32 = 1.8;
 /// L'écart entre le chiffre d'un accord du centre et sa pastille.
 const ECART_PASTILLE: f32 = 1.2;
-
-/// Le jour entre le nom d'une rangée et une flèche qui passe à côté.
-const JOUR_NOM: f32 = 2.0;
-/// La butée d'une flèche : la plus petite distance de sa pointe au côté de sa cible.
-const BUTEE: f32 = 4.0;
-/// Au-delà de l'arrondi ou de la coupe d'une cible, le jeu qui garde la pointe sur son bord
-/// droit (un défaut relevé par H09 : la butée de 4 mm passait sous l'arrondi de 4,36 mm).
-const JEU_DU_COIN: f32 = 0.5;
-/// La queue d'une flèche quitte le bord droit de sa case sombre, à ce jeu de la coupe.
-const JEU_DE_LA_QUEUE: f32 = 2.0;
-/// Sous cet écart, une flèche presque droite se redresse.
-const REDRESSE: f32 = 1.5;
-/// Deux pointes sur une même cible restent à cette distance l'une de l'autre (vigilance 4).
-const ECART_DES_POINTES: f32 = 3.0;
-
-pub(crate) fn x_colonne(c: usize) -> f32 {
-    MARGE_H + c as f32 * (COLONNE + GOUTTIERE)
-}
-
-/// Le corps du nom d'un accord.
-pub(crate) fn corps_nom() -> Corps {
-    Corps::pt(14.0).expect("14 pt dépasse le minimum")
-}
-
-/// L'interligne : 1,2 cadratin.
-pub(crate) fn interligne(c: &Corps) -> f32 {
-    1.2 * c.mm()
-}
-
-/// Du haut d'une ligne à sa ligne de base : la ligne de 1,2 cadratin centre les
-/// 0,928 cadratin au-dessus de la ligne de base et les 0,236 au-dessous de DejaVu Sans.
-pub(crate) fn jusqua_la_base(c: &Corps) -> f32 {
-    0.946 * c.mm()
-}
-
-/// De la ligne de base au milieu des capitales (0,729 cadratin de haut) : là se centrent
-/// une pastille ou un pictogramme posé devant un texte.
-pub(crate) fn mi_capitale(c: &Corps) -> f32 {
-    0.365 * c.mm()
-}
-
-/// La hauteur réservée au pied, filet compris.
-pub(crate) fn hauteur_du_pied() -> f32 {
-    SOUS_FILET + LIGNES_DU_PIED as f32 * interligne(&Corps::MIN)
-}
-
-/// Coupe un texte de la forme « a · b · c » de préférence aux « · », et chaque segment
-/// trop long entre deux mots.
-pub(crate) fn couper_aux_points(
-    texte: &str,
-    corps: &Corps,
-    largeur: f32,
-) -> Result<Vec<String>, MotTropLong> {
-    let mut lignes: Vec<String> = Vec::new();
-    for segment in texte.split(" · ") {
-        if let Some(ligne) = lignes.last_mut() {
-            let essai = format!("{ligne} · {segment}");
-            if chasse(&essai, corps) <= largeur {
-                *ligne = essai;
-                continue;
-            }
-        }
-        lignes.extend(couper(segment, corps, largeur)?);
-    }
-    Ok(lignes)
-}
 
 // --- Ce que rend la page -----------------------------------------------------
 
@@ -132,15 +57,20 @@ pub struct PageTable {
 
 // --- Les textes ----------------------------------------------------------------
 
+/// « masquée » ou « affichée ».
+fn dite(c: CoucheSombre) -> &'static str {
+    match c {
+        CoucheSombre::Masquee => "masquée",
+        CoucheSombre::Affichee => "affichée",
+    }
+}
+
 fn entete(table: &Table, instrument: Instrument) -> String {
     format!(
         "{} · table de la tonalité · tonalité choisie · instrument : {} · couche sombre : {}",
         table.tonalite.nom(),
         instrument.nom(),
-        match table.couche_sombre {
-            CoucheSombre::Masquee => "masquée",
-            CoucheSombre::Affichee => "affichée",
-        }
+        dite(table.couche_sombre)
     )
 }
 
@@ -171,9 +101,24 @@ const LEGENDE: [(Famille, &str); 4] = [
     (Famille::Sombre, "harmonie sombre"),
 ];
 
-/// Un nombre de millimètres, à la française.
-fn mm(v: f32) -> String {
-    format!("{v:.1} mm").replace('.', ",")
+/// La page dont on parle, en tête de chaque débordement.
+struct Contexte(String);
+
+impl Contexte {
+    fn deborde(&self, quoi: impl Display) -> Debordement {
+        Debordement {
+            quoi: format!("{} : {quoi}", self.0),
+        }
+    }
+
+    /// Un texte plus large que sa place.
+    fn trop_large(&self, texte: &str, largeur: f32, place: f32) -> Debordement {
+        self.deborde(format_args!(
+            "« {texte} » mesure {}, sa place {}",
+            en_mm(largeur),
+            en_mm(place)
+        ))
+    }
 }
 
 // --- Les cases -----------------------------------------------------------------
@@ -208,6 +153,16 @@ struct Placee<'a> {
     effet: Vec<String>,
 }
 
+impl Placee<'_> {
+    fn bout(&self) -> Bout {
+        Bout {
+            position: self.case.position,
+            famille: self.case.famille,
+            rect: self.rect,
+        }
+    }
+}
+
 /// Une rangée à sa place : sa hauteur est celle de sa case la plus haute.
 struct RangeePlacee<'a> {
     rangee: Rangee,
@@ -216,16 +171,32 @@ struct RangeePlacee<'a> {
     cases: Vec<Placee<'a>>,
 }
 
-/// L'abscisse et la largeur d'une case : sa colonne, ou, dans la couche sombre, sa part de
-/// la largeur.
-fn colonne_de(p: Position, n_sombres: usize) -> (f32, f32) {
-    match p.rangee {
+/// Le milieu de la colonne que vise une case : celle de sa cible, ou, sans cible, celle de
+/// son degré.
+fn milieu_vise(c: &Case) -> f32 {
+    let colonne = c.cible.map_or_else(
+        || usize::try_from(c.accord.fondamentale.reduit().degres).unwrap_or(0),
+        |p| usize::from(p.rang),
+    );
+    milieu_de_colonne(colonne)
+}
+
+/// L'abscisse et la largeur de chaque case d'une rangée : sa colonne ; dans la couche
+/// sombre, un huitième de la largeur, au plus près de sa cible.
+fn abscisses(cases: &[&Case], rangee: Rangee) -> Vec<(f32, f32)> {
+    match rangee {
         Rangee::Sombre => {
-            let n = n_sombres as f32;
-            let l = (UTILE_L - (n - 1.0) * GOUTTIERE) / n;
-            (MARGE_H + f32::from(p.rang) * (l + GOUTTIERE), l)
+            let l = largeur_sombre(cases.len());
+            let milieux: Vec<f32> = cases.iter().map(|c| milieu_vise(c)).collect();
+            au_plus_pres(&milieux, l)
+                .into_iter()
+                .map(|x| (x, l))
+                .collect()
         }
-        _ => (x_colonne(usize::from(p.rang)), COLONNE),
+        _ => cases
+            .iter()
+            .map(|c| (x_colonne(usize::from(c.position.rang)), COLONNE))
+            .collect(),
     }
 }
 
@@ -233,14 +204,13 @@ fn colonne_de(p: Position, n_sombres: usize) -> (f32, f32) {
 fn textes_de_rangee<'a>(
     table: &'a Table,
     rangee: Rangee,
-    contexte: &str,
+    contexte: &Contexte,
 ) -> Result<(Vec<Placee<'a>>, f32), Debordement> {
     let (t, corps_du_nom) = (Corps::MIN, corps_nom());
-    let n_sombres = table.rangee(Rangee::Sombre).len();
-    let mut cases = Vec::new();
+    let cases = table.rangee(rangee);
+    let mut placees = Vec::new();
     let mut hauteur: f32 = 0.0;
-    for c in table.rangee(rangee) {
-        let (x, l) = colonne_de(c.position, n_sombres);
+    for (c, (x, l)) in cases.iter().zip(abscisses(&cases, rangee)) {
         let place = l - 2.0 * RETRAIT;
         let nom = table.nom(c);
         let mut tete = chasse(&c.chiffre, &t);
@@ -249,25 +219,13 @@ fn textes_de_rangee<'a>(
         }
         for (texte, largeur) in [(&c.chiffre, tete), (&nom, chasse(&nom, &corps_du_nom))] {
             if largeur > place {
-                return Err(Debordement {
-                    quoi: format!(
-                        "{contexte} : « {texte} » mesure {}, sa case {}",
-                        mm(largeur),
-                        mm(place)
-                    ),
-                });
+                return Err(contexte.trop_large(texte, largeur, place));
             }
         }
-        let effet = couper(&table.ligne_d_effet(c), &t, place).map_err(|e| Debordement {
-            quoi: format!(
-                "{contexte} : « {} » mesure {}, sa case {}",
-                e.mot,
-                mm(e.chasse),
-                mm(e.largeur)
-            ),
-        })?;
+        let effet = couper(&table.ligne_d_effet(c), &t, place)
+            .map_err(|e| contexte.trop_large(&e.mot, e.chasse, e.largeur))?;
         hauteur = hauteur.max(hauteur_de_case(c.famille, effet.len()));
-        cases.push(Placee {
+        placees.push(Placee {
             case: c,
             rect: Rect {
                 x,
@@ -279,7 +237,7 @@ fn textes_de_rangee<'a>(
             effet,
         });
     }
-    Ok((cases, hauteur))
+    Ok((placees, hauteur))
 }
 
 /// Le chiffre (et la pastille), le nom, les lignes d'effet d'une case, centrés.
@@ -317,199 +275,12 @@ fn contenu_de_case(p: &Placee) -> Vec<Element> {
     elements
 }
 
-/// Le même élément, le noir et le blanc échangés : le contenu d'une case cible.
-fn inverser(e: Element) -> Element {
-    let inverse = |c: Couleur| match c {
-        Couleur::Noir => Couleur::Blanc,
-        Couleur::Blanc => Couleur::Noir,
-    };
-    match e {
-        Element::Groupe {
-            id,
-            translation,
-            echelle,
-            enfants,
-        } => Element::Groupe {
-            id,
-            translation,
-            echelle,
-            enfants: enfants.into_iter().map(inverser).collect(),
-        },
-        Element::Chemin { d, plein, trait_ } => Element::Chemin {
-            d,
-            plein: plein.map(inverse),
-            trait_: trait_.map(|(c, e)| (inverse(c), e)),
-        },
-        Element::Rect {
-            r,
-            id,
-            plein,
-            trait_,
-        } => Element::Rect {
-            r,
-            id,
-            plein: plein.map(inverse),
-            trait_: trait_.map(|(c, e)| (inverse(c), e)),
-        },
-        Element::Cercle {
-            cx,
-            cy,
-            r,
-            id,
-            plein,
-            trait_,
-        } => Element::Cercle {
-            cx,
-            cy,
-            r,
-            id,
-            plein: plein.map(inverse),
-            trait_: trait_.map(|(c, e)| (inverse(c), e)),
-        },
-        Element::Ligne { de, a, trait_ } => Element::Ligne {
-            de,
-            a,
-            trait_: (inverse(trait_.0), trait_.1),
-        },
-    }
-}
-
-// --- Les flèches ---------------------------------------------------------------
-
-/// Une flèche de résolution, et la bande qu'elle franchit entre deux rangées.
-struct Trait {
-    source: Position,
-    cible: Position,
-    queue: (f32, f32),
-    pointe: (f32, f32),
-    /// Une flèche droite peut glisser entre ces abscisses, sans quitter le bord droit de sa
-    /// case ni celui de sa cible ; une flèche oblique ou partie d'une pointe ne glisse pas.
-    glisse: Option<(f32, f32)>,
-    bande: usize,
-}
-
-impl Trait {
-    /// L'étendue horizontale de la flèche, pointe comprise.
-    fn etendue(&self) -> (f32, f32) {
-        (
-            self.queue.0.min(self.pointe.0) - DEMI_POINTE,
-            self.queue.0.max(self.pointe.0) + DEMI_POINTE,
-        )
-    }
-}
-
-/// La plus petite distance de la pointe au côté de la cible : la butée, et toujours
-/// au-delà de l'arrondi ou de la coupe.
-fn butee(famille: Famille, r: Rect) -> f32 {
-    (case::coin(famille, r) + DEMI_POINTE + JEU_DU_COIN).max(BUTEE)
-}
-
-/// La flèche d'une case sombre : elle part du milieu de sa case et vise sa cible au plus
-/// près, droite quand la cible est en face, oblique sinon.
-fn trait_sombre(source: &Placee, cible: &Placee, bande: usize) -> Trait {
-    let (rs, rc) = (source.rect, cible.rect);
-    let vers_le_bas = cible.case.position.rangee == Rangee::Dessous;
-    let (y_queue, y_pointe) = if vers_le_bas {
-        (rs.y + rs.h, rc.y)
-    } else {
-        (rs.y, rc.y + rc.h)
-    };
-    let jeu_s = case::coin(Famille::Sombre, rs) + JEU_DE_LA_QUEUE;
-    let (s_lo, s_hi) = (rs.x + jeu_s, rs.x + rs.l - jeu_s);
-    let b = butee(cible.case.famille, rc);
-    let (c_lo, c_hi) = (rc.x + b, rc.x + rc.l - b);
-    let xs = rs.x + rs.l / 2.0;
-    let xc = xs.clamp(c_lo, c_hi);
-    let droite = (xc - xs).abs() <= REDRESSE && (s_lo..=s_hi).contains(&xc);
-    Trait {
-        source: source.case.position,
-        cible: cible.case.position,
-        queue: (if droite { xc } else { xs }, y_queue),
-        pointe: (xc, y_pointe),
-        glisse: droite.then_some((s_lo.max(c_lo), s_hi.min(c_hi))),
-        bande,
-    }
-}
-
-/// Les glissements qui libèrent le nom de chaque bande posé en `x`, ou rien si une flèche
-/// ne peut s'écarter. Deux pointes sur une même cible doivent rester à part.
-fn essayer(x: f32, largeurs: &[f32], traits: &[Trait]) -> Option<Vec<(usize, f32)>> {
-    let mut glissements = Vec::new();
-    for (bande, largeur) in largeurs.iter().enumerate() {
-        if x + largeur > MARGE_H + UTILE_L {
-            return None;
-        }
-        let (g, d) = (x - JOUR_NOM, x + largeur + JOUR_NOM);
-        for (i, t) in traits.iter().enumerate().filter(|(_, t)| t.bande == bande) {
-            let (a0, a1) = t.etendue();
-            if a1 <= g || a0 >= d {
-                continue;
-            }
-            let (lo, hi) = t.glisse?;
-            let a_gauche = (g - DEMI_POINTE).min(hi);
-            let a_droite = (d + DEMI_POINTE).max(lo);
-            let possibles = [
-                (a_gauche >= lo).then_some(a_gauche),
-                (a_droite <= hi).then_some(a_droite),
-            ];
-            let nouveau = possibles
-                .into_iter()
-                .flatten()
-                .min_by(|p, q| (p - t.queue.0).abs().total_cmp(&(q - t.queue.0).abs()))?;
-            glissements.push((i, nouveau));
-        }
-    }
-    let pointe = |i: usize| {
-        let p = traits[i].pointe;
-        glissements
-            .iter()
-            .find(|(j, _)| *j == i)
-            .map_or(p, |(_, x)| (*x, p.1))
-    };
-    for i in 0..traits.len() {
-        for j in i + 1..traits.len() {
-            let (p, q) = (pointe(i), pointe(j));
-            let d = ((p.0 - q.0).powi(2) + (p.1 - q.1).powi(2)).sqrt();
-            if traits[i].cible == traits[j].cible && d < ECART_DES_POINTES {
-                return None;
-            }
-        }
-    }
-    Some(glissements)
-}
-
-/// L'abscisse commune des noms de rangée : celle, de gauche à droite, qui demande le moins
-/// de flèches à pousser. Une colonne d'abord, comme la fiche témoin ; sinon, juste à droite
-/// d'une flèche droite poussée au bord de sa case.
-fn placer_les_noms(largeurs: &[f32], traits: &mut [Trait]) -> Option<f32> {
-    let mut candidats: Vec<f32> = (0..7).map(|k| x_colonne(k) + RETRAIT).collect();
-    candidats.extend(
-        traits
-            .iter()
-            .filter_map(|t| t.glisse.map(|(lo, _)| lo + DEMI_POINTE + JOUR_NOM)),
-    );
-    candidats.sort_by(f32::total_cmp);
-    let mut retenu: Option<(f32, Vec<(usize, f32)>)> = None;
-    for x in candidats {
-        if let Some(g) = essayer(x, largeurs, traits)
-            && retenu.as_ref().is_none_or(|(_, r)| g.len() < r.len())
-        {
-            retenu = Some((x, g));
-        }
-    }
-    let (x, glissements) = retenu?;
-    for (i, nouveau) in glissements {
-        traits[i].queue.0 = nouveau;
-        traits[i].pointe.0 = nouveau;
-    }
-    Some(x)
-}
-
 // --- La page -------------------------------------------------------------------
 
 /// La page de la table, en paysage : l'en-tête dit la tonalité et les réglages ; la case
-/// `cible`, s'il y en a une, est en inverse. Rend `Debordement` si un mot dépasse sa case ou
-/// si la page ne tient pas dans ses 145 mm utiles, pied réservé.
+/// `cible`, s'il y en a une, est en inverse. Rend `Debordement` si un mot dépasse sa place,
+/// si la page ne tient pas dans ses 145 mm utiles, pied réservé, ou si ses flèches ne
+/// trouvent pas leur place.
 pub fn page_table(
     table: &Table,
     instrument: Instrument,
@@ -517,28 +288,24 @@ pub fn page_table(
 ) -> Result<PageTable, Debordement> {
     let t = Corps::MIN;
     let il = interligne(&t);
-    let contexte = format!(
+    let contexte = Contexte(format!(
         "la table de {}, couche sombre {}",
         table.tonalite.nom(),
-        match table.couche_sombre {
-            CoucheSombre::Masquee => "masquée",
-            CoucheSombre::Affichee => "affichée",
-        }
-    );
-    let trop_long = |e: MotTropLong| Debordement {
-        quoi: format!(
-            "{contexte} : « {} » mesure {}, sa place {}",
-            e.mot,
-            mm(e.chasse),
-            mm(e.largeur)
-        ),
-    };
-    let lignes_d_entete =
-        couper_aux_points(&entete(table, instrument), &t, UTILE_L).map_err(trop_long)?;
+        dite(table.couche_sombre)
+    ));
+    let lignes_d_entete = couper_aux_points(&entete(table, instrument), &t, UTILE_L)
+        .map_err(|e| contexte.trop_large(&e.mot, e.chasse, e.largeur))?;
+    if lignes_d_entete.len() > LIGNES_D_EN_TETE {
+        return Err(contexte.deborde(format_args!(
+            "l'en-tête prend {} lignes, pour {LIGNES_D_EN_TETE}",
+            lignes_d_entete.len()
+        )));
+    }
 
     // La mise en page, de haut en bas : chaque rangée prend la hauteur de sa case la plus
-    // haute, et le nom de la rangée qui suit se loge entre deux.
-    let y_filet = MARGE_V + lignes_d_entete.len() as f32 * il + SOUS_FILET / 2.0;
+    // haute, et le nom de la rangée qui suit se loge entre deux. L'en-tête réserve toujours
+    // ses deux lignes.
+    let y_filet = MARGE_V + LIGNES_D_EN_TETE as f32 * il + SOUS_FILET / 2.0;
     let masquee = table.couche_sombre == CoucheSombre::Masquee;
     let mut ordre = vec![Rangee::Dessus, Rangee::Centre];
     if !masquee {
@@ -579,83 +346,64 @@ pub fn page_table(
     let (legende, h_legende) = legende(y_legende);
     let hauteur = y_legende + h_legende - MARGE_V + hauteur_du_pied();
     if hauteur > UTILE_H {
-        return Err(Debordement {
-            quoi: format!(
-                "{contexte} : la page mesure {} de haut, pour {} utiles",
-                mm(hauteur),
-                mm(UTILE_H)
-            ),
-        });
+        return Err(contexte.deborde(format_args!(
+            "la page mesure {} de haut, pour {} utiles",
+            en_mm(hauteur),
+            en_mm(UTILE_H)
+        )));
     }
-    let fin_legende = legende_largeur();
-    if fin_legende > UTILE_L {
-        return Err(Debordement {
-            quoi: format!(
-                "{contexte} : la légende mesure {}, pour {} utiles",
-                mm(fin_legende),
-                mm(UTILE_L)
-            ),
-        });
+    if largeur_de_legende() > UTILE_L {
+        return Err(contexte.deborde(format_args!(
+            "la légende mesure {}, pour {} utiles",
+            en_mm(largeur_de_legende()),
+            en_mm(UTILE_L)
+        )));
     }
 
-    // Les flèches, d'une rangée à sa voisine. La bande `k` est au-dessus de la rangée `k`.
+    // Les flèches, d'une rangée à sa voisine : chacune franchit la bande au-dessus de la plus
+    // basse de ses deux rangées.
     let placee = |p: Position| {
         rangees
             .iter()
             .flat_map(|r| &r.cases)
             .find(|c| c.case.position == p)
     };
-    let bande_de = |r: Rangee| {
-        rangees
-            .iter()
-            .position(|x| x.rangee == r)
-            .expect("la rangée est sur la page")
-    };
+    let rang_sur_la_page = |r: Rangee| rangees.iter().position(|x| x.rangee == r);
     let mut traits = Vec::new();
     for source in rangees.iter().flat_map(|r| &r.cases) {
         let Some(vers) = source.case.cible.and_then(placee) else {
             continue;
         };
-        let (rs, rc) = (source.rect, vers.rect);
+        let bande = rang_sur_la_page(source.case.position.rangee)
+            .max(rang_sur_la_page(vers.case.position.rangee))
+            .expect("les deux rangées sont sur la page");
         traits.push(match source.case.position.rangee {
-            Rangee::Dessus => {
-                // De la pointe de la dominante secondaire, droit sur sa cible.
-                let x = rs.x + rs.l / 2.0;
-                Trait {
-                    source: source.case.position,
-                    cible: vers.case.position,
-                    queue: (x, rs.y + rs.h),
-                    pointe: (x, rc.y),
-                    glisse: None,
-                    bande: bande_de(Rangee::Centre),
-                }
-            }
-            _ => {
-                // La bande sous la couche sombre si la cible est un emprunt, dessus sinon.
-                let bande = if vers.case.position.rangee == Rangee::Dessous {
-                    bande_de(Rangee::Dessous)
-                } else {
-                    bande_de(Rangee::Sombre)
-                };
-                trait_sombre(source, vers, bande)
-            }
+            Rangee::Dessus => fleches::depuis_une_pointe(source.bout(), vers.bout(), bande),
+            _ => fleches::depuis_une_case_sombre(source.bout(), vers.bout(), bande),
         });
+    }
+    let nom_de = |p: Position| {
+        table
+            .case(p)
+            .map_or_else(|| format!("{p:?}"), |c| table.nom(c))
+    };
+    if let Some(d) = fleches::defaut(&traits) {
+        return Err(contexte.deborde(d.decrire(nom_de)));
     }
 
     // Les noms de rangée, sur une même abscisse, là où nulle flèche ne passe.
     let mut largeurs: Vec<f32> = rangees.iter().map(|r| chasse(&r.nom, &t)).collect();
-    if masquee {
+    if masquee && let Some(k) = rang_sur_la_page(Rangee::Dessous) {
         // « couche sombre masquée » se loge dans la bande des emprunts, au-dessus de leur nom.
-        let k = bande_de(Rangee::Dessous);
         largeurs[k] = largeurs[k].max(chasse(COUCHE_MASQUEE, &t));
     }
-    let Some(x_nom) = placer_les_noms(&largeurs, &mut traits) else {
-        return Err(Debordement {
-            quoi: format!(
-                "{contexte} : les noms de rangée ne trouvent pas de place entre les flèches"
-            ),
-        });
-    };
+    let x_nom = fleches::placer_les_noms(&largeurs, &mut traits).ok_or_else(|| {
+        contexte.deborde("les noms de rangée ne trouvent pas de place entre les flèches")
+    })?;
+    debug_assert!(
+        fleches::defaut(&traits).is_none(),
+        "un glissement ne fait naître aucun défaut"
+    );
 
     // Le dessin.
     let mut elements = Vec::new();
@@ -689,7 +437,7 @@ pub fn page_table(
             let contenu = contenu_de_case(c);
             match etat {
                 Etat::Ordinaire => elements.extend(contenu),
-                Etat::Cible => elements.extend(contenu.into_iter().map(inverser)),
+                Etat::Cible => elements.extend(contenu.into_iter().map(Element::inverse)),
             }
         }
     }
@@ -724,14 +472,14 @@ const ENTRE_LES_CADRES: f32 = 4.0;
 const TITRE_DE_LEGENDE: &str = "cadres :";
 
 /// La largeur de la légende, sur sa ligne.
-fn legende_largeur() -> f32 {
+fn largeur_de_legende() -> f32 {
     let t = Corps::MIN;
     let mut l = chasse(TITRE_DE_LEGENDE, &t) + APRES_LE_TITRE;
     for (k, (_, nom)) in LEGENDE.iter().enumerate() {
         if k > 0 {
             l += ENTRE_LES_CADRES;
         }
-        l += case::PICTOGRAMME_L + APRES_LE_PICTOGRAMME + chasse(nom, &t);
+        l += PICTOGRAMME_L + APRES_LE_PICTOGRAMME + chasse(nom, &t);
     }
     l
 }
@@ -740,7 +488,7 @@ fn legende_largeur() -> f32 {
 /// hauteur. Chaque pictogramme se centre sur le milieu des capitales de son nom.
 fn legende(haut: f32) -> (Vec<Element>, f32) {
     let t = Corps::MIN;
-    let hauteur = case::PICTOGRAMME_H.max(interligne(&t));
+    let hauteur = PICTOGRAMME_H.max(interligne(&t));
     let milieu = haut + hauteur / 2.0;
     let base = milieu + mi_capitale(&t);
     let mut elements = Vec::new();
@@ -748,8 +496,8 @@ fn legende(haut: f32) -> (Vec<Element>, f32) {
     elements.push(composer(TITRE_DE_LEGENDE, &t, x, base));
     x += chasse(TITRE_DE_LEGENDE, &t) + APRES_LE_TITRE;
     for (famille, nom) in LEGENDE {
-        elements.push(pictogramme(famille, x, milieu - case::PICTOGRAMME_H / 2.0));
-        x += case::PICTOGRAMME_L + APRES_LE_PICTOGRAMME;
+        elements.push(pictogramme(famille, x, milieu - PICTOGRAMME_H / 2.0));
+        x += PICTOGRAMME_L + APRES_LE_PICTOGRAMME;
         elements.push(composer(nom, &t, x, base));
         x += chasse(nom, &t) + ENTRE_LES_CADRES;
     }

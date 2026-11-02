@@ -24,17 +24,17 @@ pub enum Etat {
 }
 
 /// La profondeur de la pointe d'une dominante secondaire, prise dans le bas de sa case.
-pub const POINTE: f32 = 3.0;
+pub(crate) const POINTE: f32 = 3.0;
 /// Le diamètre d'une pastille de fonction (§ 50 · 6.3).
-pub const PASTILLE: f32 = 3.0;
-/// 0,5 pt : le trait des quatre cadres, le même pour tous.
-pub const TRAIT_CADRE: f32 = 2.0 * TRAIT_FIN;
+pub(crate) const PASTILLE: f32 = 3.0;
+/// 0,5 pt : le trait des quatre cadres, le même pour tous (R21).
+const TRAIT_CADRE: f32 = 2.0 * TRAIT_FIN;
 /// 0,5 pt : le trait d'une flèche.
-pub const TRAIT_FLECHE: f32 = 2.0 * TRAIT_FIN;
+const TRAIT_FLECHE: f32 = 2.0 * TRAIT_FIN;
 /// La longueur de la pointe d'une flèche.
-pub const LONGUEUR_POINTE: f32 = 1.8;
+const LONGUEUR_POINTE: f32 = 1.8;
 /// La demi-largeur de la pointe d'une flèche.
-pub const DEMI_POINTE: f32 = 0.8;
+pub(crate) const DEMI_POINTE: f32 = 0.8;
 /// L'écart entre le cadre d'une case cible et son second cadre, en dedans.
 const DOUBLE: f32 = 0.7;
 /// Le trait d'une flèche entre un peu dans sa pointe, pour ne laisser aucun jour.
@@ -44,12 +44,18 @@ fn n(v: f32) -> String {
     nombre(v, 3)
 }
 
+/// Vrai pour les cadres aux coins arrondis (emprunts) ou coupés (harmonie sombre).
+fn a_des_coins(famille: Famille) -> bool {
+    matches!(famille, Famille::Emprunt | Famille::Sombre)
+}
+
 /// L'arrondi ou la coupe des coins d'une case : le quart de son petit côté (R10). Un cadre
 /// droit ou en pointe n'en a pas.
-pub fn coin(famille: Famille, r: Rect) -> f32 {
-    match famille {
-        Famille::Emprunt | Famille::Sombre => r.l.min(r.h) / 4.0,
-        Famille::Diatonique | Famille::DominanteSecondaire => 0.0,
+pub(crate) fn coin(famille: Famille, r: Rect) -> f32 {
+    if a_des_coins(famille) {
+        r.l.min(r.h) / 4.0
+    } else {
+        0.0
     }
 }
 
@@ -186,9 +192,9 @@ pub fn cadre(famille: Famille, r: Rect, etat: Etat) -> Element {
 }
 
 /// La largeur d'un pictogramme de la légende.
-pub const PICTOGRAMME_L: f32 = 10.0;
+pub(crate) const PICTOGRAMME_L: f32 = 10.0;
 /// La hauteur d'un pictogramme de la légende : celle d'une ligne à 11 pt.
-pub const PICTOGRAMME_H: f32 = 4.6;
+pub(crate) const PICTOGRAMME_H: f32 = 4.6;
 /// L'arrondi et la coupe d'un pictogramme, bien au-delà du quart de sa hauteur : au quart
 /// d'un pictogramme de 4,2 mm, les coins de 1,05 mm de la fiche témoin ne distinguaient pas
 /// l'emprunt de l'harmonie sombre sans lire leur nom (H09).
@@ -204,9 +210,10 @@ pub fn pictogramme(famille: Famille, x: f32, y: f32) -> Element {
         l: PICTOGRAMME_L,
         h: PICTOGRAMME_H,
     };
-    let coin = match famille {
-        Famille::Emprunt | Famille::Sombre => PICTOGRAMME_COIN,
-        Famille::Diatonique | Famille::DominanteSecondaire => 0.0,
+    let coin = if a_des_coins(famille) {
+        PICTOGRAMME_COIN
+    } else {
+        0.0
     };
     cadre_aux_coins(famille, r, Etat::Ordinaire, coin, PICTOGRAMME_POINTE)
 }
@@ -250,14 +257,35 @@ pub fn pastille(f: Fonction, cx: f32, cy: f32) -> Element {
     }
 }
 
-/// Une flèche de résolution, de `de` à `a` : un groupe `fleche`, son trait plein, puis sa
-/// pointe pleine, dont le sommet se pose en `a`, sur la cible.
-pub fn fleche(de: (f32, f32), a: (f32, f32)) -> Element {
+/// La direction de `de` vers `a`, et le milieu de la base de la pointe posée en `a`.
+fn axe(de: (f32, f32), a: (f32, f32)) -> ((f32, f32), (f32, f32)) {
     let (dx, dy) = (a.0 - de.0, a.1 - de.1);
     let longueur = (dx * dx + dy * dy).sqrt();
     let (ux, uy) = (dx / longueur, dy / longueur);
-    let base = (a.0 - ux * LONGUEUR_POINTE, a.1 - uy * LONGUEUR_POINTE);
+    (
+        (ux, uy),
+        (a.0 - ux * LONGUEUR_POINTE, a.1 - uy * LONGUEUR_POINTE),
+    )
+}
+
+/// Les trois sommets de la pointe d'une flèche de `de` à `a` : le sommet posé en `a`, puis
+/// les deux coins de sa base.
+pub(crate) fn sommets_de_pointe(de: (f32, f32), a: (f32, f32)) -> [(f32, f32); 3] {
+    let ((ux, uy), base) = axe(de, a);
+    [
+        a,
+        (base.0 - uy * DEMI_POINTE, base.1 + ux * DEMI_POINTE),
+        (base.0 + uy * DEMI_POINTE, base.1 - ux * DEMI_POINTE),
+    ]
+}
+
+/// Une flèche de résolution, de `de` à `a` : un groupe `fleche`, son trait plein, puis sa
+/// pointe pleine, dont le sommet se pose en `a`, sur la cible.
+pub fn fleche(de: (f32, f32), a: (f32, f32)) -> Element {
+    debug_assert!(de != a, "une flèche relie deux points distincts");
+    let ((ux, uy), base) = axe(de, a);
     let fin = (base.0 + ux * RECOUVREMENT, base.1 + uy * RECOUVREMENT);
+    let [s, g, d] = sommets_de_pointe(de, a);
     Element::Groupe {
         id: Some("fleche"),
         translation: (0.0, 0.0),
@@ -271,12 +299,12 @@ pub fn fleche(de: (f32, f32), a: (f32, f32)) -> Element {
             Element::Chemin {
                 d: format!(
                     "M{} {}L{} {}L{} {}Z",
-                    n(a.0),
-                    n(a.1),
-                    n(base.0 - uy * DEMI_POINTE),
-                    n(base.1 + ux * DEMI_POINTE),
-                    n(base.0 + uy * DEMI_POINTE),
-                    n(base.1 - ux * DEMI_POINTE)
+                    n(s.0),
+                    n(s.1),
+                    n(g.0),
+                    n(g.1),
+                    n(d.0),
+                    n(d.1)
                 ),
                 plein: Some(Couleur::Noir),
                 trait_: None,

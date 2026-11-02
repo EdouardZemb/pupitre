@@ -3,6 +3,8 @@
 use std::fmt;
 
 pub mod case;
+mod fleches;
+mod grille;
 pub mod pages;
 pub mod sous_ensemble;
 pub mod svg;
@@ -43,3 +45,8 @@ impl fmt::Display for Debordement {
 }
 
 impl std::error::Error for Debordement {}
+
+/// Une longueur à la française, pour les messages : « 21,6 mm ».
+pub(crate) fn en_mm(v: f32) -> String {
+    format!("{v:.1} mm").replace('.', ",")
+}

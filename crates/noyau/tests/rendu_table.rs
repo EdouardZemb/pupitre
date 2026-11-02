@@ -111,10 +111,13 @@ fn attribut(balise: &str, nom: &str) -> f32 {
     balise[debut..fin].parse().expect("un nombre")
 }
 
-/// Les flèches de la page, dans l'ordre d'écriture : (queue, pointe), lues dans le SVG.
-/// Une flèche est un groupe `fleche-n` : son trait (`line`), puis sa pointe (`path`), dont
-/// le premier point est posé sur la cible.
-fn fleches(svg: &str) -> Vec<((f32, f32), (f32, f32))> {
+/// Une flèche lue dans le SVG : sa queue, et les trois sommets de sa pointe.
+type Fleche = ((f32, f32), [(f32, f32); 3]);
+
+/// Les flèches de la page, dans l'ordre d'écriture : la queue, et les trois sommets de la
+/// pointe, lus dans le SVG. Une flèche est un groupe `fleche-n` : son trait (`line`), puis sa
+/// pointe (`path`), dont le premier sommet est posé sur la cible.
+fn fleches(svg: &str) -> Vec<Fleche> {
     let mut resultat = Vec::new();
     for (n, morceau) in svg.split(r#"<g id="fleche-"#).enumerate().skip(1) {
         let numero: usize = morceau[..morceau.find('"').expect("id fermé")]
@@ -125,12 +128,14 @@ fn fleches(svg: &str) -> Vec<((f32, f32), (f32, f32))> {
         let ligne = &ligne[..ligne.find("/>").expect("balise fermée")];
         let queue = (attribut(ligne, "x1"), attribut(ligne, "y1"));
         let d = &morceau[morceau.find(r#"<path d="M"#).expect("la pointe") + 10..];
-        let mut nombres = d.split(['L', ' ', '"']).filter(|s| !s.is_empty());
-        let pointe = (
-            nombres.next().unwrap().parse().unwrap(),
-            nombres.next().unwrap().parse().unwrap(),
-        );
-        resultat.push((queue, pointe));
+        let d = &d[..d.find('Z').expect("une pointe fermée")];
+        let mut nombres = d
+            .split(['L', ' '])
+            .filter(|s| !s.is_empty())
+            .map(|s| s.parse::<f32>().expect("un nombre"));
+        let mut sommet = || (nombres.next().unwrap(), nombres.next().unwrap());
+        let sommets = [sommet(), sommet(), sommet()];
+        resultat.push((queue, sommets));
     }
     resultat
 }
@@ -165,13 +170,11 @@ fn les_minimums_de_la_page_de_table() {
         pages.push((format!("{} avec la cible {cible:?}", decrire(&t)), p));
     }
     for (nom, p) in pages {
-        let m = commun::mesurer(&p.page.svg());
+        let svg = p.page.svg();
+        assert_eq!(verifier(&svg), Ok(()), "{nom}");
+        let m = commun::mesurer(&svg);
         assert!(m.corps_min_pt >= 11.0, "{nom} : corps {}", m.corps_min_pt);
-        assert!(
-            m.trait_min_pt >= 0.25 - 1e-3,
-            "{nom} : trait {}",
-            m.trait_min_pt
-        );
+        assert!(m.trait_min_pt >= 0.25, "{nom} : trait {}", m.trait_min_pt);
         assert_eq!(
             m.pastilles.len(),
             7,
@@ -281,7 +284,8 @@ fn chaque_fleche_relie_exactement_deux_cases() {
             avec_cible,
             "{nom} : autant de flèches dessinées"
         );
-        for ((source, arrivee), (queue, pointe)) in p.arrivees.iter().zip(&traits) {
+        for ((source, arrivee), (queue, sommets)) in p.arrivees.iter().zip(&traits) {
+            let pointe = &sommets[0];
             let cible = t.cible_de(*source).expect("une flèche a une cible");
             let (rs, rc) = (rect_de(&p, *source), rect_de(&p, cible));
             assert!(
@@ -309,6 +313,13 @@ fn chaque_fleche_relie_exactement_deux_cases() {
                 assert!(
                     pointe.0 >= rc.x + coin && pointe.0 <= rc.x + rc.l - coin,
                     "{nom} : la pointe de {source:?} touche un coin de {cible:?}"
+                );
+            }
+            // Aucune partie de la pointe n'entre dans le cadre de la cible.
+            for s in sommets {
+                assert!(
+                    !dedans(&rc, *s),
+                    "{nom} : la pointe de {source:?} entre dans {cible:?} en {s:?}"
                 );
             }
             // Entre les deux bouts, le trait ne traverse aucune autre case.
@@ -358,4 +369,67 @@ fn la_disposition_couvre_chaque_case() {
             }
         }
     }
+}
+
+#[test]
+fn l_en_tete_reserve_toujours_deux_lignes() {
+    // Avec un seul instrument, l'en-tête tiendrait parfois sur une ligne : la table ne doit
+    // pas bouger d'une page à l'autre du cahier.
+    let cas = [
+        (do_majeur(), CoucheSombre::Masquee),
+        (la_mineur(), CoucheSombre::Affichee),
+        (
+            tonalite(Lettre::E, -1, Mode::Mineur),
+            CoucheSombre::Affichee,
+        ),
+    ];
+    for (t, couche) in cas {
+        let tb = table(t, couche);
+        let origines: Vec<f32> = [
+            Instrument::Guitare,
+            Instrument::Clavier,
+            Instrument::LesDeux,
+        ]
+        .into_iter()
+        .map(|i| {
+            let p = page_table(&tb, i, None).unwrap();
+            rect_de(&p, tb.rangee(Rangee::Dessus)[0].position).y
+        })
+        .collect();
+        assert!(
+            origines.iter().all(|y| *y == origines[0]),
+            "{} : {origines:?}",
+            decrire(&tb)
+        );
+    }
+}
+
+#[test]
+fn un_debordement_se_dit() {
+    // Un chiffre plus large que sa case : la page le dit, jamais un mot coupé.
+    let mut t = table(do_majeur(), CoucheSombre::Masquee);
+    let chiffre = "V7/ii-bien-plus-large-que-sa-case";
+    let c = t
+        .cases
+        .iter_mut()
+        .find(|c| c.position.rangee == Rangee::Dessus)
+        .unwrap();
+    c.chiffre = chiffre.to_string();
+    let e = page_table(&t, Instrument::default(), None).unwrap_err();
+    assert!(
+        e.quoi
+            .starts_with("la table de do majeur, couche sombre masquée : "),
+        "{}",
+        e.quoi
+    );
+    assert!(
+        e.quoi.contains(&format!("« {chiffre} » mesure ")),
+        "{}",
+        e.quoi
+    );
+    assert!(
+        e.to_string()
+            .starts_with("la page ne tient pas : la table de do majeur"),
+        "{e}"
+    );
 }

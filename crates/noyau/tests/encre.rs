@@ -5,14 +5,15 @@
 mod commun;
 
 use commun::difference;
+use noyau::hauteur::{Lettre, NomDeNote};
 use noyau::rendu::Instrument;
 use noyau::rendu::case::{Etat, cadre, pastille, pictogramme};
 use noyau::rendu::pages::Rect;
 use noyau::rendu::svg::{Element, Page};
 use noyau::rendu::table::page_table;
 use noyau::rendu::texte::{Corps, chasse, composer};
-use noyau::table::{CoucheSombre, Famille, Fonction, table};
-use noyau::tonalite::Tonalite;
+use noyau::table::{CoucheSombre, Famille, Fonction, Rangee, table};
+use noyau::tonalite::{Mode, Tonalite};
 
 const SEUIL: f32 = 0.02;
 const FAMILLES: [Famille; 4] = [
@@ -131,10 +132,69 @@ fn i17_les_pictogrammes_de_la_legende() {
     }
 }
 
+/// La boîte de vue d'une page de table, que `recadrer` remplace.
+const VUE: &str = r#"width="209.5mm" height="157mm" viewBox="0 0 209.5 157""#;
+
+/// La page, recadrée sur un rectangle et ses abords : le rendu réel d'une case.
+fn recadrer(svg: &str, r: &Rect, marge: f32) -> String {
+    assert!(svg.contains(VUE), "une page de table entière");
+    let (x, y, l, h) = (
+        r.x - marge,
+        r.y - marge,
+        r.l + 2.0 * marge,
+        r.h + 2.0 * marge,
+    );
+    svg.replacen(
+        VUE,
+        &format!(r#"width="{l}mm" height="{h}mm" viewBox="{x} {y} {l} {h}""#),
+        1,
+    )
+}
+
 #[test]
 fn i17_la_case_cible() {
-    for (f, l, h) in tailles() {
-        let d = difference(&case(f, l, h, Etat::Cible), &case(f, l, h, Etat::Ordinaire));
-        assert!(d >= SEUIL, "{f:?}, case de {l} × {h} mm : {d}");
+    // La case cible, telle que la page la rend (cadre plein, texte et pastille en blanc),
+    // contre la même case ordinaire : une case de chaque rangée, en la mineur, en do majeur,
+    // et en ré majeur (dont les dominantes secondaires ont deux lignes d'effet).
+    for (lettre, mode) in [
+        (Lettre::A, Mode::Mineur),
+        (Lettre::C, Mode::Majeur),
+        (Lettre::D, Mode::Majeur),
+    ] {
+        let t = Tonalite {
+            tonique: NomDeNote {
+                lettre,
+                alteration: 0,
+            },
+            mode,
+        };
+        let tb = table(t, CoucheSombre::Affichee);
+        let ordinaire = page_table(&tb, Instrument::default(), None).unwrap();
+        let svg_ordinaire = ordinaire.page.svg();
+        for rangee in [
+            Rangee::Dessus,
+            Rangee::Centre,
+            Rangee::Sombre,
+            Rangee::Dessous,
+        ] {
+            let pos = tb.rangee(rangee)[0].position;
+            let r = ordinaire
+                .disposition
+                .cases
+                .iter()
+                .find(|(q, _)| *q == pos)
+                .unwrap()
+                .1;
+            let cible = page_table(&tb, Instrument::default(), Some(pos)).unwrap();
+            assert_eq!(
+                cible.disposition, ordinaire.disposition,
+                "la cible ne bouge rien"
+            );
+            let d = difference(
+                &recadrer(&cible.page.svg(), &r, 0.5),
+                &recadrer(&svg_ordinaire, &r, 0.5),
+            );
+            assert!(d >= SEUIL, "{} {pos:?} : {d}", t.nom());
+        }
     }
 }
