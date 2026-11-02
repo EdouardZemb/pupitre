@@ -589,6 +589,20 @@ rien sans geste.
     C'est le cas de la 11 juste sur un accord majeur, de la ♭9, de la ♭13 sur un accord
     mineur, et de la septième d'un accord de trois sons : le si de `C`, le sol de `Am`. Pour
     en faire un appui, on choisit l'accord de septième (`Cmaj7`, `Am7`).
+- **Le calcul** passe par une seule fonction, `role(note, accord, tonalité)`, que la palette
+  appelle et que MIC-06 appellera (I27). Elle calcule en degrés, sur l'orthographe juste :
+  - une note dont la classe de hauteur est dans l'accord est un **appui**, même hors de la
+    tonalité ;
+  - une note hors de l'accord et hors de la tonalité n'a pas de rôle ;
+  - toute autre note de la tonalité se nomme par son intervalle orthographié au-dessus de la
+    fondamentale, ramené à l'octave : une seconde est une 9 (♭9, 9, ♯9), une quarte une 11
+    (11 juste, ♯11), une sixte une 13 (♭13, 13) ;
+  - **frotte** : la ♭9 ; la 11 juste sur un accord majeur ; la ♭13 sur un accord mineur ; toute
+    septième ; et toute note qui n'est ni l'une de ces 9, 11 ou 13 ni une septième (unisson,
+    tierce ou quinte altérés contre ceux de l'accord, quarte diminuée, sixte augmentée) ;
+  - **tension** : toute autre 9, 11 ou 13 ;
+  - un accord est majeur si sa tierce est majeure (`maj`, `aug`, `7`), mineur si elle est
+    mineure (`m`, `dim`, `dim7`).
 - La palette se lit sur une portée d'une octave, sur le manche autour du doigté de l'accord
   (sa zone, à ± 2 frettes) et sur le clavier.
 - Les appuis s'affichent tous, même hors de la tonalité : un accord se lit d'abord par ses
@@ -607,6 +621,10 @@ qui frotte : un frottement est une information, pas une faute, comme dans
   ([Q17](../90-questions-ouvertes.md#q17--quel-rôle-a-la-septième-dun-accord-sans-septième-)).
 - Un accord hors du centre de la table montre tous ses appuis, même hors de la tonalité
   ([Q18](../90-questions-ouvertes.md#q18--que-montre-la-palette-dun-accord-hors-du-centre-de-la-table-)).
+- Une case dont le nom est réécrit à l'enharmonique simple a toutes ses notes réécrites avec
+  lui, du même écart de lettre : `A` pour si𝄫 s'écrit la, do♯, mi. Toute autre note qui
+  porterait une double altération s'écrit à l'enharmonique simple : le fa𝄪 de `D♯7` s'écrit
+  sol.
 
 **Critères d'acceptation**
 1. *Étant donné* `C` en do majeur, *alors* les appuis sont do, mi, sol ; les tensions ré et

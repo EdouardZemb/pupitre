@@ -2,6 +2,7 @@
 
 pub mod accord;
 pub mod hauteur;
+pub mod palette;
 pub mod rendu;
 pub mod table;
 pub mod tonalite;
