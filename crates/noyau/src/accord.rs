@@ -40,6 +40,7 @@ impl Qualite {
         }
     }
 
+    /// Vrai si la tierce est majeure : majeur, augmenté, septième.
     pub fn tierce_majeure(self) -> bool {
         matches!(
             self,
@@ -47,6 +48,7 @@ impl Qualite {
         )
     }
 
+    /// Vrai pour les accords de trois sons, sans septième.
     pub fn trois_sons(self) -> bool {
         self.intervalles().len() == 3
     }
@@ -83,6 +85,11 @@ impl Accord {
             .collect()
     }
 
+    /// La note du renversement.
+    ///
+    /// # Panics
+    ///
+    /// Si le renversement dépasse le nombre de notes de l'accord.
     pub fn basse(&self) -> Intervalle {
         self.notes()[self.renversement as usize]
     }
@@ -92,13 +99,10 @@ impl Accord {
         t.note(self.fondamentale)
     }
 
-    /// 0 si la fondamentale juste porte au plus une altération ; sinon l'écart de lettre vers son
-    /// enharmonique simple (−1 pour si𝄫 → la, +1 pour fa𝄪 → sol), comme dans `meme_son`.
+    /// L'écart de lettre vers son
+    /// enharmonique simple, 0 si elle porte au plus une altération (−1 pour si𝄫 → la, +1 pour fa𝄪 → sol), comme dans `meme_son`.
     pub fn ecart_d_ecriture(&self, t: Tonalite) -> i8 {
         let juste = self.fondamentale_juste(t);
-        if juste.alteration.abs() <= 1 {
-            return 0;
-        }
         let ecart = juste.enharmonique_simple().lettre as i8 - juste.lettre as i8;
         (ecart + 3).rem_euclid(7) - 3
     }
@@ -109,18 +113,15 @@ impl Accord {
         let ecart = self.ecart_d_ecriture(t);
         self.notes()
             .into_iter()
-            .map(|n| {
-                let note = t.note(n).meme_son(ecart);
-                if note.alteration.abs() > 1 {
-                    note.enharmonique_simple()
-                } else {
-                    note
-                }
-            })
+            .map(|n| t.note(n).meme_son(ecart).enharmonique_simple())
             .collect()
     }
 
     /// `A7`, `D♭/F`, `A` pour si𝄫, `G°7` pour fa𝄪°7.
+    ///
+    /// # Panics
+    ///
+    /// Si le renversement dépasse le nombre de notes de l'accord.
     pub fn nom(&self, t: Tonalite) -> String {
         let noms = self.noms_des_notes(t);
         let mut nom = format!("{}{}", noms[0].anglais(), self.qualite.suffixe());

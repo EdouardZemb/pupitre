@@ -157,3 +157,37 @@ fn ecart_d_ecriture_q21() {
     let do_maj = tonalite(Lettre::C, 0, Mode::Majeur);
     assert_eq!(vi_bemol.ecart_d_ecriture(do_maj), 0);
 }
+
+#[test]
+fn ecart_d_ecriture_franchit_si_do() {
+    // ré♭ majeur : (6, 9) donne do𝄫, écrit si♭ (écart −1, de do vers si).
+    let re_bemol_maj = tonalite(Lettre::D, -1, Mode::Majeur);
+    let a = accord(6, 9, Qualite::Majeur, 0);
+    assert_eq!(a.fondamentale_juste(re_bemol_maj).anglais(), "C𝄫");
+    assert_eq!(a.ecart_d_ecriture(re_bemol_maj), -1);
+    assert_eq!(a.nom(re_bemol_maj), "B♭");
+
+    // sol♯ mineur : (2, 5) donne si𝄪, écrit do♯ (écart +1, de si vers do).
+    let sol_diese_min = tonalite(Lettre::G, 1, Mode::Mineur);
+    let b = accord(2, 5, Qualite::Majeur, 0);
+    assert_eq!(b.fondamentale_juste(sol_diese_min).anglais(), "B𝄪");
+    assert_eq!(b.ecart_d_ecriture(sol_diese_min), 1);
+    assert_eq!(b.nom(sol_diese_min), "C♯");
+}
+
+#[test]
+fn noms_avec_renversements() {
+    let sol_diese_min = tonalite(Lettre::G, 1, Mode::Mineur);
+    assert_eq!(accord(4, 7, Qualite::Septieme, 0).nom(sol_diese_min), "D♯7");
+
+    let do_maj = tonalite(Lettre::C, 0, Mode::Majeur);
+    let la7 = |r| accord(5, 9, Qualite::Septieme, r);
+    assert_eq!(la7(2).nom(do_maj), "A7/E");
+    assert_eq!(la7(3).nom(do_maj), "A7/G");
+    assert_eq!(la7(2).basse(), Intervalle::new(2, 4));
+    assert_eq!(la7(3).basse(), Intervalle::new(4, 7));
+
+    // La basse est réécrite avec la fondamentale : la tierce ré♭ s'écrit do♯.
+    let re_bemol_maj = tonalite(Lettre::D, -1, Mode::Majeur);
+    assert_eq!(accord(5, 8, Qualite::Majeur, 1).nom(re_bemol_maj), "A/C♯");
+}
