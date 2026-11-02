@@ -341,7 +341,7 @@ pas une faute.
   indécise : une carte par candidat. Depuis un emprunt : les **retours** d'abord.
 - Chaque chemin s'écoute, et s'ajoute d'un geste à la position courante.
 - La carte et la [table de la tonalité](#mic-12--parcourir-la-table-de-la-tonalité)
-  puisent dans les mêmes [familles d'accords](../60-moteur-musical.md#les-familles-daccords) :
+  puisent dans les mêmes [familles d'accords](../60-moteur-musical.md#12-les-familles-daccords) :
   la table montre tout, la carte part de ce qui précède réellement. Si la **couche sombre**
   est affichée, ses accords nourrissent aussi les accords suivants.
 - Un accord ajouté depuis la carte est une suggestion acceptée, de provenance `suggeree`.
@@ -491,7 +491,7 @@ d'une extraction.
 | **Lit · écrit** | Lit la tonalité choisie (ou celle du morceau) et les réglages ([SYN-09](29-socle-donnees-appareils.md#syn-09--régler-ses-préférences)) : instrument des diagrammes, couche sombre ; écrit seulement l'accord que Sacha y **prend**, avec la provenance `saisie` |
 
 **Les rangées.** Une rangée par famille
-([§ 60 · Les familles d'accords](../60-moteur-musical.md#les-familles-daccords)) :
+([§ 60 · Les familles d'accords](../60-moteur-musical.md#12-les-familles-daccords)) :
 au-dessus, les dominantes secondaires, chacune fléchée vers sa cible ; au centre, les
 diatoniques ; au-dessous, les emprunts au mode parallèle ; et la couche sombre, à la
 demande. La table se calcule en degrés, puis se nomme dans la tonalité
@@ -502,7 +502,7 @@ et en la mineur, case par case.
 - Chaque case porte le nom de l'accord, son chiffre romain, sa famille et une ligne d'effet.
   - La famille se lit **par la rangée et par une forme de cadre**, jamais par la seule
     couleur ([P6](../10-vision.md#4-les-principes)).
-  - La ligne d'effet vient du [§ 60](../60-moteur-musical.md#les-familles-daccords) :
+  - La ligne d'effet vient du [§ 60](../60-moteur-musical.md#12-les-familles-daccords) :
     `tire vers <cible>` pour une dominante secondaire, `assombrit` pour un emprunt au
     mineur, `éclaire` pour un emprunt au majeur, `glisse vers <cible>` pour un diminué,
     `tension sombre avant la dominante` pour la napolitaine, `suspend` pour l'augmenté. Au
