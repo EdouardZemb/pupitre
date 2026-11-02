@@ -103,9 +103,11 @@ jobs:
       - name: Construire l'installateur
         working-directory: app/src-tauri
         run: cargo tauri build
-      # Après la construction : le lint de l'établi demande app/ui/dist.
+      # Après la construction : le lint et les tests de l'établi demandent app/ui/dist.
       - name: Lint de l'établi
         run: cargo clippy -p etabli --all-targets -- -D warnings
+      - name: Tests de l'établi
+        run: cargo test -p etabli
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: etabli-installateur

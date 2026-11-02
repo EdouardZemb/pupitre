@@ -272,7 +272,8 @@ pas dans ce budget.
 | Où | Dépendance | Sert à |
 |---|---|---|
 | Application | `leptos` | Interface |
-| Application | `tauri`, et ses greffons pour les fichiers et le micro | Applications |
+| Application | `tauri`, et ses greffons pour les fichiers et le micro : `tauri-plugin-dialog`, la boîte d'enregistrement du cahier des tables ([REN-07](20-sfd/28-rendus-encre-impression.md#ren-07--imprimer)) | Applications |
+| Application | `wasm-bindgen`, `wasm-bindgen-futures`, `js-sys` | L'interface appelle les commandes de l'établi (`invoke` de Tauri) et lit la date du jour, celle de l'export du cahier |
 | Application, nœud | `automerge` | Documents, synchronisation |
 | Application | Verovio, en WebAssembly | Portée, à partir d'INC-2 |
 | Application | Une bibliothèque d'inférence ONNX en Rust, choisie au banc (H04) | Transcrire un fredonnement |

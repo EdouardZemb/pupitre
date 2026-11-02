@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Les droits de la fenêtre principale : ceux du noyau de Tauri, et rien d'autre.",
+  "description": "Les droits de la fenêtre principale : ceux du noyau de Tauri, et la boîte d'enregistrement, pour exporter le cahier des tables.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "dialog:allow-save"]
 }
