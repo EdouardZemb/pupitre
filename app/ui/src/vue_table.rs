@@ -119,9 +119,11 @@ pub fn VueTable(etat: Etat, bouton_palette: NodeRef<html::Button>) -> impl IntoV
                 .map(|e| view! { <p class="erreur" role="alert">{e.to_string()}</p> })
         })
     };
+    // La page est un dessin sans texte lisible : les lecteurs d'écran l'ignorent, et les boutons
+    // des cases disent chacun leur nom et leur chiffre.
     view! {
         <div class="table">
-            <div class="page" inner_html=svg></div>
+            <div class="page" aria-hidden="true" inner_html=svg></div>
             {erreur}
             {move || {
                 cases

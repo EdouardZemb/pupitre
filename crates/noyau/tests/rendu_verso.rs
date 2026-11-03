@@ -713,9 +713,10 @@ fn la_fiche_a_la_largeur_de_sa_colonne() {
 
 #[test]
 fn la_fiche_coupe_son_en_tete_aux_points_puis_aux_espaces() {
-    // La colonne mesure 27 mm. Le segment « V7/ii en do majeur » est trop large pour la
-    // colonne : il se coupe aux espaces, de même que « instrument : guitare et clavier ».
-    // Aucun mot ne se coupe, et un segment qui tient reste entier.
+    // La colonne mesure 27 mm. L'en-tête dit « V7/ii en do majeur · instrument : guitare et
+    // clavier » : le chiffre en tonalité, puis l'instrument. Le segment « V7/ii en do majeur »
+    // est trop large pour la colonne : il se coupe aux espaces, de même que « instrument :
+    // guitare et clavier ». Aucun mot ne se coupe, et un segment qui tient reste entier.
     let do_majeur = tonalite(Lettre::C, 0, Mode::Majeur);
     let p = fiche_d_accord(
         &accord(5, 9, Qualite::Septieme),
@@ -725,7 +726,6 @@ fn la_fiche_coupe_son_en_tete_aux_points_puis_aux_espaces() {
     .unwrap();
     let svg = p.svg();
     for ligne in [
-        "A7",
         "V7/ii en do",
         "majeur",
         "instrument :",
@@ -737,9 +737,41 @@ fn la_fiche_coupe_son_en_tete_aux_points_puis_aux_espaces() {
             "la ligne « {ligne} »"
         );
     }
+    // L'en-tête ne répète pas le nom de l'accord : « A7 » ne se compose qu'une fois, dans le titre
+    // de la colonne, « A7 V7/ii ».
+    assert_eq!(
+        svg.matches(&trace("A7", &Corps::MIN)).count(),
+        1,
+        "« A7 » une seule fois"
+    );
+    assert!(svg.contains(&trace("V7/ii", &Corps::MIN)), "le titre");
     // Pas de ligne plus large que la colonne : le dessin tient dans les marges.
     let b = commun::boite_du_dessin(&svg);
     assert!(b.droite <= p.largeur - MARGE_H + EPS, "{b:?}");
+}
+
+#[test]
+fn la_fiche_d_un_accord_sans_chiffre_dit_la_tonalite_et_l_instrument() {
+    // C+ n'a pas de case dans la table de do majeur, couche sombre affichée : il n'a pas de
+    // chiffre. L'en-tête dit « en do majeur · instrument : guitare », sans le nom de l'accord.
+    let do_majeur = tonalite(Lettre::C, 0, Mode::Majeur);
+    let c_aug = accord(0, 0, Qualite::Augmente);
+    let tb = table(do_majeur, CoucheSombre::Affichee);
+    assert!(tb.cases.iter().all(|c| c.accord != c_aug), "C+ a une case");
+    let p = fiche_d_accord(&c_aug, do_majeur, Instrument::Guitare).unwrap();
+    let svg = p.svg();
+    assert_eq!(verifier(&svg), Ok(()));
+    for ligne in ["en do majeur", "instrument :", "guitare"] {
+        assert!(
+            svg.contains(&trace(ligne, &Corps::MIN)),
+            "la ligne « {ligne} »"
+        );
+    }
+    assert_eq!(
+        svg.matches(&trace("C+", &Corps::MIN)).count(),
+        1,
+        "« C+ » une seule fois, dans le titre de la colonne"
+    );
 }
 
 #[test]

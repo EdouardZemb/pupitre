@@ -45,6 +45,23 @@ fn les_caracteres_exiges_ont_un_glyphe() {
     }
 }
 
+/// Un caractère que DejaVu Sans n'a pas : un idéogramme.
+const SANS_GLYPHE: char = '漢';
+
+#[test]
+fn l_ideogramme_n_a_pas_de_glyphe() {
+    assert!(!glyphe_present(SANS_GLYPHE));
+}
+
+#[test]
+#[cfg(debug_assertions)]
+#[should_panic(expected = "« 漢 » (U+6F22) n'a pas de glyphe dans la police, dans « do 漢 »")]
+fn composer_un_caractere_absent_de_la_police_le_dit() {
+    // Sans glyphe, la page dessinerait le rectangle `.notdef` sans rien dire : en debug, et donc
+    // dans chaque test des pages, `composer` nomme le caractère.
+    composer(&format!("do {SANS_GLYPHE}"), &Corps::MIN, 0.0, 0.0);
+}
+
 #[test]
 fn un_texte_compose_est_un_groupe_de_traces_a_son_corps() {
     let page = Page {

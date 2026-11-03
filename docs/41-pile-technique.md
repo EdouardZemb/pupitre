@@ -261,6 +261,11 @@ aucune, et aucun lecteur ne peut la remplacer. H09 a vu au lutrin la page et son
 les tests du cahier (`crates/cahier/tests/pdf.rs`) le gardent pour ses 49 pages, chacune de la
 taille de son SVG et posée sans mise à l'échelle.
 
+**Deux `usvg` lisent les pages.** `svg2pdf` 0.13 convertit les pages avec `usvg` 0.45 ; les
+tests les mesurent et les rastérisent avec `resvg` et `usvg` 0.49. La marge d'I17, 2,1 % des
+pixels pour un seuil de 2 %, tient à `resvg` 0.49 : à chaque montée de `resvg`, relancer
+`crates/noyau/tests/encre.rs`.
+
 ---
 
 ## 6. Le budget de dépendances
@@ -287,6 +292,10 @@ pas dans ce budget.
 
 Le noyau n'a aucune dépendance d'entrées-sorties. Ce tableau est un budget, pas une cible :
 s'en approcher demande de se justifier.
+
+Une dépendance entre à sa dernière version publiée, sauf quand une autre l'en empêche :
+`pdf-writer` reste en 0.12.1, alors que la dernière version est plus récente, car `svg2pdf`
+0.13, sa propre dernière version, exige `pdf-writer ^0.12`.
 
 ---
 

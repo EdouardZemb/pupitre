@@ -1,7 +1,7 @@
 //! Le cahier des tables (REN-01) : un sommaire, puis les 24 tonalités dans l'ordre du cahier,
-//! chacune sur sa page de table suivie de son verso, couche sombre masquée (MIC-12 · 5) ; soit
-//! 49 pages. Le cahier pose sur chaque page le pied que la table et le verso réservent : la page,
-//! la date du rendu et l'empreinte de la page sans pied.
+//! chacune sur sa page de table suivie de son verso, dans la couche sombre du réglage, masquée
+//! par défaut (MIC-12 · 5) ; soit 49 pages. Le cahier pose sur chaque page le pied que la table
+//! et le verso réservent : la page, la date du rendu et l'empreinte de la page sans pied.
 //!
 //! Les pages sont comptées depuis 0 : le sommaire est à l'index 0 (« page 1 / 49 ») ; la table de
 //! la k-ième tonalité, à l'index 1 + 2k (« page 2 + 2k »), et son verso juste après.
@@ -22,9 +22,6 @@ use super::verso::page_verso;
 use super::{Contexte, Debordement, Instrument, en_mm};
 use crate::table::{CoucheSombre, table};
 use crate::tonalite::Tonalite;
-
-/// La couche sombre du cahier : masquée, comme par défaut (MIC-12 · 5).
-const COUCHE: CoucheSombre = CoucheSombre::Masquee;
 
 /// L'index, depuis 0, de la table de la k-ième tonalité du cahier : le sommaire la précède, et
 /// chaque table est suivie de son verso.
@@ -188,10 +185,10 @@ fn entree(
 }
 
 /// La page du sommaire, sans son pied : le titre « Cahier des tables » à 20 pt, une ligne qui dit
-/// l'instrument et la couche sombre, un filet, puis une entrée par tonalité, dans l'ordre du
-/// cahier, chacune avec sa page et la zone de son lien vers sa table. Rend `Debordement` si un
-/// texte dépasse sa place ou si les entrées descendent dans le pied.
-pub fn page_sommaire(i: Instrument) -> Result<Sommaire, Debordement> {
+/// l'instrument et la couche sombre du cahier, un filet, puis une entrée par tonalité, dans
+/// l'ordre du cahier, chacune avec sa page et la zone de son lien vers sa table. Rend
+/// `Debordement` si un texte dépasse sa place ou si les entrées descendent dans le pied.
+pub fn page_sommaire(i: Instrument, couche: CoucheSombre) -> Result<Sommaire, Debordement> {
     let contexte = Contexte("le sommaire du cahier".to_string());
     let (t, titre) = (Corps::MIN, corps_titre());
     if chasse(TITRE, &titre) > UTILE_L {
@@ -207,7 +204,7 @@ pub fn page_sommaire(i: Instrument) -> Result<Sommaire, Debordement> {
     let reglages = format!(
         "instrument : {} · couche sombre : {}",
         i.nom(),
-        dite(COUCHE)
+        dite(couche)
     );
     let lignes = couper_aux_points(&reglages, &t, UTILE_L)
         .map_err(|e| contexte.trop_large(&e.mot, e.chasse, e.largeur))?;
@@ -259,18 +256,22 @@ struct SansPied {
 }
 
 /// Les 49 pages du cahier, pied posé : le sommaire, puis, pour chaque tonalité de l'ordre du
-/// cahier, sa page de table et son verso, couche sombre masquée. Le pied de chaque page porte
-/// l'empreinte de son SVG sans pied, tel que le rendent [`page_sommaire`], [`page_table`] et
-/// [`page_verso`]. Rend le premier `Debordement` d'une page.
-pub fn pages_du_cahier(i: Instrument, date: &Date) -> Result<Vec<PageDuCahier>, Debordement> {
-    let sommaire = page_sommaire(i)?;
+/// cahier, sa page de table et son verso, dans la couche sombre donnée. Le pied de chaque page
+/// porte l'empreinte de son SVG sans pied, tel que le rendent [`page_sommaire`], [`page_table`]
+/// et [`page_verso`]. Rend le premier `Debordement` d'une page.
+pub fn pages_du_cahier(
+    i: Instrument,
+    couche: CoucheSombre,
+    date: &Date,
+) -> Result<Vec<PageDuCahier>, Debordement> {
+    let sommaire = page_sommaire(i, couche)?;
     let mut pages = vec![SansPied {
         page: sommaire.page,
         liens: sommaire.liens,
         annonce_le_verso: false,
     }];
     for (k, t) in Tonalite::les_24().into_iter().enumerate() {
-        let tb = table(t, COUCHE);
+        let tb = table(t, couche);
         // La table de la k-ième tonalité entre à l'index que vise le k-ième lien du sommaire.
         debug_assert_eq!(pages.len(), index_de_la_table(k));
         pages.push(SansPied {

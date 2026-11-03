@@ -461,19 +461,20 @@ pub fn page_verso(table: &Table, i: Instrument) -> Result<Page, Debordement> {
     })
 }
 
-/// La fiche d'un accord, pour l'établi : « A7 · V7/ii en do majeur · instrument : guitare et
-/// clavier », puis la colonne de l'accord et la légende de sa palette. La page a la largeur
-/// d'une colonne de la table et de ses marges, pour s'afficher à l'échelle des colonnes ; elle
-/// s'arrête au bas de la colonne. L'en-tête se coupe aux « · », puis aux espaces, dans la
-/// largeur de la colonne. La fiche n'a pas de pied. Un accord hors de la table n'a pas de
-/// chiffre : l'en-tête dit la tonalité seule.
+/// La fiche d'un accord, pour l'établi : « V7/ii en do majeur · instrument : guitare et
+/// clavier », le chiffre en tonalité puis l'instrument, puis la colonne de l'accord, dont le
+/// titre dit le nom et le chiffre, « A7 V7/ii », et la légende de sa palette. L'en-tête ne
+/// répète pas le nom. La page a la largeur d'une colonne de la table et de ses marges, pour
+/// s'afficher à l'échelle des colonnes ; elle s'arrête au bas de la colonne. L'en-tête se coupe
+/// aux « · », puis aux espaces, dans la largeur de la colonne. La fiche n'a pas de pied. Un
+/// accord hors de la table n'a pas de chiffre : l'en-tête dit « en do majeur · instrument : … ».
 pub fn fiche_d_accord(a: &Accord, t: Tonalite, i: Instrument) -> Result<Page, Debordement> {
     let nom = a.nom(t);
     let chiffre = chiffre_de(a, t);
     let contexte = Contexte(format!("la fiche de {nom} en {}", t.nom()));
     let texte = match &chiffre {
-        Some(ch) => format!("{nom} · {ch} en {} · instrument : {}", t.nom(), i.nom()),
-        None => format!("{nom} · {} · instrument : {}", t.nom(), i.nom()),
+        Some(ch) => format!("{ch} en {} · instrument : {}", t.nom(), i.nom()),
+        None => format!("en {} · instrument : {}", t.nom(), i.nom()),
     };
     let (mut elements, y_filet) = composer_l_en_tete(&texte, COLONNE, 1, usize::MAX, &contexte)?;
     let haut = y_filet + SOUS_FILET;

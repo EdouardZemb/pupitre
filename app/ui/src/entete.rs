@@ -97,7 +97,7 @@ pub fn Entete(etat: Etat) -> impl IntoView {
                 <legend>"Instrument"</legend>
                 <div class="choix-en-ligne">{instruments.into_iter().collect_view()}</div>
             </fieldset>
-            <BoutonExport instrument=etat.instrument />
+            <BoutonExport instrument=etat.instrument couche=etat.couche />
         </header>
     }
 }

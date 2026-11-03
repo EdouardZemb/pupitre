@@ -43,21 +43,23 @@ flowchart LR
 - Un quatrième gabarit, **« table »**, qui part d'une tonalité et non d'un morceau : une
   tonalité par page ([MIC-12](22-micro-motif-et-phrase.md#mic-12--parcourir-la-table-de-la-tonalité)),
   et au verso, pour les accords du centre et dans leur ordre, leurs diagrammes (guitare,
-  clavier, ou les deux selon le réglage) et leurs palettes
+  clavier, ou les deux selon le réglage) et leurs palettes, la portée sans clé comprise
   ([MIC-13](22-micro-motif-et-phrase.md#mic-13--lire-la-palette-dun-accord)).
 - Le **cahier des tables** : les 24 tonalités, un sommaire à liens, au format de l'écran du
   lutrin, imprimable avec la même pagination (I19). Il compte 49 pages en paysage,
   209,5 × 157 mm :
   - **l'ordre** : le sommaire, puis les 24 tonalités dans l'ordre du cahier, le cycle des
     quintes, chaque majeure suivie de sa relative (la relative de fa♯ majeur s'écrit mi♭ mineur,
-    A17). Chaque tonalité a sa page de table, couche sombre masquée comme par défaut, suivie de
-    son verso. La table de la k-ième tonalité, comptée depuis 0, est la page 2 + 2k ;
+    A17). Chaque tonalité a sa page de table, dans la couche sombre du réglage, masquée par
+    défaut, suivie de son verso. La table de la k-ième tonalité, comptée depuis 0, est la page
+    2 + 2k ;
   - **le sommaire** : le titre « Cahier des tables », une ligne qui dit l'instrument et la couche
-    sombre (« instrument : guitare et clavier · couche sombre : masquée »), puis une entrée par
-    tonalité, qui dit son nom et sa page. Les entrées se lisent de ligne en ligne et de gauche à
-    droite, dans l'ordre du cahier : deux paires par ligne, une majeure et sa relative, que
-    sépare un blanc plus étroit que celui qui sépare deux paires. Chaque entrée est encadrée, et
-    son cadre est la zone de son lien vers sa table : 16 mm de haut, pour 12 au moins
+    sombre du cahier (« instrument : guitare et clavier · couche sombre : masquée »), puis une
+    entrée par tonalité, qui dit son nom et sa page. Les entrées se lisent de ligne en ligne et
+    de gauche à droite, dans l'ordre du cahier : deux paires par ligne, une majeure et sa
+    relative, que sépare un blanc plus étroit que celui qui sépare deux paires. Chaque entrée
+    est encadrée, et son cadre est la zone de son lien vers sa table : 16 mm de haut, pour 12 au
+    moins
     ([§ 50 · 6.3](../50-interfaces-et-appareils.md#63-les-contraintes-physiques-en-millimètres)) ;
   - **le pied**, sur chaque page, sommaire compris : « page 2 / 49 · rendu le 1er nov. 2026 ·
     empreinte 7c1e4a », et sur une page de table « · verso : diagrammes et palettes des accords
@@ -325,7 +327,9 @@ page ; pas de recherche dans l'encre.
 - Une note jouée est un point plein sur la touche, blanc sur une touche noire. La basse est
   une lettre sous le clavier.
 - Le renversement par défaut **limite le déplacement de la main** depuis l'accord précédent.
-  Hors contexte (dans la table de la tonalité), l'accord est en position fondamentale.
+  Hors contexte (dans la table de la tonalité), l'accord est en position fondamentale, sauf un
+  accord à basse imposée, comme la napolitaine ♭II6, qui garde sa basse
+  ([§ 60 · 6.3](../60-moteur-musical.md#63-le-voicing-au-clavier)).
 - Un renversement **épinglé** est encadré. La priorité des épinglages est celle de
   [REN-04](#ren-04--diagrammes-de-manche).
 
@@ -335,7 +339,8 @@ jouent.
 
 **Cas limites**
 - Premier accord d'une grille, sans accord précédent : la position fondamentale, comme hors
-  contexte.
+  contexte, sauf un accord à basse imposée, comme la napolitaine ♭II6, qui garde sa basse
+  ([§ 60 · 6.3](../60-moteur-musical.md#63-le-voicing-au-clavier)).
 - Un renversement épinglé qui ne correspond plus à aucun accord après une transposition est
   listé comme inactif, comme un doigté épinglé : rien n'est réécrit, et il redevient actif si
   l'accord revient

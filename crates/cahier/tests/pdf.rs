@@ -1,7 +1,7 @@
 //! Le PDF du cahier des tables (REN-07, I19, I25) : 49 pages de la taille de leurs SVG, posées
 //! sans mise à l'échelle ; les liens du sommaire, à leur place, mènent chacun à sa table ; deux
-//! engendrements à la même date donnent les mêmes octets, métadonnées comprises ; la commande
-//! écrit ce qu'`engendrer` rend.
+//! engendrements à la même date et dans la même couche donnent les mêmes octets, métadonnées
+//! comprises ; la commande écrit ce qu'`engendrer` rend.
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -13,6 +13,7 @@ use lopdf::{Dictionary, Document, Object, ObjectId};
 use noyau::rendu::Instrument;
 use noyau::rendu::cahier::page_sommaire;
 use noyau::rendu::pages::{Date, HAUTEUR};
+use noyau::table::CoucheSombre;
 
 const DATE: Date = Date {
     annee: 2026,
@@ -25,24 +26,42 @@ const PT_PAR_MM: f32 = 72.0 / 25.4;
 /// La tolérance sur une longueur du PDF, en points.
 const TOLERANCE: f32 = 0.01;
 
-/// Le cahier des deux instruments au 1er nov. 2026, engendré une fois pour les tests qui le lisent.
-fn pdf() -> &'static [u8] {
-    static PDF: OnceLock<Vec<u8>> = OnceLock::new();
-    PDF.get_or_init(|| engendrer(Instrument::LesDeux, &DATE).unwrap_or_else(|e| panic!("{e}")))
+const COUCHES: [CoucheSombre; 2] = [CoucheSombre::Masquee, CoucheSombre::Affichee];
+
+/// Le cahier des deux instruments au 1er nov. 2026, dans une couche, engendré une fois pour les
+/// tests qui le lisent.
+fn pdf(couche: CoucheSombre) -> &'static [u8] {
+    static MASQUEE: OnceLock<Vec<u8>> = OnceLock::new();
+    static AFFICHEE: OnceLock<Vec<u8>> = OnceLock::new();
+    let cache = match couche {
+        CoucheSombre::Masquee => &MASQUEE,
+        CoucheSombre::Affichee => &AFFICHEE,
+    };
+    cache.get_or_init(|| {
+        engendrer(Instrument::LesDeux, couche, &DATE).unwrap_or_else(|e| panic!("{e}"))
+    })
 }
 
+/// Le cahier, couche sombre masquée, comme par défaut.
 fn document() -> Document {
-    Document::load_mem(pdf()).expect("un PDF lisible")
+    Document::load_mem(pdf(CoucheSombre::Masquee)).expect("un PDF lisible")
 }
 
 #[test]
 fn ren07_1_le_pdf_a_les_pages_des_svg() {
-    // I19 : autant de pages que de SVG, chacune de la taille de sa page SVG.
-    let doc = document();
-    assert_eq!(doc.get_pages().len(), 49);
-    for (_, id) in doc.get_pages() {
-        assert_media_box(&doc, id, L_PT, H_PT, TOLERANCE);
-    }
+    // I19 : autant de pages que de SVG, chacune de la taille de sa page SVG, dans les deux
+    // couches, qui s'engendrent côte à côte.
+    std::thread::scope(|s| {
+        for couche in COUCHES {
+            s.spawn(move || {
+                let doc = Document::load_mem(pdf(couche)).expect("un PDF lisible");
+                assert_eq!(doc.get_pages().len(), 49, "{couche:?}");
+                for (_, id) in doc.get_pages() {
+                    assert_media_box(&doc, id, L_PT, H_PT, TOLERANCE);
+                }
+            });
+        }
+    });
 }
 
 #[test]
@@ -109,7 +128,7 @@ fn chaque_lien_du_pdf_mene_a_sa_table() {
     // Chaque annotation du sommaire couvre la zone de son lien (en mm depuis le haut de la page,
     // en points depuis le bas dans le PDF), et mène à la table de sa tonalité. Les liens sont
     // ceux du sommaire, que le cahier reprend tels quels (le test du noyau le vérifie).
-    let zones: Vec<_> = page_sommaire(Instrument::LesDeux)
+    let zones: Vec<_> = page_sommaire(Instrument::LesDeux, CoucheSombre::Masquee)
         .unwrap()
         .liens
         .iter()
@@ -164,9 +183,23 @@ fn chaque_lien_du_pdf_mene_a_sa_table() {
 
 #[test]
 fn ren07_2_deux_engendrements_identiques() {
-    // I25 : la date est une entrée, et rien d'autre ne varie, ni horloge ni identifiant.
-    let encore = engendrer(Instrument::LesDeux, &DATE).unwrap();
-    assert!(encore == pdf(), "deux engendrements diffèrent");
+    // I25 : la date est une entrée, et rien d'autre ne varie, ni horloge ni identifiant, dans
+    // l'une et l'autre couche, qui s'engendrent côte à côte. La couche, elle, change le cahier.
+    std::thread::scope(|s| {
+        for couche in COUCHES {
+            s.spawn(move || {
+                let encore = engendrer(Instrument::LesDeux, couche, &DATE).unwrap();
+                assert!(
+                    encore == pdf(couche),
+                    "{couche:?} : deux engendrements diffèrent"
+                );
+            });
+        }
+    });
+    assert!(
+        pdf(CoucheSombre::Masquee) != pdf(CoucheSombre::Affichee),
+        "la couche ne change rien"
+    );
     let doc = document();
     let info = dictionnaire(&doc, doc.trailer.get(b"Info").unwrap());
     assert_eq!(info.get(b"Producer").unwrap().as_str().unwrap(), b"pupitre");
@@ -186,22 +219,40 @@ fn fichier_temporaire(nom: &str) -> PathBuf {
 
 #[test]
 fn la_commande_ecrit_le_cahier() {
-    let sortie = fichier_temporaire("la-commande-ecrit-le-cahier");
-    let resultat = Command::new(env!("CARGO_BIN_EXE_cahier"))
-        .args(["--date", "2026-11-01", "--sortie"])
-        .arg(&sortie)
-        .output()
-        .expect("la commande se lance");
-    let ecrit = std::fs::read(&sortie);
-    let _ = std::fs::remove_file(&sortie);
-    assert!(
-        resultat.status.success(),
-        "{:?} : {}",
-        resultat.status,
-        String::from_utf8_lossy(&resultat.stderr)
-    );
-    let ecrit = ecrit.expect("le fichier existe");
-    assert!(ecrit == pdf(), "le fichier n'est pas ce qu'engendrer rend");
+    // Sans `--couche`, la couche sombre est masquée ; avec `--couche affichee`, elle s'affiche.
+    // Les deux commandes se lancent côte à côte.
+    let cas: [(&[&str], CoucheSombre); 2] = [
+        (&[], CoucheSombre::Masquee),
+        (&["--couche", "affichee"], CoucheSombre::Affichee),
+    ];
+    std::thread::scope(|s| {
+        for (couche, attendue) in cas {
+            s.spawn(move || {
+                let sortie =
+                    fichier_temporaire(&format!("la-commande-ecrit-le-cahier-{attendue:?}"));
+                let resultat = Command::new(env!("CARGO_BIN_EXE_cahier"))
+                    .args(["--date", "2026-11-01"])
+                    .args(couche)
+                    .arg("--sortie")
+                    .arg(&sortie)
+                    .output()
+                    .expect("la commande se lance");
+                let ecrit = std::fs::read(&sortie);
+                let _ = std::fs::remove_file(&sortie);
+                assert!(
+                    resultat.status.success(),
+                    "{couche:?} : {:?} : {}",
+                    resultat.status,
+                    String::from_utf8_lossy(&resultat.stderr)
+                );
+                let ecrit = ecrit.expect("le fichier existe");
+                assert!(
+                    ecrit == pdf(attendue),
+                    "{couche:?} : le fichier n'est pas ce qu'engendrer rend"
+                );
+            });
+        }
+    });
 }
 
 #[test]
@@ -239,6 +290,29 @@ fn la_commande_refuse_un_usage_faux() {
             "{args:?} : un fichier écrit"
         );
     }
+}
+
+#[test]
+fn la_commande_refuse_une_couche_inconnue() {
+    // Comme un instrument inconnu : une erreur d'usage, qui sort en 2, dit ce qu'elle attend, en
+    // français, avec l'usage, et n'écrit rien.
+    let sortie = fichier_temporaire("la-commande-refuse-une-couche");
+    let resultat = Command::new(env!("CARGO_BIN_EXE_cahier"))
+        .args(["--date", "2026-11-01", "--couche", "grise", "--sortie"])
+        .arg(&sortie)
+        .output()
+        .expect("la commande se lance");
+    let erreur = String::from_utf8_lossy(&resultat.stderr);
+    assert_eq!(resultat.status.code(), Some(2), "{erreur}");
+    assert!(
+        erreur.contains("couche inconnue : « grise », attendue masquee ou affichee"),
+        "{erreur}"
+    );
+    assert!(
+        erreur.contains("[--couche masquee|affichee]"),
+        "l'usage dit l'option : {erreur}"
+    );
+    assert!(!sortie.exists(), "un fichier écrit");
 }
 
 // --- Les aides ---------------------------------------------------------------------------

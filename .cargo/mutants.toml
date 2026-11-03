@@ -37,8 +37,8 @@ exclude_re = [
     # l'altération dépasse un cran, et ces mutants (rang ou naturel de la lettre faussés,
     # décalage ou condition de la boucle faussés) l'empêchent de converger. Le délai les
     # attrape (TIMEOUT), mais cargo-mutants sort alors en 3 et ferait échouer la porte.
-    "replace Lettre::rang -> i8 with",
-    "replace Lettre::naturel -> i8 with",
+    "replace Lettre::rang -> i8 with (0|1|-1)$",
+    "replace Lettre::naturel -> i8 with (0|1|-1)$",
     'replace \+ with \* in Lettre::decalee',
     "replace > with (==|<|>=) in NomDeNote::enharmonique_simple",
 ]

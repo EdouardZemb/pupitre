@@ -527,7 +527,9 @@ ni stockage ([arbitrage A18](90-questions-ouvertes.md#les-arbitrages-pris-dans-c
   [MOR-14](20-sfd/24-morceau.md#mor-14--poser-le-morceau-sur-la-table) attend INC-2.
 - **Il prouve** les hauteurs relatives ([ADR-008](adr/adr-008-hauteurs-relatives.md)), le
   mode encre ([ADR-010](adr/adr-010-trois-appareils-mode-encre.md)), la même pagination au
-  lutrin et sur papier (I19), les doigtés
+  lutrin et sur papier (I19 ; le papier est reporté au premier incrément où une imprimante
+  est disponible,
+  [A23](90-questions-ouvertes.md#les-arbitrages-pris-dans-cette-conception)), les doigtés
   ([REN-04](20-sfd/28-rendus-encre-impression.md#ren-04--diagrammes-de-manche)), et
   l'exactitude de la théorie (I26, I27 :
   [§ 70 · 3](70-qualite-et-verification.md#3-les-invariants-et-leurs-tests)).

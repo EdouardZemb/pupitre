@@ -11,6 +11,7 @@ use std::fmt;
 use noyau::rendu::cahier::pages_du_cahier;
 use noyau::rendu::pages::{Date, HAUTEUR, LARGEUR, PageDuCahier, Rect};
 use noyau::rendu::{Debordement, Instrument};
+use noyau::table::CoucheSombre;
 use pdf_writer::types::AnnotationType;
 use pdf_writer::writers::Destination;
 use pdf_writer::{Content, Finish, Name, Pdf, Ref, TextStr};
@@ -78,8 +79,12 @@ impl From<ErreurPdf> for ErreurCahier {
 /// Le PDF du cahier des tables pour cet instrument, daté du rendu : les 49 pages de
 /// `pages_du_cahier`, assemblées. La date du rendu est une entrée, jamais l'horloge : deux
 /// engendrements des mêmes entrées sont identiques à l'octet (I25).
-pub fn engendrer(i: Instrument, date: &Date) -> Result<Vec<u8>, ErreurCahier> {
-    let pages = pages_du_cahier(i, date)?;
+pub fn engendrer(
+    i: Instrument,
+    couche: CoucheSombre,
+    date: &Date,
+) -> Result<Vec<u8>, ErreurCahier> {
+    let pages = pages_du_cahier(i, couche, date)?;
     Ok(assembler(&pages, date)?)
 }
 
