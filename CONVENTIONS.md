@@ -88,9 +88,9 @@ jamais dans ce dépôt ») :
 
 ## Portes de CI
 
-**Sept, aujourd'hui.** Chacune marque la PR en échec. La règle de protection (voir plus bas)
-n'exige que les deux contrôles du socle ; `contenu`, `documentation`, `verifier`, `windows` et `mutants` ne la bloquent pas : on ne
-fusionne pas une PR rouge.
+**Sept, aujourd'hui.** Chacune marque la PR en échec. Celles que la règle de protection exige
+sont dites à un seul endroit, plus bas, à « Protection de `main` ». Requise ou non, une porte
+rouge arrête la fusion : on ne fusionne pas une PR rouge.
 
 | Porte | Ce qu'elle refuse | Script | Pourquoi elle existe |
 |---|---|---|---|
