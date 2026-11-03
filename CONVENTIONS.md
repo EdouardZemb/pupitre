@@ -137,6 +137,11 @@ tête d'une PR dont les contrôles requis sont verts. Jusqu'au 2026-11-01, la co
 dans un dépôt privé, aujourd'hui `pupitre-donnees`, où GitHub refusait cette règle sans
 abonnement payant.
 
+La règle du modèle ne requiert que les deux contrôles du socle, `socle / secrets` et
+`socle / confidentialite`. Celle du dépôt, `branche-principale`, requiert aussi `verifier`,
+`windows` et `mutants` depuis le 2026-11-03, après INC-0. Elle ne vit que sur GitHub : c'est
+ce paragraphe qui la dit dans le dépôt. `contenu` et `documentation` n'y sont pas requis.
+
 S'y ajoutent les deux garde-fous du modèle
 ([`docs/modele/methode.md`](docs/modele/methode.md), « Les garde-fous ») :
 

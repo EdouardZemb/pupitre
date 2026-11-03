@@ -11,7 +11,7 @@ Ce dépôt porte la conception d'une application d'aide à la composition, écri
 - Le dépôt est né le 01/11/2026, d'un seul commit, de la scission de pupitre (M-0006 § 7). L'historique de la conception jusque-là, ses PR #1 à #15 et l'étiquette `v0.1.0` restent dans le dépôt privé `pupitre-donnees`.
 - La conception est écrite : `docs/10-vision.md` à `docs/90-questions-ouvertes.md`, et 21 ADR dans `docs/adr/` (10 acceptées, 8 proposées, 3 remplacées). La pile est Rust (ADR-019 à 021) ; la table de la tonalité est conçue (MIC-12, MIC-13, MOR-14, REN-08, ADR-018).
 - Le dépôt est né de `modele-projet` v0.7.1 : nature `code`, cible `aucune`, fusion `session`.
-- INC-0 est livré : l'issue #1, sous la milestone « INC-0 · la table », et ses PR #2 à #9. Il reste l'étiquette `v0.2.0`, à poser par la maîtrise d'ouvrage, puis la prochaine étape, INC-1 (§ 40 · 9).
+- INC-0 est livré, sous l'étiquette `v0.2.0` du 03/11/2026 : l'issue #1, sous la milestone « INC-0 · la table », close, et ses PR #2 à #9. La prochaine étape est INC-1 (§ 40 · 9).
 - Les crates :
   - `noyau` (`crates/noyau`) : la théorie et les pages SVG, sans entrée-sortie ;
   - `cahier` (`crates/cahier`) : le PDF et sa commande ;
