@@ -96,7 +96,7 @@ flowchart TB
 | **Code** | Le code d'INC-0, la table, en Rust : les crates `noyau` (la théorie et l'écriture des pages en SVG), `cahier` (le cahier des tables en PDF), `interface` (l'établi, en Leptos) et `etabli` (son enveloppe Tauri, et l'export du cahier) |
 | **Décisions** | 21 ADR, dont 10 acceptées, 8 proposées et 3 remplacées ([registre](docs/adr/README.md)) |
 | **Bloquant pour démarrer** | Rien : les ADR [001](docs/adr/adr-001-un-seul-materiau.md), [008](docs/adr/adr-008-hauteurs-relatives.md) et [010](docs/adr/adr-010-trois-appareils-mode-encre.md), que met en jeu INC-0, sont acceptées depuis le 2026-10-28 ([§ 40 · 9](docs/40-architecture.md#9-trajectoire-de-construction)). Aucune question ouverte ne bloque le début ; Q01, la capacité du nœud maison, ne bloque que l'analyse lourde et l'IA locale ([§ 90](docs/90-questions-ouvertes.md)) |
-| **Prochaine étape** | La clôture d'INC-0, puis l'incrément INC-1 — carnet et fonds ([§ 40 · 9](docs/40-architecture.md#9-trajectoire-de-construction)) |
+| **Prochaine étape** | INC-0 est livré ; l'incrément INC-1 — carnet et fonds ([§ 40 · 9](docs/40-architecture.md#9-trajectoire-de-construction)) |
 | **Historique** | Ce dépôt est né le 2026-11-01, d'un seul commit. L'historique de la conception jusque-là, ses PR et l'étiquette `v0.1.0` restent dans le dépôt privé `pupitre-donnees` |
 
 ### La série précédente

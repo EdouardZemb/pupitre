@@ -235,7 +235,18 @@ jobs, quatre portes
 refuse une donnée d'identité dans le diff, les messages de commit ou le texte de la PR. Le
 job `contenu` refuse toute donnée personnelle dans les fichiers du dépôt. Le job
 `documentation` vérifie que chaque diagramme se rend et que chaque lien interne mène
-quelque part. INC-0 ajoute les premières portes du code.
+quelque part.
+
+**INC-0** (2026-11-02) : les premières portes du code
+([CONVENTIONS](../CONVENTIONS.md#portes-de-ci)). Le job `verifier` lance `cargo fmt`, `cargo clippy`
+et les tests du noyau, du cahier et de l'interface. Le job `windows` construit l'établi, lance ses
+tests, et dépose l'installateur et le cahier des tables en artefacts. Le job `mutants` éprouve les
+tests du noyau sur le diff de chaque PR, et `mutants-complet` rejoue le passage entier chaque
+lundi.
+
+La cinquième famille de garde-fous ([M-0001](modele/decisions/M-0001-ecosysteme-des-applications-personnelles.md)),
+le test d'isolation des chemins de données, n'est pas due en INC-0, qui n'a aucun chemin de
+données : ni stockage, ni `instance/`, `config/` ou `contenu/`. Ce test naît avec le stockage, en INC-1.
 
 **Quand le code existera**, les portes s'ajoutent **une à une**, chacune justifiée par ce
 qu'elle protège :
@@ -248,6 +259,11 @@ qu'elle protège :
 | 4 | Invariants I01 à I27 | Les décisions |
 | 5 | Bout en bout, trois profils, sur la construction navigateur | Les parcours |
 | 6 | Restauration, chaque nuit en CI sur un jeu de test ; le nœud la rejoue chaque semaine sur les vraies données ([SYN-06](20-sfd/29-socle-donnees-appareils.md#syn-06--sauvegarder-et-restaurer)) | La durabilité |
+
+**Où en est le tableau, après INC-0.** Les lignes 1, 2 et 3 sont posées : `verifier`, `mutants` et
+`mutants-complet`, puis la construction Windows (`windows`) ; la construction Android reste à
+poser avec l'application mobile. Dans la ligne 4, I17, I18, I19, I25, I26 et I27 ont leur test ;
+les autres invariants attendent le code qu'ils verrouillent. Les lignes 5 et 6 restent à venir.
 
 **Une porte se corrige par le code ou le document qu'elle refuse, pas en l'affaiblissant**
 à son premier faux positif. On n'assouplit une règle que si le faux positif est structurel,
