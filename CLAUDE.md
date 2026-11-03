@@ -17,7 +17,7 @@ Ce dépôt porte la conception d'une application d'aide à la composition, écri
   - `cahier` (`crates/cahier`) : le PDF et sa commande ;
   - `interface` (`app/ui`) : l'interface Leptos ;
   - `etabli` (`app/src-tauri`) : l'application Tauri.
-- La CI (`.github/workflows/ci.yml`) a six jobs : `socle`, `contenu`, `documentation`, `verifier`, `windows` et `mutants`. Le passage complet de mutation a lieu chaque semaine, par `mutants-complet.yml`. Les portes et ce qu'elles protègent sont dans `CONVENTIONS.md` (« Portes de CI »).
+- La CI (`.github/workflows/ci.yml`) a pour jobs `socle`, `contenu`, `documentation`, `verifier`, `windows` et `mutants`. Le passage complet de mutation a lieu chaque semaine, par `mutants-complet.yml`. Les portes et ce qu'elles protègent sont dans `CONVENTIONS.md` (« Portes de CI »).
 
 ## Commandes
 
