@@ -246,7 +246,7 @@ lundi.
 
 La cinquième famille de garde-fous ([M-0001](modele/decisions/M-0001-ecosysteme-des-applications-personnelles.md)),
 le test d'isolation des chemins de données, n'est pas due en INC-0, qui n'a aucun chemin de
-données : ni stockage, ni `instance/`, `config/` ou `contenu/`. Il naît avec le stockage, en INC-1.
+données : ni stockage, ni `instance/`, `config/` ou `contenu/`. Ce test naît avec le stockage, en INC-1.
 
 **Quand le code existera**, les portes s'ajoutent **une à une**, chacune justifiée par ce
 qu'elle protège :
