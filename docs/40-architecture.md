@@ -169,9 +169,12 @@ garde le noyau en WebAssembly pour dessiner ce qu'elle reçoit
 [§ 7.5](#75-linterface-la-csp-et-les-commandes)).
 
 **Hors d'`etabli`.** Les services d'application, les adaptateurs `Documents` et `Captations`
-et le cœur de la couche de synchronisation vivent hors de la crate Tauri, puisqu'ils se
-compilent aussi en WebAssembly pour la construction navigateur
-([ADR-022](adr/adr-022-documents-cote-natif.md)). Les types des commandes, qu'emploie
+et le cœur de la couche de synchronisation vivent hors de la crate Tauri. Les services et les
+adaptateurs en mémoire se compilent aussi en WebAssembly pour la construction navigateur
+([ADR-022](adr/adr-022-documents-cote-natif.md)). L'adaptateur sur fichiers et le cœur de la
+couche de synchronisation n'y entrent pas, puisque rien ne s'y écrit ni ne s'y synchronise :
+ils sortent d'`etabli` pour que l'essai H07 les éprouve en CI, sans application
+([§ 9](#9-trajectoire-de-construction)). Les types des commandes, qu'emploie
 l'interface, ne tirent ni `automerge` ni les services. Le plan court d'H07, qui écrit le
 premier de ces adaptateurs, fixe les crates et leurs noms.
 

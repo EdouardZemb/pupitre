@@ -661,9 +661,10 @@ lu par aucun diagnostic ([ADR-006](adr/adr-006-le-partiel-est-normal.md)).
   messages ; il n'est pas rédigé.
 - Le **journal du fonds** se forme de même : c'est la liste de toutes les opérations nommées
   écrites dans le document du fonds, avec leur message (« Idée du 3 novembre :
-  étiquette #pont posée ») : sa naissance et ses migrations, sans heure
-  ([§ 31 · 2.4](31-persistance-et-synchronisation.md#24-la-version-de-schéma)), chaque
-  capture, chaque import, chaque geste de tri
+  étiquette #pont posée ») : sa genèse et ses migrations, sans heure
+  ([§ 31 · 2.4](31-persistance-et-synchronisation.md#24-la-version-de-schéma)), sa naissance
+  ([§ 31 · 2.3](31-persistance-et-synchronisation.md#23-la-genèse-et-le-point-de-départ-du-fonds)),
+  chaque capture, chaque import, chaque geste de tri
   ([CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées)) et son
   annulation, chaque requête enregistrée, renommée ou supprimée
   ([CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds)), et les

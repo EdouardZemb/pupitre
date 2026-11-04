@@ -203,8 +203,12 @@ de tête (§ 2.4) : le [glossaire](80-glossaire.md#les-données) les distingue.
   Au démarrage, dans `documents/`, le voisin d'un fichier d'ajout dont le contenu donne
   l'empreinte de son nom prend donc sa place. Le voisin d'un fichier complet que `load` relit
   sans erreur se lit avec le document, comme un fichier d'ajout, puisqu'Automerge ignore ce
-  qu'il a déjà ; la compaction de l'ouverture le fond, puis le retire. Tout autre `.partiel`
-  de `documents/` est retiré. Le nom provisoire d'une captation suit le § 6.1 : il n'est jamais retiré d'office.
+  qu'il a déjà ; la compaction de l'ouverture le fond, puis le retire. Il se lit de même quand
+  le fichier complet manque encore, à la naissance du document (§ 2.3) : le document existe
+  alors, et Pupitre n'est plus neuf (§ 9.1). La compaction n'écrit jamais son propre voisin
+  par-dessus celui qu'elle fond : le numéro d'un processus se réemploie d'un lancement à
+  l'autre, et un nom déjà pris reçoit un suffixe (`<nom>.<processus>-2.partiel`, `-3`…).
+  Tout autre `.partiel` de `documents/` est retiré. Le nom provisoire d'une captation suit le § 6.1 : il n'est jamais retiré d'office.
   Une opération refusée retire son voisin avant de dire son refus, comme l'export du cahier.
 - **Une opération nommée n'est faite qu'une fois son fichier d'ajout en place**, ou, à la
   naissance d'un document, son premier fichier complet (§ 2.3), et la commande ne répond
@@ -214,7 +218,8 @@ de tête (§ 2.4) : le [glossaire](80-glossaire.md#les-données) les distingue.
   deux documents suit le § 3 : si la seconde écriture échoue, la première reste, Pupitre le
   dit, et le contrôle au démarrage répare la référence manquante. Un document n'est lu par la
   synchronisation qu'entre deux opérations : une modification ne part vers le nœud qu'une
-  fois son fichier d'ajout en place.
+  fois son fichier d'ajout en place, ou, à la naissance d'un document, son premier fichier
+  complet.
 - **Le message d'une opération nommée** est celui de sa modification Automerge, qui porte
   aussi son heure : le journal se lit dans l'historique (§ 3).
 - **Chaque ouverture d'un document tire un acteur neuf.** Un acteur, au sens d'Automerge, est
@@ -273,14 +278,16 @@ flowchart LR
 Un fichier d'ajout par geste : ils s'accumulent. La **compaction** les fond dans le fichier
 complet.
 
-1. Elle a lieu à l'ouverture d'un document qui a des fichiers d'ajout, puis dès que ceux-ci
-   pèsent ensemble plus que son fichier complet, ou passent la centaine.
+1. Elle a lieu à l'ouverture d'un document qui a des fichiers d'ajout, ou le voisin entier de
+   son fichier complet (§ 2.1), puis dès que ses fichiers d'ajout pèsent ensemble plus que son
+   fichier complet, ou passent la centaine.
 2. Elle enregistre le document entier, historique compris, dans un fichier complet neuf,
    écrit à côté puis renommé (§ 2.1).
 3. Elle relit ce fichier, et vérifie qu'il mène au même point de l'histoire que le document
    en mémoire.
 4. Elle retire alors les seuls fichiers d'ajout dont chaque modification est dans le fichier
-   complet relu. Un fichier illisible, ou dont une modification attend ses dépendances, n'est
+   complet relu, et, aux mêmes conditions, le voisin du fichier complet qu'elle a fondu. Un
+   fichier illisible, ou dont une modification attend ses dépendances, n'est
    jamais retiré. Une écriture arrivée entre-temps garde le sien.
 
 Elle ne retire jamais d'histoire : un fichier complet porte toutes les modifications du
@@ -877,8 +884,8 @@ pupitre-archive-AAAA-MM-JJ/               un dossier, écrit sous un nom proviso
 | 5 | **Aucune éviction prématurée** : couper le nœud, capter, purger le cache | Une captation non accusée disparaît |
 | 6 | **Restauration** : la procédure du § 9, chaque semaine sur le nœud, chaque nuit en CI sur un jeu de test | Un seul de ses contrôles échoue |
 | 7 | **Rien d'engendré dans les documents** : chercher les champs interdits du [§ 30 · 13](30-modele-de-domaine.md#13-ce-que-le-modèle-interdit-de-stocker) | Un champ engendré est stocké |
-| 8 | **Écriture coupée** : interrompre une écriture à chaque étape (fichier voisin écrit, synchronisé, renommé), puis rouvrir le document ; renommage perdu après la réponse : le voisin entier reste ; renommage refusé : le voisin est retiré ; une synchronisation lancée pendant l'écriture ne voit pas l'opération en cours ; rouvrir un document, ou le relire du disque après une opération refusée, puis faire une opération : son fichier d'ajout ne porte que sa modification | Une opération dite faite manque, une opération refusée paraît, ou un fichier voisin incomplet, ou celui d'une opération refusée, est lu comme une écriture ; ou un fichier d'ajout porte plus que son opération |
-| 9 | **Compaction** : compacter en s'interrompant à chaque étape, puis rouvrir, et revenir avant chaque opération ; un fichier d'ajout altéré, puis compacter : il reste en place, et le document s'ouvre en lecture seule ; renommage du fichier complet perdu après la réponse, les fichiers d'ajout absorbés déjà retirés, puis rouvrir | La teneur ou l'historique change, ou un fichier d'ajout non absorbé est retiré, ou une modification absorbée manque au document rouvert |
+| 8 | **Écriture coupée** : interrompre une écriture à chaque étape (fichier voisin écrit, synchronisé, renommé), puis rouvrir le document ; renommage perdu après la réponse : le voisin entier reste ; renommage refusé : le voisin est retiré ; une synchronisation lancée pendant l'écriture ne voit pas l'opération en cours ; rouvrir un document, ou le relire du disque après une opération refusée, puis faire une opération : son fichier d'ajout ne porte que sa modification ; à la naissance du fonds, renommage du premier fichier complet perdu après la réponse, puis relancer | Une opération dite faite manque, une opération refusée paraît, ou un fichier voisin incomplet, ou celui d'une opération refusée, est lu comme une écriture ; ou un fichier d'ajout porte plus que son opération ; ou Pupitre s'y croit neuf |
+| 9 | **Compaction** : compacter en s'interrompant à chaque étape, puis rouvrir, et revenir avant chaque opération ; un fichier d'ajout altéré, puis compacter : il reste en place, et le document s'ouvre en lecture seule ; renommage du fichier complet perdu après la réponse, les fichiers d'ajout absorbés déjà retirés, puis rouvrir ; de même quand le voisin laissé porte le numéro du processus qui rouvre | La teneur ou l'historique change, ou un fichier d'ajout non absorbé est retiré, ou une modification absorbée manque au document rouvert |
 | 10 | **Version de schéma** : ouvrir un document de version de schéma N + 1 avec une application qui ne connaît que la version de schéma N ; migrer deux répliques chacune de son côté, puis les fusionner ; après la migration, deux répliques écrivent hors ligne, chacune de son côté, un élément différent de la donnée nouvelle d'un même objet ancien (deux clés `<objet>/<élément>`) | Une opération s'applique au document plus récent, son refus ne se nomme pas, une captation est refusée ; ou la migration paraît deux fois ; ou l'un des deux éléments sort de la vue |
 | 11 | **Genèse et teneur figées** : comparer les octets de chaque genèse, et la teneur d'un document témoin, à leurs empreintes de référence, écrites dans le test ; le test ne lit aucune étiquette, que la CI ne récupère pas. Avant l'étiquette qui les publie, une PR qui change la genèse ou l'écriture de la teneur y met les nouvelles. Dès elle, ces empreintes ne changent plus : une PR qui en change une est refusée, et le plan du lot 1 dit par quelle porte. Et deux documents qui ne diffèrent que par leur lignée ont la même teneur | L'une ou l'autre a changé ; ou deux documents qui ne diffèrent que par leur lignée ont des teneurs différentes |
 | 12 | **Lignée** : présenter à la synchronisation une copie et le même document reconstruit depuis le miroir | Les deux fusionnent, ou la copie remplacée n'est pas gardée à part, intacte, ou le document reconstruit n'a pas la teneur de la copie qu'il remplace |

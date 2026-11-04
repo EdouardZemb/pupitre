@@ -71,15 +71,20 @@ Le détail est au [§ 31 · 2](../31-persistance-et-synchronisation.md#2-les-doc
    tout le document, historique compris ; puis un fichier d'ajout par écriture faite depuis,
    nommé par son empreinte.
 2. **Chaque fichier s'écrit à côté, puis se renomme**, comme l'export du cahier des tables.
-   Une opération nommée n'est faite qu'une fois son fichier d'ajout en place. Si l'écriture
-   échoue, l'opération est refusée, et le document se relit du disque : la mémoire ne garde
+   Une opération nommée n'est faite qu'une fois son fichier d'ajout en place, ou, à la
+   naissance d'un document, son premier fichier complet, qui porte la genèse, la naissance et
+   le premier geste
+   ([§ 31 · 2.3](../31-persistance-et-synchronisation.md#23-la-genèse-et-le-point-de-départ-du-fonds)).
+   Si l'écriture échoue, l'opération est refusée, et le document se relit du disque : la mémoire ne garde
    jamais ce que le disque n'a pas. Un fichier resté provisoire mais entier ne se perd pas au
    démarrage : un fichier d'ajout se reconnaît à son empreinte et prend sa place ; un
    fichier complet, que `load` lit sans erreur, se lit avec le document, et la compaction de
    l'ouverture le fond. Une opération refusée retire le sien. Un document n'est lu par la synchronisation qu'entre deux opérations : une
-   modification ne part vers le nœud qu'une fois son fichier d'ajout en place.
+   modification ne part vers le nœud qu'une fois son fichier d'ajout en place, ou, à la
+   naissance d'un document, son premier fichier complet.
 3. **La compaction réécrit le fichier complet**, historique compris, le relit, puis retire
-   les seuls fichiers d'ajout qu'il absorbe. Elle ne retire jamais d'histoire.
+   les seuls fichiers d'ajout qu'il absorbe, et le voisin d'un fichier complet qu'elle a
+   fondu. Elle ne retire jamais d'histoire.
 4. **Chaque sorte de document part de sa genèse**, une première modification rangée en
    octets dans le code. Le fonds de Sacha naît une seule fois ; tout autre appareil part
    d'une copie de ce fonds, historique compris.
