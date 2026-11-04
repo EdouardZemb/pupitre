@@ -236,6 +236,9 @@ ne porte **aucun glyphe de provenance** : sa provenance naît du geste qui la ga
 (§ 4.2). « En attente » est le seul mot pour cet état ; « à trancher » est réservé aux
 conflits entre versions concurrentes, nés d'une synchronisation ou d'une fusion de
 variantes ([SYN-03](20-sfd/29-socle-donnees-appareils.md#syn-03--trancher-les-conflits)).
+Une captation dont le nœud n'a pas encore accusé réception est **à envoyer** : c'est un état
+de l'appareil, pas d'une valeur
+([§ 31 · 4.3](31-persistance-et-synchronisation.md#43-létat-visible-de-la-synchronisation)).
 
 ### 4.2 Provenance d'un élément
 

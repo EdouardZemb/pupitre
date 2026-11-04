@@ -72,7 +72,7 @@ Du plus petit au plus grand. Détail au [§ 12](12-continuum-de-composition.md).
 
 | Code | Terme | Définition |
 |---|---|---|
-| É0 | **Idée** | Ce qui arrive dans la boîte d'idées : une ou plusieurs prises ou photos, un texte libre, des étiquettes. Pas encore de structure musicale |
+| É0 | **Idée** | Ce qui arrive dans la boîte d'idées : un texte libre, des prises ou des photos, des étiquettes, des liens. Ses prises sont les versions d'une même idée. Pas encore de structure musicale ([§ 30 · 9.1](30-modele-de-domaine.md#91-lidée)) |
 | É1 | **Motif** | Une cellule musicale structurée, de une à quatre mesures le plus souvent : un enchaînement d'accords, une figure mélodique, un rythme, une accroche de texte. Vit dans le fonds ; placé dans un bloc, il y est **copié**, avec ou sans suivi |
 | É2 | **Phrase** | Une unité de chant : une plage d'un bloc, de (mesure, décalage) à (mesure, décalage) — elle peut commencer sur une levée —, avec la ligne de texte qui s'y aligne dans chaque occurrence |
 | É3 | **Section** | Un couplet, un refrain, un pont… Dans le modèle, une section se compose d'un **bloc** et de ses **occurrences** |
@@ -108,17 +108,26 @@ Détail au [§ 30](30-modele-de-domaine.md) et au [§ 31](31-persistance-et-sync
 |---|---|
 | **Fonds** | L'ensemble de la matière de Sacha : idées, motifs, prises, morceaux, albums. C'est le périmètre d'une recherche et le réservoir d'où sort un album. Ce n'est pas une échelle de travail |
 | **Décision** | Tout contenu que Sacha a saisi ou accepté. Vit dans les documents synchronisés. C'est la vérité |
-| **Document** | Une unité de synchronisation : le fonds, un morceau, un album, les réglages. Répliqué sur chaque appareil |
+| **Document** | Une unité de synchronisation : le fonds, un morceau, un album, les réglages. Répliqué sur chaque appareil ; sur le disque, un fichier complet et des fichiers d'ajout ([§ 31 · 2.1](31-persistance-et-synchronisation.md#21-sur-le-disque)) |
+| **Identifiant de propriétaire** | L'identifiant opaque à qui appartient tout un fonds : un UUID tiré au hasard à sa création, sans signification, que porte chaque document ([§ 30 · 2](30-modele-de-domaine.md#2-identités) ; [M-0001](modele/decisions/M-0001-ecosysteme-des-applications-personnelles.md)). Il ne nomme personne : Pupitre n'authentifie que des appareils. Au sens d'un logiciel, on dit fermé, jamais propriétaire |
+| **Genèse** | La première modification de chaque sorte de document, écrite une fois pour toutes dans le code de Pupitre, la même dans chaque installation et chaque version. Chaque document part d'elle ; chaque migration de sa version de schéma s'y ajoute, écrite d'avance de même ([§ 31 · 2.3](31-persistance-et-synchronisation.md#23-la-genèse-et-le-point-de-départ-du-fonds)) |
+| **Version de schéma** | Le numéro de la structure d'un document, qu'il porte lui-même. Une application lit et écrit les versions de schéma qu'elle connaît ; devant une plus récente, elle lit sans écrire. Toujours dite en entier : seule, une version est celle d'une prise, d'un morceau ou de l'application ([§ 31 · 2.4](31-persistance-et-synchronisation.md#24-la-version-de-schéma)) |
+| **Lignée** | L'histoire dont descendent les copies d'un document. Deux copies d'une même lignée fusionnent ; un document reconstruit hors de son histoire, depuis le miroir, ouvre une lignée nouvelle, qui remplace l'ancienne sans jamais fusionner avec elle ([§ 31 · 2.5](31-persistance-et-synchronisation.md#25-la-lignée)) |
+| **Teneur** | Ce que dit un document, sans son histoire : chaque objet, chaque clé et chaque valeur, écrits de façon déterministe. Deux documents de même teneur disent la même chose, quelle que soit leur histoire. C'est elle que comparent l'aller-retour du miroir, le test de restauration et la réimportation de l'archive ([§ 31 · 2.6](31-persistance-et-synchronisation.md#26-la-teneur)) |
 | **Captation** | Un objet immuable adressé par l'empreinte de son contenu : audio, photo, traits d'encre, rendu figé, résultat d'analyse. Ne se modifie jamais : on en produit une autre |
-| **Empreinte** | Le condensé SHA-256 du contenu d'une captation. C'est son nom |
-| **Prise** | Une captation audio, avec ses métadonnées (nom d'origine, format, durée, date, appareil, diapason mesuré). Ses rattachements à des morceaux sont des décisions du document du morceau |
+| **Empreinte** | Le condensé SHA-256 d'un contenu. Celle d'une captation est son nom ; celles d'un fichier d'ajout, d'une page, d'un PDF ou de la teneur d'un document servent à les nommer ou à les comparer ([§ 31 · 2](31-persistance-et-synchronisation.md#2-les-documents)) |
+| **Prise** | Une captation audio, avec ses métadonnées (nom d'origine, format, durée, date, appareil, diapason mesuré). Elle appartient à une seule idée, dont elle est une version. Sa durée est un fait de sa captation, jamais une durée engendrée. Ses rattachements à des morceaux sont des décisions du document du morceau ([§ 30 · 9.2](30-modele-de-domaine.md#92-prises-photos-et-analyses)) |
+| **Photo** | Une captation image, une page de carnet ou une partition, avec ses métadonnées (format, date, appareil). Comme une prise, elle appartient à une seule idée ([§ 30 · 9.2](30-modele-de-domaine.md#92-prises-photos-et-analyses)) |
+| **Lien** | Une relation nommée entre deux objets du fonds, idées, motifs ou morceaux : « apparenté à », non orienté, posé en reliant ; « devenue », d'une idée vers le motif ou le morceau qu'elle a fait naître, posé en promouvant. **Relier** pose un lien, **délier** l'ôte. Les prises d'une même idée ne sont pas liées : elles sont regroupées ([§ 30 · 9.3](30-modele-de-domaine.md#93-regrouper-et-relier)). Au sens d'une page, un lien est un renvoi, comme ceux du sommaire du cahier des tables |
 | **Carte de temps** | La correspondance entre les secondes d'une prise et les mesures d'un morceau |
 | **Dérivé** | Tout ce qui se recalcule : index, rendus, diagnostics, suggestions, doigtés et renversements calculés. Jetable par construction |
 | **Miroir durable** | La projection en texte brut, versionnée dans git, de toutes les décisions. Lisible sans Pupitre, sauvegardée hors des appareils |
+| **Jeu factice** | Le fonds inventé, écrit en code et versionné avec l'application, sur lequel s'ouvre le mode démonstration. Les tests engendrent leurs propres fonds de la même façon, sans jamais en dériver un d'un fonds réel : le fonds de mesure ([§ 31 · 10](31-persistance-et-synchronisation.md#10-les-tests-qui-verrouillent-ce-document)), le fonds témoin d'I30, le jeu de test sur lequel la restauration tourne chaque nuit en CI. Ses captations sont engendrées par le code, jamais suivies dans le dépôt ([§ 31 · 1](31-persistance-et-synchronisation.md#1-trois-natures-de-données-quatre-lieux) ; [M-0001](modele/decisions/M-0001-ecosysteme-des-applications-personnelles.md)) |
 | **Opération nommée** | Une modification du modèle qui porte un nom et un message lisible : « Pont raccourci de 16 à 8 mesures ». Le journal est fait de ces messages |
 | **Journal** | L'historique lisible du fonds, d'un morceau ou d'un album, engendré depuis les opérations nommées |
 | **Rendu figé** | Une page rendue, gelée en captation, à laquelle l'encre est ancrée |
 | **À trancher** | L'état de deux valeurs concurrentes, nées d'une synchronisation entre appareils ou d'une fusion de variantes : Pupitre les présente côte à côte, Sacha choisit. Réservé à ces conflits ; une proposition non tranchée est dite **en attente** |
+| **À envoyer** | L'état d'une captation dont le nœud n'a pas encore accusé réception : l'appareil la garde, et l'envoie dès que le nœud est joignable ([SYN-04](20-sfd/29-socle-donnees-appareils.md#syn-04--acheminer-les-captations)). Une idée se montre « à envoyer » tant qu'une de ses captations l'est. C'est un état de l'appareil qui garde la captation : il ne s'écrit dans aucun document. D'une captation, on ne dit jamais qu'elle est « en attente », mot réservé aux propositions ; l'[ADR-002](adr/adr-002-local-first.md), acceptée, le dit encore, au sens de « à envoyer » |
 
 ## Les propositions
 
@@ -126,15 +135,15 @@ Détail au [§ 20.6](20-sfd/26-propositions-suggestions-provenance.md).
 
 | Terme | Définition |
 |---|---|
-| **Proposition** | Tout contenu que Pupitre offre sans que Sacha l'ait décidé. Deux sortes : la détection et la suggestion. Une proposition n'est jamais appliquée sans geste ; tant qu'elle n'est pas tranchée, elle est **en attente** |
+| **Proposition** | Tout contenu que Pupitre offre sans que Sacha l'ait décidé. Deux sortes : la détection et la suggestion. Une proposition n'est jamais appliquée sans geste ; tant qu'elle n'est pas tranchée, elle est **en attente**, et ce mot ne se dit que d'une proposition |
 | **Détection** | Une proposition mesurée sur une captation : tempo, tonalité, accords, mélodie, frontières de sections, transcription de paroles |
 | **Suggestion** | Une proposition engendrée pour aider à décider : accord suivant, variante de mélodie, rime, variante de ligne, forme alternative, ordre d'album |
 | **Piste** | Une suggestion demandée par Sacha, rendue au pluriel — au moins deux, ou l'aveu qu'il n'y en a pas —, chacune avec son effet ; jamais classée par qualité, jamais appliquée sans geste. *Piste de règles* : calculée hors ligne ; *piste générative* : passée par la passerelle IA |
 | **Accepter** | Le geste qui fait d'une proposition une décision. La provenance est conservée. Libellé d'interface : « Garder » |
-| **Écarter** | Le geste qui retire une proposition de la vue. Réversible |
+| **Écarter** | Le geste qui ôte une proposition de la vue. Réversible |
 | **Prendre** | Le geste qui fait passer un accord de la table dans le morceau ouvert, à la position courante : c'est une saisie, de provenance `saisie`, et non une suggestion acceptée ([MIC-12](20-sfd/22-micro-motif-et-phrase.md#mic-12--parcourir-la-table-de-la-tonalité) ; [ADR-018](adr/adr-018-la-table-montre-tout.md) ; A16) |
 | **Statut d'une valeur** | Décidée (droit), proposée (italique et « ~ »), absente (« — »). Une valeur engendrée prend le statut le plus faible de ses entrées |
-| **Provenance** | L'origine de chaque élément : `saisie`, `detectee`, `suggeree`, `importee`, `retouchee` — affichées saisie, détectée, suggérée, importée, retouchée. Elle accompagne l'élément à vie |
+| **Provenance** | L'origine de chaque élément : `saisie`, `detectee`, `suggeree`, `importee`, `retouchee` — affichées saisie, détectée, suggérée, importée, retouchée. Elle accompagne l'élément à vie. Une idée a la sienne, `captee` ou `importee`, affichée captée ou importée ([§ 30 · 8.1](30-modele-de-domaine.md#81-la-provenance)) |
 | **Confiance** | Pour une détection : une probabilité calibrée sur un jeu de référence, avec les hypothèses concurrentes |
 | **Chromagramme** | L'énergie d'un son rangée sur les douze classes de hauteur, octaves confondues. Un accord joué se nomme à son chromagramme, pas à une fondamentale ([ECO-03](20-sfd/27-ecoute-et-compagnon.md#eco-03--nommer-un-accord-joué)) |
 | **Assiette** | Ce sur quoi un calcul a porté : combien d'éléments considérés, combien portent la donnée requise, combien sont décidés |
@@ -187,7 +196,9 @@ Détail au [§ 50](50-interfaces-et-appareils.md).
 
 | Terme | Définition |
 |---|---|
-| **Boîte d'idées** | L'endroit où arrivent les idées captées, avant tout tri ([CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées)) |
+| **Boîte d'idées** | L'endroit où arrivent les idées, captées ou importées, avant tout tri ; une idée retirée la quitte ([CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées)) |
+| **Regrouper** | Au sens du fonds : verser des prises ou des photos dans une autre idée, qui les contient désormais ; les prises d'une même idée sont ses versions. Rien n'est copié, rien n'est lié ([§ 30 · 9.3](30-modele-de-domaine.md#93-regrouper-et-relier)). Le regroupement courant des fonctions d'accords ([§ 60](60-moteur-musical.md)) est une convention d'harmonie, sans rapport |
+| **Retirer** | Au sens du fonds, le geste qui ôte une idée de la boîte, de la vue du fonds et des requêtes sans rien en effacer ; elle se **rétablit** d'un geste, telle qu'elle était ([CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées)). Une occurrence retirée reste de même récupérable ([MOR-02](20-sfd/24-morceau.md#mor-02--poser-et-modifier-la-forme)) ; seule une opération destructrice explicite efface. Au sens d'un fichier sur le disque, retirer, c'est l'effacer, comme un fichier d'ajout que la compaction a absorbé ([§ 31 · 2.2](31-persistance-et-synchronisation.md#22-la-compaction)) |
 | **Loupe** | La vue d'une à huit mesures au plus fin : accords, mélodie, syllabes, rôle des notes, pistes ([MIC-01](20-sfd/22-micro-motif-et-phrase.md#mic-01--ouvrir-la-loupe)) |
 | **Carte des chemins** | La vue des accords qui peuvent suivre, depuis le premier degré de la tonalité, groupés par effet ([MIC-08](20-sfd/22-micro-motif-et-phrase.md#mic-08--parcourir-la-carte-des-chemins)) |
 | **Table** | La table de la tonalité : la vue de tous les accords qu'une tonalité met à portée, en une rangée par famille, chacun avec l'accord où il mène, sans en classer ni en recommander aucun ([MIC-12](20-sfd/22-micro-motif-et-phrase.md#mic-12--parcourir-la-table-de-la-tonalité)) |
@@ -214,13 +225,16 @@ Détail au [§ 50](50-interfaces-et-appareils.md) et au [§ 40](40-architecture.
 | **Établi** 💻 | Le rôle de l'ordinateur : construire, éditer finement, assembler l'album |
 | **Carnet** 📱 | Le rôle du téléphone : capter, écouter, accompagner l'instrument, retoucher court |
 | **Lutrin** 📖 | Le rôle de la tablette à encre électronique avec stylet : lire au pupitre ou au calme, annoter, répéter |
-| **Nœud maison** 🏠 | Un petit serveur toujours allumé au foyer : synchronise, sauvegarde, fait les analyses lourdes, sert les échantillons de l'écoute de contrôle, héberge la passerelle IA. Recommandé : sans lui, Pupitre fonctionne sur un seul appareil |
+| **Nœud maison** 🏠 | Un petit serveur toujours allumé au foyer : synchronise, sauvegarde, fait les analyses lourdes, sert les échantillons de l'écoute de contrôle, héberge la passerelle IA. Recommandé : sans lui, rien ne se synchronise, et chaque appareil travaille sur sa copie |
 | **Mode encre** | Le profil de présentation pour l'encre électronique : paginé, sans animation, sans couleur porteuse de sens |
+| **Mode démonstration** | Pupitre ouvert sur le jeu factice, dans un dossier à part, sans synchronisation ni appairage jusqu'au lot 3 d'INC-1, sous son propre identifiant de propriétaire : il montre l'application sans aucune donnée de Sacha. Il s'ouvre par un choix explicite, et un bandeau le dit ([§ 31 · 1](31-persistance-et-synchronisation.md#1-trois-natures-de-données-quatre-lieux) ; [M-0001](modele/decisions/M-0001-ecosysteme-des-applications-personnelles.md)). Une démo, elle, est un enregistrement de Sacha : le mot ne désigne jamais ce mode |
 | **Compagnon d'instrument** | Le mode du carnet au piano ou à la guitare : nommer un accord joué, accorder, battre la mesure, suivre une prise |
 | **Écoute de contrôle** | Le rendu sonore simple de ce qui est écrit, pour vérifier. Jamais un produit |
 | **Appairage** | L'ajout d'un appareil au fonds de Sacha, par un code court affiché sur un appareil déjà appairé |
 | **Clé du nœud** | La clé publique par laquelle chaque appareil reconnaît le nœud maison. L'appairage l'authentifie par un échange dérivé du code (PAKE) ; l'appareil l'**épingle** alors : il refuse toute autre clé, sauf une rotation signée par l'ancienne ([SYN-08](20-sfd/29-socle-donnees-appareils.md#syn-08--appairer-et-révoquer-des-appareils)). Au sens musical, épingler se dit d'un doigté ou d'un renversement |
-| **Construction navigateur** | L'interface Leptos construite pour un navigateur, sans Tauri : elle sert aux tests de bout en bout, jamais à Sacha, et ne sait pas épingler la clé du nœud ([ADR-020](adr/adr-020-leptos-et-tauri.md) ; [§ 70 · 2](70-qualite-et-verification.md#2-les-trois-profils-dappareil-en-test)) |
+| **Construction navigateur** | L'interface Leptos construite pour un navigateur, sans Tauri : elle sert aux tests de bout en bout, jamais à Sacha, et ne sait pas épingler la clé du nœud. Ses commandes y sont servies par les mêmes services d'application, sur des documents et des captations en mémoire ([ADR-020](adr/adr-020-leptos-et-tauri.md) ; [ADR-022](adr/adr-022-documents-cote-natif.md) ; [§ 70 · 2](70-qualite-et-verification.md#2-les-trois-profils-dappareil-en-test)) |
+| **Côté natif** | Le code Rust d'une application Tauri, hors de la WebView : il tient les documents, leur synchronisation et les captations, et sert les commandes de l'interface ([ADR-022](adr/adr-022-documents-cote-natif.md)) |
+| **Commande** | Un appel de l'interface au côté natif, par son nom, avec des arguments et une réponse typés. Une commande n'est permise que si les droits de Tauri la nomment, plateforme par plateforme ([§ 40 · 7.5](40-architecture.md#75-linterface-la-csp-et-les-commandes)). Au sens d'un terminal, on dit commande en ligne, comme celle qui engendre le cahier des tables |
 | **Passerelle IA** | Le point unique par lequel passent les demandes à un modèle génératif, local ou distant |
 | **Brief de génération** | L'export d'un morceau vers un générateur de maquettes externe, conforme aux règles de l'outil visé |
 
@@ -232,7 +246,8 @@ Détail au [§ 50](50-interfaces-et-appareils.md) et au [§ 40](40-architecture.
 | R1 … R7 | **Risque** | Ce qui ferait échouer le projet, et sa parade ([§ 10](10-vision.md)) |
 | IR-1 … IR-9 | **Indicateur** | Un signe observable de réussite, avec sa cible ([§ 10](10-vision.md)) |
 | INC-0 … INC-6 | **Incrément** | Une étape de construction qui rend un service réel ([§ 40 · 9](40-architecture.md#9-trajectoire-de-construction)) |
+| — | **Lot** | Une part d'un incrément qui rend à elle seule un service réel. Il suit [le cycle d'un lot](modele/methode.md#le-cycle-dun-lot) et se livre sous une étiquette `vX.Y.Z`. INC-0 a tenu en un seul lot ; INC-1 en compte plusieurs ([§ 40 · 9](40-architecture.md#9-trajectoire-de-construction)). Au [registre](registre.md), les lots A et B, l'alignement sur le socle puis la pile Rust et la table dans la conception, ont précédé INC-0 et suivi le même cycle, sans être des parts d'un incrément ; le lot C est INC-0 |
 | H01 … H10 | **Hypothèse** | Une supposition technique à confronter avant d'en dépendre ([§ 40 · 11](40-architecture.md#11-hypothèses-à-confronter)) |
-| I01 … I27 | **Invariant** | Une propriété toujours vraie, vérifiée par un test ([§ 70 · 3](70-qualite-et-verification.md#3-les-invariants-et-leurs-tests)) |
-| Q01 … Q22 | **Question ouverte** | Ce qui n'est pas tranché, avec son enjeu et une recommandation ([§ 90](90-questions-ouvertes.md)) |
+| I01 … I31 | **Invariant** | Une propriété toujours vraie, vérifiée par un test ([§ 70 · 3](70-qualite-et-verification.md#3-les-invariants-et-leurs-tests)) |
+| Q01 … Q23 | **Question ouverte** | Ce qui n'est pas tranché, avec son enjeu et une recommandation ([§ 90](90-questions-ouvertes.md)) |
 | A01 … A23 | **Arbitrage** | Une décision prise faute d'information, avec le coût de son renversement ([§ 90](90-questions-ouvertes.md)) |

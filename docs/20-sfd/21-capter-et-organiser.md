@@ -36,24 +36,37 @@ flowchart LR
 | **Lit · écrit** | Écrit une **captation** (audio ou photo) dans le stockage local, et une **idée** dans le fonds |
 
 **Règles**
-- Un toucher sur « Enregistrer » démarre l'enregistrement. L'idée est créée d'office avec
-  sa date, sa durée et l'appareil ; aucun nom n'est demandé.
+- Un toucher sur « Enregistrer » démarre l'enregistrement. Chaque capture, enregistrer,
+  noter ou photographier, crée d'office une idée neuve, de provenance `captee`, avec sa date
+  et l'appareil où elle naît ([§ 30 · 8.1](../30-modele-de-domaine.md#81-la-provenance)) ;
+  sa prise porte sa durée. Aucun nom n'est demandé, et rien n'est regroupé ni relié
+  d'office.
 - L'audio s'écrit **au fil de l'eau**, par tranches de quelques secondes : un appel
   entrant, une batterie vide ou une application fermée ne coûtent que les dernières
   secondes.
 - L'audio est gardé dans le format d'enregistrement du système, jamais réencodé.
 - Une analyse légère est **proposée** ([ECO-06](27-ecoute-et-compagnon.md#eco-06--fredonner-une-mélodie)),
   jamais imposée.
-- Hors ligne, tout fonctionne ; l'idée est marquée « à envoyer » jusqu'à son acheminement
-  ([SYN-04](29-socle-donnees-appareils.md#syn-04--acheminer-les-captations)).
+- Hors ligne, tout fonctionne. Tant que le nœud n'a pas accusé réception de sa captation,
+  l'idée se montre « à envoyer »
+  ([SYN-04](29-socle-donnees-appareils.md#syn-04--acheminer-les-captations)) : cet état est
+  celui de l'appareil, et ne s'écrit pas dans le fonds. Tant qu'aucun nœud n'est appairé,
+  l'état dit « Sans nœud », et rien ne se montre ainsi
+  ([§ 31 · 4.3](../31-persistance-et-synchronisation.md#43-létat-visible-de-la-synchronisation)).
 
-**Ne fait pas** — ne demande ni titre, ni étiquette, ni rattachement ; ne notifie pas.
+**Ne fait pas** — ne demande ni titre, ni étiquette, ni rattachement ; ne notifie pas, hors
+la notice qu'Android impose pendant un enregistrement au premier plan (I29).
 
 **Cas limites**
 - Stockage presque plein : Pupitre prévient avant de commencer et indique la durée
   disponible.
 - Micro refusé : Pupitre explique comment l'autoriser et propose le texte ou la photo.
 - Une seconde ou trente minutes : acceptées. Aucune durée minimale ni maximale.
+- Fonds d'une version de schéma plus récente que l'application : une prise ou une photo
+  s'écrit, et son idée naît après la mise à jour
+  ([§ 31 · 2.4](../31-persistance-et-synchronisation.md#24-la-version-de-schéma)), selon ce
+  qu'en dira la PR de conception du lot 2 ; une note en texte est refusée, et Pupitre dit de
+  mettre l'application à jour.
 
 **Critères d'acceptation**
 1. *Étant donné* le carnet en mode avion, *quand* Sacha touche « Enregistrer » puis
@@ -67,6 +80,8 @@ flowchart LR
 5. `[à l'œil]` Du téléphone verrouillé au début de l'enregistrement : ≤ 3 s (IR-1, 🔶 H01).
    Le délai entre le toucher et le premier échantillon enregistré est mesuré
    automatiquement, ≤ 300 ms.
+6. *Quand* Sacha note une idée à l'établi, *alors* elle existe, datée, de provenance
+   `captee`, née sur l'établi, sans prise ni durée.
 
 ---
 
@@ -74,37 +89,77 @@ flowchart LR
 
 | | |
 |---|---|
-| **Objet** | Écouter, étiqueter, relier, regrouper et promouvoir les idées, quand Sacha le décide |
+| **Objet** | Écouter, étiqueter, relier, regrouper, retirer et promouvoir les idées, quand Sacha le décide |
 | **Échelle · moment** | É0 · M1, M3 |
 | **Appareils** | 💻 conçu pour · 📱 ✅ · 📖 — |
 | **Besoins** | B02 |
-| **Lit · écrit** | Idées et liens dans le fonds (décisions) |
+| **Lit · écrit** | Idées, liens, et l'idée de chaque prise et de chaque photo, dans le fonds (décisions) |
 
 **Règles**
 - Une idée non reliée est un **objet légitime et durable**, pas une tâche en souffrance
   ([ADR-006](../adr/adr-006-le-partiel-est-normal.md)).
-- Gestes : écouter ; compléter le texte ; étiqueter (étiquettes libres) ; relier à un
-  morceau, un motif ou une autre idée ; **regrouper** plusieurs prises comme versions d'une
-  même idée ; **promouvoir** en motif ou en morceau.
+- Gestes : écouter une prise, et les **gestes de tri**, qui écrivent : compléter le texte ;
+  étiqueter (poser ou ôter une étiquette libre) ; **relier** à une autre idée, un motif ou un
+  morceau, et délier ; **regrouper** des prises comme versions d'une même idée ; **retirer**
+  une idée, et la rétablir. À côté, **promouvoir** en motif ou en morceau.
+- Une relation, un mécanisme
+  ([§ 30 · 9.3](../30-modele-de-domaine.md#93-regrouper-et-relier)) :
+  - **regrouper** verse des prises ou des photos dans une autre idée, qui les contient
+    désormais : rien n'est copié, et chaque captation reste distincte. Une idée que le geste
+    laisse sans rien est retirée avec lui ;
+  - **relier** pose un lien « apparenté à ». Une idée est **reliée** quand elle porte au
+    moins un lien vers ce qui n'est pas une idée retirée ;
+  - « versions d'une même idée » n'est pas un lien, et un lien ne regroupe rien.
+- **Retirer** ôte l'idée de la boîte et des requêtes sans rien effacer : la liste des idées
+  retirées la rétablit d'un geste, telle qu'elle était
+  ([§ 30 · 9.1](../30-modele-de-domaine.md#91-lidée)). La suppression définitive sera une
+  opération destructrice explicite, conçue plus tard.
+- **Annuler** défait le dernier geste de tri, par l'opération inverse, nommée à son tour
+  ([§ 30 · 11](../30-modele-de-domaine.md#11-journal-décisions-questions)). Une capture
+  faite par erreur ne s'annule pas : elle se retire.
 - Promouvoir crée l'objet, y verse la matière de l'idée (sa prise devient la première
   prise), et **garde l'idée**, reliée à ce qu'elle est devenue.
-- La boîte se trie par date, étiquette, durée, état (reliée ou non) et provenance.
+- La boîte se trie par date, étiquette, durée, état (reliée ou non) et provenance (captée
+  ou importée, [§ 30 · 8.1](../30-modele-de-domaine.md#81-la-provenance)), et se filtre par
+  ce que l'idée contient : texte, prise, photo. La durée d'une idée est celle de sa prise la
+  plus longue ; une idée sans prise se range à part, jamais exclue.
 
 **Ne fait pas** — ne relance pas, ne compte pas les jours, ne propose pas de « vider la
-boîte », ne supprime jamais une prise sans opération destructrice explicite.
+boîte », ne regroupe ni ne relie rien d'office, ne supprime jamais une prise sans opération
+destructrice explicite.
 
 **Cas limites**
-- Trois cents idées : la liste reste fluide (affichage virtualisé).
+- Deux mille idées, la taille visée du fonds
+  ([§ 31 · 2](../31-persistance-et-synchronisation.md#2-les-documents)) : la liste reste
+  fluide (affichage virtualisé).
 - Une idée promue dans deux morceaux : permis, deux liens.
+- Regrouper la seule prise d'une idée qui garde un texte, une étiquette ou un lien : l'idée
+  reste, sans prise ; la retirer est un geste de plus.
+- Une idée retirée garde ses liens, mais ne relie plus : l'idée qu'elle joignait redevient
+  non reliée si elle n'a pas d'autre lien, et reliée au rétablissement.
+- Relier une idée à elle-même : refusé, et Pupitre le dit.
 
 **Critères d'acceptation**
 1. *Étant donné* 50 idées non reliées depuis des mois, *alors* aucun compteur d'ancienneté,
    aucune alerte, aucun badge n'est affiché.
 2. *Quand* Sacha promeut une idée en morceau, *alors* le morceau existe, sa première prise
    est celle de l'idée, et l'idée existe toujours, reliée au morceau.
-3. *Quand* deux prises sont regroupées comme versions, *alors* chacune reste une captation
-   distincte, et la boîte les montre ensemble.
+3. *Quand* deux prises de deux idées sont regroupées, *alors* elles appartiennent à la même
+   idée, chacune reste une captation distincte, d'empreinte inchangée, et la boîte les
+   montre ensemble.
 4. Chaque geste de tri apparaît au journal du fonds comme une opération nommée.
+5. *Quand* Sacha retire une idée, *alors* elle quitte la boîte et les requêtes, les
+   empreintes de ses captations sont inchangées, et la rétablir la rend telle qu'elle
+   était : texte, étiquettes, liens, prises et photos.
+6. *Quand* Sacha annule le dernier geste de tri, *alors* le fonds revient à son état d'avant
+   ce geste, et le journal du fonds porte le geste puis son annulation, chacun comme une
+   opération nommée.
+7. *Étant donné* deux répliques du fonds qui relient hors ligne les deux mêmes idées, l'une
+   de A vers B, l'autre de B vers A, *quand* elles fusionnent, *alors* un seul lien les
+   joint.
+8. *Quand* la seule prise d'une idée qui n'a rien d'autre est regroupée dans une autre idée,
+   *alors* l'idée vidée est retirée par le même geste ; annuler ce geste rend la prise à son
+   idée, rétablie.
 
 ---
 
@@ -206,15 +261,17 @@ aucune valeur.
 | **Échelle · moment** | Fonds, É0 · M2 |
 | **Appareils** | 💻 ✅ · 📱 ✅ · 📖 — |
 | **Besoins** | B02 |
-| **Lit · écrit** | Lit mélodies, grilles et formes, décidées ou proposées ; un rapprochement accepté écrit un lien |
+| **Lit · écrit** | Lit mélodies, grilles et formes, décidées ou proposées ; un rapprochement accepté regroupe des prises ou écrit un lien |
 
 **Règles**
 - Trois similarités, **rendues séparément** : mélodique (contour et intervalles, insensible
   à la transposition), harmonique (suite de degrés), de forme (longueurs de sections).
   Jamais un score unique.
 - À la demande, depuis une idée, un motif, un morceau ou tout le fonds.
-- Chaque rapprochement est une **proposition**. L'accepter crée un lien : « versions d'une
-  même idée » ou « apparenté à ».
+- Chaque rapprochement est une **proposition**. Accepter « ces deux prises semblent la même
+  idée » les regroupe dans l'idée de l'une d'elles, au choix de Sacha
+  ([CAP-02](#cap-02--trier-la-boîte-didées)) ; accepter une autre parenté crée un lien
+  « apparenté à » ([§ 30 · 9.3](../30-modele-de-domaine.md#93-regrouper-et-relier)).
 - Le constat de squelette partagé entre deux morceaux (DG-A8) emploie les mêmes mesures.
 
 **Ne fait pas** — ne fusionne pas, ne conclut pas au doublon, ne qualifie pas une parenté
@@ -229,8 +286,8 @@ de problème.
    *alors* leur similarité mélodique est ≥ 0,9.
 2. *Alors* les trois similarités sont affichées séparément, et aucun score global.
 3. *Alors* aucun libellé ne contient « doublon » ni « problème ».
-4. *Quand* une recherche de rapprochements porte sur tout le fonds, *alors* le nombre de
-   liens est inchangé tant que Sacha n'en accepte aucun.
+4. *Quand* une recherche de rapprochements porte sur tout le fonds, *alors* aucun lien
+   n'est créé et aucune prise ne change d'idée tant que Sacha n'en accepte aucun.
 
 ---
 
@@ -242,20 +299,28 @@ de problème.
 | **Échelle · moment** | Fonds · M2, M6 |
 | **Appareils** | 💻 ✅ · 📱 ✅ · 📖 ✅ résultats en lecture |
 | **Besoins** | B02 |
-| **Lit · écrit** | Lit les dérivés de recherche ; n'écrit rien, sauf une requête enregistrée (préférence) |
+| **Lit · écrit** | Lit les dérivés de recherche ; n'écrit rien, sauf une requête enregistrée, dans le document du fonds |
 
 **Règles**
 - Sortes de requêtes :
-  - **par attribut** : tonalité, tempo, durée, nombre de mesures, intensité, statut,
-    maturité, type de section présent ou absent, langue ;
+  - **par attribut d'une idée** : date, étiquette, durée, état (reliée ou non), provenance,
+    ce qu'elle contient (texte, prise, photo) ;
+  - **par attribut d'un morceau** : tonalité, tempo, durée, nombre de mesures, intensité,
+    statut, maturité, type de section présent ou absent, langue ;
   - **par motif harmonique** : une suite de degrés (« IV–iv–I »), cherchée dans toutes les
     grilles, pour chaque candidat quand la tonalité est indécise ;
   - **par motif mélodique** : un contour ou une suite d'intervalles ;
-  - **par texte** : dans les lignes, filtrable par provenance ;
+  - **par texte** : dans le texte des idées et dans les lignes, filtrable par provenance ;
   - **par provenance** : « tout ce qui vient d'une piste générative ».
 - **Toute réponse déclare son assiette** : « 3 morceaux en mi mineur · 6 dont la tonalité
   n'est pas décidée · 41 interrogés ».
 - Un résultat ouvre l'objet **à l'endroit trouvé** (la mesure, la ligne).
+- Une idée retirée n'est interrogée par aucune requête, et ne compte dans aucune assiette
+  ([CAP-02](#cap-02--trier-la-boîte-didées)).
+- Une **requête enregistrée** garde un nom et ses critères, jamais ses résultats ni leur
+  nombre : ils s'engendrent à chaque ouverture. Elle vit dans le document du fonds, avec ce
+  qu'elle interroge
+  ([§ 30 · 13](../30-modele-de-domaine.md#13-ce-que-le-modèle-interdit-de-stocker)).
 
 **Ne fait pas** — ne classe pas par pertinence ; ne cherche pas dans l'audio brut ; ne
 cherche pas dans l'encre.
@@ -279,6 +344,11 @@ cherche pas dans l'encre.
    attribut ou par texte, *alors* les résultats s'affichent en moins d'une seconde sur le
    téléphone de référence ; retrouver l'élément voulu prend au plus 10 s, `[à l'œil]`
    (IR-3).
+7. *Étant donné* 12 idées, dont 3 sans prise et 4 dont une prise dure plus d'une minute,
+   *quand* Sacha cherche les idées de plus d'une minute, *alors* la réponse liste ces 4
+   idées et déclare son assiette : « 4 idées · 3 sans durée · 12 interrogées ».
+8. *Étant donné* une idée retirée dont le texte contient le mot cherché, *quand* Sacha le
+   cherche, *alors* elle n'est pas dans la réponse, et l'assiette ne la compte pas.
 
 ---
 
@@ -296,8 +366,9 @@ cherche pas dans l'encre.
 - Une ligne par morceau : titre retenu ou « sans titre », statut, tonalité, tempo, durée
   engendrée, **maturité** par dimension (six jauges sans couleur), dernière modification.
 - Tri libre ; par défaut, la dernière modification. Jamais un ordre alphabétique imposé.
-- La boîte d'idées affiche le nombre d'idées non reliées, sans ancienneté.
-- L'état de synchronisation et les captations en attente sont toujours visibles ; la santé
+- La boîte d'idées affiche le nombre d'idées non reliées, sans ancienneté. Les idées
+  retirées n'y comptent pas ; leur liste est à un geste, et chacune s'y rétablit.
+- L'état de synchronisation et les captations à envoyer sont toujours visibles ; la santé
   du nœud est à un geste.
 - La maquette de l'écran est au [§ 50 · 3.1](../50-interfaces-et-appareils.md#31-le-fonds).
 
@@ -314,3 +385,7 @@ aujourd'hui ».
 2. *Alors* les six jauges de maturité restent distinguables en noir et blanc pur (I17).
 3. *Quand* un morceau est ajouté, *alors* le nombre affiché change sans qu'aucun compteur
    ne soit écrit.
+4. *Quand* Sacha ajoute, relie, délie, retire ou rétablit une idée, *alors* le nombre
+   d'idées non reliées affiché égale le nombre des idées non retirées qu'aucun lien ne joint
+   à ce qui n'est pas une idée retirée, sans qu'aucun compteur ne soit écrit. *Étant donné*
+   deux idées non reliées, *quand* Sacha les relie, *alors* ce nombre baisse de deux.

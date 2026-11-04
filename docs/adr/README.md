@@ -21,16 +21,24 @@ chiffres de la nouvelle série ne réemploient pas ces identifiants.
 | 🔄 **remplacée** | Une autre décision la remplace ; le fichier reste |
 | ⛔ **abandonnée** | Écartée après examen ; le fichier reste, avec la raison |
 
+**Amender plutôt que remplacer.** Une décision qui ne change qu'une part d'une ADR acceptée
+l'amende. La nouvelle ADR le dit en tête de son contexte, cite ce qu'elle change, et
+s'appuie sur l'ADR amendée. Celle-ci reste acceptée, et son texte ne change pas : sa ligne
+« Statut » ajoute seulement, après le tiret, « amendée par ADR-NNN le AAAA-MM-JJ », comme
+une ADR remplacée pointe vers celle qui la remplace. **Une ADR proposée se corrige et se
+complète tant qu'elle est proposée, au plus tard dans la PR qui l'accepte** ; acceptée, elle
+ne se réécrit plus.
+
 ## La série
 
 | N° | Décision | Statut | Principe |
 |---|---|---|---|
 | [ADR-001](adr-001-un-seul-materiau.md) | Un seul matériau, des vues à toutes les échelles | ✅ acceptée | P1 |
 | [ADR-002](adr-002-local-first.md) | Local-first : chaque appareil porte sa copie, la maison synchronise | ✅ acceptée | P5 |
-| [ADR-003](adr-003-crdt-et-miroir-durable.md) | Des documents CRDT pour travailler, un miroir texte pour durer | 🟡 proposée | P5, P8 |
+| [ADR-003](adr-003-crdt-et-miroir-durable.md) | Des documents CRDT pour travailler, un miroir texte pour durer | ✅ acceptée | P5, P8 |
 | [ADR-004](adr-004-proposer-n-est-pas-decider.md) | Proposer n'est pas décider | ✅ acceptée | P2 |
 | [ADR-005](adr-005-des-pistes-pas-des-reponses.md) | Des pistes, pas des réponses | 🟡 proposée | P3 |
-| [ADR-006](adr-006-le-partiel-est-normal.md) | Le partiel est l'état normal | 🟡 proposée | P4 |
+| [ADR-006](adr-006-le-partiel-est-normal.md) | Le partiel est l'état normal | ✅ acceptée | P4 |
 | [ADR-007](adr-007-blocs-et-occurrences.md) | Blocs et occurrences | 🟡 proposée | P1 |
 | [ADR-008](adr-008-hauteurs-relatives.md) | Des hauteurs relatives à une tonique de référence | ✅ acceptée | P1 |
 | [ADR-009](adr-009-ecoute-de-controle.md) | Écouter pour vérifier, jamais pour produire | ✅ acceptée | P7 |
@@ -46,10 +54,14 @@ chiffres de la nouvelle série ne réemploient pas ces identifiants.
 | [ADR-019](adr-019-rust-et-python.md) | Rust pour tout le code écrit par le projet, Python pour la seule analyse lourde | ✅ acceptée | P5 |
 | [ADR-020](adr-020-leptos-et-tauri.md) | Leptos pour l'interface, Tauri 2 pour les applications | ✅ acceptée | P5, P6 |
 | [ADR-021](adr-021-cle-du-noeud-epinglee.md) | Réseau domestique seulement ; TLS par la clé du nœud, épinglée à l'appairage | ✅ acceptée | P8 |
+| [ADR-022](adr-022-documents-cote-natif.md) | Les documents et la synchronisation côté natif | ✅ acceptée | P5, P8 |
+| [ADR-023](adr-023-stockage-des-documents.md) | Le stockage des documents | ✅ acceptée | P5, P8 |
 
 Légende : une flèche A → B se lit « B s'appuie sur A » ; la ligne « S'appuie sur » de
 chaque ADR reprend exactement ses flèches entrantes. Une ADR remplacée garde ses flèches,
-porte la mention « remplacée » et un cadre pointillé.
+porte la mention « remplacée » et un cadre pointillé. Une flèche marquée « amendée par » va
+d'une ADR acceptée à celle qui l'amende ; elle compte parmi les flèches entrantes de
+celle-ci.
 
 ```mermaid
 flowchart LR
@@ -75,6 +87,15 @@ flowchart LR
   A19 --> A20["ADR-020<br/>Leptos et Tauri"]
   A2 --> A21["ADR-021<br/>clé du nœud épinglée"]
   A21 --> A17["ADR-017<br/>conteneurs"]
+  A2 -->|amendée par| A22["ADR-022<br/>documents côté natif"]
+  A19 -->|amendée par| A22
+  A3 --> A22
+  A20 --> A22
+  A21 --> A22
+  A2 -->|amendée par| A23["ADR-023<br/>stockage des documents"]
+  A3 --> A23
+  A6 --> A23
+  A22 --> A23
 ```
 
 ## Gabarit

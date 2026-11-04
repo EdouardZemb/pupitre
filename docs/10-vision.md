@@ -225,5 +225,5 @@ Sept risques nommés, pour qu'on puisse les surveiller.
 | R3 | **Un outil qu'on n'ouvre pas** | Le papier reste plus rapide que l'écran | Hors ligne, appairage sans saisie longue, mode encre soigné (P5, P6) |
 | R4 | **Un outil qui glisse vers le studio** | « Juste un petit effet de réverbération » | Écoute de contrôle bornée (P7) ; le test de périmètre du § 5 |
 | R5 | **Un outil qui écrit à la place** | La part d'origine grimpe sans que Sacha l'ait voulu | Suggestions à la demande, plurielles, tracées ; mode sans suggestion (P3) |
-| R6 | **Une idée perdue** | Une prise reste sur un téléphone perdu, jamais synchronisée | Indicateur des captations en attente, synchro dès le retour, test de restauration (P5, P8) |
+| R6 | **Une idée perdue** | Une prise reste sur un téléphone perdu, jamais synchronisée | Indicateur des captations à envoyer, synchro dès le retour, test de restauration (P5, P8) |
 | R7 | **Un projet trop grand pour une personne** | Rien d'utilisable après des mois | Construction par incréments utilisables, bibliothèques éprouvées plutôt que code maison ([§ 40](40-architecture.md#9-trajectoire-de-construction)) |

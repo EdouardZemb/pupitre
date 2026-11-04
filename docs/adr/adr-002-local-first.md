@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Statut** | ✅ acceptée — validée au cadrage du 2026-10-11 |
+| **Statut** | ✅ acceptée — validée au cadrage du 2026-10-11 ; amendée par [ADR-022](adr-022-documents-cote-natif.md) et [ADR-023](adr-023-stockage-des-documents.md) le 2026-11-04 |
 | **Date** | 2026-10-11 |
 | **Sert** | B01, B13 · principe P5 |
 | **S'appuie sur** | — |
