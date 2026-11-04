@@ -32,9 +32,10 @@ jobs:
       - name: Vérification de confidentialité
         run: bash scripts/verif-confidentialite.sh
 
-  # Deux vérifications de la documentation : chaque lien interne mène quelque part,
-  # chaque diagramme se rend. Ajoutées après des diagrammes cassés pendant la refonte
-  # d'octobre 2026. Voir CONVENTIONS.md.
+  # Les vérifications de la documentation : chaque lien interne mène quelque part, chaque
+  # diagramme se rend, chaque fait recopié dit la même chose que sa source. Les deux premières
+  # après des diagrammes cassés pendant la refonte d'octobre 2026, la troisième après trois
+  # comptes périmés (AM-1, LE-8, LE-9). Voir CONVENTIONS.md.
   documentation:
     runs-on: ubuntu-latest
     permissions:
@@ -46,6 +47,13 @@ jobs:
           node-version: 24
       - name: Vérification des liens internes
         run: node scripts/verif-liens.mjs
+      - name: Tests de la vérification des faits recopiés
+        run: node --test scripts/verif-faits.test.mjs
+      # Le jeton lit la règle de protection de main, pour la comparer à CONVENTIONS.md.
+      - name: Vérification des faits recopiés
+        run: node scripts/verif-faits.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       - name: Installer mermaid-cli
         run: npm install --no-save --no-package-lock --no-audit --no-fund @mermaid-js/mermaid-cli@12.0.0
       # Explicite : npm n'exécute bientôt plus les scripts d'installation par défaut,

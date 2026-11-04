@@ -244,6 +244,10 @@ tests, et dépose l'installateur et le cahier des tables en artefacts. Le job `m
 tests du noyau sur le diff de chaque PR, et `mutants-complet` rejoue le passage entier chaque
 lundi.
 
+**Après INC-0** (2026-11-04) : le job `documentation` vérifie aussi les faits recopiés, chacun
+comparé à sa source ([CONVENTIONS](../CONVENTIONS.md#portes-de-ci)). C'est la porte due au motif
+« Un compte recopié en plusieurs endroits », relevé trois fois (AM-1, LE-8, [LE-9](registre.md)).
+
 La cinquième famille de garde-fous ([M-0001](modele/decisions/M-0001-ecosysteme-des-applications-personnelles.md)),
 le test d'isolation des chemins de données, n'est pas due en INC-0, qui n'a aucun chemin de
 données : ni stockage, ni `instance/`, `config/` ou `contenu/`. Ce test naît avec le stockage, en INC-1.

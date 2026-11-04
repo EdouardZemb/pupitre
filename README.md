@@ -121,8 +121,10 @@ celle du modèle, est dans
   secret, export de mémoire, fichier audio ou MIDI, chemin de machine
   ([script](scripts/verif-confidentialite.sh)) ; noms et paroles restent l'affaire de la
   relecture ;
-- **`documentation`** vérifie que chaque diagramme se rend et que chaque lien interne mène
-  quelque part ([liens](scripts/verif-liens.mjs), [diagrammes](scripts/verif-diagrammes.mjs)) ;
+- **`documentation`** vérifie que chaque diagramme se rend, que chaque lien interne mène
+  quelque part, et que chaque fait recopié dit la même chose que sa source
+  ([liens](scripts/verif-liens.mjs), [diagrammes](scripts/verif-diagrammes.mjs),
+  [faits](scripts/verif-faits.mjs)) ;
 - **`verifier`**, **`windows`** et **`mutants`** gardent le code : son format, son lint et ses
   tests, l'installateur Windows de l'établi, et la mutation du noyau.
 
