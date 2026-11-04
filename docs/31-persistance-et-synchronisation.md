@@ -67,7 +67,12 @@ pour se montrer sans aucune donnée de Sacha.
   celui de la démonstration, dans le dossier de l'application, à côté de celui du fonds et
   jamais dedans (§ 2.1).
 - Elle s'y ouvre par un choix explicite, jamais par défaut, et un bandeau le dit tant
-  qu'elle y reste : « Démonstration · fonds inventé ».
+  qu'elle y reste : « Démonstration · fonds inventé ». Le choix relance l'application sur
+  `demonstration/` : la racine des données reste reçue au lancement (§ 2.1), et rien du
+  fonds de Sacha ne reste ouvert. Le bandeau porte « Quitter la démonstration », qui relance
+  sur `donnees/`. Le choix survit à la relance, par un argument passé à la relance ou par une
+  valeur propre à l'appareil, que lit au lancement le seul endroit qui reçoit les chemins du
+  système (I30) ; le plan du lot 1 fixe lequel.
 - Jusqu'au lot 3 d'INC-1, elle n'y synchronise rien et n'y appaire rien : aucun nœud ne voit
   le jeu factice. La PR de conception du lot 3 dit si la démonstration rejoint un nœud qui
   lui est propre, dans son silo
@@ -84,11 +89,22 @@ déterministe, octet pour octet sur chaque plateforme : des sons de quelques sec
 PCM, dont l'en-tête s'écrit à la main, tirés d'une onde carrée ou triangulaire, ou d'une
 table de sinus écrite dans le code, jamais d'une fonction comme `f64::sin`, dont la précision
 varie selon la plateforme ; et des images dessinées, dans un format qui s'écrit sans crate de
-plus, fixé avec la photo par la PR de conception du lot 2. Leurs empreintes sont les mêmes
+plus, fixé avec la photo par la PR de conception du lot 2. Au lot 1, le jeu factice n'a donc
+aucune photo, et regrouper ne s'y éprouve que sur des prises ; les images s'y ajoutent au
+lot 2. Le filtre « photo » existe dès le lot 1 : tant qu'aucune photo n'est entrée, il répond
+« 0 idée », avec son assiette. Les empreintes des captations du jeu factice sont les mêmes
 sur chaque plateforme, et aucune dépendance ne s'ajoute. Aucune captation n'est donc suivie
 dans le dépôt, où la porte `contenu` refuse tout fichier audio, MIDI ou partition
 ([CONVENTIONS](../CONVENTIONS.md#portes-de-ci)). L'application l'écrit dans le dossier de la
 démonstration à sa première ouverture, et le réécrit à la demande.
+
+**Le fonds de mesure, en démonstration.** À la demande, le mode démonstration engendre à la
+place du jeu factice le fonds de mesure (§ 10, test 13), dans `demonstration/`, sous le même
+bandeau ; il y remplace le jeu factice jusqu'à ce qu'on réécrive celui-ci. Ses prises peuvent
+n'avoir que leurs métadonnées, sans captation : le partiel est normal
+([ADR-006](adr/adr-006-le-partiel-est-normal.md)). C'est sur lui que se font les contrôles
+chronométrés du
+[§ 70 · 7](70-qualite-et-verification.md#7-les-contrôles-à-lœil-sur-lappareil).
 
 **Chaque chemin de données se reçoit, aucun ne se devine.** Les chemins des documents, des
 captations et des caches sont donnés aux adaptateurs par qui les lance : le système pour le
@@ -136,14 +152,16 @@ propre jeton et la clé publique épinglée du nœud ([ADR-021](adr/adr-021-cle-
 
 ### 2.1 Sur le disque
 
-Chaque document a son dossier, sous `documents/`, dans la **racine** des données d'un
+Chaque document a son dossier, sous `documents/`, dans la **racine des données** d'un
 fonds : `donnees/`, dans le dossier de l'application, pour le fonds de Sacha ;
 `demonstration/`, à côté, pour le mode démonstration (§ 1). Le nœud range ses copies de la
-même façon.
+même façon. La racine des données ne se confond pas avec la racine d'un document, son objet
+de tête (§ 2.4) : le [glossaire](80-glossaire.md#les-données) les distingue.
 
 ```text
-<racine>/                                  donnees/ ou demonstration/ ; un dossier jetable pour un test
+<racine des données>/                      donnees/ ou demonstration/ ; un dossier jetable pour un test
   verrou                                   tenu par le processus qui écrit les documents
+  appareil.txt                             ce qui est propre à l'appareil (ci-dessous)
   documents/
     fonds/
       complet.automerge                    le fichier complet : tout le document, historique compris
@@ -159,7 +177,9 @@ même façon.
 - **Deux sortes de fichiers.** Le **fichier complet** porte tout le document, historique
   compris, tel qu'Automerge l'enregistre d'un bloc. Chaque écriture faite depuis ajoute un
   **fichier d'ajout**, qui ne porte que ses modifications, et que nomme l'empreinte de son
-  contenu : deux écritures identiques font un seul fichier.
+  contenu : deux écritures identiques font un seul fichier. Le fichier d'ajout d'une
+  opération porte `save_after` des têtes du document d'avant l'opération : il ne dépend ni
+  d'une compaction faite à l'ouverture, ni de la relecture du disque après un refus.
 - **Ouvrir un document**, c'est lire son fichier complet, puis ses fichiers d'ajout, dans
   n'importe quel ordre : Automerge met de côté une modification dont les dépendances ne
   sont pas encore lues.
@@ -167,11 +187,15 @@ même façon.
   (`app/src-tauri/src/lib.rs`) : un fichier voisin, `<nom>.<processus>.partiel`, est écrit,
   synchronisé sur le disque, fermé, puis renommé. Hors de Windows, le dossier est synchronisé
   à son tour, pour que le renommage survive à une coupure. Un fichier est donc entier, ou
-  absent. Sous Windows, où un dossier ne se synchronise pas, le renommage passe par
-  `MoveFileExW` avec `MOVEFILE_WRITE_THROUGH`, et il peut tout de même se perdre après la
-  réponse. Au démarrage, le voisin d'un fichier d'ajout dont le contenu donne l'empreinte de
-  son nom prend donc sa place ; tout autre `.partiel` est retiré. Une opération refusée
-  retire son voisin avant de dire son refus, comme l'export du cahier.
+  absent. Sous Windows, où un dossier ne se synchronise pas, le fichier est renommé par
+  `std::fs::rename`, qui remplace au besoin un fichier complet existant, puis rouvert en
+  écriture, sans être tronqué, et synchronisé à son tour (`sync_all`, soit
+  `FlushFileBuffers`) : Windows garde en cache les métadonnées d'un fichier, et seul un
+  fichier synchronisé les écrit. Le renommage peut tout de même se perdre après la réponse.
+  Au démarrage, dans `documents/`, le voisin d'un fichier d'ajout dont le contenu donne
+  l'empreinte de son nom prend donc sa place ; tout autre `.partiel` de `documents/` est
+  retiré. Le nom provisoire d'une captation suit le § 6.1 : il n'est jamais retiré d'office.
+  Une opération refusée retire son voisin avant de dire son refus, comme l'export du cahier.
 - **Une opération nommée n'est faite qu'une fois son fichier d'ajout en place**, et la
   commande ne répond qu'alors ([ADR-022](adr/adr-022-documents-cote-natif.md)). Si
   l'écriture échoue, l'opération est refusée, le refus se dit, et le document se relit du
@@ -195,13 +219,23 @@ même façon.
   sans erreur au premier bloc altéré. Une fois tout lu, aucune modification n'attend ses
   dépendances (`get_missing_deps(&[])` est vide). Sinon, le document s'ouvre en lecture
   seule, sur ce qui se lit, et un bandeau nomme le fichier. La réparation vient du nœud ou,
-  sans lui, de l'archive complète, réimportée dans un Pupitre neuf (§ 9.1) : la racine
-  abîmée est mise à part, intacte, et le bandeau dit que ce qui s'y est écrit depuis
-  l'archive n'en revient pas.
-- **Tout part d'une seule racine**, que l'application reçoit au lancement (§ 1) : le mode
-  démonstration ou un test, qui en reçoivent une autre, ne voient rien d'autre. Un seul
-  processus écrit les documents d'une racine : un verrou l'assure, et un second processus
-  s'arrête en le disant.
+  sans lui, de l'archive complète. Le bandeau du document en lecture seule propose alors de
+  repartir de l'archive : Pupitre ferme la racine des données, libère son verrou et la
+  renomme en `donnees-abimee-AAAA-MM-JJ/` (suffixe `-2`, `-3`… si le nom est pris), à côté
+  de `donnees/`, jamais dedans. Il se relance sur une racine des données neuve, vide, et y
+  réimporte l'archive (§ 9.1). Le renommage se fait au seul endroit qui reçoit les chemins du
+  système (I30). Le bandeau dit ensuite que ce qui s'est écrit depuis l'archive reste dans
+  `donnees-abimee-…/`, intact, et n'en revient pas.
+- **Tout part d'une seule racine des données**, que l'application reçoit au lancement
+  (§ 1) : le mode démonstration ou un test, qui en reçoivent une autre, ne voient rien
+  d'autre. Un seul processus écrit les documents d'une racine des données : un verrou
+  l'assure, et un second processus s'arrête en le disant.
+- **`appareil.txt` porte ce qui est propre à l'appareil**, jamais synchronisé ni archivé :
+  une ligne `clé=valeur` par fait, écrit à côté puis renommé, comme tout fichier. Il garde la
+  date de la dernière archive complète relue (§ 9.1) ; au lot 3, le budget de stockage ; la
+  file d'envoi et les accusés, dont la PR de conception du lot 3 fixe la forme. Rien n'en
+  entre dans un document : c'est un état de l'appareil, comme « à envoyer »
+  ([glossaire](80-glossaire.md#les-données)).
 
 ```mermaid
 flowchart LR
@@ -209,7 +243,7 @@ flowchart LR
   V --> R["Renommé<br/>fichier d'ajout"]
   R --> F["La commande répond<br/>opération faite"]
   V -.->|"échec"| X["Opération refusée<br/>document relu du disque"]
-  R --> C{"Ajouts plus lourds<br/>que le fichier complet ?"}
+  R --> C{"Ajouts plus lourds que le fichier complet,<br/>ou plus de cent ?"}
   C -->|"oui"| K["Compaction<br/>fichier complet réécrit et relu,<br/>ajouts absorbés retirés"]
 ```
 
@@ -218,8 +252,8 @@ flowchart LR
 Un fichier d'ajout par geste : ils s'accumulent. La **compaction** les fond dans le fichier
 complet.
 
-1. Elle a lieu à l'ouverture d'un document, puis dès que ses fichiers d'ajout pèsent ensemble
-   plus que son fichier complet, ou passent la centaine.
+1. Elle a lieu à l'ouverture d'un document qui a des fichiers d'ajout, puis dès que ceux-ci
+   pèsent ensemble plus que son fichier complet, ou passent la centaine.
 2. Elle enregistre le document entier, historique compris, dans un fichier complet neuf,
    écrit à côté puis renommé (§ 2.1).
 3. Elle relit ce fichier, et vérifie qu'il mène au même point de l'histoire que le document
@@ -245,12 +279,17 @@ deux règles.
 
 - **Chaque sorte de document part de sa genèse** : sa première modification, écrite une fois
   pour toutes et rangée en octets dans le code de Pupitre, la même dans chaque installation
-  et chaque version. Elle crée les conteneurs de la racine et pose la version de schéma 1
-  (§ 2.4). Ses octets ne changent jamais.
-- **Le fonds de Sacha naît une seule fois**, sur un premier appareil. Sa naissance, faite sur
-  la genèse, écrit son identifiant, sa lignée (§ 2.5) et l'identifiant de propriétaire
-  ([§ 30 · 2](30-modele-de-domaine.md#2-identités)). Un autre appareil part d'une copie de ce
-  fonds, historique compris, jamais d'un fonds à lui : il la reçoit du nœud à l'appairage ;
+  et chaque version. Elle crée les conteneurs de la racine du document et pose la version de
+  schéma 1 (§ 2.4). Ses octets ne changent plus dès l'étiquette `vX.Y.Z` qui la publie
+  ([ADR-023](adr/adr-023-stockage-des-documents.md)).
+- **Le fonds de Sacha naît une seule fois**, sur un premier appareil. Il naît au premier
+  geste qui écrit, noter une idée ou importer un fonds existant
+  ([CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)), jamais à
+  la seule ouverture : jusque-là, la racine des données reste sans document, et Pupitre reste
+  neuf (§ 9.1). Sa naissance, faite sur la genèse, écrit son identifiant, sa lignée (§ 2.5)
+  et l'identifiant de propriétaire ([§ 30 · 2](30-modele-de-domaine.md#2-identités)). Un
+  autre appareil part d'une copie de ce fonds, historique compris, jamais d'un fonds à lui :
+  il la reçoit du nœud à l'appairage ;
   sans nœud, d'une copie des documents du premier, que décrit la PR de conception du lot 2
   ([§ 40 · 9](40-architecture.md#9-trajectoire-de-construction)). Ce n'est pas l'archive
   complète : elle sert à repartir après un sinistre (§ 9.1), et emporterait toutes les
@@ -261,22 +300,27 @@ deux règles.
 
 ### 2.4 La version de schéma
 
-Chaque document porte, à sa racine, sa **version de schéma** : le numéro de sa structure. La
-genèse pose la version de schéma 1.
+Chaque document porte, à la racine du document, sa **version de schéma** : le numéro de sa
+structure. La genèse pose la version de schéma 1.
 
 - **Une version de schéma monte par une migration écrite d'avance**, comme la genèse : une
   modification rangée en octets dans le code, qui ne dépend que de la précédente, la genèse
   ou la migration d'avant. Deux appareils qui migrent chacun le même document écrivent la même
   modification, qu'Automerge ne compte qu'une fois. C'est la voie que recommande le guide
   d'Automerge ; une migration calculée sur chaque appareil en écrirait deux, qui se
-  heurteraient. Une migration publiée ne change plus.
-- **Une migration ne touche que la racine** : elle y ajoute un conteneur, y pose une valeur,
-  monte le numéro. Elle ne touche aucun objet de Sacha. Un objet naît avec tous les
-  conteneurs de sa version de schéma. Ce qu'une version de schéma nouvelle ajoute aux objets
-  plus anciens se lit absent chez eux, comme le veut le partiel normal
-  ([ADR-006](adr/adr-006-le-partiel-est-normal.md)), et se range dans un conteneur de la
-  racine que crée sa migration, sous l'identifiant de l'objet. Aucun conteneur ne naît ainsi
-  deux fois sous la même clé, de deux côtés.
+  heurteraient. Une migration publiée, c'est-à-dire portée par une étiquette, ne change
+  plus. La genèse et chaque migration portent l'heure 0, la même partout : le journal les
+  montre sans heure (`—`), et nomme la version de Pupitre qui a apporté la migration.
+- **Une migration ne touche que la racine du document** : elle y ajoute un conteneur, y pose
+  une valeur, monte le numéro. Elle ne touche aucun objet de Sacha. Les conteneurs d'un objet
+  naissent avec lui, jamais après. Une valeur simple qu'ajoute une version de schéma se pose
+  dans l'objet même, et se lit absente chez un objet plus ancien, comme le veut le partiel
+  normal ([ADR-006](adr/adr-006-le-partiel-est-normal.md)). Ce qui demanderait un conteneur
+  neuf (table, liste) n'en crée aucun après la migration : il s'écrit en valeurs simples, dans
+  un conteneur de la racine du document que crée la migration, sous une clé qui joint
+  l'identifiant de l'objet à celui de l'élément (`<objet>/<élément>`), et cela pour tous les
+  objets, y compris ceux nés après la migration. Il n'a ainsi qu'une place, et aucun
+  conteneur ne naît deux fois sous la même clé, de deux côtés.
 - **Une application lit et écrit les versions de schéma qu'elle connaît.** Elle migre un
   document plus ancien à son ouverture ; la migration est une opération nommée comme une
   autre, avec son message : « Fonds passé à la version de schéma 2 ».
@@ -300,8 +344,8 @@ chacun de ses éléments s'y heurterait à son double : dans une table, l'un cac
 avec ce qu'on lui a écrit depuis ; dans une liste, les deux paraîtraient. La **lignée**
 l'empêche.
 
-- **Chaque document porte sa lignée**, à sa racine : un ULID, écrit à sa naissance. Toutes
-  les copies qui descendent de cette naissance sont de la même lignée.
+- **Chaque document porte sa lignée**, à la racine du document : un ULID, écrit à sa
+  naissance. Toutes les copies qui descendent de cette naissance sont de la même lignée.
 - **Restitué avec son histoire, un document garde sa lignée** : une copie d'appareil, ou un
   document Automerge d'une sauvegarde ou d'une archive. Il fusionne avec les autres copies,
   sans rien doubler, comme une copie restée hors ligne.
@@ -390,7 +434,8 @@ avant une opération précise.
 Une étoile autour du nœud maison. Chaque appareil travaille sur sa copie et échange
 ses modifications avec le nœud **dès qu'il le joint** : sur le réseau du foyer, ou par
 un réseau privé virtuel s'il en existe un ([Q07](90-questions-ouvertes.md)).
-Aucun appareil n'a besoin d'un autre pour travailler.
+Une fois sa copie reçue, aucun appareil n'a besoin d'un autre pour travailler
+([ADR-023](adr/adr-023-stockage-des-documents.md)).
 
 ```mermaid
 flowchart LR
@@ -456,7 +501,9 @@ stateDiagram-v2
 | Interrompu | « Interrompu · nouvel essai dans 30 s » |
 
 Tant qu'aucun nœud n'est appairé, l'état dit « Sans nœud » et la date de la dernière archive
-complète (§ 9.1) ; aucune idée ne se montre « à envoyer », puisqu'aucun envoi n'est possible.
+complète relue, que garde `appareil.txt` (§ 2.1, § 9.1) ; avant toute archive, il dit
+« Sans nœud · aucune archive ». Aucune idée ne se montre alors « à envoyer », puisqu'aucun
+envoi n'est possible.
 Ce que le carnet montre de ses captations, qui ne vivent alors que sur lui (R6), se tranche
 dans la PR de conception du lot 2
 ([§ 40 · 9](40-architecture.md#9-trajectoire-de-construction)).
@@ -483,9 +530,10 @@ captation avant l'accusé de réception (§ 4.2). La couche de synchronisation n
 que les documents.
 
 Le format de stockage des documents, leur compaction et leur sauvegarde sont au § 2 et au
-§ 9 ([ADR-023](adr/adr-023-stockage-des-documents.md)). L'hypothèse H07 les éprouve, à
-l'ouverture du lot 1 d'INC-1, en CI, avant son plan : deux répliques qui divergent hors
-ligne convergent au retour, et les captations restent intègres après une restauration
+§ 9 ([ADR-023](adr/adr-023-stockage-des-documents.md)). L'hypothèse H07 en éprouve le
+format, à l'ouverture du lot 1 d'INC-1, en CI, avant son plan : deux répliques qui divergent
+hors ligne convergent au retour, et une copie de la racine des données, restaurée dans un
+dossier neuf, garde ses captations intègres
 ([§ 40 · 11](40-architecture.md#11-hypothèses-à-confronter)).
 
 ---
@@ -537,7 +585,11 @@ synchronisé à son tour, et le dossier `captations/` quand le sous-dossier vien
 (§ 2.1). Si l'empreinte existe
 déjà, le fichier provisoire est retiré : rien n'est réécrit. Un nom provisoire laissé par un
 arrêt brutal n'est jamais retiré d'office : une capture interrompue doit en relire l'audio
-([CAP-01](20-sfd/21-capter-et-organiser.md#cap-01--capter-en-un-geste) · 2).
+([CAP-01](20-sfd/21-capter-et-organiser.md#cap-01--capter-en-un-geste) · 2). Sous Windows,
+où un renommage peut se perdre après la réponse (§ 2.1), un nom provisoire de `captations/`
+dont le contenu entier donne une empreinte qu'un document nomme, et qu'aucun fichier ne porte
+encore, prend ce nom au démarrage. Les autres restent, pour la reprise d'une capture
+interrompue.
 
 | Propriété | Conséquence | Testée par |
 |---|---|---|
@@ -741,7 +793,7 @@ exporte à la main, hors de l'appareil : sur un disque, une clé, un autre ordin
 ```text
 pupitre-archive-AAAA-MM-JJ/               un dossier, écrit sous un nom provisoire, puis renommé
   LISEZMOI.md                             ce qu'elle contient, sa date, sa version de Pupitre, et comment la relire sans lui
-  empreintes.txt                          une ligne par fichier : son empreinte, deux espaces, son chemin
+  empreintes.txt                          une ligne par fichier : son empreinte, deux espaces, son chemin relatif à l'archive
   teneurs.txt                             une ligne par document : identifiant, version de schéma, empreinte de la teneur
   documents/fonds.automerge               chaque document en un seul fichier complet, historique compris
   documents/morceaux/<id>.automerge       de même
@@ -756,11 +808,22 @@ pupitre-archive-AAAA-MM-JJ/               un dossier, écrit sous un nom proviso
 - **Elle se vérifie sans Pupitre** : `empreintes.txt` suit le format de `sha256sum`.
   `sha256sum -c` le relit sous Linux, `shasum -a 256 -c` sous macOS ; sous Windows,
   `LISEZMOI.md` donne les quelques lignes de PowerShell qui le relisent avec `Get-FileHash`.
-- **Elle n'est dite faite qu'une fois relue** : chaque document rouvert, sa teneur comparée à
-  `teneurs.txt` ; chaque captation relue contre son empreinte. Le rapport compte les
-  documents, les captations et leurs octets.
-- **La réimporter, c'est repartir après un sinistre**, dans un Pupitre neuf : une racine sans
-  document. Un Pupitre qui a déjà un fonds la refuse, et dit pourquoi. Elle restitue chaque
+  Chaque chemin y est relatif à l'archive et séparé par `/`, chaque ligne terminée par LF,
+  même écrite sous Windows. Aucun chemin ne porte de barre oblique inverse, de saut de ligne
+  ni de retour chariot : aucun ne demande l'échappement de `sha256sum`.
+- **Elle n'est dite faite qu'une fois sur son support, puis relue** : chaque fichier y est
+  écrit, synchronisé (`sync_all`), fermé, puis relu ; chaque document rouvert, sa teneur
+  comparée à `teneurs.txt` ; chaque captation relue contre son empreinte. Le dossier n'est
+  renommé qu'ensuite, comme au § 2.1, et, hors de Windows, son parent est synchronisé à son
+  tour. Il ne remplace jamais une archive existante : si son nom est pris, il devient
+  `pupitre-archive-AAAA-MM-JJ-2/`, `-3/`… Sans la synchronisation, l'archive dite faite
+  pourrait n'être encore que dans le cache du système, qu'une coupure ou une clé arrachée
+  emporterait ; la relecture, qui peut encore venir de ce cache, prouve que chaque fichier dit
+  ce qu'il doit dire. Le rapport compte les documents, les captations et leurs octets. Seule
+  une archive relue écrit sa date dans `appareil.txt`, que l'archive n'emporte pas (§ 2.1).
+- **La réimporter, c'est repartir après un sinistre**, dans un Pupitre neuf : une racine des
+  données sans document, comme celle qui remplace une racine des données abîmée (§ 2.1). Un
+  Pupitre qui a déjà un fonds la refuse, et dit pourquoi. Elle restitue chaque
   document avec son histoire, donc sa lignée (§ 2.5), et compare sa teneur à `teneurs.txt`,
   avant toute migration ; elle relit chaque captation contre son empreinte. Un document
   illisible se reconstruit depuis le miroir de l'archive, et ouvre une lignée nouvelle.
@@ -781,14 +844,14 @@ pupitre-archive-AAAA-MM-JJ/               un dossier, écrit sous un nom proviso
 | 1 | **Dérivés jetables** : supprimer tous les dérivés, les reconstruire, comparer les empreintes canoniques | Un dérivé dépend d'un état non stocké, ou un contenu décidé s'est logé dans un cache |
 | 2 | **Aller-retour du miroir** : documents → miroir → documents, comparer leurs teneurs (§ 2.6) | Le miroir perd une information |
 | 3 | **Convergence** : trois répliques, opérations concurrentes aléatoires, synchronisation dans un ordre aléatoire | Les répliques divergent ; ou un conflit de texte, d'accord, de hauteur ou d'attribut est fusionné, ou perdu, au lieu d'être présenté « à trancher » |
-| 4 | **Captations** : l'empreinte de chaque objet égale son nom ; aucun objet modifié après écriture ; couper l'écriture à chaque étape | Corruption ou réécriture ; ou une captation nommée a un contenu qui trahit son nom |
+| 4 | **Captations** : l'empreinte de chaque objet égale son nom ; aucun objet modifié après écriture ; couper l'écriture à chaque étape ; renommage perdu après la réponse : la captation nommée par un document reprend son nom au démarrage | Corruption ou réécriture ; ou une captation nommée a un contenu qui trahit son nom ; ou une captation qu'un document nomme manque ; ou, au démarrage, un nom provisoire de `captations/` est retiré |
 | 5 | **Aucune éviction prématurée** : couper le nœud, capter, purger le cache | Une captation non accusée disparaît |
 | 6 | **Restauration** : la procédure du § 9, chaque semaine sur le nœud, chaque nuit en CI sur un jeu de test | Un seul de ses contrôles échoue |
 | 7 | **Rien d'engendré dans les documents** : chercher les champs interdits du [§ 30 · 13](30-modele-de-domaine.md#13-ce-que-le-modèle-interdit-de-stocker) | Un champ engendré est stocké |
-| 8 | **Écriture coupée** : interrompre une écriture à chaque étape (fichier voisin écrit, synchronisé, renommé), puis rouvrir le document ; renommage perdu après la réponse : le voisin entier reste ; renommage refusé : le voisin est retiré ; une synchronisation lancée pendant l'écriture ne voit pas l'opération en cours | Une opération dite faite manque, une opération refusée paraît, ou un fichier voisin incomplet, ou celui d'une opération refusée, est lu comme une écriture |
+| 8 | **Écriture coupée** : interrompre une écriture à chaque étape (fichier voisin écrit, synchronisé, renommé), puis rouvrir le document ; renommage perdu après la réponse : le voisin entier reste ; renommage refusé : le voisin est retiré ; une synchronisation lancée pendant l'écriture ne voit pas l'opération en cours ; rouvrir un document, ou le relire du disque après une opération refusée, puis faire une opération : son fichier d'ajout ne porte que sa modification | Une opération dite faite manque, une opération refusée paraît, ou un fichier voisin incomplet, ou celui d'une opération refusée, est lu comme une écriture ; ou un fichier d'ajout porte plus que son opération |
 | 9 | **Compaction** : compacter en s'interrompant à chaque étape, puis rouvrir, et revenir avant chaque opération ; un fichier d'ajout altéré, puis compacter : il reste en place, et le document s'ouvre en lecture seule | La teneur ou l'historique change, ou un fichier d'ajout non absorbé est retiré |
-| 10 | **Version de schéma** : ouvrir un document de version de schéma N + 1 avec une application qui ne connaît que la version de schéma N ; migrer deux répliques chacune de son côté, puis les fusionner | Une opération s'applique au document plus récent, son refus ne se nomme pas, une captation est refusée ; ou la migration paraît deux fois |
-| 11 | **Genèse et teneur figées** : comparer les octets de chaque genèse, et la teneur d'un document témoin, à leurs empreintes de première version | L'une ou l'autre a changé |
+| 10 | **Version de schéma** : ouvrir un document de version de schéma N + 1 avec une application qui ne connaît que la version de schéma N ; migrer deux répliques chacune de son côté, puis les fusionner ; après la migration, deux répliques écrivent hors ligne, chacune de son côté, la donnée nouvelle d'un même objet ancien | Une opération s'applique au document plus récent, son refus ne se nomme pas, une captation est refusée ; ou la migration paraît deux fois ; ou l'une des deux écritures sort de la vue |
+| 11 | **Genèse et teneur figées** : comparer les octets de chaque genèse, et la teneur d'un document témoin, à leurs empreintes de l'étiquette qui les a publiées | L'une ou l'autre a changé |
 | 12 | **Lignée** : présenter à la synchronisation une copie et le même document reconstruit depuis le miroir | Les deux fusionnent, ou la copie remplacée n'est pas gardée à part, intacte |
 | 13 | **Fonds de mesure** : 2 000 idées, 200 octets de texte en moyenne, chaque texte écrit trois fois, trois étiquettes et un lien par idée, cinq opérations par idée ; 6 000 prises avec toutes leurs métadonnées ([§ 30 · 9.2](30-modele-de-domaine.md#92-prises-photos-et-analyses)) ; un acteur par ouverture, 3 000 en tout ; engendrées à l'exécution | Son fichier complet passe 4,5 Mo |
-| 14 | **Archive complète** : l'exporter, la réimporter dans un Pupitre neuf ; puis la réimporter dans un Pupitre qui a déjà un fonds | Une teneur ou le journal diffère, une captation manque ou trahit son empreinte ; ou la seconde réimportation écrit quoi que ce soit |
+| 14 | **Archive complète** : l'exporter, la réimporter dans un Pupitre neuf ; lancer un Pupitre neuf et l'ouvrir sans aucun geste, puis y réimporter l'archive ; la réimporter dans un Pupitre qui a déjà un fonds ; abîmer un fichier d'ajout et repartir de l'archive ; exporter deux fois le même jour | Une teneur ou le journal diffère, une captation manque ou trahit son empreinte ; ou le Pupitre seulement ouvert refuse l'archive ; ou la réimportation dans un fonds existant écrit quoi que ce soit ; ou la racine des données abîmée n'est pas gardée à part, octet pour octet, ou la teneur reprise diffère de celle de l'archive ; ou deux exports le même jour ne donnent pas deux archives |

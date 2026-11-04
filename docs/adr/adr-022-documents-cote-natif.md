@@ -64,8 +64,8 @@ Quatre faits pèsent :
 - **Seule exception, en lecture** : une photo ou une prise se lit par le protocole des
   captations ([§ 40 · 7.5](../40-architecture.md#75-linterface-la-csp-et-les-commandes)).
   Ce protocole n'est pas une commande, et les droits ne le nomment pas : son gestionnaire, du
-  côté natif, ne sert qu'une empreinte connue des documents de la racine ouverte, et refuse
-  tout autre chemin.
+  côté natif, ne sert qu'une empreinte connue des documents de la racine des données
+  ouverte, et refuse tout autre chemin.
 - **Chaque commande est permise par son nom**, dans les droits de Tauri, plateforme par
   plateforme. Une commande que les droits ne nomment pas est refusée. Les droits et la
   politique de sécurité du contenu sont au

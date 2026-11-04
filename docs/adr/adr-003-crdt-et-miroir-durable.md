@@ -125,8 +125,8 @@ flowchart LR
   **I13** dérivés jetables · **I14** captations immuables · **I28** toute modification d'un
   document naît d'une opération nommée.
 - **H07** : deux répliques du fonds, modifiées hors ligne, convergent par la couche de
-  synchronisation ; une copie des données, restaurée dans un dossier neuf, relit chaque
-  captation contre son empreinte
+  synchronisation ; une copie de la racine des données, restaurée dans un dossier neuf,
+  relit chaque captation contre son empreinte
   ([§ 40 · 11](../40-architecture.md#11-hypothèses-à-confronter)). Si les répliques
   divergent, samod remplace la couche, derrière le même adaptateur, et le rangement des
   documents sur le disque ; si une captation s'altère, c'est l'adaptateur `Captations`

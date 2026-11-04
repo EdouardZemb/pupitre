@@ -200,16 +200,17 @@ numéro de mesure ou d'une position. Les numéros que l'interface affiche (« me
 propriétaire** opaque
 ([M-0001](modele/decisions/M-0001-ecosysteme-des-applications-personnelles.md)) : un UUID
 tiré au hasard à la création du fonds, et non un ULID, dont l'horodatage dirait quand le
-fonds est né. Chaque document le porte, à sa racine : le fonds, les morceaux, les albums et
-les réglages ([§ 31 · 2.3](31-persistance-et-synchronisation.md#23-la-genèse-et-le-point-de-départ-du-fonds)).
+fonds est né. Chaque document le porte, à la racine du document : le fonds, les morceaux, les
+albums et les réglages ([§ 31 · 2.3](31-persistance-et-synchronisation.md#23-la-genèse-et-le-point-de-départ-du-fonds)).
 Il ne nomme personne : Pupitre n'authentifie que des appareils
 ([SYN-08](20-sfd/29-socle-donnees-appareils.md#syn-08--appairer-et-révoquer-des-appareils)).
 Un seul endroit du code le crée et le donne, un service du côté natif
 ([ADR-022](adr/adr-022-documents-cote-natif.md)), derrière une interface qui ne fait que
 cela : le jour où deux applications devront reconnaître Sacha, c'est elle qui change, et
 aucun document. La référence est l'identifiant de propriétaire du document du fonds de la
-racine ([§ 31 · 2.1](31-persistance-et-synchronisation.md#21-sur-le-disque)) : tout autre
-document de la racine, et toute copie reçue, qui en porte un autre est refusé, à l'ouverture
+racine des données ([§ 31 · 2.1](31-persistance-et-synchronisation.md#21-sur-le-disque)) :
+tout autre document de la racine des données, et toute copie reçue, qui en porte un autre est
+refusé, à l'ouverture
 comme à la synchronisation, et Pupitre le nomme : deux fonds ne se mêlent jamais, pas même
 celui du mode démonstration
 ([§ 31 · 1](31-persistance-et-synchronisation.md#1-trois-natures-de-données-quatre-lieux)).
@@ -604,7 +605,9 @@ durée musicale, celle d'une occurrence, d'un morceau ou d'un album : elle s'eng
 forme, des mesures, de la métrique et du tempo, et se désynchroniserait si on la stockait.
 La durée d'une prise est le temps de son enregistrement : elle ne dépend d'aucune autre
 donnée, et sa captation ne change jamais. La durée d'une idée, elle, s'engendre : c'est
-celle de sa prise la plus longue, et `—` si elle n'en a pas.
+celle de sa prise la plus longue. Comme toute valeur engendrée, elle prend le statut le plus
+faible de ses entrées ([§ 50 · 4.1](50-interfaces-et-appareils.md#41-statut-dune-valeur)) :
+`—` si l'idée n'a pas de prise, ou si l'une de ses prises n'a pas encore sa durée lue.
 
 ### 9.3 Regrouper et relier
 

@@ -102,7 +102,7 @@ sont dessinées en noir et blanc à dessein : ce qui se lit sans couleur se lira
 
 | Zone | Contenu |
 |---|---|
-| Bandeau | Recherche ; état de synchronisation (« À jour · il y a 2 min », ou « Hors ligne · 3 captations à envoyer ») |
+| Bandeau | Recherche ; état de synchronisation (« Sans nœud · archive du 3 nov. » tant qu'aucun nœud n'est appairé, puis « À jour · il y a 2 min », ou « Hors ligne · 3 captations à envoyer », [§ 31 · 4.3](31-persistance-et-synchronisation.md#43-létat-visible-de-la-synchronisation)) |
 | Boîte d'idées | Le nombre d'idées non reliées, **sans** compteur d'ancienneté ni alerte (N2) |
 | Morceaux | Une ligne par morceau : titre, statut, tonalité, tempo, durée engendrée, **maturité** par dimension, part d'origine à la demande |
 | Albums | Leurs ordres, leur ordre retenu, leur cardinal **engendré** |

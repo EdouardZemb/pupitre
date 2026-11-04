@@ -223,7 +223,8 @@ accords suivants avec INC-4 ([§ 40 · 9](../40-architecture.md#9-trajectoire-de
    chronométrée.
 5. *Étant donné* un document reconstruit depuis le miroir, *quand* il est réimporté,
    *alors* il remplace les copies des appareils au lieu de fusionner avec elles : aucun
-   élément n'est doublé.
+   élément n'est doublé ni caché, et chaque copie remplacée est gardée à part, intacte
+   ([§ 31 · 2.5](../31-persistance-et-synchronisation.md#25-la-lignée)).
 6. *Étant donné* une copie hors site, *alors* le nœud ne peut qu'y ajouter : la clé qui
    permet de purger n'est pas sur le nœud.
 

@@ -28,8 +28,11 @@ années.
 Ce que fait Automerge, lu dans la documentation et le code de la crate `automerge` 0.12.0,
 dans la spécification de son format binaire et dans son guide de modélisation :
 
-- `save` enregistre tout le document ; `save_incremental`, les seules modifications faites
-  depuis le dernier enregistrement ; `load` et `load_incremental` relisent l'un et l'autre.
+- `save` enregistre tout le document ; `save_after(heads)`, les seules modifications qui ne
+  descendent pas de `heads`. `save_incremental`, d'un `AutoCommit`, rend ce qui suit le
+  dernier `save` ou `save_incremental` de cette instance : une instance que `load` vient de
+  lire n'en a aucun, et il rend alors tout l'historique ; `load_incremental` ne l'avance pas.
+  `load` et `load_incremental` relisent l'un et l'autre.
 - Un fichier Automerge est une suite de blocs, chacun avec sa somme de contrôle : un bloc
   altéré arrête la lecture. `load` refuse alors le fichier ; `load_incremental`, sur un
   document déjà lu, s'arrête au premier bloc altéré ou tronqué sans le dire, et rend ce
@@ -78,7 +81,8 @@ Le détail est au [§ 31 · 2](../31-persistance-et-synchronisation.md#2-les-doc
    octets dans le code. Le fonds de Sacha naît une seule fois ; tout autre appareil part
    d'une copie de ce fonds, historique compris.
 5. **Chaque document porte sa version de schéma.** Une version de schéma monte par une
-   migration écrite d'avance, qui ne dépend que de la précédente, et ne touche que la racine.
+   migration écrite d'avance, qui ne dépend que de la précédente, et ne touche que la racine
+   du document.
    Une application lit et écrit les versions de schéma qu'elle connaît ; devant une version
    de schéma plus récente, elle lit sans écrire, et le dit. Une captation n'est jamais
    refusée pour autant.
@@ -117,16 +121,22 @@ l'ADR-002 ne change pas.
 - L'établi et le carnet travaillent sans nœud, puis fusionnent quand il arrive : ils partent
   du même fonds.
 - Deux versions de Pupitre se croisent sans rien abîmer.
-- Une reconstruction depuis le miroir ne double rien.
-- Aucune dépendance de plus : Automerge, `sha2` et le système de fichiers suffisent.
+- Une reconstruction depuis le miroir ne fusionne jamais avec l'ancienne lignée : rien ne
+  s'y double ni ne s'y cache.
+- Une seule dépendance de plus, `getrandom`, pour l'aléa des identifiants, la lignée comprise
+  ([§ 41 · 6](../41-pile-technique.md#6-le-budget-de-dépendances)) ; Automerge, `sha2` et le
+  système de fichiers suffisent au reste, renommage compris.
 
 ### Ce que ça coûte
 
-- La genèse et chaque migration se figent à leur publication : une erreur s'y corrige par une
-  migration de plus, jamais en réécrivant.
-- Une migration ne touche que la racine. Changer la structure d'objets existants, au-delà
-  d'un ajout, demandera une décision écrite, et sans doute une reconstruction dans une lignée
-  nouvelle.
+- La genèse et chaque migration se figent à leur publication, c'est-à-dire à la première
+  étiquette `vX.Y.Z` qui les porte : `v0.3.0` pour la genèse du fonds. Avant elle, aucune
+  construction ne reçoit de donnée réelle, ni l'essai H07, ni les constructions du lot 1,
+  qui tournent en mode démonstration ou sur un dossier jetable. Une erreur s'y corrige
+  ensuite par une migration de plus, jamais en réécrivant.
+- Une migration ne touche que la racine du document. Changer la structure d'objets
+  existants, au-delà d'un ajout, demandera une décision écrite, et sans doute une
+  reconstruction dans une lignée nouvelle.
 - Un document migré n'accepte plus d'écriture d'une application plus ancienne : chaque
   appareil se met à jour, le nœud d'abord.
 - Le fonds ne naît qu'une fois : un second appareil en reçoit une copie avant d'y écrire.
@@ -147,7 +157,7 @@ l'ADR-002 ne change pas.
 | Un seul fichier, où chaque écriture s'ajoute à la fin | Une écriture coupée laisse un bloc tronqué, et un bloc altéré arrête la lecture : il faudrait réparer le fichier à l'ouverture. Un fichier par écriture, renommé une fois entier, n'a rien à réparer |
 | Une base SQLite | Les documents sont des octets et les captations des fichiers : une base n'y ajoute rien ([§ 41 · 4](../41-pile-technique.md#4-les-choix-couche-par-couche)) |
 | Une compaction qui oublie l'histoire ancienne | Le journal et le retour avant une opération en dépendent ; et seules deux copies d'une même histoire fusionnent |
-| Chaque appareil crée son fonds, et la synchronisation les réunit | Deux naissances font deux documents, d'identifiants différents, que la synchronisation n'apparie jamais ([§ 31 · 2.3](../31-persistance-et-synchronisation.md#23-la-genèse-et-le-point-de-départ-du-fonds)) ; réunis de force, leur identifiant, leur lignée et leur identifiant de propriétaire se heurteraient, et l'appareil ne saurait plus quel fonds il ouvre. Sans genèse commune, leurs conteneurs racine se disputeraient en plus les mêmes clés, et l'un cacherait l'autre |
+| Chaque appareil crée son fonds, et la synchronisation les réunit | Deux naissances font deux documents, d'identifiants différents, que la synchronisation n'apparie jamais ([§ 31 · 2.3](../31-persistance-et-synchronisation.md#23-la-genèse-et-le-point-de-départ-du-fonds)) ; réunis de force, leur identifiant, leur lignée et leur identifiant de propriétaire se heurteraient, et l'appareil ne saurait plus quel fonds il ouvre. Sans genèse commune, leurs conteneurs de la racine du document se disputeraient en plus les mêmes clés, et l'un cacherait l'autre |
 | Une migration calculée sur chaque appareil | Deux appareils qui migrent le même document de leur côté écrivent deux modifications différentes, qui se heurtent ; écrite d'avance, la migration est la même partout |
 | Aucune version de schéma : chaque champ nouveau se lit absent | Suffit pour ajouter, pas pour changer une structure ; et une application ancienne écrirait sans le savoir dans un document qu'elle ne comprend plus |
 | Remplacer toute copie à chaque réimportation | Un document restitué avec son histoire fusionne sans rien doubler ; le remplacer mettrait à part, sans raison, ce qu'un autre appareil a écrit depuis |
@@ -160,8 +170,8 @@ l'ADR-002 ne change pas.
   [§ 31 · 10](../31-persistance-et-synchronisation.md#10-les-tests-qui-verrouillent-ce-document) :
   l'écriture coupée, la compaction coupée, un document de version de schéma N + 1 ouvert par
   une application qui ne connaît que la version de schéma N et deux migrations séparées, la
-  genèse et la teneur figées, la lignée, le fonds de mesure (2 000 idées, moins de 4,5 Mo),
-  l'archive réimportée.
+  genèse et la teneur figées, la lignée, le fonds de mesure, à la taille visée du
+  [§ 31 · 2](../31-persistance-et-synchronisation.md#2-les-documents), l'archive réimportée.
 - **I12** et **I14** ; **I28**, pour lequel la genèse et chaque migration portent leur
   message ([§ 70 · 3](../70-qualite-et-verification.md#3-les-invariants-et-leurs-tests)).
 - Les règles qui décident — quelle lignée l'emporte, quand une version de schéma oblige à

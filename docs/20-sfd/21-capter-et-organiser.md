@@ -122,7 +122,9 @@ la notice qu'Android impose pendant un enregistrement au premier plan (I29).
 - La boîte se trie par date, étiquette, durée, état (reliée ou non) et provenance (captée
   ou importée, [§ 30 · 8.1](../30-modele-de-domaine.md#81-la-provenance)), et se filtre par
   ce que l'idée contient : texte, prise, photo. La durée d'une idée est celle de sa prise la
-  plus longue ; une idée sans prise se range à part, jamais exclue.
+  plus longue, et `—` dès qu'une de ses prises n'a pas encore la sienne
+  ([§ 30 · 9.2](../30-modele-de-domaine.md#92-prises-photos-et-analyses)) ; une idée sans
+  durée se range à part, jamais exclue.
 
 **Ne fait pas** — ne relance pas, ne compte pas les jours, ne propose pas de « vider la
 boîte », ne regroupe ni ne relie rien d'office, ne supprime jamais une prise sans opération
@@ -321,6 +323,9 @@ de problème.
   nombre : ils s'engendrent à chaque ouverture. Elle vit dans le document du fonds, avec ce
   qu'elle interroge
   ([§ 30 · 13](../30-modele-de-domaine.md#13-ce-que-le-modèle-interdit-de-stocker)).
+  Enregistrer, renommer et supprimer une requête sont des opérations nommées du journal du
+  fonds ([§ 30 · 11](../30-modele-de-domaine.md#11-journal-décisions-questions)) ; ce ne
+  sont pas des gestes de tri.
 
 **Ne fait pas** — ne classe pas par pertinence ; ne cherche pas dans l'audio brut ; ne
 cherche pas dans l'encre.
@@ -349,6 +354,9 @@ cherche pas dans l'encre.
    idées et déclare son assiette : « 4 idées · 3 sans durée · 12 interrogées ».
 8. *Étant donné* une idée retirée dont le texte contient le mot cherché, *quand* Sacha le
    cherche, *alors* elle n'est pas dans la réponse, et l'assiette ne la compte pas.
+9. *Étant donné* une idée dont une prise dure 30 s et une autre n'a pas de durée lue,
+   *quand* Sacha cherche les idées de plus d'une minute, *alors* elle compte parmi les « sans
+   durée ».
 
 ---
 
@@ -368,15 +376,19 @@ cherche pas dans l'encre.
 - Tri libre ; par défaut, la dernière modification. Jamais un ordre alphabétique imposé.
 - La boîte d'idées affiche le nombre d'idées non reliées, sans ancienneté. Les idées
   retirées n'y comptent pas ; leur liste est à un geste, et chacune s'y rétablit.
-- L'état de synchronisation et les captations à envoyer sont toujours visibles ; la santé
-  du nœud est à un geste.
+- L'état de synchronisation est toujours visible
+  ([§ 31 · 4.3](../31-persistance-et-synchronisation.md#43-létat-visible-de-la-synchronisation)) ;
+  dès qu'un nœud est appairé, il donne le nombre de captations à envoyer. La santé du nœud
+  est à un geste.
 - La maquette de l'écran est au [§ 50 · 3.1](../50-interfaces-et-appareils.md#31-le-fonds).
 
 **Ne fait pas** — ne note pas les morceaux ; ne met rien en avant « à travailler
 aujourd'hui ».
 
 **Cas limites**
-- Fonds vide : une page explique les trois premiers gestes (capter, importer, créer).
+- Fonds vide : une page explique les premiers gestes (capter, importer, créer) et propose de
+  réimporter une archive complète
+  ([SYN-07](29-socle-donnees-appareils.md#syn-07--exporter-et-importer) · 4).
 - Morceau à identité seule : une ligne lisible, avec des `—`.
 
 **Critères d'acceptation**

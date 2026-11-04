@@ -489,7 +489,7 @@ script de l'interface, dont le chargeur en ligne que Trunk écrit dans `index.ht
 
 | Plateforme | Appareil | Ce que l'interface peut appeler |
 |---|---|---|
-| Windows | 💻 Établi | L'export du cahier des tables, depuis INC-0 ; au lot 1 d'INC-1, les opérations nommées et les requêtes du fonds, l'import et l'archive complète |
+| Windows | 💻 Établi | L'export du cahier des tables, depuis INC-0 ; au lot 1 d'INC-1, les opérations nommées et les requêtes du fonds, l'import, l'archive complète et la reprise depuis l'archive, et la relance sur la démonstration ou sur le fonds |
 | Android | 📱 Carnet, puis 📖 lutrin | Rien, tant que la PR de conception du lot 2 n'a pas nommé les commandes du carnet |
 | Toute autre | — | Rien : aucune n'est une cible |
 
@@ -548,11 +548,15 @@ flowchart TB
   donnée réelle. L'identifiant fixe le dossier de l'application : changé plus tard, il
   laisserait derrière lui tout ce que ce dossier contient. INC-0 n'y range aucune donnée :
   le changement ne perd rien. Sa version suit les numéros de version des lots, `vX.Y.Z` : la
-  PR de clôture d'un lot l'écrit, `0.3.0` pour le lot 1, à un seul endroit, le `Cargo.toml`
-  de l'espace de travail, que `tauri.conf.json` ne recopie pas. Sous Android, le code de
-  version, qui doit croître d'une version à l'autre, se déduit d'elle. Une version nouvelle
-  s'installe par-dessus la précédente, jamais après une désinstallation : celle-ci
-  emporterait le dossier de l'application, et les captations à envoyer avec lui
+  PR de clôture d'un lot l'écrit, `0.3.0` pour le lot 1, à un seul endroit, `tauri.conf.json`,
+  que lisent les constructions Windows et Android ; les `Cargo.toml` ne la recopient pas.
+  Sous Android, le code de version, qui doit croître d'une version à l'autre, se déduit
+  d'elle (majeur × 1 000 000 + mineur × 1 000 + correctif). Sans elle dans
+  `tauri.conf.json`, Tauri prendrait sous Windows celle du `Cargo.toml`, mais garderait 1.0
+  sous Android, avec un code de version figé à 1. Une version nouvelle s'installe par-dessus
+  la précédente, jamais après une désinstallation : sous Android, elle emporte le dossier de
+  l'application, et les captations à envoyer avec lui ; sous Windows, elle l'emporte dès que
+  la case du désinstalleur qui efface les données de l'application est cochée
   ([§ 70 · 7](70-qualite-et-verification.md#7-les-contrôles-à-lœil-sur-lappareil)).
 - **Santé** : une page de l'établi montre l'état de synchronisation, la dernière
   sauvegarde, le dernier test de restauration, la file de travaux, l'espace disque et
@@ -636,10 +640,13 @@ relier ses idées, ne rien perdre. Il ajoute presque tout ce qu'INC-0 ne contena
 stockage, Android, le nœud, la synchronisation, la sauvegarde. Il se construit donc en
 quatre lots, qui rendent chacun un service réel et suivent chacun le cycle de la méthode,
 sous une seule milestone, « INC-1 · carnet et fonds », avec une issue par lot, et une pour
-H07. Dès le lot 1, le fonds sert pour de vrai : chaque donnée y est conçue comme réelle, une
-version nouvelle s'installe par-dessus la précédente sans jamais désinstaller
-([§ 8](#8-déploiement)), et l'archive complète sauvegarde le fonds tant qu'il n'y a pas de
-nœud ([§ 31 · 9.1](31-persistance-et-synchronisation.md#91-sans-nœud-larchive-complète)).
+H07. Dès la `v0.3.0`, qui clôt le lot 1, le fonds sert pour de vrai : chaque donnée y est
+conçue comme réelle dès ce lot, une version nouvelle s'installe par-dessus la précédente
+sans jamais désinstaller ([§ 8](#8-déploiement)), et l'archive complète sauvegarde le fonds
+tant qu'il n'y a pas de nœud
+([§ 31 · 9.1](31-persistance-et-synchronisation.md#91-sans-nœud-larchive-complète)). Avant
+elle, aucune construction ne reçoit de donnée réelle : la genèse du fonds se fige à cette
+étiquette ([ADR-023](adr/adr-023-stockage-des-documents.md)).
 
 ```mermaid
 flowchart LR
@@ -651,21 +658,33 @@ flowchart LR
 - **Il livre, lot par lot :**
   - **lot 1, le fonds sur l'établi**, en `v0.3.0`. Le stockage des documents et des
     captations, côté natif ([ADR-022](adr/adr-022-documents-cote-natif.md),
-    [ADR-023](adr/adr-023-stockage-des-documents.md)). La boîte d'idées : noter une idée en
-    texte ([CAP-01](20-sfd/21-capter-et-organiser.md#cap-01--capter-en-un-geste)), la trier
-    — étiqueter, relier, regrouper des prises, retirer et rétablir —
+    [ADR-023](adr/adr-023-stockage-des-documents.md)). L'adaptateur `Documents` en mémoire
+    naît avec celui des fichiers, et la même suite de tests des commandes passe sur les deux,
+    en natif ([ADR-022](adr/adr-022-documents-cote-natif.md)) ; la compilation des services
+    en WebAssembly, la construction navigateur et ses parcours de bout en bout viennent avec
+    la ligne 5 des portes, qui reste à venir
+    ([§ 70 · 8](70-qualite-et-verification.md#8-les-portes-de-ci)). La boîte d'idées : noter
+    une idée en texte
+    ([CAP-01](20-sfd/21-capter-et-organiser.md#cap-01--capter-en-un-geste)), la trier
+    — compléter le texte, étiqueter, relier et délier, regrouper des prises (les photos, au
+    lot 2), retirer et rétablir —
     ([CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées)), annuler le
-    dernier geste de tri. L'import d'un fonds existant
+    dernier geste de tri. Écouter une prise, par la lecture simple que dit « Il ne contient
+    pas », servie par le protocole des captations
+    ([§ 7.5](#75-linterface-la-csp-et-les-commandes)). L'import d'un fonds existant
     ([CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)), que
     conçoit la PR d'import
     ([Q23](90-questions-ouvertes.md#q23--comment-verser-un-fonds-existant-)). La recherche
-    par attribut d'idée et par texte
+    par attribut d'idée et par texte, et ses requêtes enregistrées
     ([CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds)), et la vue du
     fonds, sans ses morceaux
     ([CAP-07](20-sfd/21-capter-et-organiser.md#cap-07--voir-le-fonds)). L'archive complète
     du fonds, critère 4 de
-    [SYN-07](20-sfd/29-socle-donnees-appareils.md#syn-07--exporter-et-importer). Le mode
-    démonstration, sur le jeu factice, dans son dossier
+    [SYN-07](20-sfd/29-socle-donnees-appareils.md#syn-07--exporter-et-importer), et la
+    reprise depuis elle d'une racine des données abîmée
+    ([§ 31 · 2.1](31-persistance-et-synchronisation.md#21-sur-le-disque)). Le mode
+    démonstration, sur le jeu factice ou, à la demande, sur le fonds de mesure, dans son
+    dossier
     ([§ 31 · 1](31-persistance-et-synchronisation.md#1-trois-natures-de-données-quatre-lieux) ;
     [M-0001](modele/decisions/M-0001-ecosysteme-des-applications-personnelles.md)). La porte
     `contenu` refuse dès ce lot tout fichier `*.automerge` et tout dossier
@@ -736,9 +755,10 @@ flowchart LR
   - au lot 4, I12, sur le document du fonds. IR-9, qui relit un morceau, attend INC-2.
 - **Il ne contient pas** les morceaux, l'écoute de contrôle, les analyses, l'application du
   lutrin ni le document de réglages. Ce qui en découle :
-  - **le tri** s'y borne à relier deux idées, regrouper des prises comme versions d'une même
-    idée, étiqueter, retirer et rétablir. Relier une idée à un motif ou à un morceau, et la
-    promouvoir en l'un ou l'autre, attendent qu'ils existent ; rattacher une prise
+  - **le tri** s'y borne à compléter le texte, étiqueter, relier deux idées et les délier,
+    regrouper des prises comme versions d'une même idée, retirer et rétablir. Relier une idée
+    à un motif ou à un morceau, et la promouvoir en l'un ou l'autre, attendent qu'ils
+    existent ; rattacher une prise
     ([CAP-04](20-sfd/21-capter-et-organiser.md#cap-04--rattacher-une-prise-à-un-morceau))
     écrit dans le document du morceau et attend INC-2. Rapprocher
     ([CAP-05](20-sfd/21-capter-et-organiser.md#cap-05--rapprocher-des-idées-et-des-prises))
@@ -751,6 +771,10 @@ flowchart LR
     contrôle et sa brique
     ([Q16](90-questions-ouvertes.md#q16--quelle-brique-pour-lécoute-de-contrôle-)) attendent
     INC-3 ;
+  - **capter** l'audio ou une photo sur l'établi
+    ([CAP-01](20-sfd/21-capter-et-organiser.md#cap-01--capter-en-un-geste), 💻 ✅) : INC-1
+    n'y note qu'en texte, et l'établi ne capte qu'après INC-1, à l'incrément que la feuille de
+    route nommera ;
   - l'analyse légère que CAP-01 propose après une capture attend INC-4 ;
   - le lutrin garde le cahier des tables en PDF, sans application, jusqu'à INC-2. Au lot 3,
     le critère 3 de SYN-08, qui révoque « lutrin », s'éprouve sur un appareil de test ; le
@@ -758,19 +782,24 @@ flowchart LR
   - le document de réglages
     ([SYN-09](20-sfd/29-socle-donnees-appareils.md#syn-09--régler-ses-préférences)) attend
     au moins INC-2 ; seul un réglage propre à l'appareil, le budget de stockage, entre en
-    INC-1. L'instrument des diagrammes et la couche sombre restent réglés jusqu'à la
+    INC-1, au lot 3 : rien ne s'évince avant un accusé du nœud
+    ([§ 31 · 6.2](31-persistance-et-synchronisation.md#62-ce-quun-appareil-garde)), et il
+    s'écrit dans `appareil.txt`
+    ([§ 31 · 2.1](31-persistance-et-synchronisation.md#21-sur-le-disque)). L'instrument des
+    diagrammes et la couche sombre restent réglés jusqu'à la
     fermeture de l'application, comme en INC-0. L'épinglage de MIC-13 et de REN-08 attend
     lui aussi ce document, où s'écrit sa portée fonds
     ([§ 30 · 12](30-modele-de-domaine.md#12-règles-et-réglages)) ;
   - le papier, qu'[A23](90-questions-ouvertes.md#les-arbitrages-pris-dans-cette-conception)
     reporte encore : aucune imprimante n'est prévue pendant INC-1.
-- **Chaque lot s'ouvre par des essais courts**, avant toute fonction
+- **Les lots 1 à 3 s'ouvrent par des essais courts**, avant toute fonction ; le lot 4 n'en a
+  pas, sauf celui que sa PR de conception ajouterait
   ([§ 11](#11-hypothèses-à-confronter)). Un essai qui demande un équipement le nomme, et on
   vérifie qu'il existe avant de l'ouvrir ([EM-1](registre.md)) :
   - lot 1 : H07, en CI seulement, avant même le plan du lot, sur le format de
     l'[ADR-023](adr/adr-023-stockage-des-documents.md). Deux répliques du fonds, modifiées
-    hors ligne, se réunissent par le protocole de synchronisation d'Automerge ; une copie du
-    dossier des données, restaurée dans un dossier neuf, relit chaque captation contre son
+    hors ligne, se réunissent par le protocole de synchronisation d'Automerge ; une copie de
+    la racine des données, restaurée dans un dossier neuf, relit chaque captation contre son
     empreinte. L'archive complète reste une fonction du lot 1, que son plan construit. Le
     cœur de la couche maison
     ([§ 31 · 4.4](31-persistance-et-synchronisation.md#44-la-couche-de-synchronisation))
@@ -884,7 +913,7 @@ Chacune se vérifie vite, et chacune dit ce qui change si elle est fausse.
 | H04 | La transcription d'un fredonnement de 15 s tourne sur le téléphone en ≤ 5 s | Prototype en Rust, avec le modèle ONNX et la bibliothèque d'inférence candidats, au banc | Transcription renvoyée au nœud, donc au retour à la maison |
 | H05 | Les documents d'une soixantaine de morceaux se chargent vite sur la tablette | Jeu de données synthétique | Chargement paresseux par morceau, index du fonds mis en cache |
 | H06 | Un modèle ouvert local, après validation déterministe, produit au moins deux variantes valides dans la plupart des cas | Banc de 50 demandes types | Fournisseur distant proposé par défaut pour cette tâche, toujours sur consentement |
-| H07 | Deux répliques qui divergent hors ligne convergent au retour, et les captations restent intègres après une restauration | Essai d'ouverture du lot 1 d'INC-1, avant son plan, en CI seulement, sur le cœur de la couche de synchronisation, sans réseau : deux répliques du fonds, au format de l'[ADR-023](adr/adr-023-stockage-des-documents.md), modifiées hors ligne puis réunies par le protocole de synchronisation d'Automerge ; une copie du dossier des données, restaurée dans un dossier neuf, chaque captation relue contre son empreinte ; puis, à l'ouverture du lot 3, la même convergence par le transport | Si les répliques divergent, samod remplace la couche de synchronisation et le rangement des documents sur le disque (A21 ; les décisions 1 à 3 de l'[ADR-023](adr/adr-023-stockage-des-documents.md) sont amendées). Si une captation s'altère après restauration, c'est l'adaptateur `Captations` qu'on reprend |
+| H07 | Deux répliques qui divergent hors ligne convergent au retour, et les captations restent intègres après une restauration | Essai d'ouverture du lot 1 d'INC-1, avant son plan, en CI seulement, sur le cœur de la couche de synchronisation, sans réseau : deux répliques du fonds, au format de l'[ADR-023](adr/adr-023-stockage-des-documents.md), modifiées hors ligne puis réunies par le protocole de synchronisation d'Automerge ; une copie de la racine des données, restaurée dans un dossier neuf, chaque captation relue contre son empreinte ; puis, à l'ouverture du lot 3, la même convergence par le transport | Si les répliques divergent, samod remplace la couche de synchronisation et le rangement des documents sur le disque (A21 ; les décisions 1 à 3 de l'[ADR-023](adr/adr-023-stockage-des-documents.md) sont amendées). Si une captation s'altère après restauration, c'est l'adaptateur `Captations` qu'on reprend |
 | H08 | Après une rotation de la clé du nœud, un appareil appairé se reconnecte, et un appareil non appairé est refusé | Essai d'ouverture du lot 3 d'INC-1, test d'intégration avec un nœud de test : rotation signée par l'ancienne clé, reconnexion d'un appareil appairé, tentative d'un appareil inconnu | Toute rotation exige un nouvel appairage de chaque appareil, comme une clé perdue |
 | H09 | Une page SVG et son PDF coïncident sur la Note Air 2 Plus du lutrin et à l'impression : mêmes pages, mêmes glyphes, aucun débordement | Essai d'ouverture d'INC-0 : une fiche témoin, en SVG puis en PDF, comparée sur la Note Air et sur papier | On revient à la conception avant d'aller plus loin ; Typst est l'option écartée la plus proche (A20) |
 | H10 | La construction Tauri et Leptos est reproductible en CI, pour Windows et pour Android | Essai d'ouverture d'INC-0 : un écran Tauri et Leptos construit en CI pour Windows. Puis essai d'ouverture du lot 2 d'INC-1 : la même construction pour Android, avec les crates natives que le carnet emploiera (`automerge`, la pile TLS, l'échange PAKE), installée à la main sur le téléphone | On revient à la conception avant d'aller plus loin ; Dioxus et Slint sont les options écartées ([ADR-020](adr/adr-020-leptos-et-tauri.md)) |
