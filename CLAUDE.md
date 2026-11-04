@@ -15,6 +15,8 @@ Ce dépôt porte la conception d'une application d'aide à la composition, écri
 - Les crates :
   - `noyau` (`crates/noyau`) : la théorie et les pages SVG, sans entrée-sortie ;
   - `cahier` (`crates/cahier`) : le PDF et sa commande en ligne ;
+  - `stockage` (`crates/stockage`) : la racine des données, les documents et les captations sur fichiers, côté natif ;
+  - `synchro` (`crates/synchro`) : le cœur de la couche de synchronisation, sans réseau ;
   - `interface` (`app/ui`) : l'interface Leptos ;
   - `etabli` (`app/src-tauri`) : l'application Tauri.
 - La CI (`.github/workflows/ci.yml`) a pour jobs `socle`, `contenu`, `documentation`, `verifier`, `windows` et `mutants`. Le passage complet de mutation a lieu chaque semaine, par `mutants-complet.yml`. Les portes et ce qu'elles protègent sont dans `CONVENTIONS.md` (« Portes de CI »).
@@ -30,11 +32,12 @@ Les vérifications du projet, que la CI rejoue (`contenu` et `documentation`) :
 
 Les commandes de Rust, telles que la CI les lance. Deux usages du poste : chaque commande se lance avec `-p <crate>`, jamais sur tout l'espace de travail ; les tests du cahier sont lents en debug, de l'ordre d'une minute et demie.
 
+- `cargo update --workspace`, puis `git diff --exit-code Cargo.lock` : le `Cargo.lock` suit les `Cargo.toml` ; ces commandes ne construisent rien. L'étape « Cargo.lock à jour » de `verifier` les lance ; en échec, elle dépose le `Cargo.lock` qu'elle a résolu en artefact `cargo-lock`, à relire puis à committer : le tenir à jour ne demande aucun cargo local.
 - `cargo fmt --all --check` : le format du code.
-- `cargo clippy -p noyau -p cahier --all-targets -- -D warnings` : les avertissements du noyau et du cahier valent des erreurs.
+- `cargo clippy -p noyau -p cahier -p stockage -p synchro --all-targets -- -D warnings` : les avertissements du noyau, du cahier, du stockage et de la synchronisation valent des erreurs. Le job `windows` passe aussi `stockage` et `synchro` à `clippy` et à leurs tests, sous Windows (H07).
 - `cargo clippy -p interface --all-targets -- -D warnings`, puis `cargo clippy -p interface --target wasm32-unknown-unknown -- -D warnings` : de même pour l'interface, sur la cible de l'hôte puis sur celle du navigateur.
 - `cargo clippy -p etabli --all-targets -- -D warnings` : de même pour l'application ; elle demande `app/ui/dist`, donc une construction de l'interface avant.
-- `cargo test -p noyau -p cahier -p interface` : les tests, dont ceux par propriétés ; `cargo test -p etabli` pour l'application.
+- `cargo test -p noyau -p cahier -p interface -p stockage -p synchro` : les tests, dont ceux par propriétés ; `cargo test -p etabli` pour l'application.
 - `cargo mutants -p noyau` : la mutation des tests du noyau ; `--in-diff <fichier>` la limite aux lignes d'un diff, comme sur une PR.
 - `trunk build` dans `app/ui` : construit l'interface en WebAssembly, dont `etabli` a besoin.
 - `cargo tauri build` dans `app/src-tauri` : construit l'application et son installateur.

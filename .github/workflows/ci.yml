@@ -63,8 +63,8 @@ jobs:
       - name: Vérification des diagrammes
         run: node scripts/verif-diagrammes.mjs
 
-  # Le code Rust : format, lint, tests du noyau, du cahier et de l'interface.
-  # La chaîne vient de rust-toolchain.toml.
+  # Le code Rust : le Cargo.lock, le format, le lint et les tests du noyau, du cahier, du
+  # stockage, de la synchronisation et de l'interface. La chaîne vient de rust-toolchain.toml.
   verifier:
     runs-on: ubuntu-latest
     # Provisoire : le passage de la PR #7 a duré 1 min 32 s, à chaud. À ramener à deux fois un
@@ -78,10 +78,22 @@ jobs:
       - name: Installer la chaîne de rust-toolchain.toml
         run: rustup toolchain install
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      # Un Cargo.lock en retard sur les Cargo.toml échoue ici, et la CI dépose celui qu'elle a
+      # résolu en artefact, à relire puis à committer : le tenir à jour ne demande aucun cargo local.
+      - name: Cargo.lock à jour
+        run: |
+          cargo update --workspace
+          git diff --exit-code Cargo.lock
+      - name: Déposer le Cargo.lock résolu
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cargo-lock
+          path: Cargo.lock
       - name: Format
         run: cargo fmt --all --check
       - name: Lint
-        run: cargo clippy -p noyau -p cahier --all-targets -- -D warnings
+        run: cargo clippy -p noyau -p cahier -p stockage -p synchro --all-targets -- -D warnings
       # L'interface, deux fois : en natif, son code de test compris ; en WebAssembly, telle que
       # trunk la construit.
       - name: Lint de l'interface (natif, tests compris)
@@ -89,7 +101,7 @@ jobs:
       - name: Lint de l'interface (WebAssembly)
         run: cargo clippy -p interface --target wasm32-unknown-unknown -- -D warnings
       - name: Tests
-        run: cargo test -p noyau -p cahier -p interface
+        run: cargo test -p noyau -p cahier -p interface -p stockage -p synchro
 
   # H10, la partie automatique : l'établi se construit en installateur Windows (NSIS), que
   # la maîtrise d'ouvrage installe ensuite sur un PC pour voir la page s'ouvrir. `trunk` et
@@ -111,6 +123,12 @@ jobs:
       - name: Installer la chaîne de rust-toolchain.toml
         run: rustup toolchain install
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      # H07 sous Windows, où le renommage suit sa voie propre (§ 31 · 2.1). clippy y voit le
+      # code propre à Windows, que le job verifier ne compile pas.
+      - name: Lint du stockage et de la synchronisation
+        run: cargo clippy -p stockage -p synchro --all-targets -- -D warnings
+      - name: Tests du stockage et de la synchronisation (H07)
+        run: cargo test -p stockage -p synchro
       - name: Installer trunk
         run: cargo install --locked trunk --version 0.22.1
       - name: Installer tauri-cli
