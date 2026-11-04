@@ -524,22 +524,19 @@ def _ecarter_acceptes(
 
 BRANCHE_DEFAUT_VALIDE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]*$")
 _LIGNE_NATURE = re.compile(r'^NATURE = "([^"\n]*)"\s*$', re.MULTILINE)
-_LIGNE_VISIBILITE = re.compile(r'^VISIBILITE = "prive"\s*$', re.MULTILINE)
 
 
 def nature_du_texte(texte: str | None) -> str:
     """La nature (`code` ou `donnees`) que dit un texte de reglages.py, lu sans l'exécuter.
 
-    Une ligne `NATURE = "donnees"` donne `donnees`. Sans ligne `NATURE`, une ligne
-    `VISIBILITE = "prive"` donne `donnees` : c'est le repli d'un projet pas encore mis à jour, qui
-    reste tant que la branche par défaut de chaque projet ne porte pas `NATURE`. Tout autre cas,
-    dont un texte absent ou des apostrophes, donne `code`."""
+    Une ligne `NATURE = "donnees"` donne `donnees`. Tout autre cas, dont un texte sans ligne
+    `NATURE`, un texte absent ou des apostrophes, donne `code`, la nature la plus stricte."""
     if not texte:
         return "code"
     ligne = _LIGNE_NATURE.search(texte)
     if ligne:
         return "donnees" if ligne.group(1) == "donnees" else "code"
-    return "donnees" if _LIGNE_VISIBILITE.search(texte) else "code"
+    return "code"
 
 
 def nature() -> str:
@@ -549,8 +546,9 @@ def nature() -> str:
     En CI, DEPOT_PRIVE porte la visibilité réelle du dépôt : toute autre valeur que `true` donne
     `code`. Un dépôt privé en CI lit sa nature sur la branche par défaut que GitHub déclare
     (`origin/<BRANCHE_DEFAUT>`), jamais dans la copie de la PR, qui pourrait la réécrire ; si cette
-    lecture échoue, c'est `code`. Sans DEPOT_PRIVE (le poste, les hooks), c'est le reglages.py
-    voisin du script ; sans lui (le dépôt modèle lui-même), `code`."""
+    lecture échoue, ou si le texte lu n'a pas de ligne `NATURE`, c'est `code`, et la porte le dit.
+    Sans DEPOT_PRIVE (le poste, les hooks), c'est le reglages.py voisin du script ; sans lui (le
+    dépôt modèle lui-même), `code`."""
     depot_prive = os.environ.get("DEPOT_PRIVE")
     if depot_prive is not None and not depot_prive.strip():
         print("confidentialité : visibilité inconnue : régime code", file=sys.stderr)
@@ -578,6 +576,12 @@ def nature() -> str:
     if texte is None:
         print(
             "confidentialité : nature illisible sur la branche par défaut : régime code",
+            file=sys.stderr,
+        )
+        return "code"
+    if not _LIGNE_NATURE.search(texte):
+        print(
+            "confidentialité : pas de NATURE sur la branche par défaut : régime code",
             file=sys.stderr,
         )
         return "code"
