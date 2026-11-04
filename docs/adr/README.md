@@ -27,7 +27,8 @@ s'appuie sur l'ADR amendée. Celle-ci reste acceptée, et son texte ne change pa
 « Statut » ajoute seulement, après le tiret, « amendée par ADR-NNN le AAAA-MM-JJ », comme
 une ADR remplacée pointe vers celle qui la remplace. **Une ADR proposée se corrige et se
 complète tant qu'elle est proposée, au plus tard dans la PR qui l'accepte** ; acceptée, elle
-ne se réécrit plus.
+ne se réécrit plus. **Un mot qu'une ADR acceptée emploie dans un sens retiré se dit à son
+entrée du [glossaire](../80-glossaire.md), pas dans l'ADR.**
 
 ## La série
 
