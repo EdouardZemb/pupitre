@@ -21,10 +21,11 @@ Ce dépôt porte la conception d'une application d'aide à la composition, écri
 
 ## Commandes
 
-Les trois vérifications du projet, que la CI rejoue (`contenu` et `documentation`) :
+Les vérifications du projet, que la CI rejoue (`contenu` et `documentation`) :
 
 - `bash scripts/verif-confidentialite.sh` : refuse tout motif interdit dans les fichiers suivis (e-mail, secret, audio, chemin de machine).
 - `node scripts/verif-liens.mjs` : chaque lien interne et chaque ancre mènent quelque part.
+- `node scripts/verif-faits.mjs` : chaque fait recopié dit la même chose que sa source ; ce qu'il lit est dit dans `CONVENTIONS.md` (« Portes de CI », ligne `documentation`). Ses tests : `node --test scripts/verif-faits.test.mjs`. Hors CI, il compare les contrôles requis à GitHub s'il le peut, et sinon il avertit.
 - `node scripts/verif-diagrammes.mjs` : chaque diagramme Mermaid se rend. Il demande `npm install --no-save --no-package-lock --no-audit --no-fund @mermaid-js/mermaid-cli@12.0.0` avant.
 
 Les commandes de Rust, telles que la CI les lance. Deux usages du poste : chaque commande se lance avec `-p <crate>`, jamais sur tout l'espace de travail ; les tests du cahier sont lents en debug, de l'ordre d'une minute et demie.

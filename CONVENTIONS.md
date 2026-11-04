@@ -18,6 +18,14 @@ justifier par un incident réel, pas par une bonne pratique générale.
   diagnostics `DG-P1`, invariants `I01`, hypothèses `H01`, incréments `INC-1`, questions
   `Q01`, arbitrages `A01`, ADR `adr-NNN-sujet.md`. Un identifiant retiré n'est jamais
   réattribué ; le [glossaire](docs/80-glossaire.md#le-projet) les recense.
+- **Un fait à un seul endroit.** Un compte, une plage ou une liste qui décrivent le dépôt
+  s'écrivent là où ils sont définis ; ailleurs, on y renvoie. Ceux qui restent recopiés, la
+  porte `documentation` les compare à leur source (« Portes de CI », plus bas). Elle impose
+  trois graphies. Une plage qui part du premier numéro (`Q01–Qnn`) couvre toute la famille. Un
+  compte partiel ne s'écrit pas en chiffres devant « ADR » (« N ADR » est le total), ni, dans le
+  README, `CLAUDE.md` et ce fichier, en lettres ou en chiffres devant « ADR », « décisions
+  d'architecture », « portes », « jobs », « modules », « crates » ou « situations ». Les
+  contrôles requis ne se disent qu'à « Protection de `main` ».
 - **Visuel d'abord.** Un schéma Mermaid quand une structure, un flux ou un cycle se
   dessine ; une maquette SVG dans `docs/assets/maquettes/` pour un écran, lisible en noir
   et blanc pur.
@@ -97,7 +105,7 @@ rouge arrête la fusion : on ne fusionne pas une PR rouge.
 | `socle / secrets` | Un secret dans un commit ou dans l'historique | Fournie par le modèle (gitleaks) | Un secret poussé est un secret à changer |
 | `socle / confidentialite` | Une donnée d'identité dans le diff, les messages de commit ou le texte de la PR | [`scripts/modele/confidentialite.py`](scripts/modele/confidentialite.py) | Le modèle protège tous ses dépôts de la même façon |
 | `contenu` | Une donnée personnelle dans les fichiers du dépôt : e-mail, secret, export de mémoire, fichier audio ou MIDI, chemin absolu de machine | [`verif-confidentialite.sh`](scripts/verif-confidentialite.sh) | Le dépôt ne doit rien dire de personne. Nommée `contenu` pour ne pas se confondre avec `socle / confidentialite` |
-| `documentation` | Un diagramme qui ne se rend pas ; un lien interne ou une ancre qui ne mène nulle part | [`verif-diagrammes.mjs`](scripts/verif-diagrammes.mjs), [`verif-liens.mjs`](scripts/verif-liens.mjs) | Pendant la refonte d'octobre 2026, des diagrammes se sont cassés sur leur syntaxe ; sur GitHub, un diagramme cassé s'affiche comme un message d'erreur |
+| `documentation` | Un diagramme qui ne se rend pas ; un lien interne ou une ancre qui ne mène nulle part ; un fait recopié qui diverge de sa source : les plages des familles d'identifiants du glossaire, les comptes des ADR et leur ventilation par statut, leur index et leur graphe, les fonctions de la SFD (leur compte, leur index, la matrice de traçabilité), les portes et les jobs, la règle de protection (dite à un seul endroit, et comparée en CI à celle de GitHub), les crates, et les comptes écrits en lettres dans le README, `CLAUDE.md` et ce fichier | [`verif-diagrammes.mjs`](scripts/verif-diagrammes.mjs), [`verif-liens.mjs`](scripts/verif-liens.mjs), [`verif-faits.mjs`](scripts/verif-faits.mjs) et ses tests | Pendant la refonte d'octobre 2026, des diagrammes se sont cassés sur leur syntaxe ; sur GitHub, un diagramme cassé s'affiche comme un message d'erreur. Les faits recopiés : trois fois, une PR a changé un fait à un endroit et l'a oublié ailleurs (AM-1, LE-8, LE-9) |
 | `verifier` | Un code Rust mal formaté, un avertissement de `clippy`, un test rouge (le noyau, le cahier, l'interface, dont `clippy` sur son code de test et pour WebAssembly) | `cargo fmt`, `cargo clippy`, `cargo test` | Le noyau calcule la théorie et dessine les pages : une erreur y fausse tous les rendus. La chaîne est épinglée par `rust-toolchain.toml`. Son `timeout-minutes` est provisoire, à ramener à deux fois un passage mesuré à froid (LE-29 de `modele-projet`) |
 | `windows` | Un établi qui ne se construit pas en installateur Windows (NSIS), un avertissement de `clippy` sur l'établi, ou un cahier des tables qui ne s'engendre pas ; il dépose en artefacts l'installateur, `etabli-installateur`, et le cahier des tables daté du commit construit (sur une PR, le commit de fusion d'essai de GitHub, donc du jour du passage), `cahier-des-tables` | `cargo tauri build`, `cargo clippy -p etabli`, `cargo run -p cahier --release` | H10 : l'application doit s'ouvrir sur un PC Windows, et seule une construction sur Windows le prouve. Le cahier des tables (REN-01, REN-07) se juge sur la tablette et sur papier : l'artefact le met entre les mains de la maîtrise d'ouvrage. Son `timeout-minutes` vaut deux fois la durée du premier passage mesuré (LE-29 de `modele-projet`) |
 | `mutants` | Un mutant du noyau (la théorie, la palette, le clavier et la guitare) qu'aucun test de ces modules ne tue, dans les lignes que la PR modifie ; seulement sur une PR. Le passage complet a lieu chaque lundi et à la demande, par `mutants-complet.yml` | `cargo mutants -p noyau --in-diff` (`.cargo/mutants.toml`) | La famille 3 des garde-fous de la méthode : la mutation des tests du domaine. Un test qui reste vert quand le code est faussé ne protège rien |
@@ -114,6 +122,8 @@ Les lancer avant de pousser :
 ```bash
 bash scripts/verif-confidentialite.sh
 node scripts/verif-liens.mjs
+node --test scripts/verif-faits.test.mjs
+node scripts/verif-faits.mjs
 npm install --no-save --no-package-lock @mermaid-js/mermaid-cli@12.0.0   # une fois
 npx --no-install puppeteer browsers install chrome    # une fois, ou CHROME_PATH=…
 node scripts/verif-diagrammes.mjs
@@ -137,10 +147,11 @@ tête d'une PR dont les contrôles requis sont verts. Jusqu'au 2026-11-01, la co
 dans un dépôt privé, aujourd'hui `pupitre-donnees`, où GitHub refusait cette règle sans
 abonnement payant.
 
-La règle du modèle ne requiert que les deux contrôles du socle, `socle / secrets` et
-`socle / confidentialite`. Celle du dépôt, `branche-principale`, requiert aussi `verifier`,
-`windows` et `mutants` depuis le 2026-11-03, après INC-0. Elle ne vit que sur GitHub : c'est
-ce paragraphe qui la dit dans le dépôt. `contenu` et `documentation` n'y sont pas requis.
+La règle du dépôt, `branche-principale`, ne vit que sur GitHub : ce paragraphe la dit dans le
+dépôt, et la porte `documentation` l'y compare. Depuis le 2026-11-03, après INC-0, elle
+requiert cinq contrôles : `socle / secrets`, `socle / confidentialite`, `verifier`, `windows`
+et `mutants`. `contenu` et `documentation` n'y sont pas requis. La règle du modèle, d'où elle
+vient, ne requiert que les deux contrôles du socle.
 
 S'y ajoutent les deux garde-fous du modèle
 ([`docs/modele/methode.md`](docs/modele/methode.md), « Les garde-fous ») :
