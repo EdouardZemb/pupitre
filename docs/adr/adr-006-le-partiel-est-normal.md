@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Statut** | 🟡 proposée |
+| **Statut** | ✅ acceptée — confirmée le 2026-11-04, complétée de l'idée non reliée et de la version de schéma |
 | **Date** | 2026-10-11 |
 | **Sert** | B01, B03, B11 · principe P4 · contre le risque R1 |
 | **S'appuie sur** | — |
@@ -16,8 +16,9 @@ utile qu'une fois tout renseigné ne servirait jamais (R1).
 
 ## Décision
 
-1. **Un morceau peut n'avoir qu'une identité.** Aucune saisie n'est obligatoire : ni titre,
-   ni tonalité, ni prise.
+1. **Un morceau peut n'avoir qu'une identité, et une idée rester une idée.** Aucune saisie
+   n'est obligatoire : ni titre, ni tonalité, ni prise. Une idée non reliée est un objet
+   légitime et durable, pas une tâche en souffrance.
 2. **Aucune fonction ne refuse de s'exécuter pour incomplétude.** Elle travaille sur ce
    qu'elle a et dit sur quoi. Le seul refus admis est l'impossibilité stricte, et elle est
    nommée (« pas de portée sans une seule note »).
@@ -34,7 +35,9 @@ utile qu'une fois tout renseigné ne servirait jamais (R1).
 ### Ce que ça permet
 
 - Commencer tout de suite : une idée de trois notes est déjà dans l'outil.
-- Faire grandir le fonds sans migration : un morceau de plus est un cas normal.
+- Faire grandir le fonds sans migration : un morceau de plus est un cas normal, et un champ
+  de plus se lit absent dans un objet plus ancien. Changer une structure, lui, demande une
+  version de schéma ([ADR-023](adr-023-stockage-des-documents.md)).
 - Le taux de complétude devient une information utile, et non plus un échec.
 
 ### Ce que ça coûte
@@ -57,3 +60,6 @@ utile qu'une fois tout renseigné ne servirait jamais (R1).
 - **I08** : la suite passe sur des albums de 0, 1, 11 et 57 morceaux ; aucun littéral de
   cardinal dans la logique d'album.
 - **I09** : tout agrégat porte son assiette.
+- Le critère 1 de [CAP-02](../20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées) :
+  cinquante idées non reliées depuis des mois, et ni compteur d'ancienneté, ni alerte, ni
+  badge.

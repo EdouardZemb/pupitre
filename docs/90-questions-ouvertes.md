@@ -29,6 +29,10 @@ les questions sur ce qu'il calcule sont tranchées le même jour : le plan d'INC
 s'écrire ([§ 40 · 9](40-architecture.md#9-trajectoire-de-construction)), et INC-0 est livré
 ([Statut](../README.md#statut)).
 
+Le plan du lot 1 d'INC-1 attend une question, [Q23](#q23--comment-verser-un-fonds-existant-),
+l'import d'un fonds existant, plus bas. Elle bloque une fonction de ce lot, pas
+l'implémentation, déjà commencée.
+
 ---
 
 ## 🟠 Bloque une décision d'architecture
@@ -56,7 +60,9 @@ retour (risque R6). Un réseau privé virtuel, si la maîtrise d'ouvrage en empl
 permettrait de la synchroniser plus tôt, sans rien exposer.
 
 **Recommandation.** **L'autoriser comme option**, sans qu'aucune fonction n'en dépende ni
-qu'aucun test ne l'exige. La règle « rien d'exposé sur Internet » ne bouge pas.
+qu'aucun test ne l'exige. La règle « rien d'exposé sur Internet » ne bouge pas. Elle se
+tranche avant le plan du lot 3 d'INC-1, qui fait entrer la synchronisation
+([§ 40 · 9](40-architecture.md#9-trajectoire-de-construction)).
 
 ---
 
@@ -120,7 +126,62 @@ nœud, jamais par un hôte public, et gardés en cache pour l'écoute hors ligne
 environnement de production sonore ([ADR-009](adr/adr-009-ecoute-de-controle.md)).
 
 **Recommandation.** Trancher avant INC-3, au gabarit des couches du § 41 : ses concurrents
-écartés, et la fonction de la SFD qui la justifie.
+écartés, et la fonction de la SFD qui la justifie. D'ici là, réécouter une prise se fait par
+une lecture simple, à sa vitesse, sans ralenti : elle ne tranche pas Q16
+([§ 40 · 9](40-architecture.md#9-trajectoire-de-construction)).
+
+### Q23 — Comment verser un fonds existant ?
+
+**Enjeu.** Sacha n'arrive pas les mains vides ([§ 11](11-persona-et-situations.md#1-fiche)) :
+son fonds compte beaucoup d'audio, mais
+aussi des *stems*, les enregistrements séparés des voix et des instruments d'un même
+morceau, des fichiers MIDI et des textes. Une part peut venir d'un générateur de maquettes
+externe : une maquette entière, ou ses stems. Le lot 1 d'INC-1 livre l'import
+([§ 40 · 9](40-architecture.md#9-trajectoire-de-construction)), mais
+[CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant) ne dit pas :
+
+- comment les stems d'un même morceau restent ensemble, et ce qui les distingue des prises
+  regroupées comme versions d'une même idée
+  ([CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées)) ;
+- ce que deviennent un MIDI et un texte avant que les morceaux existent, en INC-2 : CAP-03
+  en tire une mélodie et des lignes proposées, qui se lisent dans un morceau ;
+- quelle provenance porte ce qu'un générateur a produit hors de tout brief. `importee` dit
+  seulement « venu d'un fichier »
+  ([§ 30 · 8.1](30-modele-de-domaine.md#81-la-provenance)). Une maquette née d'un brief le
+  dit à vie, par son rôle de `maquette générée`
+  ([MOR-07](20-sfd/24-morceau.md#mor-07--maquettes-et-brief-de-génération)) ; un matériau
+  généré versé sans cette marque passerait pour de la main de Sacha, hors de la part
+  d'origine
+  ([PRO-02](20-sfd/26-propositions-suggestions-provenance.md#pro-02--provenance-et-part-dorigine)),
+  et brouillerait la paternité que garde
+  l'[ADR-004](adr/adr-004-proposer-n-est-pas-decider.md) (D5) ;
+- comment un même contenu versé sous deux noms garde ses deux noms d'origine, alors qu'une
+  prise n'en porte qu'un
+  ([§ 30 · 9.2](30-modele-de-domaine.md#92-prises-photos-et-analyses)) ;
+- ce que l'établi lit seul d'un fichier versé, puisque CAP-03 confie le décodage au nœud,
+  absent jusqu'au lot 3 ;
+- ce que la lecture simple du lot 1, celle de la WebView, sait jouer des formats versés, et
+  ce que montre une prise qu'elle ne sait pas jouer ;
+- les volumes : un fonds de stems pèse bien plus qu'un fonds de mémos vocaux, et l'archive
+  complète les emporte tous.
+
+Q14, plus bas, en est une part : les analyses et les MIDI déjà produits.
+
+**Échéance.** Avant le plan du lot 1 d'INC-1.
+
+**Ce qui la tranchera.** D'abord un relevé des formats et des volumes d'un fonds réel, fait
+par la maîtrise d'ouvrage : des comptes et des tailles, jamais un nom de fichier. Le relevé
+reste hors du dépôt, qui n'en garde que des ordres de grandeur raisonnés pour Sacha. Puis
+une courte PR d'import, qui complète CAP-03 et le [§ 30](30-modele-de-domaine.md), et
+écrit en ADR ce qu'elle décide. Elle revoit alors, pour Sacha, la ligne « Matière » du
+[§ 11](11-persona-et-situations.md#1-fiche), la taille visée du fonds et le fonds de mesure
+([§ 31 · 2](31-persistance-et-synchronisation.md#2-les-documents)).
+
+**Recommandation.** Relever avant de concevoir : aucune règle d'import ne s'écrit avant le
+relevé. Garder ce que CAP-03 tient déjà : verser tel quel, garder le nom d'origine, ne rien
+rattacher d'office, vérifier un import par ses comptes. Pour un matériau généré, partir de
+ce que MOR-07 fait d'une maquette générée : il le dit à vie, et ne passe jamais pour de la
+main de Sacha.
 
 ---
 
@@ -130,7 +191,7 @@ environnement de production sonore ([ADR-009](adr/adr-009-ecoute-de-controle.md)
 |---|---|---|
 | Q12 | L'anglais et le français suffisent-ils pour les paroles ? | Oui pour commencer ; ajouter une langue, c'est ajouter un dictionnaire de prononciation et des règles |
 | Q13 | Où afficher la part d'origine ? | À la demande seulement, dans la vue de provenance ; jamais en tête de fiche ([PRO-02](20-sfd/26-propositions-suggestions-provenance.md#pro-02--provenance-et-part-dorigine)) |
-| Q14 | Le fonds existant contient-il des analyses ou des fichiers MIDI déjà produits ? | Si oui, les importer **en propositions**, avec un mappage déclaré ; ne pas recalculer ce qui est déjà mesuré tant que le banc n'a pas montré mieux ([CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)) |
+| Q14 | Le fonds existant contient-il des analyses ou des fichiers MIDI déjà produits ? | Si oui, les importer **en propositions**, avec un mappage déclaré ; ne pas recalculer ce qui est déjà mesuré tant que le banc n'a pas montré mieux ([CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)). Elle se tranche avec [Q23](#q23--comment-verser-un-fonds-existant-), par le même relevé |
 | Q15 | La tessiture : déclarée ou mesurée ? | Mesurée : chanter sa note la plus grave et la plus aiguë tenables, trois minutes |
 
 ---
@@ -153,7 +214,8 @@ tenait pas les 3 s, est devenue la règle : cette enveloppe, c'est ce module.
 **Ce qui reste à vérifier.** 🔶 H01 : la capture démarre depuis l'écran verrouillé, par le
 module Kotlin, en 3 s au plus, en mode avion et après une veille, sur le téléphone réel
 ([§ 40 · 11](40-architecture.md#11-hypothèses-à-confronter)). Elle porte la fonction la
-plus importante, capter, livrée avec INC-1 ; INC-0 n'en dépend pas.
+plus importante, capter, livrée au carnet par le lot 2 d'INC-1, qu'elle ouvre après la
+moitié Android de H10 ; INC-0 n'en dépend pas.
 
 ---
 
@@ -268,7 +330,7 @@ coût est dit.
 | # | Arbitrage | Pourquoi | Coût d'un renversement |
 |---|---|---|---|
 | A01 | Hauteurs stockées **relatives à une tonique de référence** | Transposition légère, refrains modulés, tonalités indécises ([ADR-008](adr/adr-008-hauteurs-relatives.md)) | Élevé : une migration du modèle, à faire avant toute donnée réelle |
-| A02 | Un motif placé est **copié avec suivi**, pas lié | Un lien vivant entre documents serait fragile ([§ 30 · 5.4](30-modele-de-domaine.md#54-motifs-placés)) | Moyen : ajouter un type de lien |
+| A02 | Un motif placé est **copié avec suivi**, pas lié | Un lien vivant entre documents serait fragile ([§ 30 · 5.4](30-modele-de-domaine.md#54-motifs-placés)) | Moyen : ajouter un lien vivant entre documents |
 | A03 | Une ligne de texte est une **valeur atomique** ; un conflit devient une variante | Une ligne fusionnée caractère par caractère est une ligne que personne n'a écrite | Faible : un réglage de fusion |
 | A04 | **Pas de détection automatique** de la langue d'une ligne | Trop peu fiable sur une ligne ; appliquerait les mauvaises règles en silence | Faible : une proposition de langue, à accepter |
 | A05 | Au-delà de **50 % de mesures douteuses**, une liste d'indices plutôt qu'une grille | Une grille majoritairement douteuse présentée comme une grille est une affirmation | Faible : un seuil |
@@ -280,13 +342,13 @@ coût est dit.
 | A11 | Modèle distant par défaut : `claude-opus-5-5` | Le meilleur compromis capacité/prix de la gamme courante ; Claude Fable 5.1, plus capable, coûte 2,5 fois plus. Réglable dans la passerelle, revu après le banc des pistes | Nul : un réglage |
 | A12 | Le **lutrin peut accepter ou écarter** une proposition, une à une | Geste non destructif et réversible ; relire au calme est le bon moment pour trancher | Faible : masquer deux boutons |
 | A13 | En-têtes du miroir en **TOML**, corps en « un enregistrement par ligne » | Lisibilité des diffs, absence d'ambiguïté de types | Faible : l'exportateur seul change |
-| A14 | **Aucune notification**, y compris pour une sauvegarde en échec : un bandeau dans l'application | Anti-besoin N2 ; un bandeau suffit à ne pas l'ignorer | Faible : ajouter un canal |
+| A14 | **Aucune notification**, y compris pour une sauvegarde en échec : un bandeau dans l'application. Seule exception, la notice qu'Android impose à un enregistrement au premier plan, qui ne dit que cela (I29) | Anti-besoin N2 ; un bandeau suffit à ne pas l'ignorer | Faible : ajouter un canal |
 | A15 | Le choix « pistes de contenu » est lu comme **incluant** l'explication des constats par un modèle | Les options du cadrage étaient cumulatives | Nul : retirer une tâche de la passerelle |
 | A16 | **Prendre** un accord dans la table, c'est le **saisir** : provenance `saisie`, part d'origine inchangée | La table montre tout sans choisir : elle ne propose rien ([ADR-018](adr/adr-018-la-table-montre-tout.md)). La carte des chemins, qui part de ce qui précède réellement, reste une piste | Faible : changer la provenance qu'écrit le geste de prendre, et cacher la table en mode sans suggestion ; l'ADR-018 serait remplacée |
 | A17 | L'**orthographe des tonalités** : les 24 tonalités, 12 majeures et 12 mineures, s'écrivent chacune avec le moins d'altérations ; à égalité, fa♯ majeur et mi♭ mineur. Chaque case de la table se nomme ensuite dans sa tonalité : en fa♯ majeur, le iii s'écrit `A♯m` ; en mi♭ mineur, le V7/i s'écrit `B♭7` | L'orthographe la plus légère est la plus facile à lire au pupitre. À six altérations, les deux orthographes se valent, et le [cahier des tables](20-sfd/28-rendus-encre-impression.md#ren-01--fiche-de-travail) n'en garde qu'une | Faible : un réglage d'orthographe ; la table se calcule en degrés ([ADR-008](adr/adr-008-hauteurs-relatives.md)), et seuls ses noms changeraient |
 | A18 | **INC-0 sans serveur** : la table interactive dans une application de bureau Tauri sur l'établi, le cahier des tables en PDF au lutrin ; Android à partir d'INC-1 | La table ne demande ni stockage ni synchronisation : elle rend un service réel dès le premier incrément, sans attendre le nœud ([§ 40 · 9](40-architecture.md#9-trajectoire-de-construction)) | Faible : le noyau ne dépend pas du nœud ; ajouter le serveur, ce serait avancer une part d'INC-1 |
 | A19 | **L'écoute au lutrin, sans curseur** : on y écoute un accord ou une suite au haut-parleur de la tablette, et rien ne bouge à l'écran | La dalle à encre ne suit pas le temps réel, et le mode encre n'a ni animation ni horloge (I18). Le micro existe, mais le carnet reste le compagnon d'instrument ([§ 50 · 1](50-interfaces-et-appareils.md#ce-qui-est-impossible-et-pourquoi)) | Faible : retirer l'écoute du lutrin ; un curseur animé, lui, contredirait I18 |
 | A20 | Le PDF par **svg2pdf** plutôt que par Typst | Le PDF n'est que la conversion des pages SVG que l'écran affiche : une seule mise en page, donc la même pagination au lutrin et sur papier (I19). Typst mettrait les pages en page une seconde fois ([§ 41 · 5.7](41-pile-technique.md#57-les-pages-et-le-pdf)) | Moyen : une seconde mise en page, à tenir identique à la première ; H09 la vérifierait |
-| A21 | Une **couche de synchronisation maison** plutôt que samod | L'étoile autour du nœud ne demande, pour les documents, que le protocole de synchronisation d'Automerge et le relevé des conflits ; les captations passent par l'adaptateur `Captations` ([§ 31 · 4.4](31-persistance-et-synchronisation.md#44-la-couche-de-synchronisation)) ; samod, le dépôt Automerge en Rust, est jeune et en fait davantage | Moyen : la couche est isolée derrière l'adaptateur `Documents`, et adopter samod ne touche que la part des documents ; H07 en juge |
+| A21 | Une **couche de synchronisation maison** plutôt que samod | L'étoile autour du nœud ne demande, pour les documents, que le protocole de synchronisation d'Automerge et le relevé des conflits ; les captations passent par l'adaptateur `Captations` ([§ 31 · 4.4](31-persistance-et-synchronisation.md#44-la-couche-de-synchronisation)) ; samod, le dépôt Automerge en Rust, est jeune et en fait davantage | Moyen : la couche est isolée derrière l'adaptateur `Documents`, et adopter samod ne touche que la part des documents, leur rangement sur le disque compris ([ADR-023](adr/adr-023-stockage-des-documents.md), décisions 1 à 3) ; H07 en juge, et l'[ADR-003](adr/adr-003-crdt-et-miroir-durable.md) l'écrit |
 | A22 | **La page de la table en paysage** : 209,5 × 157 mm, l'écran du lutrin tourné, pour la table, son verso et tout le cahier | En portrait, à 11 pt, « éloignement » (24,4 mm en DejaVu Sans) ne tient pas dans un septième de 157 mm ; en paysage, une colonne fait 27,2 mm ([§ 50 · 3.7](50-interfaces-et-appareils.md#37-la-table-de-la-tonalité)). H09 l'a vérifié au lutrin le 2026-11-02 ; le papier est reporté (A23) | Moyen : revenir au portrait demande des lignes d'effet plus courtes ou une police plus étroite, et une nouvelle fiche témoin |
 | A23 | **Le papier reporté après INC-0** : l'impression en noir et blanc du cahier des tables et des diagrammes, et la mesure à la règle sur papier, sortent des critères d'INC-0. Elles se font au premier incrément où une imprimante est disponible. Arbitré par la maîtrise d'ouvrage le 2026-11-02 | Aucune imprimante n'était disponible, ni pour H09 ni pour la revue finale d'INC-0 (EM-1, au [registre](registre.md)). La Note Air affiche la page à sa taille, 209,5 × 157 mm, l'écran tourné : H09, puis la revue finale, y ont vérifié les pages, les glyphes, les débordements, les cadres et les flèches ([§ 70 · 7](70-qualite-et-verification.md#7-les-contrôles-à-lœil-sur-lappareil)). Le papier ne vérifiera plus que ce que l'imprimante ajoute : l'échelle à 100 % et la tenue des traits fins | Faible : un défaut que le papier montrerait se corrige dans le rendu, au lot qui le trouve ; les PDF déjà produits se réengendrent |

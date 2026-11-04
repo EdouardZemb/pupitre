@@ -59,6 +59,10 @@ flowchart LR
 4. *Alors* documents et captations sont écrits dans le dossier de l'application, et aucun
    dans un dossier temporaire.
 
+En INC-1, le critère 1 s'éprouve sur la part du parcours que l'incrément livre : capter,
+réécouter une prise, chercher. Retoucher une ligne s'y ajoute avec INC-2, demander des
+accords suivants avec INC-4 ([§ 40 · 9](../40-architecture.md#9-trajectoire-de-construction)).
+
 ---
 
 ### SYN-02 · Synchroniser à la maison
@@ -82,7 +86,7 @@ flowchart LR
 1. *Étant donné* une modification faite hors ligne sur le carnet, *quand* il rejoint le
    réseau du foyer, application ouverte, *alors* elle apparaît sur l'établi en moins de 10 s.
 2. *Quand* une synchronisation est interrompue, *alors* elle reprend sans perte ni doublon.
-3. *Alors* l'état affiché donne le nombre de captations en attente et l'heure de la dernière
+3. *Alors* l'état affiché donne le nombre de captations à envoyer et l'heure de la dernière
    synchronisation complète.
 4. *Alors* trois répliques modifiées en même temps convergent (I10).
 
@@ -150,7 +154,7 @@ flowchart LR
    l'envoi est rejeté puis relancé.
 3. *Étant donné* une captation absente de l'appareil, *alors* elle se charge à la demande si
    le nœud est joignable, et l'interface dit « disponible à la maison » sinon.
-4. *Alors* le nombre de captations en attente affiché égale le nombre réel dans la file.
+4. *Alors* le nombre de captations à envoyer affiché égale le nombre réel dans la file.
 
 ---
 
@@ -166,7 +170,7 @@ flowchart LR
 
 **Règles**
 - Format, arborescence et cycle d'écriture du [§ 31 · 8](../31-persistance-et-synchronisation.md#8-le-miroir-durable).
-- Un commit par lot de modifications ; son message reprend les opérations nommées du lot.
+- Un commit par cycle d'écriture ; son message reprend les opérations nommées qu'il projette.
 - Poussée facultative vers un dépôt privé hors du foyer, qui refuse la réécriture
   d'historique.
 - Un `LISEZMOI` engendré explique comment lire le miroir sans Pupitre.
@@ -198,7 +202,7 @@ flowchart LR
   une clé absente du nœud.
 - **Test de restauration hebdomadaire** ([§ 31 · 9](../31-persistance-et-synchronisation.md#9-sauvegarde-et-restauration)) :
   restaurer dans un dossier neuf, vérifier un échantillon de captations, reconstruire les
-  documents depuis le miroir et comparer leur forme canonique aux documents Automerge du
+  documents depuis le miroir et comparer leur teneur à celle des documents Automerge du
   même instantané, reconstruire les dérivés et comparer leurs empreintes. La même procédure
   tourne chaque nuit en CI sur un jeu de test.
 - Un échec s'affiche sur l'établi tant qu'un test n'a pas réussi : un bandeau dans
@@ -219,7 +223,8 @@ flowchart LR
    chronométrée.
 5. *Étant donné* un document reconstruit depuis le miroir, *quand* il est réimporté,
    *alors* il remplace les copies des appareils au lieu de fusionner avec elles : aucun
-   élément n'est doublé.
+   élément n'est doublé ni caché, et chaque copie remplacée est gardée à part, intacte
+   ([§ 31 · 2.5](../31-persistance-et-synchronisation.md#25-la-lignée)).
 6. *Étant donné* une copie hors site, *alors* le nœud ne peut qu'y ajouter : la clé qui
    permet de purger n'est pas sur le nœud.
 
@@ -246,12 +251,17 @@ flowchart LR
 | **Texte du miroir** | Export | Tout le contenu décidé d'un morceau | L'historique fin |
 | **Brief de génération** | Export | Selon le profil d'outil ([MOR-07](24-morceau.md#mor-07--maquettes-et-brief-de-génération)) | — |
 | **Rapport de provenance** | Export | Origine de chaque élément ([PRO-02](26-propositions-suggestions-provenance.md#pro-02--provenance-et-part-dorigine)) | — |
-| **Archive complète du fonds** | Export, import | Miroir et captations | L'historique fin, sauf à joindre les documents |
+| **Archive complète du fonds** | Export, réimportation | Documents, historique compris, captations, et le miroir dès qu'il existe ([§ 31 · 9.1](../31-persistance-et-synchronisation.md#91-sans-nœud-larchive-complète)) | — |
 
 - Un export **avec perte** dit, avant de partir, ce qui sera perdu.
 - Les exports emploient les variantes **retenues**.
 - Un import écrit des **propositions**, jamais des décisions
   ([CAP-03](21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)).
+- L'**archive complète** fait exception : réimportée dans un Pupitre neuf, elle restitue les
+  documents tels qu'ils étaient, décisions et historique compris. C'est une reprise après
+  sinistre, pas un import
+  ([§ 31 · 9.1](../31-persistance-et-synchronisation.md#91-sans-nœud-larchive-complète)). Un
+  Pupitre qui a déjà un fonds la refuse, et dit pourquoi.
 
 **Critères d'acceptation**
 1. *Quand* un morceau est exporté en MusicXML puis réimporté, *alors* les mêmes notes, accords
@@ -259,7 +269,9 @@ flowchart LR
 2. *Alors* l'export MIDI porte la carte de tempo décidée du morceau.
 3. *Alors* chaque export avec perte affiche, avant de partir, ce qui sera perdu.
 4. *Quand* l'archive complète est réimportée dans un Pupitre neuf, *alors* documents et
-   captations sont restitués (formes canoniques égales).
+   captations sont restitués : teneurs égales, et le journal du fonds est le même.
+5. *Étant donné* un Pupitre qui a déjà un fonds, *quand* une archive complète y est
+   réimportée, *alors* rien ne s'écrit, et Pupitre dit pourquoi.
 
 ---
 
@@ -267,7 +279,7 @@ flowchart LR
 
 | | |
 |---|---|
-| **Objet** | Ajouter un appareil par un code court, et en retirer un sans gêner les autres |
+| **Objet** | Ajouter un appareil par un code court, et en révoquer un sans gêner les autres |
 | **Échelle · moment** | Transverse |
 | **Appareils** | 💻 ✅ · 📱 ✅ · 📖 appairage seul |
 | **Besoins** | B13 |

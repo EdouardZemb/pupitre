@@ -9,12 +9,12 @@ Ce dépôt porte la conception d'une application d'aide à la composition, écri
 ## État
 
 - Le dépôt est né le 01/11/2026, d'un seul commit, de la scission de pupitre (M-0006 § 7). L'historique de la conception jusque-là, ses PR #1 à #15 et l'étiquette `v0.1.0` restent dans le dépôt privé `pupitre-donnees`.
-- La conception est écrite : `docs/10-vision.md` à `docs/90-questions-ouvertes.md`, et 21 ADR dans `docs/adr/` (10 acceptées, 8 proposées, 3 remplacées). La pile est Rust (ADR-019 à 021) ; la table de la tonalité est conçue (MIC-12, MIC-13, MOR-14, REN-08, ADR-018).
+- La conception est écrite : `docs/10-vision.md` à `docs/90-questions-ouvertes.md`, et 23 ADR dans `docs/adr/` (14 acceptées, 6 proposées, 3 remplacées). La pile est Rust (ADR-019 à 021) ; les documents et leur synchronisation vivent côté natif (ADR-022), et leur stockage est écrit (ADR-023) ; la table de la tonalité est conçue (MIC-12, MIC-13, MOR-14, REN-08, ADR-018).
 - Le dépôt est né de `modele-projet` v0.7.1 : nature `code`, cible `aucune`, fusion `session`.
-- INC-0 est livré, sous l'étiquette `v0.2.0` du 03/11/2026 : l'issue #1, sous la milestone « INC-0 · la table », close, et ses PR #2 à #9. La prochaine étape est INC-1 (§ 40 · 9).
+- INC-0 est livré, sous l'étiquette `v0.2.0` du 03/11/2026 : l'issue #1, sous la milestone « INC-0 · la table », close, et ses PR #2 à #9. La prochaine étape est INC-1, construit par lots (§ 40 · 9).
 - Les crates :
   - `noyau` (`crates/noyau`) : la théorie et les pages SVG, sans entrée-sortie ;
-  - `cahier` (`crates/cahier`) : le PDF et sa commande ;
+  - `cahier` (`crates/cahier`) : le PDF et sa commande en ligne ;
   - `interface` (`app/ui`) : l'interface Leptos ;
   - `etabli` (`app/src-tauri`) : l'application Tauri.
 - La CI (`.github/workflows/ci.yml`) a pour jobs `socle`, `contenu`, `documentation`, `verifier`, `windows` et `mutants`. Le passage complet de mutation a lieu chaque semaine, par `mutants-complet.yml`. Les portes et ce qu'elles protègent sont dans `CONVENTIONS.md` (« Portes de CI »).

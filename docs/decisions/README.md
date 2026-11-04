@@ -4,4 +4,4 @@ Les décisions de pupitre ne sont pas ici. Elles vivent dans [`docs/adr/`](../ad
 
 Les décisions héritées du modèle restent dans [`docs/modele/decisions/`](../modele/decisions/M-0001-ecosysteme-des-applications-personnelles.md), avec le préfixe `M-`, pour que leurs numéros ne se heurtent pas à ceux de pupitre.
 
-**Une ADR ne se réécrit pas, ne se renumérote pas, ne se supprime pas.** Si la décision change, une nouvelle ADR la remplace, et l'ancienne garde son fichier avec le statut `remplacée`.
+**Une ADR acceptée ne se réécrit pas ; aucune ne se renumérote ni ne se supprime.** Si la décision change, une nouvelle ADR la remplace, et l'ancienne garde son fichier avec le statut `remplacée`. Si elle ne change qu'en partie, une nouvelle ADR l'amende, et l'ancienne reste acceptée, son texte intact ([les statuts](../adr/README.md#statuts)). Une ADR proposée se corrige et se complète tant qu'elle est proposée, au plus tard dans la PR qui l'accepte.

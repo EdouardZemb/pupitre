@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Statut** | 🟡 proposée |
+| **Statut** | ✅ acceptée — confirmée le 2026-11-04, complétée d'Automerge et de la couche de synchronisation (A21) |
 | **Date** | 2026-10-11 |
 | **Sert** | B13, B14 · principes P5, P8 |
 | **S'appuie sur** | [ADR-002](adr-002-local-first.md) |
@@ -20,13 +20,17 @@ Des fichiers texte versionnés comme vérité opérationnelle ne conviennent pas
 appareils déconnectés qui modifient le même fichier produisent un conflit de fusion
 textuel, que personne ne veut résoudre au milieu d'une séance de piano.
 
+Enfin, une personne seule construit et entretient l'outil : la fusion, l'historique et la
+compaction doivent venir d'une bibliothèque éprouvée, pas de code maison
+(R7, [§ 10](../10-vision.md#7-ce-qui-ferait-échouer-le-projet)).
+
 ## Décision
 
 Trois natures de données et leur projection durable ([§ 31](../31-persistance-et-synchronisation.md)) :
 
-1. **Décisions** : des **documents CRDT** répliqués (fonds, morceaux, albums, réglages).
-   C'est la vérité **opérationnelle**. Toute modification passe par une **opération
-   nommée**, qui porte un message lisible.
+1. **Décisions** : des **documents Automerge** répliqués (fonds, morceaux, albums,
+   réglages). C'est la vérité **opérationnelle**. Toute modification passe par une
+   **opération nommée**, qui porte un message lisible.
 2. **Captations** : des objets **immuables**, nommés par l'empreinte de leur contenu.
 3. **Dérivés** : des caches, recalculables, jamais sauvegardés.
 4. **Miroir durable** : une **projection en texte brut** des documents (un enregistrement
@@ -34,6 +38,23 @@ Trois natures de données et leur projection durable ([§ 31](../31-persistance-
    **durable** : lisible sans Pupitre, sauvegardée sur le disque externe, et hors site si
    la copie facultative existe, réimportable en cas de sinistre. Elle est **à sens
    unique** et son aller-retour est testé.
+
+Le moteur est **Automerge** : la crate `automerge`, à version épinglée, fusionne, garde
+l'historique et compacte ; son stockage sur disque est celui de
+l'[ADR-023](adr-023-stockage-des-documents.md). La **synchronisation** est une couche maison,
+en étoile autour du nœud, sur WebSocket en TLS
+([A21](../90-questions-ouvertes.md#les-arbitrages-pris-dans-cette-conception)). Elle ne
+fait que deux choses : échanger avec le nœud, pour chaque document, les modifications qui
+manquent de part et d'autre, par le protocole de synchronisation d'Automerge ; relever les
+conflits, pour les présenter « à trancher ». Elle ne transporte que les documents : les
+captations passent par l'adaptateur `Captations`. Elle est isolée derrière l'adaptateur
+`Documents`
+([§ 31 · 4.4](../31-persistance-et-synchronisation.md#44-la-couche-de-synchronisation)) :
+si H07 voit diverger les répliques, samod, le dépôt Automerge en Rust, remplace la couche de
+synchronisation derrière le même adaptateur. Il tient alors lui-même les fichiers des
+documents et leur compaction : les décisions 1 à 3 de
+l'[ADR-023](adr-023-stockage-des-documents.md) seraient amendées par une ADR nouvelle. Les
+captations restent à l'adaptateur `Captations`, que samod ne remplace pas.
 
 Les règles de fusion propres au domaine :
 
@@ -51,7 +72,7 @@ Les règles de fusion propres au domaine :
 
 ```mermaid
 flowchart LR
-  D[("Documents CRDT<br/>vérité opérationnelle")] -->|"projection, à sens unique"| M[("Miroir texte dans git<br/>vérité durable")]
+  D[("Documents Automerge<br/>vérité opérationnelle")] -->|"projection, à sens unique"| M[("Miroir texte dans git<br/>vérité durable")]
   M -.->|"reprise après sinistre"| D
   C[("Captations immuables")]
   X[("Dérivés jetables")]
@@ -74,8 +95,17 @@ flowchart LR
 ### Ce que ça coûte
 
 - Deux représentations à tenir cohérentes : la projection est à sens unique, et son
-  aller-retour est testé à chaque lot.
-- Une dépendance à une bibliothèque CRDT, isolée derrière un adaptateur.
+  aller-retour est testé à chaque écriture du miroir.
+- Une dépendance à Automerge, isolée derrière l'adaptateur `Documents`.
+- Une couche de synchronisation à écrire et à tenir, quand R7 préfère les bibliothèques
+  éprouvées au code maison. Le coût est borné : la couche ne fait que transporter et
+  relever, et Automerge garde la fusion, l'historique et la compaction, que le journal
+  maison écarté plus bas aurait dû écrire. H07 en juge.
+- Automerge ne garde l'autre valeur d'un conflit que jusqu'à la prochaine écriture du même
+  champ ([§ 31 · 5](../31-persistance-et-synchronisation.md#5-les-conflits)) : Pupitre
+  relève le conflit à la synchronisation, et le garde lui-même « à trancher », dans le
+  document. Où il l'y garde se conçoit avec la synchronisation par le nœud, avant son plan
+  ([§ 40 · 9](../40-architecture.md#9-trajectoire-de-construction)).
 - Le poids de l'historique, acceptable aux volumes visés.
 
 ## Options écartées
@@ -84,11 +114,20 @@ flowchart LR
 |---|---|
 | Fichiers texte dans git comme vérité | Conflits de fusion textuels entre appareils déconnectés ; aucune fusion qui comprenne la structure |
 | Yjs | Excellent pour l'édition collaborative en temps réel ; historique et bifurcations moins naturels |
-| Journal d'événements maison | Synchronisation, fusion, compaction à construire soi-même : trop pour une personne (R7) |
+| Journal d'événements maison | Le protocole de synchronisation, la fusion et la compaction à construire soi-même : trop pour une personne (R7). La couche maison retenue ne fait que porter le protocole d'Automerge et relever les conflits |
+| samod, le dépôt Automerge en Rust | Jeune, et il fait davantage que l'étoile ne demande ; il reste le repli si H07 échoue ([A21](../90-questions-ouvertes.md#les-arbitrages-pris-dans-cette-conception)) |
 | Base de données sur un serveur | Contraire à [ADR-002](adr-002-local-first.md) |
 
 ## Comment on vérifie
 
 - **I10** convergence à trois répliques · **I11** aucun texte fusionné caractère par
   caractère, ni accord ou hauteur champ par champ · **I12** aller-retour du miroir ·
-  **I13** dérivés jetables · **I14** captations immuables.
+  **I13** dérivés jetables · **I14** captations immuables · **I28** toute modification d'un
+  document naît d'une opération nommée.
+- **H07** : deux répliques du fonds, modifiées hors ligne, convergent par la couche de
+  synchronisation ; une copie de la racine des données, restaurée dans un dossier neuf,
+  relit chaque captation contre son empreinte
+  ([§ 40 · 11](../40-architecture.md#11-hypothèses-à-confronter)). Si les répliques
+  divergent, samod remplace la couche, derrière le même adaptateur, et le rangement des
+  documents sur le disque ; si une captation s'altère, c'est l'adaptateur `Captations`
+  qu'on reprend.

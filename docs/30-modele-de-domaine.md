@@ -17,17 +17,20 @@ ses paroles sont inventés.
 classDiagram
   direction LR
   class Fonds {
+    proprietaire
     idees
     motifs
     prises
-    etiquettes
+    photos
+    liens
+    requetes
   }
   class Idee {
     id
     texte
     etiquettes
-    prises
-    liens
+    provenance
+    retrait
   }
   class Motif {
     id
@@ -37,10 +40,26 @@ classDiagram
   }
   class Prise {
     empreinte
+    idee
     nomOrigine
+    format
     duree
+    date
+    appareil
     diapason
     analyses
+  }
+  class Photo {
+    empreinte
+    idee
+    format
+    date
+    appareil
+  }
+  class Lien {
+    type
+    bouts
+    le
   }
   class Morceau {
     id
@@ -68,10 +87,14 @@ classDiagram
   Fonds "1" o-- "*" Idee
   Fonds "1" o-- "*" Motif
   Fonds "1" o-- "*" Prise
+  Fonds "1" o-- "*" Photo
+  Fonds "1" o-- "*" Lien
   Fonds "1" o-- "*" Morceau
   Fonds "1" o-- "*" Album
   Fonds "1" -- "1" Reglages
-  Idee "*" --> "*" Prise : contient
+  Idee "1" --> "*" Prise : contient
+  Idee "1" --> "*" Photo : contient
+  Lien "*" --> "*" Idee : relie
   Morceau "*" --> "*" Prise : rattache, avec un rôle
   Album "*" --> "*" Morceau : sélectionne
 ```
@@ -163,13 +186,35 @@ numéro de mesure ou d'une position. Les numéros que l'interface affiche (« me
 
 | Objet | Identifiant | Stable ? | Pourquoi |
 |---|---|---|---|
-| Morceau, album, idée, motif | ULID (`01J…`) | **Oui, à vie** | Un titre change ; un morceau peut ne pas en avoir |
+| Morceau, album, idée, motif, requête enregistrée | ULID (`01J…`) | **Oui, à vie** | Un titre change ; un morceau peut ne pas en avoir |
+| Document du fonds, document de réglages | ULID, écrit à sa naissance ([§ 31 · 2.3](31-persistance-et-synchronisation.md#23-la-genèse-et-le-point-de-départ-du-fonds)) | **Oui, à vie** | La synchronisation n'apparie que des copies d'un même document, et deux fonds nés chacun de son côté ne se mêlent jamais |
 | Bloc, occurrence, mesure, phrase | ULID | **Oui** | Insérer une mesure ne doit réécrire aucun autre élément |
 | Événement d'accord, note | ULID | **Oui** | Une syllabe s'aligne sur une note précise ; un écart cible un élément précis |
 | Ligne de texte | ULID | **Oui, à vie** | La provenance et la chaîne des retouches en dépendent |
-| Prise, rendu figé, résultat d'analyse, traits d'encre | Empreinte SHA-256 | **Oui, par construction** | Le contenu est le nom ; une corruption se voit |
+| Prise, photo, rendu figé, résultat d'analyse, traits d'encre | Empreinte SHA-256 | **Oui, par construction** | Le contenu est le nom ; une corruption se voit |
 | Décision et question du journal | ULID ; numéro `D001`, `Q001` par morceau ou album, attribué par le nœud à la première synchronisation (« D— » provisoire hors ligne) | **Oui** : un numéro attribué ne change plus | Sinon deux appareils hors ligne créeraient chacun leur `D004` ; une décision révisée garde son numéro et pointe vers sa remplaçante |
+| Lien | Son type et ses deux bouts, rangés (§ 9.3) | **Oui, par construction** | Deux appareils qui posent hors ligne le même lien n'en font qu'un |
+| Propriétaire du fonds | UUID ([M-0001](modele/decisions/M-0001-ecosysteme-des-applications-personnelles.md)), tiré au hasard à la création du fonds | **Oui, à vie** | Toute donnée lui appartient ; il ne dit rien, pas même une date |
 | Numéro de mesure, numéro d'occurrence | — | Engendrés | Stockés, ils se désynchroniseraient |
+
+**L'identifiant de propriétaire.** Tout le fonds appartient à un **identifiant de
+propriétaire** opaque
+([M-0001](modele/decisions/M-0001-ecosysteme-des-applications-personnelles.md)) : un UUID
+tiré au hasard à la création du fonds, et non un ULID, dont l'horodatage dirait quand le
+fonds est né. Chaque document le porte, à la racine du document : le fonds, les morceaux, les
+albums et les réglages ([§ 31 · 2.3](31-persistance-et-synchronisation.md#23-la-genèse-et-le-point-de-départ-du-fonds)).
+Il ne nomme personne : Pupitre n'authentifie que des appareils
+([SYN-08](20-sfd/29-socle-donnees-appareils.md#syn-08--appairer-et-révoquer-des-appareils)).
+Un seul endroit du code le crée et le donne, un service du côté natif
+([ADR-022](adr/adr-022-documents-cote-natif.md)), derrière une interface qui ne fait que
+cela : le jour où deux applications devront reconnaître Sacha, c'est elle qui change, et
+aucun document. La référence est l'identifiant de propriétaire du document du fonds de la
+racine des données ([§ 31 · 2.1](31-persistance-et-synchronisation.md#21-sur-le-disque)) :
+tout autre document de la racine des données, et toute copie reçue, qui en porte un autre est
+refusé, à l'ouverture
+comme à la synchronisation, et Pupitre le nomme : deux fonds ne se mêlent jamais, pas même
+celui du mode démonstration
+([§ 31 · 1](31-persistance-et-synchronisation.md#1-trois-natures-de-données-quatre-lieux)).
 
 ---
 
@@ -202,11 +247,14 @@ flowchart LR
 
 - Le **tempo** est une décision du morceau (en BPM), éventuellement avec des
   **changements** attachés au début d'une occurrence ou d'une mesure.
-- Une **durée** n'est jamais stockée : elle s'engendre depuis la forme, les mesures, la
-  métrique et le tempo. C'est ce qui permet à la frise et au plan d'album de rester
-  justes quand un pont perd huit mesures. Engendrée d'un tempo seulement proposé, elle
-  est proposée elle aussi : une valeur engendrée prend le statut le plus faible de ses
-  entrées ([§ 50 · 4.1](50-interfaces-et-appareils.md#41-statut-dune-valeur)).
+- Une **durée** musicale, celle d'une occurrence, d'un morceau ou d'un album, n'est jamais
+  stockée : elle s'engendre depuis la forme, les mesures, la métrique et le tempo. C'est
+  ce qui permet à la frise et au plan d'album de rester justes quand un pont perd huit
+  mesures. Engendrée d'un tempo seulement proposé, elle est proposée elle aussi : une
+  valeur engendrée prend le statut le plus faible de ses entrées
+  ([§ 50 · 4.1](50-interfaces-et-appareils.md#41-statut-dune-valeur)). La durée d'une
+  prise est autre chose : un fait de sa captation, qui ne change jamais
+  ([§ 9.2](#92-prises-photos-et-analyses)).
 
 ### 3.3 La carte de temps d'une prise
 
@@ -455,6 +503,22 @@ provenance, et la garde à vie.
 S'y ajoutent `le` (date de l'acceptation ou de la saisie) et, pour une détection, la
 `confiance` au moment de l'acceptation.
 
+**La provenance d'une idée.** Une idée porte aussi une provenance, posée à sa naissance et
+gardée à vie : elle dit comment l'idée est entrée dans le fonds ([§ 9.1](#91-lidée)).
+
+| Origine | Signifie | Champ `par` | Champ `depuis` |
+|---|---|---|---|
+| `captee` | Née d'une capture : Sacha l'a enregistrée, notée ou photographiée dans Pupitre ([CAP-01](20-sfd/21-capter-et-organiser.md#cap-01--capter-en-un-geste)) | Le rôle de l'appareil : établi ou carnet | — |
+| `importee` | Née d'un fichier versé ([CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)) | À fixer avec l'import | À fixer avec l'import |
+
+`le` est la date de sa naissance. Une idée notée et une idée enregistrée ont la même
+provenance, puisque capter, c'est enregistrer, noter ou photographier ; ce qu'elles
+contiennent, un texte, une prise ou une photo, les distingue. Les autres origines ne
+s'appliquent qu'au contenu : une idée ne se détecte pas, ne se suggère pas et ne se retouche
+pas. Ce que porte une idée importée, en particulier pour un matériau produit par un
+générateur de maquettes externe, se tranche avec l'import
+([Q23](90-questions-ouvertes.md#q23--comment-verser-un-fonds-existant-)).
+
 ### 8.2 Ce qui est stocké, ce qui ne l'est pas
 
 - Une **proposition non acceptée n'est pas stockée** dans les documents. Une détection
@@ -481,11 +545,42 @@ stateDiagram-v2
 
 ---
 
-## 9. Prises et analyses
+## 9. Idées, prises et analyses
+
+### 9.1 L'idée
+
+| Donnée | Contenu | Nature |
+|---|---|---|
+| **Idée** | Identifiant, texte libre, étiquettes, provenance ([§ 8.1](#81-la-provenance)), retrait | Décisions, dans le document du fonds |
+
+- Sa **date** et l'**appareil** où elle est née sont ceux de sa provenance : aucun champ ne
+  les recopie.
+- Le **texte** est une valeur atomique, comme une ligne (§ 6.1) : deux appareils qui le
+  changent hors ligne donnent deux valeurs en conflit, jamais un mélange.
+- Les **étiquettes** sont libres. Une idée en porte un ensemble : deux appareils qui posent
+  hors ligne la même étiquette n'en font qu'une. Les étiquettes du fonds s'engendrent de
+  celles de ses idées, et aucune liste n'est stockée à part.
+- Les **prises** et les **photos** d'une idée ne sont pas une liste de l'idée : chacune
+  porte l'idée à laquelle elle appartient (§ 9.2), et la liste s'en engendre. Deux appareils
+  qui regroupent hors ligne la même prise dans deux idées donnent deux valeurs en conflit,
+  jamais une prise dans deux idées.
+- Une idée est **reliée** quand elle porte au moins un lien (§ 9.3) dont l'autre bout n'est
+  pas une idée retirée. Cet état s'engendre ; il n'est jamais stocké.
+- Une idée **retirée** porte la date de son retrait. Elle quitte la boîte, la vue du fonds
+  et les requêtes, et ne compte dans aucune assiette. Rien n'en est effacé : ni son texte,
+  ni ses étiquettes, ni ses liens, ni ses prises, ni ses photos, ni leurs captations. La
+  **rétablir** ôte la marque, et elle revient telle qu'elle était. La suppression définitive
+  d'une idée et de ses captations sera une opération destructrice explicite
+  ([§ 40 · 7.3](40-architecture.md#73-appairage-et-sessions)), conçue plus tard ; d'ici là,
+  rien ne s'efface. Retirée, l'idée reste dans le document, dans sa teneur et dans son
+  historique ([ADR-023](adr/adr-023-stockage-des-documents.md)).
+
+### 9.2 Prises, photos et analyses
 
 | Objet | Contenu | Nature |
 |---|---|---|
-| **Prise** | Empreinte, nom d'origine tel quel, format, durée, date, appareil, diapason mesuré | Captation et métadonnées décidées |
+| **Prise** | Empreinte, idée, nom d'origine tel quel, format, durée, date, appareil, diapason mesuré | Captation ; ses métadonnées sont une décision, des faits et une mesure (ci-dessous) |
+| **Photo** | Empreinte, idée, format, date, appareil | Captation ; ses métadonnées sont une décision et des faits (ci-dessous) |
 | **Rattachement** | Morceau, rôle (`référence`, `version`, `travail`, `maquette`, `maquette générée`), carte de temps | Décision, dans le document du morceau |
 | **Résultat d'analyse** | Pour une prise, un analyseur et ses paramètres : candidats de tempo, de tonalité, de diapason ; pulsations et premiers temps ; accords par mesure avec alternatives ; notes ; segments ; texte transcrit avec horodatage par mot | Captation immuable, nommée par l'empreinte de son contenu, indexée par `(prise, analyseur@version, paramètres)` |
 
@@ -493,6 +588,51 @@ Un résultat d'analyse ne se corrige pas : un analyseur meilleur produit un **no
 résultat, à côté, et deux exécutions de même clé qui diffèrent donnent deux résultats,
 côte à côte. Les décisions déjà prises gardent la provenance de celui qu'elles ont
 accepté.
+
+**Ce que portent une prise et une photo.** Trois natures s'y côtoient :
+
+- l'**idée** qui la contient est une décision, que Sacha change en regroupant (§ 9.3) ;
+- son **format**, sa **date**, l'**appareil** qui l'a faite, la **durée** d'une prise et le
+  **nom d'origine** d'une prise importée sont des **faits de la captation**. Lus une fois, sur
+  la captation ou à sa création, ils ne changent jamais, puisqu'elle est immuable. Ils sont
+  écrits dans le document du fonds, à côté de l'empreinte, pour trier et chercher sans la
+  captation, qu'un appareil n'a pas toujours
+  ([§ 31 · 6.2](31-persistance-et-synchronisation.md#62-ce-quun-appareil-garde)). Tant qu'un
+  fait n'est pas lu, il vaut `—` ([ADR-006](adr/adr-006-le-partiel-est-normal.md)) ;
+- le **diapason** d'une prise est une mesure : proposé, puis décidé d'un geste (§ 4.3).
+
+**La durée d'une prise n'est pas une durée engendrée.** Le § 13 interdit de stocker une
+durée musicale, celle d'une occurrence, d'un morceau ou d'un album : elle s'engendre de la
+forme, des mesures, de la métrique et du tempo, et se désynchroniserait si on la stockait.
+La durée d'une prise est le temps de son enregistrement : elle ne dépend d'aucune autre
+donnée, et sa captation ne change jamais. La durée d'une idée, elle, s'engendre : c'est
+celle de sa prise la plus longue. Comme toute valeur engendrée, elle prend le statut le plus
+faible de ses entrées ([§ 50 · 4.1](50-interfaces-et-appareils.md#41-statut-dune-valeur)) :
+`—` si l'idée n'a pas de prise, ou si l'une de ses prises n'a pas encore sa durée lue.
+
+### 9.3 Regrouper et relier
+
+Trois relations partent d'une idée, et chacune n'a qu'un mécanisme.
+
+| Relation | Mécanisme | Gestes | Ce qui s'écrit |
+|---|---|---|---|
+| **Versions d'une même idée** | Les prises d'une même idée : chaque prise et chaque photo appartient à une seule idée | Regrouper ([CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées)) ; accepter « ces deux prises semblent la même idée » ([CAP-05](20-sfd/21-capter-et-organiser.md#cap-05--rapprocher-des-idées-et-des-prises)) | L'idée de chaque prise ou photo regroupée |
+| **Parenté** | Un lien « apparenté à », non orienté, entre deux idées, motifs ou morceaux | Relier et délier ([CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées)) ; accepter un autre rapprochement ([CAP-05](20-sfd/21-capter-et-organiser.md#cap-05--rapprocher-des-idées-et-des-prises)) | Un lien |
+| **Ce qu'une idée est devenue** | Un lien « devenue », orienté, de l'idée vers le motif ou le morceau qu'elle a fait naître | Promouvoir ([CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées)) | Un lien |
+
+- **Regrouper** ne copie, ne fusionne et ne réécrit aucune captation : une prise ne change
+  que d'idée. Il ne mêle ni les textes, ni les étiquettes, ni les liens des deux idées :
+  chacune garde les siens. Une idée que le geste laisse sans rien, ni prise, ni photo, ni
+  texte, ni étiquette, ni lien, est retirée par le même geste (§ 9.1).
+- **Un lien se nomme par son type et ses deux bouts** (§ 2) : pour « apparenté à », non
+  orienté, les deux identifiants rangés dans l'ordre de leurs octets ; pour « devenue »,
+  l'idée, puis ce qu'elle est devenue. Deux appareils qui posent hors ligne le même lien, dans
+  un sens ou dans l'autre, n'en font qu'un, et le même lien ne s'écrit jamais deux fois. Il vit
+  dans le document du fonds, même quand un bout est un morceau : c'est une référence par
+  identifiant, pas un lien vivant entre documents (§ 5.4).
+- **Un lien ne regroupe rien, et regrouper ne lie rien** : « versions d'une même idée »
+  n'est pas un type de lien.
+- Relier une idée à elle-même est refusé, et Pupitre le dit.
 
 ---
 
@@ -519,11 +659,32 @@ lu par aucun diagnostic ([ADR-006](adr/adr-006-le-partiel-est-normal.md)).
 - Toute modification passe par une **opération nommée**, qui porte un message lisible
   (« Pont raccourci de 16 à 8 mesures »). Le journal d'un morceau est la liste de ces
   messages ; il n'est pas rédigé.
+- Le **journal du fonds** se forme de même : c'est la liste de toutes les opérations nommées
+  écrites dans le document du fonds, avec leur message (« Idée du 3 novembre :
+  étiquette #pont posée ») : sa genèse et ses migrations, sans heure
+  ([§ 31 · 2.4](31-persistance-et-synchronisation.md#24-la-version-de-schéma)), sa naissance
+  ([§ 31 · 2.3](31-persistance-et-synchronisation.md#23-la-genèse-et-le-point-de-départ-du-fonds)),
+  chaque capture, chaque import, chaque geste de tri
+  ([CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées)) et son
+  annulation, chaque requête enregistrée, renommée ou supprimée
+  ([CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds)), et les
+  réparations faites au démarrage. Il se lit dans l'historique du
+  document : rien n'est rédigé ni stocké à part, et la compaction n'en retire rien
+  ([ADR-023](adr/adr-023-stockage-des-documents.md)). Le fonds n'a ni décisions ni
+  questions : elles vivent par morceau et par album.
+- **Annuler** le dernier geste de tri écrit l'opération inverse, elle-même nommée
+  (« Annulé : étiquette #pont posée ») : l'historique n'est jamais réécrit, et le journal
+  porte le geste puis son annulation. Annuler ne vise que le dernier geste de tri fait sur
+  l'appareil depuis l'ouverture de l'application, et une annulation ne s'annule pas. Si une
+  synchronisation a changé l'élément depuis, l'annulation est refusée, et Pupitre dit ce
+  qui a changé.
 - Sacha peut consigner des **décisions** (`D001`…) et des **questions** (`Q001`…) par
   morceau et par album. Chacune a un ULID ; son numéro est attribué par le nœud à la
-  première synchronisation, et d'ici là elle s'affiche « D— » ou « Q— » (sans nœud,
-  l'appareil unique numérote lui-même). Un numéro attribué ne change plus : une décision
-  révisée garde le sien, passe au statut `révisée` et pointe vers sa remplaçante. Les
+  première synchronisation, et d'ici là elle s'affiche « D— » ou « Q— ». Sans nœud, elle
+  le reste : plusieurs appareils peuvent travailler sans lui
+  ([§ 31 · 4.1](31-persistance-et-synchronisation.md#41-la-topologie)), et aucun ne
+  saurait numéroter seul sans heurter les autres. Un numéro attribué ne change plus : une
+  décision révisée garde le sien, passe au statut `révisée` et pointe vers sa remplaçante. Les
   questions se trient **par ce qu'elles débloquent**.
 - Le compte des questions ouvertes s'engendre de leur statut, jamais d'un motif de texte.
 
@@ -547,8 +708,10 @@ lu par aucun diagnostic ([ADR-006](adr/adr-006-le-partiel-est-normal.md)).
 |---|---|
 | Un nom d'accord, un degré, une fonction | Rendus de l'objet harmonique et de la tonalité |
 | Un numéro de mesure ou d'occurrence | Engendrés par position ; stockés, ils se désynchronisent |
-| Une durée, un horodatage de section | Engendrés depuis forme, mesures, métrique et tempo |
+| Une durée musicale (d'une occurrence, d'un morceau, d'un album), un horodatage de section, la durée d'une idée | Engendrés depuis forme, mesures, métrique et tempo ; celle d'une idée, depuis ses prises. La durée d'une prise, fait de sa captation, n'en est pas ([§ 9.2](#92-prises-photos-et-analyses)) |
 | Une densité, un compte, un total, une statistique | Engendrés ; c'est la source classique des chiffres faux |
+| Les prises et les photos d'une idée, les étiquettes du fonds, l'état « reliée » d'une idée, les résultats d'une requête enregistrée | Engendrés depuis l'idée que porte chaque prise et chaque photo, les étiquettes des idées et les liens ([§ 9](#9-idées-prises-et-analyses)) ; une requête ne garde que son nom et ses critères ([CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds)) |
+| L'état « à envoyer » d'une captation ou d'une idée | Propre à l'appareil qui garde la captation : il se lit dans sa file d'envoi ([§ 31 · 2.1](31-persistance-et-synchronisation.md#21-sur-le-disque)) et dans les accusés du nœud ([§ 31 · 4.2](31-persistance-et-synchronisation.md#42-le-retour-à-la-maison)), et se montre comme le dit le [§ 31 · 4.3](31-persistance-et-synchronisation.md#43-létat-visible-de-la-synchronisation) |
 | Le matériau effectif d'une occurrence, le texte d'une occurrence qui reprend des paroles | Engendrés depuis le bloc et ses écarts, depuis l'occurrence reprise et les lignes propres |
 | Un doigté ou un renversement calculé, l'état actif ou inactif d'un épinglage | Engendrés selon le contexte ; seul l'épinglage est une décision |
 | Une valeur mesurée dans un champ décidé | Une proposition n'est jamais une décision ([ADR-004](adr/adr-004-proposer-n-est-pas-decider.md)) |
@@ -566,9 +729,13 @@ erDiagram
   FONDS ||--o{ IDEE : contient
   FONDS ||--o{ MOTIF : contient
   FONDS ||--o{ PRISE : contient
+  FONDS ||--o{ PHOTO : contient
+  FONDS ||--o{ LIEN : contient
   FONDS ||--o{ MORCEAU : contient
   FONDS ||--o{ ALBUM : contient
-  IDEE }o--o{ PRISE : regroupe
+  IDEE ||--o{ PRISE : regroupe
+  IDEE ||--o{ PHOTO : regroupe
+  LIEN }o--o{ IDEE : relie
   MORCEAU ||--o{ BLOC : definit
   MORCEAU ||--o{ OCCURRENCE : "ordonne en forme"
   BLOC ||--o{ OCCURRENCE : "est joue par"

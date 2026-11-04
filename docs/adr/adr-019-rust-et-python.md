@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Statut** | ✅ acceptée |
+| **Statut** | ✅ acceptée — amendée par [ADR-022](adr-022-documents-cote-natif.md) le 2026-11-04 |
 | **Date** | 2026-10-27 |
 | **Sert** | B01, B05 · principe P5 · contre le risque R7 |
 | **S'appuie sur** | [ADR-001](adr-001-un-seul-materiau.md) et [ADR-002](adr-002-local-first.md) |

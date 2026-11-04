@@ -530,7 +530,7 @@ depuis le morceau et **refuse** de produire un brief qui viole le profil, en nom
 contrainte ([MOR-07](20-sfd/24-morceau.md#mor-07--maquettes-et-brief-de-génération)).
 
 Pour les listes d'exclusion, une règle de doctrine du persona affine la règle d'outil :
-**exclure la manière, pas l'objet** — exclure *une démonstration virtuose* plutôt que *un
+**exclure la manière, pas l'objet** — exclure *un étalage de virtuosité* plutôt que *un
 solo de guitare*, qui tuerait aussi le bon solo. Une entrée qui nomme un objet n'est
 admise que si le style demande explicitement l'objet concurrent dans le même registre
 (exclure *contrebasse* quand le style demande *basse électrique*). Chaque entrée porte sa
