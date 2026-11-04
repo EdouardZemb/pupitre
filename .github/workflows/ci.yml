@@ -163,11 +163,11 @@ jobs:
   mutants:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    # Deux fois le passage complet mesuré, 309 mutants sur quatre cœurs : 12 min 21 s le
-    # 2026-11-02, PR #6, chaque mutant construisant aussi les tests du rendu (LE-29 de
-    # modele-projet). Le job d'une PR mute, au pire, autant. À remesurer quand le périmètre
-    # de la mutation s'étend.
-    timeout-minutes: 25
+    # Deux fois le passage complet mesuré à froid (« No cache found. »), 333 mutants sur quatre
+    # cœurs : 17 min 21 s le 2026-11-05, PR #18, chaque mutant construisant aussi les tests du
+    # rendu (LE-29 de modele-projet). Le job d'une PR mute, au pire, autant. À remesurer quand
+    # le périmètre de la mutation s'étend.
+    timeout-minutes: 35
     permissions:
       contents: read
     steps:
