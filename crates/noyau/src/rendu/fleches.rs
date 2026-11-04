@@ -21,7 +21,7 @@ const JEU_DE_LA_QUEUE: f32 = 2.0;
 /// Sous cet écart, une flèche presque droite se redresse : une oblique de 2 mm paraîtrait une
 /// erreur.
 const REDRESSE: f32 = 2.0;
-/// Deux pointes sur une même cible restent à cette distance l'une de l'autre (vigilance 4).
+/// Deux pointes sur une même cible restent à cette distance l'une de l'autre.
 const ECART_DES_POINTES: f32 = 3.0;
 /// La tolérance du calcul : un sommet posé sur un bord n'entre pas dans la case.
 const TOLERANCE: f32 = 1e-3;
@@ -121,7 +121,7 @@ pub(crate) fn depuis_une_case_sombre(source: Bout, cible: Bout, bande: usize) ->
 /// Ce qui ne doit jamais arriver à un jeu de flèches.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Defaut {
-    /// Deux pointes sur une même cible, à moins de 3 mm l'une de l'autre (vigilance 4).
+    /// Deux pointes sur une même cible, à moins de 3 mm l'une de l'autre.
     PointesProches {
         a: Position,
         b: Position,

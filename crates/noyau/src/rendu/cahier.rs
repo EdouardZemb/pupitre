@@ -62,8 +62,8 @@ fn texte_du_pied(
 }
 
 /// Pose le pied dans la zone que la page lui réserve, au bas de la hauteur utile : un filet de
-/// toute la largeur, puis le texte à 11 pt, coupé aux « · » sur deux lignes au plus (R3). Le pied
-/// s'ajoute après les éléments de la page : leurs identifiants ne changent pas.
+/// toute la largeur, puis le texte à 11 pt, coupé aux « · » sur deux lignes au plus (REN-01).
+/// Le pied s'ajoute après les éléments de la page : leurs identifiants ne changent pas.
 fn poser_le_pied(page: &mut Page, texte: &str, contexte: &Contexte) -> Result<(), Debordement> {
     let t = Corps::MIN;
     let lignes = couper_aux_points(texte, &t, UTILE_L)

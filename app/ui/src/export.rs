@@ -32,7 +32,7 @@ pub(crate) fn date_iso(annee: u32, mois: u32, jour: u32) -> String {
 }
 
 /// Ce que l'interface dit de l'export : le nom du fichier écrit, ou l'erreur ; rien si la boîte
-/// d'enregistrement a été fermée (vigilance 5).
+/// d'enregistrement a été fermée.
 pub(crate) fn message(resultat: Result<Option<String>, String>) -> Option<String> {
     match resultat {
         Ok(None) => None,

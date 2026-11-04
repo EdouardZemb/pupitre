@@ -1,4 +1,4 @@
-//! La palette sur une portée d'une octave (MIC-13, R11). Sans clé, la portée ne dit pas la
+//! La palette sur une portée d'une octave (MIC-13). Sans clé, la portée ne dit pas la
 //! hauteur absolue : la fondamentale est toujours dans le premier interligne, et chaque note
 //! monte de l'écart de sa lettre à celle de la fondamentale. Deux notes d'une même lettre (do
 //! et do♯) se posent côte à côte, à la même hauteur : aucune altération n'est dessinée, le nom

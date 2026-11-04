@@ -43,8 +43,8 @@ const UNITES: f32 = 2048.0;
 const BAS_UTILE: f32 = HAUTEUR - 6.0;
 /// Les marges de gauche et de droite.
 const MARGE_H: f32 = 5.0;
-/// Le haut de la zone que la page réserve au pied : un filet et deux lignes à 11 pt, à
-/// 1,2 cadratin l'une (R3).
+/// Le haut de la zone que la page réserve au pied (REN-01) : un filet et deux lignes à 11 pt,
+/// à 1,2 cadratin l'une.
 const HAUT_DU_PIED: f32 = BAS_UTILE - (1.2 + 2.0 * 1.2 * 11.0 * MM_PAR_PT);
 /// Ce que dit le pied d'une page de table, après l'empreinte.
 const VERSO: &str = " · verso : diagrammes et palettes des accords du centre";

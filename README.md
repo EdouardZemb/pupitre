@@ -115,12 +115,11 @@ celle du modèle, est dans
 [`docs/modele/methode.md`](docs/modele/methode.md).
 
 - **`socle / secrets`** cherche les secrets dans les commits et l'historique ;
-- **`socle / confidentialite`** refuse une donnée d'identité dans le diff, les messages de
-  commit et le texte de la PR ;
-- **`contenu`** refuse les fuites détectables mécaniquement dans les fichiers — e-mail,
-  secret, export de mémoire, fichier audio ou MIDI, chemin de machine
-  ([script](scripts/verif-confidentialite.sh)) ; noms et paroles restent l'affaire de la
-  relecture ;
+- **`socle / confidentialite`** refuse, entre autres, une donnée d'identité dans le diff, les
+  messages de commit et le texte de la PR ;
+- **`contenu`** refuse les fuites détectables mécaniquement dans les fichiers, comme une
+  adresse e-mail ou un chemin de machine ([script](scripts/verif-confidentialite.sh)) ; noms
+  et paroles restent l'affaire de la relecture ;
 - **`documentation`** vérifie que chaque diagramme se rend, que chaque lien interne mène
   quelque part, et que chaque fait recopié dit la même chose que sa source
   ([liens](scripts/verif-liens.mjs), [diagrammes](scripts/verif-diagrammes.mjs),

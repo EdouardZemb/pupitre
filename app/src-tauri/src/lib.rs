@@ -39,7 +39,7 @@ fn nom_propose(d: &Date) -> String {
 }
 
 /// Écrit le cahier à l'endroit choisi, et rend le nom du fichier écrit. Sans endroit, la boîte
-/// a été fermée : rien ne s'engendre, rien ne s'écrit, et rien n'est à dire (vigilance 5).
+/// a été fermée : rien ne s'engendre, rien ne s'écrit, et rien n'est à dire.
 ///
 /// Le cahier s'écrit d'abord dans un fichier voisin, `<nom>.<processus>.partiel`, qui prend
 /// ensuite la place du fichier choisi : un cahier qui existait reste entier jusqu'au dernier

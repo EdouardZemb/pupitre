@@ -20,9 +20,9 @@ jobs:
     uses: ./.github/workflows/modele-socle.yml
     secrets: inherit
 
-  # Refuse les fuites de données personnelles détectables mécaniquement : e-mail,
-  # secret, export de mémoire, audio ou MIDI, chemin absolu de machine.
-  # Nommé `contenu` pour ne pas se confondre avec `socle / confidentialite`. Voir CONVENTIONS.md.
+  # Refuse les fuites de données personnelles détectables mécaniquement dans les fichiers
+  # suivis ; CONVENTIONS.md (« Portes de CI ») dit lesquelles.
+  # Nommé `contenu` pour ne pas se confondre avec `socle / confidentialite`.
   contenu:
     runs-on: ubuntu-latest
     permissions:

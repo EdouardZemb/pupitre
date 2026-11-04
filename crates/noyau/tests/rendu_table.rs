@@ -1,5 +1,5 @@
 //! La page de la table : elle tient pour les 24 tonalités, dit ses réglages, et ses flèches
-//! relient chacune deux cases (MIC-12 · 7, vigilances 1 et 4).
+//! relient chacune deux cases (MIC-12 · 7).
 
 mod commun;
 

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Verification de confidentialite — porte de CI de ce depot.
 #
-# Refuse si une donnee personnelle entre dans le depot. Ce depot est un
-# referentiel de conception : ni paroles, ni audio, ni identite, ni secret.
+# Refuse si une donnee personnelle entre dans le depot. Ce depot est public :
+# ni paroles, ni audio, ni identite, ni secret.
 #
-# Usage : scripts/verif-confidentialite.sh
+# Usage : bash scripts/verif-confidentialite.sh
 # Sortie : 0 si rien trouve, 1 sinon. Chaque constat est imprime avec son fichier.
 
 set -uo pipefail

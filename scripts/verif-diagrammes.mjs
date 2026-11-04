@@ -7,8 +7,9 @@
 //
 // Prerequis (non versionnes) :
 //   npm install --no-save --no-package-lock @mermaid-js/mermaid-cli@12.0.0
+//   npx --no-install puppeteer browsers install chrome
 // CHROME_PATH, s'il est defini, designe le navigateur a employer ; sinon celui
-// que Puppeteer a telecharge.
+// que Puppeteer a telecharge, par la seconde commande.
 //
 // Usage : node scripts/verif-diagrammes.mjs
 // Sortie : 0 si tous les diagrammes se rendent, 1 sinon.
