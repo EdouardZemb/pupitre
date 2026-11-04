@@ -251,7 +251,7 @@ accords suivants avec INC-4 ([§ 40 · 9](../40-architecture.md#9-trajectoire-de
 | **Texte du miroir** | Export | Tout le contenu décidé d'un morceau | L'historique fin |
 | **Brief de génération** | Export | Selon le profil d'outil ([MOR-07](24-morceau.md#mor-07--maquettes-et-brief-de-génération)) | — |
 | **Rapport de provenance** | Export | Origine de chaque élément ([PRO-02](26-propositions-suggestions-provenance.md#pro-02--provenance-et-part-dorigine)) | — |
-| **Archive complète du fonds** | Export, import | Documents, historique compris, captations, et le miroir dès qu'il existe ([§ 31 · 9.1](../31-persistance-et-synchronisation.md#91-sans-nœud-larchive-complète)) | — |
+| **Archive complète du fonds** | Export, réimportation | Documents, historique compris, captations, et le miroir dès qu'il existe ([§ 31 · 9.1](../31-persistance-et-synchronisation.md#91-sans-nœud-larchive-complète)) | — |
 
 - Un export **avec perte** dit, avant de partir, ce qui sera perdu.
 - Les exports emploient les variantes **retenues**.

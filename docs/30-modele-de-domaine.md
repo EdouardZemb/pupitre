@@ -187,6 +187,7 @@ numéro de mesure ou d'une position. Les numéros que l'interface affiche (« me
 | Objet | Identifiant | Stable ? | Pourquoi |
 |---|---|---|---|
 | Morceau, album, idée, motif, requête enregistrée | ULID (`01J…`) | **Oui, à vie** | Un titre change ; un morceau peut ne pas en avoir |
+| Document du fonds, document de réglages | ULID, écrit à sa naissance ([§ 31 · 2.3](31-persistance-et-synchronisation.md#23-la-genèse-et-le-point-de-départ-du-fonds)) | **Oui, à vie** | La synchronisation n'apparie que des copies d'un même document, et deux fonds nés chacun de son côté ne se mêlent jamais |
 | Bloc, occurrence, mesure, phrase | ULID | **Oui** | Insérer une mesure ne doit réécrire aucun autre élément |
 | Événement d'accord, note | ULID | **Oui** | Une syllabe s'aligne sur une note précise ; un écart cible un élément précis |
 | Ligne de texte | ULID | **Oui, à vie** | La provenance et la chaîne des retouches en dépendent |
@@ -561,7 +562,7 @@ stateDiagram-v2
   celles de ses idées, et aucune liste n'est stockée à part.
 - Les **prises** et les **photos** d'une idée ne sont pas une liste de l'idée : chacune
   porte l'idée à laquelle elle appartient (§ 9.2), et la liste s'en engendre. Deux appareils
-  qui versent hors ligne la même prise dans deux idées donnent deux valeurs en conflit,
+  qui regroupent hors ligne la même prise dans deux idées donnent deux valeurs en conflit,
   jamais une prise dans deux idées.
 - Une idée est **reliée** quand elle porte au moins un lien (§ 9.3) dont l'autre bout n'est
   pas une idée retirée. Cet état s'engendre ; il n'est jamais stocké.
@@ -592,7 +593,7 @@ accepté.
 
 - l'**idée** qui la contient est une décision, que Sacha change en regroupant (§ 9.3) ;
 - son **format**, sa **date**, l'**appareil** qui l'a faite, la **durée** d'une prise et le
-  **nom d'origine** d'une prise versée sont des **faits de la captation**. Lus une fois, sur
+  **nom d'origine** d'une prise importée sont des **faits de la captation**. Lus une fois, sur
   la captation ou à sa création, ils ne changent jamais, puisqu'elle est immuable. Ils sont
   écrits dans le document du fonds, à côté de l'empreinte, pour trier et chercher sans la
   captation, qu'un appareil n'a pas toujours
@@ -615,7 +616,7 @@ Trois relations partent d'une idée, et chacune n'a qu'un mécanisme.
 
 | Relation | Mécanisme | Gestes | Ce qui s'écrit |
 |---|---|---|---|
-| **Versions d'une même idée** | Les prises d'une même idée : chaque prise et chaque photo appartient à une seule idée | Regrouper ([CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées)) ; accepter « ces deux prises semblent la même idée » ([CAP-05](20-sfd/21-capter-et-organiser.md#cap-05--rapprocher-des-idées-et-des-prises)) | L'idée de chaque prise ou photo versée |
+| **Versions d'une même idée** | Les prises d'une même idée : chaque prise et chaque photo appartient à une seule idée | Regrouper ([CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées)) ; accepter « ces deux prises semblent la même idée » ([CAP-05](20-sfd/21-capter-et-organiser.md#cap-05--rapprocher-des-idées-et-des-prises)) | L'idée de chaque prise ou photo regroupée |
 | **Parenté** | Un lien « apparenté à », non orienté, entre deux idées, motifs ou morceaux | Relier et délier ([CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées)) ; accepter un autre rapprochement ([CAP-05](20-sfd/21-capter-et-organiser.md#cap-05--rapprocher-des-idées-et-des-prises)) | Un lien |
 | **Ce qu'une idée est devenue** | Un lien « devenue », orienté, de l'idée vers le motif ou le morceau qu'elle a fait naître | Promouvoir ([CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées)) | Un lien |
 
@@ -658,10 +659,15 @@ lu par aucun diagnostic ([ADR-006](adr/adr-006-le-partiel-est-normal.md)).
 - Toute modification passe par une **opération nommée**, qui porte un message lisible
   (« Pont raccourci de 16 à 8 mesures »). Le journal d'un morceau est la liste de ces
   messages ; il n'est pas rédigé.
-- Le **journal du fonds** se forme de même : c'est la liste des opérations nommées écrites
-  dans le document du fonds, chaque capture, chaque import et chaque geste de tri
-  ([CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées)), avec leur
-  message (« Idée du 3 novembre : étiquette #pont posée »). Il se lit dans l'historique du
+- Le **journal du fonds** se forme de même : c'est la liste de toutes les opérations nommées
+  écrites dans le document du fonds, avec leur message (« Idée du 3 novembre :
+  étiquette #pont posée ») : sa naissance et ses migrations, sans heure
+  ([§ 31 · 2.4](31-persistance-et-synchronisation.md#24-la-version-de-schéma)), chaque
+  capture, chaque import, chaque geste de tri
+  ([CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées)) et son
+  annulation, chaque requête enregistrée, renommée ou supprimée
+  ([CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds)), et les
+  réparations faites au démarrage. Il se lit dans l'historique du
   document : rien n'est rédigé ni stocké à part, et la compaction n'en retire rien
   ([ADR-023](adr/adr-023-stockage-des-documents.md)). Le fonds n'a ni décisions ni
   questions : elles vivent par morceau et par album.
@@ -703,8 +709,8 @@ lu par aucun diagnostic ([ADR-006](adr/adr-006-le-partiel-est-normal.md)).
 | Un numéro de mesure ou d'occurrence | Engendrés par position ; stockés, ils se désynchronisent |
 | Une durée musicale (d'une occurrence, d'un morceau, d'un album), un horodatage de section, la durée d'une idée | Engendrés depuis forme, mesures, métrique et tempo ; celle d'une idée, depuis ses prises. La durée d'une prise, fait de sa captation, n'en est pas ([§ 9.2](#92-prises-photos-et-analyses)) |
 | Une densité, un compte, un total, une statistique | Engendrés ; c'est la source classique des chiffres faux |
-| Les prises et les photos d'une idée, les étiquettes du fonds, l'état « reliée » d'une idée, les résultats d'une requête enregistrée | Engendrés depuis l'idée que porte chaque prise et chaque photo, les étiquettes des idées et les liens ; une requête ne garde que son nom et ses critères ([§ 9](#9-idées-prises-et-analyses)) |
-| L'état « à envoyer » d'une captation ou d'une idée | Propre à l'appareil qui garde la captation : il se lit dans sa file d'envoi et dans les accusés du nœud ([§ 31 · 4.3](31-persistance-et-synchronisation.md#43-létat-visible-de-la-synchronisation)) |
+| Les prises et les photos d'une idée, les étiquettes du fonds, l'état « reliée » d'une idée, les résultats d'une requête enregistrée | Engendrés depuis l'idée que porte chaque prise et chaque photo, les étiquettes des idées et les liens ([§ 9](#9-idées-prises-et-analyses)) ; une requête ne garde que son nom et ses critères ([CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds)) |
+| L'état « à envoyer » d'une captation ou d'une idée | Propre à l'appareil qui garde la captation : il se lit dans sa file d'envoi ([§ 31 · 2.1](31-persistance-et-synchronisation.md#21-sur-le-disque)) et dans les accusés du nœud ([§ 31 · 4.2](31-persistance-et-synchronisation.md#42-le-retour-à-la-maison)), et se montre comme le dit le [§ 31 · 4.3](31-persistance-et-synchronisation.md#43-létat-visible-de-la-synchronisation) |
 | Le matériau effectif d'une occurrence, le texte d'une occurrence qui reprend des paroles | Engendrés depuis le bloc et ses écarts, depuis l'occurrence reprise et les lignes propres |
 | Un doigté ou un renversement calculé, l'état actif ou inactif d'un épinglage | Engendrés selon le contexte ; seul l'épinglage est une décision |
 | Une valeur mesurée dans un champ décidé | Une proposition n'est jamais une décision ([ADR-004](adr/adr-004-proposer-n-est-pas-decider.md)) |

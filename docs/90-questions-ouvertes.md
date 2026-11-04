@@ -160,6 +160,8 @@ externe : une maquette entière, ou ses stems. Le lot 1 d'INC-1 livre l'import
   ([§ 30 · 9.2](30-modele-de-domaine.md#92-prises-photos-et-analyses)) ;
 - ce que l'établi lit seul d'un fichier versé, puisque CAP-03 confie le décodage au nœud,
   absent jusqu'au lot 3 ;
+- ce que la lecture simple du lot 1, celle de la WebView, sait jouer des formats versés, et
+  ce que montre une prise qu'elle ne sait pas jouer ;
 - les volumes : un fonds de stems pèse bien plus qu'un fonds de mémos vocaux, et l'archive
   complète les emporte tous.
 
@@ -328,7 +330,7 @@ coût est dit.
 | # | Arbitrage | Pourquoi | Coût d'un renversement |
 |---|---|---|---|
 | A01 | Hauteurs stockées **relatives à une tonique de référence** | Transposition légère, refrains modulés, tonalités indécises ([ADR-008](adr/adr-008-hauteurs-relatives.md)) | Élevé : une migration du modèle, à faire avant toute donnée réelle |
-| A02 | Un motif placé est **copié avec suivi**, pas lié | Un lien vivant entre documents serait fragile ([§ 30 · 5.4](30-modele-de-domaine.md#54-motifs-placés)) | Moyen : ajouter un type de lien |
+| A02 | Un motif placé est **copié avec suivi**, pas lié | Un lien vivant entre documents serait fragile ([§ 30 · 5.4](30-modele-de-domaine.md#54-motifs-placés)) | Moyen : ajouter un lien vivant entre documents |
 | A03 | Une ligne de texte est une **valeur atomique** ; un conflit devient une variante | Une ligne fusionnée caractère par caractère est une ligne que personne n'a écrite | Faible : un réglage de fusion |
 | A04 | **Pas de détection automatique** de la langue d'une ligne | Trop peu fiable sur une ligne ; appliquerait les mauvaises règles en silence | Faible : une proposition de langue, à accepter |
 | A05 | Au-delà de **50 % de mesures douteuses**, une liste d'indices plutôt qu'une grille | Une grille majoritairement douteuse présentée comme une grille est une affirmation | Faible : un seuil |

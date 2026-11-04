@@ -168,6 +168,13 @@ garde le noyau en WebAssembly pour dessiner ce qu'elle reçoit
 ([ADR-022](adr/adr-022-documents-cote-natif.md) ;
 [§ 7.5](#75-linterface-la-csp-et-les-commandes)).
 
+**Hors d'`etabli`.** Les services d'application, les adaptateurs `Documents` et `Captations`
+et le cœur de la couche de synchronisation vivent hors de la crate Tauri, puisqu'ils se
+compilent aussi en WebAssembly pour la construction navigateur
+([ADR-022](adr/adr-022-documents-cote-natif.md)). Les types des commandes, qu'emploie
+l'interface, ne tirent ni `automerge` ni les services. Le plan court d'H07, qui écrit le
+premier de ces adaptateurs, fixe les crates et leurs noms.
+
 | Composant | Responsabilité | Exemples |
 |---|---|---|
 | **Opérations nommées** | Seule porte d'écriture ; une opération = une modification atomique par document + un message ([§ 31 · 3](31-persistance-et-synchronisation.md#3-les-opérations-nommées)) | `placerMotif`, `raccourcirBloc`, `accepterProposition` |
@@ -470,9 +477,18 @@ script de l'interface, dont le chargeur en ligne que Trunk écrit dans `index.ht
 | `default-src` | `'self'` | Rien que les fichiers de l'application |
 | `script-src` | `'self' 'wasm-unsafe-eval'` | L'interface est un module WebAssembly, que la WebView compile ; son seul script en ligne, le chargeur de Trunk, n'est admis que par l'empreinte que Tauri ajoute ; ni `'unsafe-inline'`, ni `eval` |
 | `style-src` | `'self'` | La feuille de style de l'interface. Un style calculé se pose propriété par propriété (`style:left=…` en Leptos, soit `style.setProperty`), jamais par un attribut `style`, ni par `cssText`, que la CSP refuse. Les trois styles calculés d'INC-0 (`app/ui/src/vue_table.rs`, `style_du_recouvrement` et `style_de_la_palette` ; `app/ui/src/panneau_palette.rs`, la largeur) passent ainsi en propriétés au lot 1, avant que la CSP ne soit posée |
-| `img-src`, `media-src` | `'self'`, et le protocole des captations, qui s'écrit `http://<protocole>.localhost` sous Windows et Android, comme `ipc` | Une photo, une prise : le côté natif les sert par leur empreinte, en lecture seule, et rien d'autre. Le protocole de fichiers de Tauri (`asset:`), qui sert tout un dossier, n'est pas employé. Si `useHttpsScheme` est un jour posé, la valeur passe en `https` |
+| `img-src`, `media-src` | `'self'`, et le protocole des captations, `captation`, qui s'écrit `http://captation.localhost` sous Windows et Android, comme `ipc` | Une photo, une prise : le côté natif les sert par leur empreinte, en lecture seule, et rien d'autre. Le protocole de fichiers de Tauri (`asset:`), qui sert tout un dossier, n'est pas employé. Si `useHttpsScheme` est un jour posé, la valeur passe en `https` |
 | `connect-src` | `'self'`, et le canal des commandes de Tauri (`ipc:`, `http://ipc.localhost`) | L'interface ne lit que ses propres fichiers, son module WebAssembly compris, et ne parle qu'au côté natif ; la synchronisation se fait de ce côté-là ([ADR-022](adr/adr-022-documents-cote-natif.md)) |
 | `object-src`, `frame-src`, `base-uri`, `form-action` | `'none'` | Rien à incorporer, rien à envoyer |
+
+La CSP exacte, que `tauri.conf.json` recopie :
+
+```text
+default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' http://captation.localhost; media-src 'self' http://captation.localhost; connect-src 'self' ipc: http://ipc.localhost; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'
+```
+
+La comparaison porte sur `tauri.conf.json`, avant que Tauri n'y ajoute, à la construction,
+les empreintes des scripts.
 
 **Les droits de Tauri** ne permettent à l'interface que ce qu'ils nomment.
 
@@ -489,7 +505,7 @@ script de l'interface, dont le chargeur en ligne que Trunk écrit dans `index.ht
 
 | Plateforme | Appareil | Ce que l'interface peut appeler |
 |---|---|---|
-| Windows | 💻 Établi | L'export du cahier des tables, depuis INC-0 ; au lot 1 d'INC-1, les opérations nommées et les requêtes du fonds, l'import, l'archive complète et la reprise depuis l'archive, et la relance sur la démonstration ou sur le fonds |
+| Windows | 💻 Établi | L'export du cahier des tables, depuis INC-0 ; au lot 1 d'INC-1, les opérations nommées et les requêtes du fonds, l'import, l'archive complète et la reprise depuis l'archive, la relance sur la démonstration ou sur le fonds, et, en mode démonstration seulement, réécrire le jeu factice ou engendrer le fonds de mesure |
 | Android | 📱 Carnet, puis 📖 lutrin | Rien, tant que la PR de conception du lot 2 n'a pas nommé les commandes du carnet |
 | Toute autre | — | Rien : aucune n'est une cible |
 
@@ -500,7 +516,7 @@ destructrice, quand elle viendra, se confirmera du côté natif, hors de l'inter
 injecté ne peut pas confirmer à la place de Sacha.
 
 La liste exacte des commandes vit dans ces fichiers, et nulle part ailleurs : I31 la compare
-aux commandes de l'application, et la CSP à ce tableau
+aux commandes de l'application, et la CSP au bloc de la CSP exacte, plus haut
 ([§ 70 · 3](70-qualite-et-verification.md#3-les-invariants-et-leurs-tests)). Si un écran
 demande davantage, la PR qui l'ajoute le dit et l'écrit ici.
 
@@ -544,16 +560,26 @@ flowchart TB
   de l'application est construite en CI et installée à la main : elle ne s'installe
   jamais d'elle-même, donc jamais au milieu d'une saisie.
 - **L'application** : la même sur les trois appareils, sous un seul identifiant,
-  `app.pupitre`, qui remplace `app.pupitre.etabli` au lot 1 d'INC-1, avant la première
-  donnée réelle. L'identifiant fixe le dossier de l'application : changé plus tard, il
-  laisserait derrière lui tout ce que ce dossier contient. INC-0 n'y range aucune donnée :
-  le changement ne perd rien. Sa version suit les numéros de version des lots, `vX.Y.Z` : la
-  PR de clôture d'un lot l'écrit, `0.3.0` pour le lot 1, à un seul endroit, `tauri.conf.json`,
-  que lisent les constructions Windows et Android ; les `Cargo.toml` ne la recopient pas.
+  `app.pupitre`, qui remplace `app.pupitre.etabli` dans la PR de clôture du lot 1 d'INC-1,
+  avec la version `0.3.0`, avant la première donnée réelle. L'identifiant fixe le dossier de
+  l'application : changé plus tard, il laisserait derrière lui tout ce que ce dossier
+  contient. INC-0 n'y range aucune donnée, et les constructions du lot 1 n'y rangent que des
+  essais : le changement ne perd rien. Sous Windows, c'est le dossier que Tauri nomme
+  `app_local_data_dir` (`%LOCALAPPDATA%\app.pupitre`), et non `app_data_dir`, dans le profil
+  itinérant : les captations pèsent, et sont propres à la machine. Sous Android, les deux
+  sont le même. Ce choix se fixe, comme l'identifiant, avant la première donnée réelle. La
+  version de l'application suit les numéros de version des lots, `vX.Y.Z` : la PR de clôture
+  d'un lot l'écrit, `0.3.0` pour le lot 1, à un seul endroit, `tauri.conf.json`, que lisent
+  les constructions Windows et Android ; les `Cargo.toml` ne la recopient pas.
   Sous Android, le code de version, qui doit croître d'une version à l'autre, se déduit
   d'elle (majeur × 1 000 000 + mineur × 1 000 + correctif). Sans elle dans
   `tauri.conf.json`, Tauri prendrait sous Windows celle du `Cargo.toml`, mais garderait 1.0
-  sous Android, avec un code de version figé à 1. Une version nouvelle s'installe par-dessus
+  sous Android, avec un code de version figé à 1. Le côté natif la lit par le `PackageInfo`
+  de Tauri (`app.package_info().version`, tiré de `tauri.conf.json`), et la passe en
+  argument à ce qui l'écrit, comme la date du cahier : le `LISEZMOI.md` de l'archive la prend
+  ainsi ([§ 31 · 9.1](31-persistance-et-synchronisation.md#91-sans-nœud-larchive-complète)).
+  `CARGO_PKG_VERSION`, qui suit les `Cargo.toml`, n'est jamais la version de Pupitre. La
+  version qui a apporté une migration s'écrit, elle, avec la migration. Une version nouvelle s'installe par-dessus
   la précédente, jamais après une désinstallation : sous Android, elle emporte le dossier de
   l'application, et les captations à envoyer avec lui ; sous Windows, elle l'emporte dès que
   la case du désinstalleur qui efface les données de l'application est cochée
@@ -679,7 +705,7 @@ flowchart LR
     ([CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds)), et la vue du
     fonds, sans ses morceaux
     ([CAP-07](20-sfd/21-capter-et-organiser.md#cap-07--voir-le-fonds)). L'archive complète
-    du fonds, critère 4 de
+    du fonds, critères 4 et 5 de
     [SYN-07](20-sfd/29-socle-donnees-appareils.md#syn-07--exporter-et-importer), et la
     reprise depuis elle d'une racine des données abîmée
     ([§ 31 · 2.1](31-persistance-et-synchronisation.md#21-sur-le-disque)). Le mode
@@ -696,9 +722,9 @@ flowchart LR
     test doit un jour être suivi, il vit dans un seul dossier, que la porte exempte, et la PR
     qui l'y met le dit. La CSP et les droits de Tauri du
     [§ 7.5](#75-linterface-la-csp-et-les-commandes) sont posés, et, avant eux, les trois
-    styles calculés d'INC-0 repris en propriétés. Avant
-    toute donnée réelle, l'application prend l'identifiant `app.pupitre`, et sa version
-    suit celle du lot ([§ 8](#8-déploiement)) ;
+    styles calculés d'INC-0 repris en propriétés. Dans la PR de clôture du lot,
+    l'application prend l'identifiant `app.pupitre` et la version `0.3.0`
+    ([§ 8](#8-déploiement)) ;
   - **lot 2, le carnet**, en `v0.4.0`. L'application Android du carnet, qui capte l'audio,
     le texte et la photo hors ligne
     ([CAP-01](20-sfd/21-capter-et-organiser.md#cap-01--capter-en-un-geste),
@@ -741,8 +767,12 @@ flowchart LR
   ([A14](90-questions-ouvertes.md#les-arbitrages-pris-dans-cette-conception) : I29),
   l'appairage et la clé épinglée ([ADR-021](adr/adr-021-cle-du-noeud-epinglee.md) : I22,
   I24 et H08), le miroir (I12) et la restauration (la ligne 6 des portes,
-  [§ 70 · 8](70-qualite-et-verification.md#8-les-portes-de-ci)). Quatre de ces preuves
+  [§ 70 · 8](70-qualite-et-verification.md#8-les-portes-de-ci)). Cinq de ces preuves
   s'éprouvent sur ce qu'INC-1 livre, pas sur tout ce que leur source nomme :
+  - au lot 1, I10 et la convergence du test 3 du
+    [§ 31 · 10](31-persistance-et-synchronisation.md#10-les-tests-qui-verrouillent-ce-document),
+    sur le cœur de la couche de synchronisation, sans réseau ; au lot 3, la même par le
+    transport, avec le relevé des conflits ;
   - au lot 2, I16 et le critère 1 de SYN-01 : capter, réécouter une prise, chercher, en
     mode avion. Retoucher une ligne s'y ajoute avec INC-2, demander des accords suivants
     avec INC-4 : le parcours S1 entier, que vise l'ADR-002, est tenu à INC-4 ;
@@ -753,6 +783,9 @@ flowchart LR
     appairent. Charger les échantillons, que nomme l'ADR-021, s'y ajoute avec
     [ECO-01](20-sfd/27-ecoute-et-compagnon.md#eco-01--écoute-de-contrôle), en INC-3 ;
   - au lot 4, I12, sur le document du fonds. IR-9, qui relit un morceau, attend INC-2.
+
+  Les autres s'éprouvent au lot qui livre le code qu'elles verrouillent
+  ([§ 70 · 8](70-qualite-et-verification.md#8-les-portes-de-ci)).
 - **Il ne contient pas** les morceaux, l'écoute de contrôle, les analyses, l'application du
   lutrin ni le document de réglages. Ce qui en découle :
   - **le tri** s'y borne à compléter le texte, étiqueter, relier deux idées et les délier,
@@ -800,7 +833,11 @@ flowchart LR
     l'[ADR-023](adr/adr-023-stockage-des-documents.md). Deux répliques du fonds, modifiées
     hors ligne, se réunissent par le protocole de synchronisation d'Automerge ; une copie de
     la racine des données, restaurée dans un dossier neuf, relit chaque captation contre son
-    empreinte. L'archive complète reste une fonction du lot 1, que son plan construit. Le
+    empreinte. Le code de l'essai reste : l'adaptateur sur fichiers et le cœur de la couche
+    de synchronisation en partent, et le plan du lot 1 les complète. Il tourne sous Windows,
+    la plateforme de l'établi, où le renommage suit sa voie propre
+    ([§ 31 · 2.1](31-persistance-et-synchronisation.md#21-sur-le-disque)), et sous Linux ;
+    son plan court dit dans quels jobs. L'archive complète reste une fonction du lot 1, que son plan construit. Le
     cœur de la couche maison
     ([§ 31 · 4.4](31-persistance-et-synchronisation.md#44-la-couche-de-synchronisation))
     naît donc au lot 1, sans réseau ; le lot 3 lui donne son transport, WebSocket en TLS.
@@ -857,7 +894,9 @@ flowchart LR
     d'ouvrage pose elle-même en secret de la CI : chaque version s'installe par-dessus la
     précédente, et Android refuse une mise à jour signée d'une autre clé ; la sauvegarde
     automatique d'Android, coupée, pour que le dossier de l'application ne quitte pas le
-    téléphone ; la porte `contenu`, élargie aux formats audio d'Android et aux images ;
+    téléphone ; la porte `contenu`, élargie aux formats audio d'Android et aux images ; le
+    format des photos et des images dessinées du jeu factice, qui s'écrit sans crate de plus
+    ([§ 31 · 1](31-persistance-et-synchronisation.md#1-trois-natures-de-données-quatre-lieux)) ;
   - lot 3 : le détail d'H08 ; l'[ADR-017](adr/adr-017-noeud-en-conteneurs.md), acceptée
     avant son plan ; le nœud, sa machine et son disque externe, vérifiés avant l'essai et
     décrits hors de ce dépôt public
@@ -869,7 +908,10 @@ flowchart LR
     regroupements d'une même prise, un retrait contre une modification —, qu'Automerge ne
     garde que jusqu'à la prochaine écriture
     ([§ 31 · 5](31-persistance-et-synchronisation.md#5-les-conflits)) ; l'emploi au nœud de
-    la pile TLS et de l'échange PAKE choisis au lot 2 ; si la démonstration rejoint un nœud,
+    la pile TLS et de l'échange PAKE choisis au lot 2 ; la forme de la file d'envoi et des
+    accusés dans `appareil.txt`
+    ([§ 31 · 2.1](31-persistance-et-synchronisation.md#21-sur-le-disque)) ; si la
+    démonstration rejoint un nœud,
     dans son propre silo
     ([M-0001](modele/decisions/M-0001-ecosysteme-des-applications-personnelles.md)) ;
     [Q07](90-questions-ouvertes.md#q07--synchroniser-hors-du-foyer-par-un-réseau-privé-) ;

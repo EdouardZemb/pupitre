@@ -287,7 +287,8 @@ pas dans ce budget.
 | Application | `tauri`, et ses greffons pour les fichiers et le micro : `tauri-plugin-dialog`, la boîte d'enregistrement du cahier des tables ([REN-07](20-sfd/28-rendus-encre-impression.md#ren-07--imprimer)) | Applications |
 | Application | `wasm-bindgen`, `wasm-bindgen-futures`, `js-sys` | L'interface appelle les commandes du côté natif (`invoke` de Tauri), écoute le signal d'un document changé, et lit la date du jour, celle de l'export du cahier |
 | Application (côté natif), nœud | `automerge` | Documents, synchronisation |
-| Application (côté natif), nœud | `getrandom` | L'aléa des identifiants : l'ULID d'une idée et d'une lignée, l'UUID de l'identifiant de propriétaire, que le noyau reçoit en argument ([§ 70 · 1](70-qualite-et-verification.md#1-la-stratégie)) ; un acteur neuf vient d'Automerge |
+| Application (côté natif), nœud | `getrandom` | L'aléa des identifiants : l'ULID d'une idée et d'une lignée, l'UUID de l'identifiant de propriétaire, que le noyau forme lui-même de seize octets d'aléa reçus en argument (version 4 : quatre bits de version, deux de variante), sans crate de plus ([§ 70 · 1](70-qualite-et-verification.md#1-la-stratégie)) ; un acteur neuf vient d'Automerge |
+| Application | `serde`, et dans l'interface `serde-wasm-bindgen`, ou `serde_json` lu par `JSON.parse`, que choisit le plan du lot 1 | Les arguments, les réponses et les vues des commandes, typés une fois pour les deux côtés ([ADR-022](adr/adr-022-documents-cote-natif.md)) |
 | Application | Verovio, en WebAssembly | Portée, à partir d'INC-2 |
 | Application | Une bibliothèque d'inférence ONNX en Rust, choisie au banc (H04) | Transcrire un fredonnement |
 | Noyau | Une crate d'identifiants ULID | Identifiants stables ([§ 30](30-modele-de-domaine.md)) |

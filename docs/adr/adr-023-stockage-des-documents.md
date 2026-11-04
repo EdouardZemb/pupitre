@@ -29,14 +29,16 @@ Ce que fait Automerge, lu dans la documentation et le code de la crate `automerg
 dans la spécification de son format binaire et dans son guide de modélisation :
 
 - `save` enregistre tout le document ; `save_after(heads)`, les seules modifications qui ne
-  descendent pas de `heads`. `save_incremental`, d'un `AutoCommit`, rend ce qui suit le
+  sont ni dans `heads` ni parmi leurs dépendances, directes ou transitives : celles faites
+  depuis `heads`, ou à côté. `save_incremental`, d'un `AutoCommit`, rend ce qui suit le
   dernier `save` ou `save_incremental` de cette instance : une instance que `load` vient de
   lire n'en a aucun, et il rend alors tout l'historique ; `load_incremental` ne l'avance pas.
   `load` et `load_incremental` relisent l'un et l'autre.
-- Un fichier Automerge est une suite de blocs, chacun avec sa somme de contrôle : un bloc
-  altéré arrête la lecture. `load` refuse alors le fichier ; `load_incremental`, sur un
-  document déjà lu, s'arrête au premier bloc altéré ou tronqué sans le dire, et rend ce
-  qu'il a lu. Un bloc de document « always contains a complete history of changes ».
+- Un fichier Automerge est une suite de tronçons (*chunks*), chacun avec sa somme de
+  contrôle : un tronçon altéré arrête la lecture. `load` refuse alors le fichier ;
+  `load_incremental`, sur un document déjà lu, s'arrête au premier tronçon altéré ou
+  incomplet sans le dire, et rend ce qu'il a lu. Un tronçon de document « always contains a
+  complete history of changes ».
 - Une modification dont les dépendances manquent attend, sans être appliquée ; une
   modification déjà appliquée est ignorée.
 - Chaque modification porte son acteur, son heure et son message. Les modifications d'un
@@ -56,9 +58,9 @@ Quatre faits du projet pèsent :
   ([§ 40 · 8](../40-architecture.md#8-déploiement)) : deux versions de Pupitre se croisent un
   temps.
 - Un document reconstruit depuis le miroir a une autre histoire : fusionné avec une copie
-  restée sur un appareil, chacun de ses éléments s'y heurterait à son double : dans une
-  table, l'un cacherait l'autre, avec ce qu'on lui a écrit depuis ; dans une liste, les
-  deux paraîtraient ([§ 31 · 8.1](../31-persistance-et-synchronisation.md#81-ce-que-cest)).
+  restée sur un appareil, chacun de ses éléments s'y heurterait à son double : dans un
+  objet à clés, l'un cacherait l'autre, avec ce qu'on lui a écrit depuis ; dans une liste,
+  les deux paraîtraient ([§ 31 · 8.1](../31-persistance-et-synchronisation.md#81-ce-que-cest)).
 
 ## Décision
 
@@ -71,9 +73,10 @@ Le détail est au [§ 31 · 2](../31-persistance-et-synchronisation.md#2-les-doc
 2. **Chaque fichier s'écrit à côté, puis se renomme**, comme l'export du cahier des tables.
    Une opération nommée n'est faite qu'une fois son fichier d'ajout en place. Si l'écriture
    échoue, l'opération est refusée, et le document se relit du disque : la mémoire ne garde
-   jamais ce que le disque n'a pas. Un fichier d'ajout resté provisoire, mais entier, se
-   reconnaît à son empreinte et prend sa place au démarrage ; une opération refusée retire
-   le sien. Un document n'est lu par la synchronisation qu'entre deux opérations : une
+   jamais ce que le disque n'a pas. Un fichier resté provisoire mais entier ne se perd pas au
+   démarrage : un fichier d'ajout se reconnaît à son empreinte et prend sa place ; un
+   fichier complet, que `load` lit sans erreur, se lit avec le document, et la compaction de
+   l'ouverture le fond. Une opération refusée retire le sien. Un document n'est lu par la synchronisation qu'entre deux opérations : une
    modification ne part vers le nœud qu'une fois son fichier d'ajout en place.
 3. **La compaction réécrit le fichier complet**, historique compris, le relit, puis retire
    les seuls fichiers d'ajout qu'il absorbe. Elle ne retire jamais d'histoire.
@@ -123,7 +126,8 @@ l'ADR-002 ne change pas.
 - Deux versions de Pupitre se croisent sans rien abîmer.
 - Une reconstruction depuis le miroir ne fusionne jamais avec l'ancienne lignée : rien ne
   s'y double ni ne s'y cache.
-- Une seule dépendance de plus, `getrandom`, pour l'aléa des identifiants, la lignée comprise
+- Une seule dépendance de plus pour le stockage, `getrandom`, pour l'aléa des identifiants,
+  la lignée comprise
   ([§ 41 · 6](../41-pile-technique.md#6-le-budget-de-dépendances)) ; Automerge, `sha2` et le
   système de fichiers suffisent au reste, renommage compris.
 
@@ -132,7 +136,9 @@ l'ADR-002 ne change pas.
 - La genèse et chaque migration se figent à leur publication, c'est-à-dire à la première
   étiquette `vX.Y.Z` qui les porte : `v0.3.0` pour la genèse du fonds. Avant elle, aucune
   construction ne reçoit de donnée réelle, ni l'essai H07, ni les constructions du lot 1,
-  qui tournent en mode démonstration ou sur un dossier jetable. Une erreur s'y corrige
+  qui gardent l'identifiant `app.pupitre.etabli` : rien de ce qu'elles écrivent n'entre
+  dans le dossier de la `v0.3.0`
+  ([§ 40 · 8](../40-architecture.md#8-déploiement)). Une erreur s'y corrige
   ensuite par une migration de plus, jamais en réécrivant.
 - Une migration ne touche que la racine du document. Changer la structure d'objets
   existants, au-delà d'un ajout, demandera une décision écrite, et sans doute une
@@ -154,7 +160,7 @@ l'ADR-002 ne change pas.
 | Option | Pourquoi |
 |---|---|
 | Un seul fichier, réécrit en entier à chaque écriture | Chaque geste réécrit tout le document, historique compris, pour quelques modifications ; sur le téléphone, c'est de l'usure et de l'attente pour rien |
-| Un seul fichier, où chaque écriture s'ajoute à la fin | Une écriture coupée laisse un bloc tronqué, et un bloc altéré arrête la lecture : il faudrait réparer le fichier à l'ouverture. Un fichier par écriture, renommé une fois entier, n'a rien à réparer |
+| Un seul fichier, où chaque écriture s'ajoute à la fin | Une écriture coupée laisse un tronçon incomplet, et un tronçon altéré arrête la lecture : il faudrait réparer le fichier à l'ouverture. Un fichier par écriture, renommé une fois entier, n'a rien à réparer |
 | Une base SQLite | Les documents sont des octets et les captations des fichiers : une base n'y ajoute rien ([§ 41 · 4](../41-pile-technique.md#4-les-choix-couche-par-couche)) |
 | Une compaction qui oublie l'histoire ancienne | Le journal et le retour avant une opération en dépendent ; et seules deux copies d'une même histoire fusionnent |
 | Chaque appareil crée son fonds, et la synchronisation les réunit | Deux naissances font deux documents, d'identifiants différents, que la synchronisation n'apparie jamais ([§ 31 · 2.3](../31-persistance-et-synchronisation.md#23-la-genèse-et-le-point-de-départ-du-fonds)) ; réunis de force, leur identifiant, leur lignée et leur identifiant de propriétaire se heurteraient, et l'appareil ne saurait plus quel fonds il ouvre. Sans genèse commune, leurs conteneurs de la racine du document se disputeraient en plus les mêmes clés, et l'un cacherait l'autre |

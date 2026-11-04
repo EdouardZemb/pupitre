@@ -20,9 +20,10 @@ C'est un héritage de la pile où tout tournait dans un navigateur
 
 Avec Tauri ([ADR-020](adr-020-leptos-et-tauri.md)), une application a deux côtés :
 l'interface, en WebAssembly dans la WebView du système, et le **côté natif**, le code Rust
-de l'application, hors de la WebView. Le schéma de la pile ne dit pas duquel vivent les
-documents Automerge ([ADR-003](adr-003-crdt-et-miroir-durable.md)) et leur synchronisation
-([§ 41 · 2](../41-pile-technique.md#2-la-pile-en-un-schéma)). INC-1 y fait entrer les
+de l'application, hors de la WebView. Le schéma de la pile
+([§ 41 · 2](../41-pile-technique.md#2-la-pile-en-un-schéma)) ne disait pas, avant cette ADR,
+de quel côté vivent les documents Automerge ([ADR-003](adr-003-crdt-et-miroir-durable.md))
+et leur synchronisation. INC-1 y fait entrer les
 premières données réelles : il faut le trancher avant.
 
 Quatre faits pèsent :
@@ -62,10 +63,13 @@ Quatre faits pèsent :
   d'elle, par une synchronisation ou une capture, le côté natif le lui signale, et elle
   redemande ce qu'elle montre.
 - **Seule exception, en lecture** : une photo ou une prise se lit par le protocole des
-  captations ([§ 40 · 7.5](../40-architecture.md#75-linterface-la-csp-et-les-commandes)).
+  captations, `captation`
+  ([§ 40 · 7.5](../40-architecture.md#75-linterface-la-csp-et-les-commandes)).
   Ce protocole n'est pas une commande, et les droits ne le nomment pas : son gestionnaire, du
   côté natif, ne sert qu'une empreinte connue des documents de la racine des données
-  ouverte, et refuse tout autre chemin.
+  ouverte, et refuse tout autre chemin. Il donne le type que le document nomme pour la
+  captation, et répond aux requêtes partielles (`Range`), chaque réponse bornée, pour qu'une
+  prise longue se lise et se parcoure sans être chargée en entier.
 - **Chaque commande est permise par son nom**, dans les droits de Tauri, plateforme par
   plateforme. Une commande que les droits ne nomment pas est refusée. Les droits et la
   politique de sécurité du contenu sont au
@@ -79,8 +83,10 @@ Quatre faits pèsent :
   sont servies dans l'interface même, par les mêmes services d'application. Rien ne s'y
   écrit sur disque, rien ne s'y synchronise, aucune clé ne s'y épingle. Un parcours qui
   demande une captation y reçoit de même un adaptateur `Captations` en mémoire. Ces
-  adaptateurs n'entrent que dans la construction navigateur : l'interface des applications
-  ne les porte pas.
+  adaptateurs n'entrent que dans la construction navigateur et dans les tests du côté natif,
+  où l'adaptateur `Documents` en mémoire passe la même suite de tests des commandes que celui
+  des fichiers ([§ 40 · 9](../40-architecture.md#9-trajectoire-de-construction)) : aucune
+  application installée ne les porte.
 
 ```mermaid
 flowchart LR
@@ -167,9 +173,12 @@ cette ADR ne le change pas.
 - Construite pour les applications, l'interface ne lie ni `automerge`, ni les services
   d'application, ni une pile TLS : son graphe de dépendances le montre, en CI.
 - L'interface n'emploie aucun stockage du navigateur : un contrôle statique y refuse
-  IndexedDB, le stockage local et OPFS.
+  IndexedDB, `localStorage`, `sessionStorage` et OPFS.
 - La même suite de tests des commandes passe sur l'adaptateur `Documents` en mémoire et sur
   celui des fichiers.
+- Une requête partielle au protocole des captations, sur une empreinte connue, rend les
+  seuls octets demandés, avec le type que nomme le document ; une requête ouverte rend une
+  part bornée.
 - **I28** : hors de l'adaptateur `Documents`, aucun code n'écrit dans un document, ni
   l'interface, ni le module Kotlin.
 - **I31** : un test relit les droits de Tauri de chaque plateforme ; aucune commande n'est

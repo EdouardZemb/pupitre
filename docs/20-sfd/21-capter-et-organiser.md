@@ -312,7 +312,10 @@ de problème.
   - **par motif harmonique** : une suite de degrés (« IV–iv–I »), cherchée dans toutes les
     grilles, pour chaque candidat quand la tonalité est indécise ;
   - **par motif mélodique** : un contour ou une suite d'intervalles ;
-  - **par texte** : dans le texte des idées et dans les lignes, filtrable par provenance ;
+  - **par texte** : dans le texte des idées et dans les lignes, filtrable par provenance.
+    Chaque mot cherché doit paraître, entier ou en fragment, dans le texte de l'idée ou de la
+    ligne, sans égard à la casse ni aux accents : « eglise » trouve « Église », « oe »
+    trouve « œ » ;
   - **par provenance** : « tout ce qui vient d'une piste générative ».
 - **Toute réponse déclare son assiette** : « 3 morceaux en mi mineur · 6 dont la tonalité
   n'est pas décidée · 41 interrogés ».
@@ -357,6 +360,8 @@ cherche pas dans l'encre.
 9. *Étant donné* une idée dont une prise dure 30 s et une autre n'a pas de durée lue,
    *quand* Sacha cherche les idées de plus d'une minute, *alors* elle compte parmi les « sans
    durée ».
+10. *Étant donné* une idée dont le texte est « Église du port », *quand* Sacha cherche
+    « eglise », *alors* elle est dans la réponse.
 
 ---
 
@@ -386,8 +391,10 @@ cherche pas dans l'encre.
 aujourd'hui ».
 
 **Cas limites**
-- Fonds vide : une page explique les premiers gestes (capter, importer, créer) et propose de
-  réimporter une archive complète
+- Fonds vide : une page explique les premiers gestes (capter, importer, créer). Dans un
+  Pupitre neuf, dont la racine des données n'a encore aucun document
+  ([§ 31 · 2.3](../31-persistance-et-synchronisation.md#23-la-genèse-et-le-point-de-départ-du-fonds)),
+  elle propose aussi de réimporter une archive complète
   ([SYN-07](29-socle-donnees-appareils.md#syn-07--exporter-et-importer) · 4).
 - Morceau à identité seule : une ligne lisible, avec des `—`.
 
