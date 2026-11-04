@@ -4,8 +4,8 @@ Une décision par fichier, numérotée sur trois chiffres, **jamais renuméroté
 supprimée**. Une décision remplacée garde son fichier et son numéro, passe au statut
 `remplacée`, et pointe vers celle qui la remplace. Exception unique : la refonte du
 2026-10-11 a remplacé toute la série précédente, ADR-1 à ADR-8, conservée dans
-l'historique git (commit `0044944`) ; les numéros à trois chiffres de la nouvelle série
-ne réemploient pas ces identifiants.
+l'historique du dépôt privé `pupitre-donnees` (commit `0044944`) ; les numéros à trois
+chiffres de la nouvelle série ne réemploient pas ces identifiants.
 
 > **Série refondée le 2026-10-11.** La série précédente était écrite autour d'une matière
 > et d'une installation particulières. Les principes qui répondaient à des besoins

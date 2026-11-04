@@ -15,7 +15,7 @@ examine_globs = [
 # rendu dessinent les 48 pages de table, les 72 versos et les fiches de chaque case, et la suite
 # complète prend une minute et demie en debug, contre deux secondes et demie sans eux. Ils
 # appellent la théorie sans la vérifier : ses propres tests tuent tous ses mutants (0 survivant
-# en PR 4, avant le rendu). Un nouveau fichier de tests de ces modules s'ajoute à cette liste.
+# en PR #5, avant le rendu). Un nouveau fichier de tests de ces modules s'ajoute à cette liste.
 additional_cargo_test_args = [
     "--lib",
     "--test", "hauteur",

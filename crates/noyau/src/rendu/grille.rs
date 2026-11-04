@@ -22,9 +22,9 @@ pub(crate) const RETRAIT: f32 = 1.0;
 /// L'espace entre un filet et le texte qui le suit ou le précède.
 pub(crate) const SOUS_FILET: f32 = 1.2;
 /// L'en-tête, toujours sur deux lignes, même quand il tiendrait sur une : le haut de la
-/// table ne bouge pas d'une page à l'autre du cahier (R3).
+/// table ne bouge pas d'une page à l'autre du cahier.
 pub(crate) const LIGNES_D_EN_TETE: usize = 2;
-/// Le pied, que le cahier pose : un filet et deux lignes à 11 pt (R3).
+/// Le pied, que le cahier pose : un filet et deux lignes à 11 pt (REN-01).
 pub(crate) const LIGNES_DU_PIED: usize = 2;
 
 /// Le bord gauche de la colonne `c`.

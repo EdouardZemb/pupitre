@@ -15,7 +15,7 @@ conception, avec ce que coûterait leur renversement : aucun n'est irréversible
 | Mobilité | **Tout fonctionne hors ligne**, sauf l'analyse lourde et l'IA générative, qui attendent le retour au foyer ; synchronisation au retour, **aucune exposition publique** | [ADR-002](adr/adr-002-local-first.md), [ADR-021](adr/adr-021-cle-du-noeud-epinglee.md) |
 | Son | **Écoute de contrôle** : vérifier l'écrit, sans production | [ADR-009](adr/adr-009-ecoute-de-controle.md) |
 | IA | Détection, **et pistes de contenu** (accords suivants, rimes, variantes), toujours sous décision humaine. Lu comme incluant l'explication des constats par un modèle — à confirmer (A15) | [ADR-004](adr/adr-004-proposer-n-est-pas-decider.md), [ADR-005](adr/adr-005-des-pistes-pas-des-reponses.md) |
-| Ancienne documentation | **Remplacée** ; elle reste dans l'historique git | [README](../README.md) |
+| Ancienne documentation | **Remplacée** ; elle reste dans l'historique du dépôt privé `pupitre-donnees` | [README](../README.md#la-série-précédente) |
 
 ---
 
@@ -25,8 +25,9 @@ Aucune question ouverte ne bloque plus le début de l'implémentation : Q02 est 
 (plus bas). Les trois ADR qu'INC-0 met en jeu et qui restaient proposées,
 [001](adr/adr-001-un-seul-materiau.md), [008](adr/adr-008-hauteurs-relatives.md) et
 [010](adr/adr-010-trois-appareils-mode-encre.md), sont acceptées depuis le 2026-10-28, et
-les questions sur ce qu'il calcule sont tranchées le même jour : le plan d'INC-0 peut
-s'écrire ([§ 40 · 9](40-architecture.md#9-trajectoire-de-construction)).
+les questions sur ce qu'il calcule sont tranchées le même jour : le plan d'INC-0 a pu
+s'écrire ([§ 40 · 9](40-architecture.md#9-trajectoire-de-construction)), et INC-0 est livré
+([Statut](../README.md#statut)).
 
 ---
 

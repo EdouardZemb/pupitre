@@ -19,7 +19,7 @@ pub(crate) struct Recouvrement {
 }
 
 /// La page de la table, la cible de la case touchée en inverse. Une case sans cible ne met rien
-/// en inverse (vigilance 3).
+/// en inverse.
 pub(crate) fn rendre(
     table: &Table,
     instrument: Instrument,

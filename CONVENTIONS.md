@@ -1,8 +1,9 @@
 # Conventions
 
-Volontairement minces. Ce dépôt est d'abord un référentiel documentaire, lu sur un écran
-d'ordinateur, un téléphone et une tablette à encre. Tout cérémonial ajouté ici doit se
-justifier par un incident réel, pas par une bonne pratique générale.
+Volontairement minces. Ce dépôt porte la conception de Pupitre, et son code à partir d'INC-0.
+La conception se lit sur un écran d'ordinateur, un téléphone et une tablette à encre. Tout
+cérémonial ajouté ici doit se justifier par un incident réel, pas par une bonne pratique
+générale.
 
 ## Écrire la documentation
 
@@ -17,7 +18,10 @@ justifier par un incident réel, pas par une bonne pratique générale.
   situations `S1`, principes `P1`, risques `R1`, indicateurs `IR-1`, fonctions `CAP-01`,
   diagnostics `DG-P1`, invariants `I01`, hypothèses `H01`, incréments `INC-1`, questions
   `Q01`, arbitrages `A01`, ADR `adr-NNN-sujet.md`. Un identifiant retiré n'est jamais
-  réattribué ; le [glossaire](docs/80-glossaire.md#le-projet) les recense.
+  réattribué ; le [glossaire](docs/80-glossaire.md) les recense, sauf les fonctions, à
+  l'[index de la SFD](docs/20-sfd/README.md#les-fonctions), les diagnostics, au
+  [§ 60 · 3](docs/60-moteur-musical.md#3-le-catalogue-des-diagnostics), et les ADR, à
+  [leur index](docs/adr/README.md).
 - **Un fait à un seul endroit.** Un compte, une plage ou une liste qui décrivent le dépôt
   s'écrivent là où ils sont définis ; ailleurs, on y renvoie. Ceux qui restent recopiés, la
   porte `documentation` les compare à leur source (« Portes de CI », plus bas). Elle impose
@@ -103,11 +107,11 @@ rouge arrête la fusion : on ne fusionne pas une PR rouge.
 | Porte | Ce qu'elle refuse | Script | Pourquoi elle existe |
 |---|---|---|---|
 | `socle / secrets` | Un secret dans un commit ou dans l'historique | Fournie par le modèle (gitleaks) | Un secret poussé est un secret à changer |
-| `socle / confidentialite` | Une donnée d'identité dans le diff, les messages de commit ou le texte de la PR | [`scripts/modele/confidentialite.py`](scripts/modele/confidentialite.py) | Le modèle protège tous ses dépôts de la même façon |
-| `contenu` | Une donnée personnelle dans les fichiers du dépôt : e-mail, secret, export de mémoire, fichier audio ou MIDI, chemin absolu de machine | [`verif-confidentialite.sh`](scripts/verif-confidentialite.sh) | Le dépôt ne doit rien dire de personne. Nommée `contenu` pour ne pas se confondre avec `socle / confidentialite` |
+| `socle / confidentialite` | Une donnée d'identité dans le diff, les messages de commit ou le texte de la PR ; un commit ou un titre de PR hors du format Conventional Commits ; un `.claude/settings.json` qui ne branche plus le garde de Claude ou `signaux.py` | [`scripts/modele/confidentialite.py`](scripts/modele/confidentialite.py), [`scripts/modele/commits.py`](scripts/modele/commits.py) et une étape de [`modele-socle.yml`](.github/workflows/modele-socle.yml) | Le modèle protège tous ses dépôts de la même façon |
+| `contenu` | Une donnée personnelle dans les fichiers du dépôt : e-mail, secret, export de mémoire, fichier audio, MIDI ou partition, chemin absolu de machine | [`verif-confidentialite.sh`](scripts/verif-confidentialite.sh) | Le dépôt ne doit rien dire de personne. Nommée `contenu` pour ne pas se confondre avec `socle / confidentialite` |
 | `documentation` | Un diagramme qui ne se rend pas ; un lien interne ou une ancre qui ne mène nulle part ; un fait recopié qui diverge de sa source : les plages des familles d'identifiants du glossaire, les comptes des ADR et leur ventilation par statut, leur index et leur graphe, les fonctions de la SFD (leur compte, leur index, la matrice de traçabilité), les portes et les jobs, la règle de protection (dite à un seul endroit, et comparée en CI à celle de GitHub), les crates, et les comptes écrits en lettres dans le README, `CLAUDE.md` et ce fichier | [`verif-diagrammes.mjs`](scripts/verif-diagrammes.mjs), [`verif-liens.mjs`](scripts/verif-liens.mjs), [`verif-faits.mjs`](scripts/verif-faits.mjs) et ses tests | Pendant la refonte d'octobre 2026, des diagrammes se sont cassés sur leur syntaxe ; sur GitHub, un diagramme cassé s'affiche comme un message d'erreur. Les faits recopiés : trois fois, une PR a changé un fait à un endroit et l'a oublié ailleurs (AM-1, LE-8, LE-9) |
 | `verifier` | Un code Rust mal formaté, un avertissement de `clippy`, un test rouge (le noyau, le cahier, l'interface, dont `clippy` sur son code de test et pour WebAssembly) | `cargo fmt`, `cargo clippy`, `cargo test` | Le noyau calcule la théorie et dessine les pages : une erreur y fausse tous les rendus. La chaîne est épinglée par `rust-toolchain.toml`. Son `timeout-minutes` est provisoire, à ramener à deux fois un passage mesuré à froid (LE-29 de `modele-projet`) |
-| `windows` | Un établi qui ne se construit pas en installateur Windows (NSIS), un avertissement de `clippy` sur l'établi, ou un cahier des tables qui ne s'engendre pas ; il dépose en artefacts l'installateur, `etabli-installateur`, et le cahier des tables daté du commit construit (sur une PR, le commit de fusion d'essai de GitHub, donc du jour du passage), `cahier-des-tables` | `cargo tauri build`, `cargo clippy -p etabli`, `cargo run -p cahier --release` | H10 : l'application doit s'ouvrir sur un PC Windows, et seule une construction sur Windows le prouve. Le cahier des tables (REN-01, REN-07) se juge sur la tablette et sur papier : l'artefact le met entre les mains de la maîtrise d'ouvrage. Son `timeout-minutes` vaut deux fois la durée du premier passage mesuré (LE-29 de `modele-projet`) |
+| `windows` | Un établi qui ne se construit pas en installateur Windows (NSIS), un avertissement de `clippy` ou un test rouge sur l'établi, ou un cahier des tables qui ne s'engendre pas ; il dépose en artefacts l'installateur, `etabli-installateur`, et le cahier des tables daté du commit construit (sur une PR, le commit de fusion d'essai de GitHub, donc du jour du passage), `cahier-des-tables` | `cargo tauri build`, `cargo clippy -p etabli`, `cargo test -p etabli`, `cargo run -p cahier --release` | H10 : l'application doit s'ouvrir sur un PC Windows, et seule une construction sur Windows le prouve. Le cahier des tables (REN-01, REN-07) se juge sur la tablette et sur papier : l'artefact le met entre les mains de la maîtrise d'ouvrage. Son `timeout-minutes` vaut deux fois la durée du premier passage mesuré (LE-29 de `modele-projet`) |
 | `mutants` | Un mutant du noyau (la théorie, la palette, le clavier et la guitare) qu'aucun test de ces modules ne tue, dans les lignes que la PR modifie ; seulement sur une PR. Le passage complet a lieu chaque lundi et à la demande, par `mutants-complet.yml` | `cargo mutants -p noyau --in-diff` (`.cargo/mutants.toml`) | La famille 3 des garde-fous de la méthode : la mutation des tests du domaine. Un test qui reste vert quand le code est faussé ne protège rien |
 
 `contenu` et `documentation` ignorent les chemins gérés par le modèle (`.githooks/`,
@@ -159,8 +163,9 @@ S'y ajoutent les deux garde-fous du modèle
 - le hook `pre-push` (`.githooks/pre-push`), qui refuse **tout envoi** vers `main` :
   création, mise à jour, force-push, suppression. Il est actif une fois le dépôt cloné et
   `git config core.hooksPath .githooks` posé ;
-- le garde de Claude, branché dans `.claude/settings.json`, qui refuse aussi un envoi vers
-  `main`, `--no-verify` et toute modification de `core.hooksPath`.
+- le garde de Claude, branché dans `.claude/settings.json`, qui refuse aussi, entre autres, un
+  envoi vers `main`, `--no-verify` et toute modification de `core.hooksPath` autre que sa
+  réparation, `git config core.hooksPath .githooks`.
 
 ## Ce qui n'entre jamais dans ce dépôt
 

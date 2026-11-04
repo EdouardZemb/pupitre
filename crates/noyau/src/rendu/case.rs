@@ -29,7 +29,7 @@ pub enum Etat {
 pub(crate) const POINTE: f32 = 3.0;
 /// Le diamètre d'une pastille de fonction (§ 50 · 6.3).
 pub(crate) const PASTILLE: f32 = 3.0;
-/// 0,5 pt : le trait des quatre cadres, le même pour tous (R21).
+/// 0,5 pt : le trait des quatre cadres, le même pour tous (§ 50 · 3.7).
 const TRAIT_CADRE: f32 = TRAIT_MOYEN;
 /// 0,5 pt : le trait d'une flèche.
 const TRAIT_FLECHE: f32 = TRAIT_MOYEN;
@@ -51,8 +51,8 @@ fn a_des_coins(famille: Famille) -> bool {
     matches!(famille, Famille::Emprunt | Famille::Sombre)
 }
 
-/// L'arrondi ou la coupe des coins d'une case : le quart de son petit côté (R10). Un cadre
-/// droit ou en pointe n'en a pas.
+/// L'arrondi ou la coupe des coins d'une case : le quart de son petit côté (§ 50 · 3.7). Un
+/// cadre droit ou en pointe n'en a pas.
 pub(crate) fn coin(famille: Famille, r: Rect) -> f32 {
     if a_des_coins(famille) {
         r.l.min(r.h) / 4.0

@@ -8,8 +8,8 @@ failles le même jour ; ses constats retenus sont intégrés ici : le module Kot
 l'épinglage de la clé plutôt que du certificat, l'échange PAKE, les polices et les essais
 H07 à H10 ([§ 40 · 11](40-architecture.md#11-hypothèses-à-confronter)).
 
-Les versions des crates ne sont pas épinglées ici : elles le seront au premier commit de
-code, dans [INC-0](40-architecture.md#9-trajectoire-de-construction).
+Les versions des crates ne sont pas épinglées ici, mais par `Cargo.lock`
+([§ 8](#8-les-versions)).
 
 ---
 
@@ -96,7 +96,7 @@ la règle d'exposition : rien d'exposé sur Internet.
 |---|---|---|---|
 | **Noyau** | Une crate Rust pure, sans entrées-sorties, partagée par l'interface (en WebAssembly), le nœud et les tests. Tests de mutation par `cargo-mutants` | Le noyau TypeScript de l'ADR-012 (pile écartée) ; une implémentation par plateforme, qui divergerait ([ADR-001](adr/adr-001-un-seul-materiau.md)) | Les pistes de règles, calculées hors ligne ([MIC-08](20-sfd/22-micro-motif-et-phrase.md#mic-08--parcourir-la-carte-des-chemins)), et la validation des pistes génératives au nœud ([PRO-04](20-sfd/26-propositions-suggestions-provenance.md#pro-04--passerelle-ia-et-consentement)) : le même code des deux côtés |
 | **Interface** | Leptos, rendue côté client, compilée en WebAssembly | Svelte 5 (ADR-013, pile écartée) ; Dioxus ; Slint (§ 5.1) | Les éditeurs fins : la loupe ([MIC-01](20-sfd/22-micro-motif-et-phrase.md#mic-01--ouvrir-la-loupe)), la frise ([MOR-05](20-sfd/24-morceau.md#mor-05--voir-la-frise)), le plan d'album ([ALB-04](20-sfd/25-album.md#alb-04--voir-le-plan-dalbum)) ; la sobriété du mode encre ([REN-05](20-sfd/28-rendus-encre-impression.md#ren-05--mode-encre)) |
-| **Applications** | Tauri 2. Les APK sont construits en CI et installés à la main sur le téléphone et la tablette à encre | Une application web installée (pile écartée) ; une application native par plateforme, soit trois bases d'interface | Capter depuis le téléphone verrouillé, en 3 s au plus ([CAP-01](20-sfd/21-capter-et-organiser.md#cap-01--capter-en-un-geste), H01) ; tout faire hors ligne ([SYN-01](20-sfd/29-socle-donnees-appareils.md#syn-01--travailler-hors-ligne)) |
+| **Applications** | Tauri 2. À partir d'INC-1, les APK sont construits en CI et installés à la main sur le téléphone et la tablette à encre | Une application web installée (pile écartée) ; une application native par plateforme, soit trois bases d'interface | Capter depuis le téléphone verrouillé, en 3 s au plus ([CAP-01](20-sfd/21-capter-et-organiser.md#cap-01--capter-en-un-geste), H01) ; tout faire hors ligne ([SYN-01](20-sfd/29-socle-donnees-appareils.md#syn-01--travailler-hors-ligne)) |
 | **Stockage sur l'appareil** | Des fichiers dans le dossier de l'application : les documents Automerge et les captations, nommées par leur empreinte. IndexedDB et OPFS disparaissent | IndexedDB et OPFS (pile écartée : un stockage de navigateur, sous quota) ; une base SQLite (des documents qui sont des octets et des captations qui sont des fichiers : une base n'y ajoute rien) | Ne rien perdre d'une captation avant l'accusé de réception ([SYN-04](20-sfd/29-socle-donnees-appareils.md#syn-04--acheminer-les-captations), I15) ; travailler hors ligne ([SYN-01](20-sfd/29-socle-donnees-appareils.md#syn-01--travailler-hors-ligne)) |
 | **Synchronisation** | La crate `automerge`, à version épinglée, et une couche maison en étoile, sur WebSocket en TLS. Le format de stockage, la compaction et la sauvegarde sont définis avant INC-1 (H07) | automerge-repo (pile écartée) ; samod, le dépôt Automerge en Rust (A21) ; Yjs (§ 5.2) | Synchroniser à la maison ([SYN-02](20-sfd/29-socle-donnees-appareils.md#syn-02--synchroniser-à-la-maison)), trancher les conflits ([SYN-03](20-sfd/29-socle-donnees-appareils.md#syn-03--trancher-les-conflits)), bifurquer en variantes ([MOR-11](20-sfd/24-morceau.md#mor-11--bifurquer-en-variantes)) |
 | **Nœud** | axum, en conteneurs sans racine ([ADR-017](adr/adr-017-noeud-en-conteneurs.md)). git pour le miroir, restic pour les sauvegardes | Node.js et Fastify (pile écartée) ; un service en Python, qui dupliquerait le noyau (§ 5.5) | Le miroir ([SYN-05](20-sfd/29-socle-donnees-appareils.md#syn-05--tenir-le-miroir-durable)), la sauvegarde ([SYN-06](20-sfd/29-socle-donnees-appareils.md#syn-06--sauvegarder-et-restaurer)), l'appairage ([SYN-08](20-sfd/29-socle-donnees-appareils.md#syn-08--appairer-et-révoquer-des-appareils)) |
@@ -106,7 +106,7 @@ la règle d'exposition : rien d'exposé sur Internet.
 | **Analyse légère** | En Rust, sur l'appareil. Un accord joué se reconnaît à son **chromagramme**, pas par une détection de fondamentale. Un fredonnement se transcrit par un modèle ONNX dans une bibliothèque d'inférence Rust, choisie au banc (H04) | pitchy et basic-pitch en TF.js (pile écartée) ; une détection de fondamentale pour nommer un accord, qui n'entend qu'une note ; tout analyser au nœud, donc rien au piano sans réseau ([ADR-014](adr/adr-014-analyse-en-deux-etages.md)) | Nommer un accord joué ([ECO-03](20-sfd/27-ecoute-et-compagnon.md#eco-03--nommer-un-accord-joué)), accorder ([ECO-04](20-sfd/27-ecoute-et-compagnon.md#eco-04--accordeur-et-diapason)), fredonner ([ECO-06](20-sfd/27-ecoute-et-compagnon.md#eco-06--fredonner-une-mélodie)) |
 | **Analyse lourde** | En Python, dans un conteneur du nœud, derrière un contrat d'entrées-sorties. Réexaminée à INC-4 | Tout en Rust dès maintenant : les modèles de séparation, de pulsations et de transcription vivent en Python ; madmom et allin1, plus entretenus | La tonalité et le tempo proposés ([MOR-04](20-sfd/24-morceau.md#mor-04--tonalité-tempo-métrique)), la maquette confrontée à l'écrit ([MOR-08](20-sfd/24-morceau.md#mor-08--confronter-une-maquette-à-lécrit)), la seconde transcription d'un fredonnement ([ECO-06](20-sfd/27-ecoute-et-compagnon.md#eco-06--fredonner-une-mélodie)) |
 | **Passerelle IA** | En Rust, au nœud ; l'API distante par HTTP | Le SDK TypeScript du fournisseur (pile écartée) ; un appel direct depuis l'appareil, sans consentement ni journal ([§ 40 · 10](40-architecture.md#10-ce-que-larchitecture-refuse)) | Demander des pistes ([PRO-03](20-sfd/26-propositions-suggestions-provenance.md#pro-03--demander-des-pistes)), la passerelle et le consentement ([PRO-04](20-sfd/26-propositions-suggestions-provenance.md#pro-04--passerelle-ia-et-consentement)) |
-| **CI** | Le job `verifier` lance `cargo fmt --check`, `cargo clippy -D warnings` et `cargo test` ; `cargo-mutants` passe sur le noyau ; les constructions Windows et Android tournent (H10) | Construire les applications à la main, sur un poste : une construction qui ne se rejoue pas | Les critères d'acceptation exécutables de toute la SFD ([§ 70 · 4](70-qualite-et-verification.md#4-les-critères-dacceptation-de-la-sfd)), les invariants ([§ 70 · 3](70-qualite-et-verification.md#3-les-invariants-et-leurs-tests)) |
+| **CI** | Le job `verifier` lance `cargo fmt --check`, `cargo clippy -D warnings` et `cargo test` ; `cargo-mutants` passe sur le noyau ; la construction Windows tourne, et celle d'Android à partir d'INC-1 (H10) | Construire les applications à la main, sur un poste : une construction qui ne se rejoue pas | Les critères d'acceptation exécutables de toute la SFD ([§ 70 · 4](70-qualite-et-verification.md#4-les-critères-dacceptation-de-la-sfd)), les invariants ([§ 70 · 3](70-qualite-et-verification.md#3-les-invariants-et-leurs-tests)) |
 
 Hors du tableau, sans changement : **git** en ligne de commande pour le miroir (une
 bibliothèque liée donne des erreurs moins lisibles), **restic** pour la sauvegarde (borg est
@@ -136,8 +136,8 @@ Légende : ●●● excellent · ●●○ bon · ●○○ faible · ○○○
 
 **Leptos dans Tauri 2** l'emporte : une seule base d'interface en Rust, affichée par la
 WebView du système, qui garde le SVG, Verovio et une construction navigateur pour les tests.
-Sa note Android n'est que ●●○ : Tauri 2 y est récent, et la construction en CI est un essai
-d'ouverture d'INC-0 (H10). Ce que Tauri ne donne pas, la capture depuis l'écran verrouillé,
+Sa note Android n'est que ●●○ : Tauri 2 y est récent, et la construction en CI reste à prouver,
+à partir d'INC-1 (H10). Ce que Tauri ne donne pas, la capture depuis l'écran verrouillé,
 passe par un module Kotlin aussi mince que possible
 ([ADR-019](adr/adr-019-rust-et-python.md)). **Dioxus** est l'alternative la plus proche,
 mais son support d'Android est expérimental. **Slint** dessine une interface native, sans
@@ -304,7 +304,7 @@ Une dépendance entre à sa dernière version publiée, sauf quand une autre l'e
 | Risque | Signe | Parade |
 |---|---|---|
 | **Leptos** change encore d'une version à l'autre | Changements cassants | Version épinglée au premier commit ; une interface mince, sans logique métier |
-| **Tauri 2 sur Android** est récent | La construction échoue, un greffon manque | H10, essai d'ouverture d'INC-0 ; le module Kotlin pour ce que Tauri ne donne pas, et rien de plus |
+| **Tauri 2 sur Android** est récent | La construction échoue, un greffon manque | H10, pour Android, à partir d'INC-1 ; le module Kotlin pour ce que Tauri ne donne pas, et rien de plus |
 | Les **WebView** de Windows et d'Android rendent différemment | Une page qui varie d'un appareil à l'autre | Des pages SVG de taille fixe, polices embarquées, texte en tracés ; vérifiées sur l'appareil ([§ 70 · 7](70-qualite-et-verification.md#7-les-contrôles-à-lœil-sur-lappareil)) |
 | **svg2pdf** ne couvre pas tout SVG | Un PDF qui diffère de sa page | Un sous-ensemble de SVG limité et vérifié ; H09, essai d'ouverture d'INC-0 |
 | La **couche de synchronisation maison** perd ou fait diverger | Deux répliques qui ne convergent pas ; une captation altérée après restauration | Format, compaction et sauvegarde définis avant INC-1 ; H07 ; I10, I11, I14 ; repli sur samod (A21) |
@@ -322,6 +322,8 @@ Une dépendance entre à sa dernière version publiée, sauf quand une autre l'e
 
 ## 8. Les versions
 
-Aucune version n'est épinglée dans la conception. Les crates le sont au premier commit de
-code, dans INC-0, par `Cargo.lock` ; les paquets Python de l'analyseur, par `uv lock`. Le
-relevé du 2026-10-11, qui portait sur la pile écartée, reste dans l'historique git.
+Ce document n'épingle aucune version ; celles qu'il cite expliquent un choix ou une
+contrainte. Les crates sont épinglées par `Cargo.lock` depuis le premier commit de code, dans
+INC-0 ; les paquets Python de l'analyseur le sont par `uv lock`, dès qu'il entre. Le
+relevé du 2026-10-11, qui portait sur la pile écartée, reste dans l'historique du dépôt privé
+`pupitre-donnees`.
