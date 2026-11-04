@@ -1,10 +1,9 @@
 //! La racine des données d'un fonds et son verrou (§ 31 · 2.1).
 
 use std::fs::{self, File, OpenOptions, TryLockError};
-use std::io;
 use std::path::{Path, PathBuf};
 
-use crate::Erreur;
+use crate::{Captations, Erreur, disque};
 
 /// Une racine des données ouverte, dont ce processus tient le verrou : il est seul à en écrire
 /// les documents tant qu'elle reste ouverte.
@@ -51,11 +50,9 @@ impl RacineDesDonnees {
     pub fn chemin(&self) -> &Path {
         &self.chemin
     }
-}
 
-fn disque(chemin: &Path, erreur: io::Error) -> Erreur {
-    Erreur::Disque {
-        chemin: chemin.to_path_buf(),
-        erreur,
+    /// Les captations de la racine des données, dans son dossier `captations/` (§ 31 · 6.1).
+    pub fn captations(&self) -> Captations<'_> {
+        Captations::de(self)
     }
 }
