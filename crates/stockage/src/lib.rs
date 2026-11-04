@@ -3,6 +3,7 @@
 //! l'ADR-023 (§ 31 · 2.1). Il ne devine aucun chemin : il reçoit celui de la racine des
 //! données (I30).
 
+pub mod fichier;
 mod racine_des_donnees;
 
 use std::path::PathBuf;
