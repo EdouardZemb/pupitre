@@ -1,6 +1,6 @@
 //! Les aides des tests du stockage : le dossier jetable de chaque test, ce que contient un
-//! dossier, des octets engendrés au lieu d'un fichier, la copie d'un arbre de fichiers, et les
-//! gestes de test sur le fonds.
+//! dossier, des octets engendrés au lieu d'un fichier, un texte long, la copie d'un arbre de
+//! fichiers, et les gestes de test sur le fonds.
 
 // Chaque fichier de test n'emploie qu'une partie des aides.
 #![allow(dead_code)]
@@ -60,6 +60,16 @@ pub fn octets(graine: u8, longueur: usize) -> Vec<u8> {
             etat = etat.wrapping_mul(MULTIPLICATEUR).wrapping_add(INCREMENT);
             (etat >> 56) as u8
         })
+        .collect()
+}
+
+/// 2 000 lettres de `a` à `z`, la n-ième `b'a' + octets(9, 2000)[n] % 26` : un texte que DEFLATE
+/// ne ramène pas au poids d'un fichier d'ajout (`save` comprime le fichier complet, `save_after`
+/// ne comprime pas les fichiers d'ajout).
+pub fn texte_long() -> String {
+    octets(9, 2000)
+        .into_iter()
+        .map(|octet| char::from(b'a' + octet % 26))
         .collect()
 }
 
