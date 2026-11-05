@@ -219,7 +219,9 @@ de tête (§ 2.4) : le [glossaire](80-glossaire.md#les-données) les distingue.
   dit, et le contrôle au démarrage répare la référence manquante. Un document n'est lu par la
   synchronisation qu'entre deux opérations : une modification ne part vers le nœud qu'une
   fois son fichier d'ajout en place, ou, à la naissance d'un document, son premier fichier
-  complet.
+  complet. De même, ce que la synchronisation reçoit ne l'est qu'une fois écrit, en un fichier
+  d'ajout (`save_after` des *heads* d'avant la réception), avant que l'échange ne continue ; un
+  message qui n'apporte rien n'écrit rien.
 - **Le message d'une opération nommée** est celui de sa modification Automerge, qui porte
   aussi son heure : le journal se lit dans l'historique (§ 3).
 - **Chaque ouverture d'un document tire un acteur neuf.** Un acteur, au sens d'Automerge, est
@@ -281,10 +283,11 @@ complet.
 1. Elle a lieu à l'ouverture d'un document qui a des fichiers d'ajout, ou le voisin entier de
    son fichier complet (§ 2.1), puis dès que ses fichiers d'ajout pèsent ensemble plus que son
    fichier complet, ou passent la centaine.
-2. Elle enregistre le document entier, historique compris, dans un fichier complet neuf,
-   écrit à côté puis renommé (§ 2.1).
-3. Elle relit ce fichier, et vérifie qu'il mène au même point de l'histoire que le document
-   en mémoire.
+2. Elle enregistre le document entier, historique compris, relit en mémoire ce qu'elle a
+   enregistré, et vérifie qu'il mène au même point de l'histoire que le document en mémoire.
+   Sinon elle n'écrit rien, et l'ancien fichier complet reste en place.
+3. Elle l'écrit dans un fichier complet neuf, à côté puis renommé (§ 2.1), puis relit ce
+   fichier, et vérifie qu'il rend les octets écrits.
 4. Elle retire alors les seuls fichiers d'ajout dont chaque modification est dans le fichier
    complet relu, et, aux mêmes conditions, le voisin du fichier complet qu'elle a fondu. Un
    fichier illisible, ou dont une modification attend ses dépendances, n'est

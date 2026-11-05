@@ -1,0 +1,15 @@
+[package]
+name = "stockage"
+description = "Le stockage de pupitre, côté natif : la racine des données, les documents et les captations sur fichiers"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+
+[dependencies]
+automerge = "0.12.0"
+noyau = { path = "../noyau" }
+sha2 = { version = "0.11.1", default-features = false }
+synchro = { path = "../synchro" }
+
+[dev-dependencies]
+proptest = "1.12.0"
