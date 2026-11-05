@@ -1,7 +1,8 @@
 //! Les documents sur fichiers (§ 31 · 2.1) : chacun dans son dossier, sous `documents/`, porté
 //! par son fichier complet et par un fichier d'ajout par écriture faite depuis, que la
-//! compaction fond dans un fichier complet neuf (§ 31 · 2.2). L'essai ne connaît que le fonds,
-//! qui naît une seule fois (§ 31 · 2.3).
+//! compaction fond dans un fichier complet neuf (§ 31 · 2.2). Ce que la synchronisation reçoit
+//! s'écrit de même, en un fichier d'ajout, avant que l'échange ne continue. L'essai ne connaît
+//! que le fonds, qui naît une seule fois (§ 31 · 2.3).
 
 use std::ffi::OsStr;
 use std::fs;
@@ -9,9 +10,10 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use automerge::transaction::{CommitOptions, Transactable, Transaction};
-use automerge::{ActorId, Automerge, AutomergeError, Change, ROOT, ReadDoc};
+use automerge::{ActorId, Automerge, AutomergeError, Change, ChangeHash, ROOT, ReadDoc};
 use noyau::donnees::compaction::{self, Lu};
 use noyau::donnees::fonds::{GENESE, IDENTIFIANT, LIGNEE, MESSAGE_DE_LA_NAISSANCE, PROPRIETAIRE};
+use synchro::{Copie, Echange};
 
 use crate::fichier::ecrire_a_cote;
 use crate::{Erreur, RacineDesDonnees, disque, empreinte};
@@ -37,7 +39,8 @@ pub struct Document<'r> {
     /// Le dossier du document : `documents/fonds/`.
     dossier: PathBuf,
     automerge: Automerge,
-    /// Une écriture a échoué : le document refuse d'écrire jusqu'à sa réouverture.
+    /// Une écriture a échoué : le document refuse d'écrire, d'envoyer, de recevoir et de se
+    /// compacter jusqu'à sa réouverture.
     a_relire: bool,
 }
 
@@ -45,6 +48,50 @@ impl Document<'_> {
     /// Le document Automerge, tel qu'il est en mémoire.
     pub fn automerge(&self) -> &Automerge {
         &self.automerge
+    }
+
+    /// § 31 · 2.5 : la copie que situe la racine du document, l'identifiant de propriétaire,
+    /// l'identifiant du document et sa lignée, écrits à la naissance. Un champ absent, ou qui ne
+    /// porte pas une chaîne : `ChampAbsent`.
+    pub fn copie(&self) -> Result<Copie, Erreur> {
+        Ok(Copie {
+            proprietaire: self.champ(PROPRIETAIRE)?,
+            document: self.champ(IDENTIFIANT)?,
+            lignee: self.champ(LIGNEE)?,
+        })
+    }
+
+    /// Le prochain message de l'échange pour l'autre copie (`Echange::prochain_message`), ou
+    /// `None` quand il n'y a plus rien à dire. Un document à relire n'envoie rien : `None` aussi.
+    pub fn prochain_message(&self, echange: &mut Echange) -> Option<Vec<u8>> {
+        if self.a_relire {
+            return None;
+        }
+        echange.prochain_message(&self.automerge)
+    }
+
+    /// § 31 · 2.1 : ce que la synchronisation reçoit ne l'est qu'une fois écrit. Le message
+    /// s'applique (`Echange::recevoir`) ; si les heads ont changé, que la réception ait réussi ou
+    /// non (ce que l'essai n'éprouve pas), `save_after` des heads d'avant s'écrit en un fichier
+    /// d'ajout avant la réponse, puis la compaction suit `apres_une_ecriture`, comme après
+    /// [`Document::ecrire`]. Rien de neuf, rien d'écrit.
+    ///
+    /// L'écriture échoue : le document est à relire, et l'erreur du disque se rend. Une
+    /// compaction infidèle se rend comme après `ecrire`, ce qui est reçu écrit. L'une ou l'autre
+    /// se rend avant le refus de la réception, `Synchro`. Un document à relire : `ARelire`, et le
+    /// message ne s'applique pas.
+    pub fn recevoir(&mut self, echange: &mut Echange, message: &[u8]) -> Result<(), Erreur> {
+        if self.a_relire {
+            return Err(Erreur::ARelire);
+        }
+        let avant = self.automerge.get_heads();
+        let reception = echange.recevoir(&mut self.automerge, message);
+        if self.automerge.get_heads() != avant {
+            // Une réception refusée en chemin peut avoir appliqué une part du message : ce que
+            // porte la mémoire s'écrit.
+            self.ecrire_l_ajout(&avant)?;
+        }
+        reception.map_err(Erreur::Synchro)
     }
 
     /// § 31 · 2.1 : une modification atomique, avec son message et son heure (`commit_with`),
@@ -79,15 +126,22 @@ impl Document<'_> {
         if tete.is_none() {
             return Ok(());
         }
-        let octets = self.automerge.save_after(&avant);
+        self.ecrire_l_ajout(&avant)
+    }
+
+    /// `save_after` des heads `avant`, sous `ajouts/<empreinte>.automerge`, écrit à côté puis
+    /// renommé ; puis la compaction, quand `apres_une_ecriture` le dit (§ 31 · 2.2). Ce que rend
+    /// cette écriture est dit à [`Document::ecrire`], qui l'appelle comme [`Document::recevoir`].
+    fn ecrire_l_ajout(&mut self, avant: &[ChangeHash]) -> Result<(), Erreur> {
+        let octets = self.automerge.save_after(avant);
         let chemin = self
             .dossier
             .join("ajouts")
             .join(format!("{}.automerge", empreinte(&octets)));
         if let Err(erreur) = ecrire_a_cote(&chemin, &octets) {
-            // La modification est en mémoire, et son fichier peut être en place : l'erreur peut
-            // venir après le renommage, quand il ne devient pas durable. Le document ne sait
-            // plus ce que porte le disque.
+            // Ce qui s'écrit, écrit ou reçu, est en mémoire, et son fichier peut être en place :
+            // l'erreur peut venir après le renommage, quand il ne devient pas durable. Le
+            // document ne sait plus ce que porte le disque.
             self.a_relire = true;
             return Err(disque(&chemin, erreur));
         }
@@ -155,6 +209,18 @@ impl Document<'_> {
             return Err(Erreur::CompactionInfidele);
         }
         Ok(())
+    }
+
+    /// La chaîne que porte `champ`, à la racine du document ; sinon `ChampAbsent`.
+    fn champ(&self, champ: &'static str) -> Result<String, Erreur> {
+        let (valeur, _) = self
+            .automerge
+            .get(ROOT, champ)
+            .map_err(Erreur::Automerge)?
+            .ok_or(Erreur::ChampAbsent { champ })?;
+        valeur
+            .into_string()
+            .map_err(|_| Erreur::ChampAbsent { champ })
     }
 
     /// Ce que dit `apres_une_ecriture` des fichiers sur le disque : le poids du fichier complet,

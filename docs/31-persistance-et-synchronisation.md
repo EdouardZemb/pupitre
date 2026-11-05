@@ -219,7 +219,9 @@ de tête (§ 2.4) : le [glossaire](80-glossaire.md#les-données) les distingue.
   dit, et le contrôle au démarrage répare la référence manquante. Un document n'est lu par la
   synchronisation qu'entre deux opérations : une modification ne part vers le nœud qu'une
   fois son fichier d'ajout en place, ou, à la naissance d'un document, son premier fichier
-  complet.
+  complet. De même, ce que la synchronisation reçoit ne l'est qu'une fois écrit, en un fichier
+  d'ajout (`save_after` des *heads* d'avant la réception), avant que l'échange ne continue ; un
+  message qui n'apporte rien n'écrit rien.
 - **Le message d'une opération nommée** est celui de sa modification Automerge, qui porte
   aussi son heure : le journal se lit dans l'historique (§ 3).
 - **Chaque ouverture d'un document tire un acteur neuf.** Un acteur, au sens d'Automerge, est

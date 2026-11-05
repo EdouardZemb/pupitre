@@ -39,8 +39,8 @@ pub enum Erreur {
     /// La genèse, rangée en octets dans le noyau, ne se lit pas comme une modification, ou ne
     /// s'applique pas ; le texte est celui d'Automerge.
     Genese(String),
-    /// Automerge a refusé : le geste, une écriture du document, ou la lecture de son fichier
-    /// complet ou d'un fichier d'ajout.
+    /// Automerge a refusé : le geste, une écriture du document, la lecture de son fichier
+    /// complet ou d'un fichier d'ajout, ou celle de sa racine.
     Automerge(AutomergeError),
     /// Le contenu du fichier d'ajout `chemin` ne donne pas l'empreinte que porte son nom : le
     /// document ne s'ouvre pas, et rien n'est retiré ni réécrit.
@@ -48,14 +48,21 @@ pub enum Erreur {
     /// Ses fichiers lus, le document a une modification qui attend ses dépendances
     /// (`get_missing_deps`) : un fichier d'ajout manque, et le document ne s'ouvre pas.
     DependancesManquantes,
-    /// Une écriture a échoué : le document refuse d'écrire, et de se compacter, jusqu'à sa
-    /// réouverture.
+    /// Une écriture a échoué : le document refuse d'écrire, d'envoyer, de recevoir et de se
+    /// compacter, jusqu'à sa réouverture.
     ARelire,
     /// Le fichier complet de la compaction, relu, ne mène pas aux heads du document en mémoire :
     /// aucun fichier d'ajout n'est retiré (§ 31 · 2.2). Relu avant d'être écrit, il ne se lit pas
     /// ou mène ailleurs, et il ne s'écrit pas ; ou, écrit, le disque n'en rend pas les octets.
-    /// Après une écriture, `ecrire` la rend, l'écriture faite.
+    /// Après une écriture, `ecrire` la rend, l'écriture faite ; `recevoir` de même, ce qui est
+    /// reçu écrit.
     CompactionInfidele,
+    /// La racine du document ne porte pas de chaîne sous `champ` : la copie ne se situe pas
+    /// (§ 31 · 2.5).
+    ChampAbsent { champ: &'static str },
+    /// L'échange a refusé le message reçu. Ce que le message a pu apporter avant le refus est
+    /// écrit.
+    Synchro(synchro::Erreur),
 }
 
 /// Le SHA-256 de `octets`, en 64 caractères hexadécimaux minuscules (`Sha256::digest`).

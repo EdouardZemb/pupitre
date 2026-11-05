@@ -1,6 +1,7 @@
 //! Les aides des tests du stockage : le dossier jetable de chaque test, ce que contient un
 //! dossier et l'empreinte de chacun de ses fichiers, des octets engendrés au lieu d'un fichier,
-//! un texte long, la copie d'un arbre de fichiers, et les gestes de test sur le fonds.
+//! un texte long, la copie d'un arbre de fichiers, les gestes de test sur le fonds, la réunion
+//! de deux copies, et la relecture du dossier du fonds.
 
 // Chaque fichier de test n'emploie qu'une partie des aides.
 #![allow(dead_code)]
@@ -11,9 +12,10 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use automerge::transaction::{Transactable, Transaction};
-use automerge::{AutomergeError, ObjId, ObjType, ROOT, ReadDoc, Value};
+use automerge::{Automerge, AutomergeError, ObjId, ObjType, ROOT, ReadDoc, Value};
 use noyau::donnees::fonds::{ETIQUETTES, FORMAT, IDEE, IDEES, PRISES, TEXTE};
-use stockage::empreinte;
+use stockage::{Document, empreinte};
+use synchro::Echange;
 
 /// Le dossier jetable du test `nom`, dans le dossier temporaire du système, jamais dans le
 /// dossier de l'application (I30) : `pupitre-stockage-<nom>-<processus>`. Ce qu'un passage
@@ -122,6 +124,56 @@ pub fn copier_l_arbre(de: &Path, vers: &Path) {
             });
         }
     }
+}
+
+/// Réunit deux copies sans réseau : chacune envoie tant qu'elle a à dire, en octets, comme le
+/// fera le transport du lot 3. Rend le nombre de messages ; au-delà de mille, la réunion ne
+/// s'achève pas, et c'est un échec.
+pub fn reunir(a: &mut Document<'_>, b: &mut Document<'_>) -> usize {
+    let mut ea = Echange::ouvrir(&a.copie().unwrap(), &b.copie().unwrap()).unwrap();
+    let mut eb = Echange::ouvrir(&b.copie().unwrap(), &a.copie().unwrap()).unwrap();
+    let mut n = 0;
+    loop {
+        let de_a = a.prochain_message(&mut ea);
+        if let Some(m) = &de_a {
+            b.recevoir(&mut eb, m).unwrap();
+            n += 1;
+        }
+        let de_b = b.prochain_message(&mut eb);
+        if let Some(m) = &de_b {
+            a.recevoir(&mut ea, m).unwrap();
+            n += 1;
+        }
+        if de_a.is_none() && de_b.is_none() {
+            return n;
+        }
+        assert!(n <= 1000, "la réunion ne s'achève pas");
+    }
+}
+
+/// Relit `documents/fonds/` à part, sans `RacineDesDonnees` : `Automerge::load` de
+/// `complet.automerge`, puis `load_incremental` de chaque `ajouts/*.automerge`. Les noms en
+/// `.partiel`, de `documents/fonds/` comme de `ajouts/`, sont ignorés, comme `fonds()` le fait.
+pub fn relire_le_dossier_du_fonds(racine_des_donnees: &Path) -> Automerge {
+    let dossier = racine_des_donnees.join("documents").join("fonds");
+    let complet = dossier.join("complet.automerge");
+    let octets = fs::read(&complet).unwrap_or_else(|e| panic!("lire {} : {e}", complet.display()));
+    let mut relu =
+        Automerge::load(&octets).unwrap_or_else(|e| panic!("relire {} : {e}", complet.display()));
+    let ajouts = dossier.join("ajouts");
+    for nom in entrees(&ajouts) {
+        // `<empreinte>.automerge.<processus>.partiel` n'est pas un fichier d'ajout.
+        if !nom.ends_with(".automerge") {
+            continue;
+        }
+        let chemin = ajouts.join(&nom);
+        let octets =
+            fs::read(&chemin).unwrap_or_else(|e| panic!("lire {} : {e}", chemin.display()));
+        if let Err(e) = relu.load_incremental(&octets) {
+            panic!("relire {} : {e}", chemin.display());
+        }
+    }
+    relu
 }
 
 // Les gestes de test, qu'appellent les fermetures `geste` : les opérations nommées arrivent au
