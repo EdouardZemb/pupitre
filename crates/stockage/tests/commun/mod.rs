@@ -1,5 +1,6 @@
 //! Les aides des tests du stockage : le dossier jetable de chaque test, ce que contient un
-//! dossier, des octets engendrés au lieu d'un fichier, et la copie d'un arbre de fichiers.
+//! dossier, des octets engendrés au lieu d'un fichier, la copie d'un arbre de fichiers, et les
+//! gestes de test sur le fonds.
 
 // Chaque fichier de test n'emploie qu'une partie des aides.
 #![allow(dead_code)]
@@ -7,6 +8,10 @@
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+
+use automerge::transaction::{Transactable, Transaction};
+use automerge::{AutomergeError, ObjId, ObjType, ROOT, ReadDoc, Value};
+use noyau::donnees::fonds::{ETIQUETTES, FORMAT, IDEE, IDEES, PRISES, TEXTE};
 
 /// Le dossier jetable du test `nom`, dans le dossier temporaire du système, jamais dans le
 /// dossier de l'application (I30) : `pupitre-stockage-<nom>-<processus>`. Ce qu'un passage
@@ -77,5 +82,80 @@ pub fn copier_l_arbre(de: &Path, vers: &Path) {
                 panic!("copier {} vers {} : {e}", source.display(), cible.display())
             });
         }
+    }
+}
+
+// Les gestes de test, qu'appellent les fermetures `geste` : les opérations nommées arrivent au
+// lot 1. Une idée ou un conteneur absent rend `AutomergeError::NotAnObject`.
+
+/// Crée l'idée `idee` sous les idées, avec son texte et son objet des étiquettes, vide, dans la
+/// même modification : les conteneurs d'un objet naissent avec lui (§ 31 · 2.4).
+pub fn noter(tx: &mut Transaction<'_>, idee: &str, texte: &str) -> Result<(), AutomergeError> {
+    let idees = objet(tx, &ROOT, IDEES)?;
+    let nee = tx.put_object(&idees, idee, ObjType::Map)?;
+    tx.put(&nee, TEXTE, texte)?;
+    tx.put_object(&nee, ETIQUETTES, ObjType::Map)?;
+    Ok(())
+}
+
+/// Remplace le texte de l'idée `idee`.
+pub fn changer_le_texte(
+    tx: &mut Transaction<'_>,
+    idee: &str,
+    texte: &str,
+) -> Result<(), AutomergeError> {
+    let idee = l_idee(tx, idee)?;
+    tx.put(&idee, TEXTE, texte)
+}
+
+/// Pose l'étiquette `etiquette` sur l'idée `idee`.
+pub fn etiqueter(
+    tx: &mut Transaction<'_>,
+    idee: &str,
+    etiquette: &str,
+) -> Result<(), AutomergeError> {
+    let etiquettes = objet(tx, &l_idee(tx, idee)?, ETIQUETTES)?;
+    tx.put(&etiquettes, etiquette, true)
+}
+
+/// Ôte l'étiquette `etiquette` de l'idée `idee` ; n'écrit rien si l'étiquette manque.
+pub fn oter_l_etiquette(
+    tx: &mut Transaction<'_>,
+    idee: &str,
+    etiquette: &str,
+) -> Result<(), AutomergeError> {
+    let etiquettes = objet(tx, &l_idee(tx, idee)?, ETIQUETTES)?;
+    if tx.get(&etiquettes, etiquette)?.is_none() {
+        return Ok(());
+    }
+    tx.delete(&etiquettes, etiquette)
+}
+
+/// Pose, sous les prises, la prise d'empreinte `empreinte`, de l'idée `idee` et au format
+/// `format`.
+pub fn poser_une_prise(
+    tx: &mut Transaction<'_>,
+    empreinte: &str,
+    idee: &str,
+    format: &str,
+) -> Result<(), AutomergeError> {
+    let prises = objet(tx, &ROOT, PRISES)?;
+    let prise = tx.put_object(&prises, empreinte, ObjType::Map)?;
+    tx.put(&prise, IDEE, idee)?;
+    tx.put(&prise, FORMAT, format)
+}
+
+/// L'objet de l'idée `idee`, sous les idées.
+fn l_idee(tx: &Transaction<'_>, idee: &str) -> Result<ObjId, AutomergeError> {
+    let idees = objet(tx, &ROOT, IDEES)?;
+    objet(tx, &idees, idee)
+}
+
+/// L'objet que porte la clé `cle` de `parent` ; une clé absente, ou qui porte une valeur
+/// simple, rend `AutomergeError::NotAnObject`.
+fn objet(tx: &Transaction<'_>, parent: &ObjId, cle: &str) -> Result<ObjId, AutomergeError> {
+    match tx.get(parent, cle)? {
+        Some((Value::Object(_), objet)) => Ok(objet),
+        _ => Err(AutomergeError::NotAnObject),
     }
 }

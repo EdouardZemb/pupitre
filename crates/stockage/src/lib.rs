@@ -4,6 +4,7 @@
 //! données (I30).
 
 mod captations;
+mod documents;
 pub mod fichier;
 mod racine_des_donnees;
 
@@ -11,9 +12,11 @@ use std::fmt::Write;
 use std::io;
 use std::path::{Path, PathBuf};
 
+use automerge::AutomergeError;
 use sha2::{Digest, Sha256};
 
 pub use captations::Captations;
+pub use documents::{Document, Naissance};
 pub use racine_des_donnees::RacineDesDonnees;
 
 /// Ce que le stockage refuse, ou ce que le disque lui refuse. Le texte en français de chaque
@@ -31,6 +34,14 @@ pub enum Erreur {
     CaptationAlteree { empreinte: String },
     /// Aucune captation ne porte le nom `empreinte`.
     CaptationAbsente { empreinte: String },
+    /// Le fonds est déjà né : il ne naît qu'une fois (§ 31 · 2.3).
+    FondsDejaNe,
+    /// La genèse, rangée en octets dans le noyau, ne se lit pas comme une modification, ou ne
+    /// s'applique pas ; le texte est celui d'Automerge.
+    Genese(String),
+    /// Automerge a refusé : le geste, une écriture du document, ou la lecture de son fichier
+    /// complet.
+    Automerge(AutomergeError),
 }
 
 /// Le SHA-256 de `octets`, en 64 caractères hexadécimaux minuscules (`Sha256::digest`).

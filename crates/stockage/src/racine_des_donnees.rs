@@ -3,7 +3,10 @@
 use std::fs::{self, File, OpenOptions, TryLockError};
 use std::path::{Path, PathBuf};
 
-use crate::{Captations, Erreur, disque};
+use automerge::AutomergeError;
+use automerge::transaction::Transaction;
+
+use crate::{Captations, Document, Erreur, Naissance, disque, documents};
 
 /// Une racine des données ouverte, dont ce processus tient le verrou : il est seul à en écrire
 /// les documents tant qu'elle reste ouverte.
@@ -54,5 +57,27 @@ impl RacineDesDonnees {
     /// Les captations de la racine des données, dans son dossier `captations/` (§ 31 · 6.1).
     pub fn captations(&self) -> Captations<'_> {
         Captations::de(self)
+    }
+
+    /// Le fonds, rouvert s'il est né (son `complet.automerge` existe) ; sinon `None`.
+    /// Chaque ouverture tire un acteur neuf (`set_actor(ActorId::random())`).
+    pub fn fonds(&self) -> Result<Option<Document<'_>>, Erreur> {
+        documents::rouvrir_le_fonds(self)
+    }
+
+    /// § 31 · 2.3 : `GENESE`, la naissance (`MESSAGE_DE_LA_NAISSANCE`, qui écrit `IDENTIFIANT`,
+    /// `LIGNEE` et `PROPRIETAIRE`), puis le premier geste, avec son message ; les trois en un
+    /// seul fichier, `documents/fonds/complet.automerge`, écrit à côté puis renommé, et
+    /// `documents/fonds/ajouts/` créé. Le geste refusé, rien ne s'écrit.
+    ///
+    /// Un fonds déjà né rend [`Erreur::FondsDejaNe`], sans que le geste soit fait.
+    pub fn faire_naitre_le_fonds(
+        &self,
+        naissance: &Naissance<'_>,
+        message: &str,
+        heure: i64,
+        geste: impl FnOnce(&mut Transaction<'_>) -> Result<(), AutomergeError>,
+    ) -> Result<Document<'_>, Erreur> {
+        documents::faire_naitre_le_fonds(self, naissance, message, heure, geste)
     }
 }
