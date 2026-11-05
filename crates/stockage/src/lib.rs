@@ -48,8 +48,12 @@ pub enum Erreur {
     /// Ses fichiers lus, le document a une modification qui attend ses dépendances
     /// (`get_missing_deps`) : un fichier d'ajout manque, et le document ne s'ouvre pas.
     DependancesManquantes,
-    /// Une écriture a échoué : le document refuse d'écrire jusqu'à sa réouverture.
+    /// Une écriture a échoué : le document refuse d'écrire, et de se compacter, jusqu'à sa
+    /// réouverture.
     ARelire,
+    /// Le fichier complet que la compaction vient d'écrire, relu, ne mène pas aux heads du
+    /// document en mémoire : aucun fichier d'ajout n'est retiré (§ 31 · 2.2).
+    CompactionInfidele,
 }
 
 /// Le SHA-256 de `octets`, en 64 caractères hexadécimaux minuscules (`Sha256::digest`).

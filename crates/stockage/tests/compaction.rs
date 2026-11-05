@@ -10,7 +10,7 @@ mod commun;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use automerge::{Automerge, Change, ReadDoc};
+use automerge::{Automerge, Change};
 use noyau::donnees::fonds::{GENESE, MESSAGE_DE_LA_GENESE, MESSAGE_DE_LA_NAISSANCE};
 use stockage::{Document, Erreur, Naissance, RacineDesDonnees};
 
