@@ -51,8 +51,10 @@ pub enum Erreur {
     /// Une écriture a échoué : le document refuse d'écrire, et de se compacter, jusqu'à sa
     /// réouverture.
     ARelire,
-    /// Le fichier complet que la compaction vient d'écrire, relu, ne mène pas aux heads du
-    /// document en mémoire : aucun fichier d'ajout n'est retiré (§ 31 · 2.2).
+    /// Le fichier complet de la compaction, relu, ne mène pas aux heads du document en mémoire :
+    /// aucun fichier d'ajout n'est retiré (§ 31 · 2.2). Relu avant d'être écrit, il ne se lit pas
+    /// ou mène ailleurs, et il ne s'écrit pas ; ou, écrit, le disque n'en rend pas les octets.
+    /// Après une écriture, `ecrire` la rend, l'écriture faite.
     CompactionInfidele,
 }
 

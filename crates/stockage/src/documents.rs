@@ -56,7 +56,10 @@ impl Document<'_> {
     ///
     /// Le fichier d'ajout en place, le document se compacte quand `apres_une_ecriture` le dit
     /// (§ 31 · 2.2). Une compaction qui échoue ne défait pas l'écriture, qui est faite : rien
-    /// n'est retiré, et la compaction se retente à l'écriture suivante.
+    /// n'est retiré, et la compaction se retente à l'écriture suivante. Une erreur du disque, à
+    /// la pesée des fichiers ou à la compaction, se tait. Toute autre erreur de la compaction,
+    /// `CompactionInfidele`, se rend, l'écriture faite : le format fait défaut, et la retenter
+    /// n'y changerait rien.
     pub fn ecrire(
         &mut self,
         message: &str,
@@ -90,26 +93,45 @@ impl Document<'_> {
         }
         // L'écriture est faite : ni une compaction qui échoue, ni la pesée des fichiers qui la
         // précède, ne la défont.
-        if let Ok(true) = self.a_compacter_apres_une_ecriture() {
-            let _ = self.compacter();
+        let compaction = match self.a_compacter_apres_une_ecriture() {
+            Ok(true) => self.compacter(),
+            pesee => pesee.map(|_| ()),
+        };
+        match compaction {
+            // Le disque peut le permettre à l'écriture suivante, qui retente la compaction.
+            Err(Erreur::Disque { .. }) => Ok(()),
+            // Le reste : `Ok`, ou une compaction infidèle, qui n'a rien retiré mais que rien ne
+            // retenterait mieux. Qui écrit doit la voir.
+            autre => autre,
         }
-        Ok(())
     }
 
     /// § 31 · 2.2 : `save()` dans un fichier complet neuf, écrit à côté puis renommé ; relu par
     /// `Automerge::load` ; puis les fichiers que désigne `a_retirer` sont retirés. Le fichier
     /// complet relu ne mène pas aux mêmes heads : rien n'est retiré, et `CompactionInfidele`.
     /// Un document à relire : `ARelire`, et rien ne s'écrit.
+    ///
+    /// Les octets de `save()` sont relus avant d'être écrits : s'ils ne se lisent pas, ou ne
+    /// mènent pas aux mêmes heads, rien ne s'écrit, et l'ancien fichier complet garde
+    /// l'histoire qu'il porte seul (« elle ne retire jamais d'histoire »). Écrit, le fichier
+    /// complet se relit du disque : il doit rendre ces mêmes octets.
     pub fn compacter(&mut self) -> Result<(), Erreur> {
         if self.a_relire {
             return Err(Erreur::ARelire);
         }
+        let heads = self.automerge.get_heads();
+        let octets = self.automerge.save();
+        let relu = match Automerge::load(&octets) {
+            Ok(relu) if relu.get_heads() == heads => relu,
+            // Écrit, ce fichier complet prendrait la place de l'ancien, qui porte seul les
+            // compactions d'avant : il n'est pas écrit.
+            _ => return Err(Erreur::CompactionInfidele),
+        };
         let complet = self.dossier.join("complet.automerge");
-        ecrire_a_cote(&complet, &self.automerge.save())
-            .map_err(|erreur| disque(&complet, erreur))?;
-        let octets = fs::read(&complet).map_err(|erreur| disque(&complet, erreur))?;
-        let relu = Automerge::load(&octets).map_err(Erreur::Automerge)?;
-        let meme_point = relu.get_heads() == self.automerge.get_heads();
+        ecrire_a_cote(&complet, &octets).map_err(|erreur| disque(&complet, erreur))?;
+        // Relu du disque, il rend les octets relus plus haut, et mène donc aux mêmes heads ; le
+        // disque en rend d'autres, et rien n'est retiré.
+        let meme_point = fs::read(&complet).map_err(|erreur| disque(&complet, erreur))? == octets;
 
         let ajouts = self.dossier.join("ajouts");
         let mut lus = Vec::new();
