@@ -293,6 +293,9 @@ le passage entier chaque lundi.
 comparé à sa source ([CONVENTIONS](../CONVENTIONS.md#portes-de-ci)). C'est la porte due au motif
 « Un compte recopié en plusieurs endroits », relevé trois fois (AM-1, LE-8, [LE-9](registre.md)).
 
+**Après H07** (2026-11-05) : I14 a son test, dans `stockage` (`tests/captations.rs`,
+`tests/h07.rs`) ; le job `verifier` refuse aussi un `Cargo.lock` en retard sur les `Cargo.toml`.
+
 La cinquième famille de garde-fous ([M-0001](modele/decisions/M-0001-ecosysteme-des-applications-personnelles.md)),
 le test d'isolation des chemins de données, n'est pas due en INC-0, qui n'a aucun chemin de
 données : ni stockage, ni `instance/`, `config/` ou `contenu/`. Ce test naît avec le stockage,

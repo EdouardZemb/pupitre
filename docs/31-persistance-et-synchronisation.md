@@ -283,10 +283,11 @@ complet.
 1. Elle a lieu à l'ouverture d'un document qui a des fichiers d'ajout, ou le voisin entier de
    son fichier complet (§ 2.1), puis dès que ses fichiers d'ajout pèsent ensemble plus que son
    fichier complet, ou passent la centaine.
-2. Elle enregistre le document entier, historique compris, dans un fichier complet neuf,
-   écrit à côté puis renommé (§ 2.1).
-3. Elle relit ce fichier, et vérifie qu'il mène au même point de l'histoire que le document
-   en mémoire.
+2. Elle enregistre le document entier, historique compris, relit en mémoire ce qu'elle a
+   enregistré, et vérifie qu'il mène au même point de l'histoire que le document en mémoire.
+   Sinon elle n'écrit rien, et l'ancien fichier complet reste en place.
+3. Elle l'écrit dans un fichier complet neuf, à côté puis renommé (§ 2.1), puis relit ce
+   fichier, et vérifie qu'il rend les octets écrits.
 4. Elle retire alors les seuls fichiers d'ajout dont chaque modification est dans le fichier
    complet relu, et, aux mêmes conditions, le voisin du fichier complet qu'elle a fondu. Un
    fichier illisible, ou dont une modification attend ses dépendances, n'est

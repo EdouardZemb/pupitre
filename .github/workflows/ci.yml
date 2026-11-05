@@ -67,8 +67,9 @@ jobs:
   # stockage, de la synchronisation et de l'interface. La chaîne vient de rust-toolchain.toml.
   verifier:
     runs-on: ubuntu-latest
-    # Provisoire : le passage de la PR #7 a duré 1 min 32 s, à chaud. À ramener à deux fois un
-    # passage mesuré à froid (LE-29 de modele-projet).
+    # Provisoire : le premier passage complet après l'entrée d'automerge, PR #18, a duré 2 min 42 s ;
+    # il restaure le cache de main, et n'est froid que pour automerge et ses dépendances. À ramener
+    # à deux fois un passage mesuré à froid (LE-29 de modele-projet).
     timeout-minutes: 15
     permissions:
       contents: read
@@ -114,6 +115,9 @@ jobs:
     runs-on: windows-latest
     # Deux fois le premier passage mesuré, à froid : 19 min 28 s le 2026-11-01, PR #3 (LE-29 de modele-projet).
     # Le cahier, construit en --release, s'y ajoute depuis la PR #6 : 3 min 44 s pour tout le job, à chaud.
+    # Le stockage et la synchronisation, depuis la PR #18 : 4 min 49 s pour le premier passage complet
+    # après l'entrée d'automerge, qui restaure le cache de main et n'est froid que pour automerge et
+    # ses dépendances ; son double reste sous ces 40 minutes.
     timeout-minutes: 40
     permissions:
       contents: read
