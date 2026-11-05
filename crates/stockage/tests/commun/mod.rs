@@ -1,5 +1,5 @@
-//! Les aides des tests du stockage : le dossier jetable de chaque test, des octets engendrés
-//! au lieu d'un fichier, et la copie d'un arbre de fichiers.
+//! Les aides des tests du stockage : le dossier jetable de chaque test, ce que contient un
+//! dossier, des octets engendrés au lieu d'un fichier, et la copie d'un arbre de fichiers.
 
 // Chaque fichier de test n'emploie qu'une partie des aides.
 #![allow(dead_code)]
@@ -22,6 +22,22 @@ pub fn dossier_jetable(nom: &str) -> PathBuf {
     }
     fs::create_dir_all(&dossier).unwrap_or_else(|e| panic!("créer {} : {e}", dossier.display()));
     dossier
+}
+
+/// Les noms de ce que contient `dossier`, dans l'ordre.
+pub fn entrees(dossier: &Path) -> Vec<String> {
+    let mut noms: Vec<String> = fs::read_dir(dossier)
+        .unwrap_or_else(|e| panic!("lire {} : {e}", dossier.display()))
+        .map(|entree| {
+            entree
+                .unwrap_or_else(|e| panic!("lire {} : {e}", dossier.display()))
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    noms.sort();
+    noms
 }
 
 /// Un générateur congruentiel ou xorshift semé par `graine`, dont on garde les bits hauts : une

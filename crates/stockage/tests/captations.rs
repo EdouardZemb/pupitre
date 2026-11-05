@@ -3,26 +3,11 @@
 mod commun;
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
+use commun::entrees;
 use stockage::fichier::voisin;
 use stockage::{Erreur, RacineDesDonnees, empreinte};
-
-/// Les noms de ce que contient `dossier`, dans l'ordre.
-fn entrees(dossier: &Path) -> Vec<String> {
-    let mut noms: Vec<String> = fs::read_dir(dossier)
-        .unwrap_or_else(|e| panic!("lire {} : {e}", dossier.display()))
-        .map(|entree| {
-            entree
-                .unwrap_or_else(|e| panic!("lire {} : {e}", dossier.display()))
-                .file_name()
-                .to_string_lossy()
-                .into_owned()
-        })
-        .collect();
-    noms.sort();
-    noms
-}
 
 /// Le chemin où se range la captation `e` : `captations/<deux premiers caractères>/<e>`.
 fn rangee(racine: &RacineDesDonnees, e: &str) -> PathBuf {
