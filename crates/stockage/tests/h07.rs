@@ -112,7 +112,7 @@ fn jouer(fonds: &mut Document<'_>, replique: &str, rang: usize, ecriture: &Ecrit
             })
         }
         Ecriture::Noter => {
-            let idee = format!("{replique}-{}", rang + 1);
+            let idee = idee_notee(replique, rang);
             fonds.ecrire("Idée notée", heure, |tx| {
                 commun::noter(tx, &idee, "une idée notée hors ligne")
             })
@@ -124,6 +124,11 @@ fn jouer(fonds: &mut Document<'_>, replique: &str, rang: usize, ecriture: &Ecrit
             rang + 1
         );
     }
+}
+
+/// L'idée que note le geste de rang `rang` de la réplique `replique` : `<réplique>-<rang + 1>`.
+fn idee_notee(replique: &str, rang: usize) -> String {
+    format!("{replique}-{}", rang + 1)
 }
 
 /// La racine des données de `chemin`, ouverte.
@@ -426,17 +431,34 @@ proptest! {
         commun::copier_l_arbre(&chemin_a, &chemin_b);
 
         // Hors ligne, chacune de son côté. Se rouvrir ferme le document, puis la racine des
-        // données, que le document emprunte.
+        // données, que le document emprunte ; rouverte, la réplique a les heads et la valeur
+        // qu'elle avait avant de se fermer.
         let mut racine_a = ouvrir(&chemin_a);
         let mut a = ouvrir_le_fonds(&racine_a);
         for (rang, geste) in gestes_a.iter().enumerate() {
             match geste {
                 Geste::Ecrire(ecriture) => jouer(&mut a, "a", rang, ecriture),
                 Geste::SeRouvrir => {
+                    let heads_d_avant = a.automerge().get_heads();
+                    let valeur_d_avant = a.automerge().hydrate(None);
                     drop(a);
                     drop(racine_a);
                     racine_a = ouvrir(&chemin_a);
                     a = ouvrir_le_fonds(&racine_a);
+                    let heads_rouverte = a.automerge().get_heads();
+                    let valeur_rouverte = a.automerge().hydrate(None);
+                    prop_assert_eq!(
+                        &heads_rouverte,
+                        &heads_d_avant,
+                        "A rouverte au geste {} n'a plus ses heads",
+                        rang + 1
+                    );
+                    prop_assert_eq!(
+                        &valeur_rouverte,
+                        &valeur_d_avant,
+                        "A rouverte au geste {} n'a plus sa valeur",
+                        rang + 1
+                    );
                 }
             }
         }
@@ -446,10 +468,26 @@ proptest! {
             match geste {
                 Geste::Ecrire(ecriture) => jouer(&mut b, "b", rang, ecriture),
                 Geste::SeRouvrir => {
+                    let heads_d_avant = b.automerge().get_heads();
+                    let valeur_d_avant = b.automerge().hydrate(None);
                     drop(b);
                     drop(racine_b);
                     racine_b = ouvrir(&chemin_b);
                     b = ouvrir_le_fonds(&racine_b);
+                    let heads_rouverte = b.automerge().get_heads();
+                    let valeur_rouverte = b.automerge().hydrate(None);
+                    prop_assert_eq!(
+                        &heads_rouverte,
+                        &heads_d_avant,
+                        "B rouverte au geste {} n'a plus ses heads",
+                        rang + 1
+                    );
+                    prop_assert_eq!(
+                        &valeur_rouverte,
+                        &valeur_d_avant,
+                        "B rouverte au geste {} n'a plus sa valeur",
+                        rang + 1
+                    );
                 }
             }
         }
@@ -480,6 +518,26 @@ proptest! {
         prop_assert_eq!(&valeur_de_a, &valeur, "A rouverte n'a plus la valeur de la réunion");
         prop_assert_eq!(&heads_de_b, &heads, "B rouverte n'a plus les heads de la réunion");
         prop_assert_eq!(&valeur_de_b, &valeur, "B rouverte n'a plus la valeur de la réunion");
+
+        // Aucun geste ne retire une idée : A rouverte porte les deux idées communes et chaque
+        // idée notée, d'A comme de B, et B aussi, qui a la même valeur.
+        let mut attendues: Vec<String> =
+            IDEES_COMMUNES.iter().map(|&idee| idee.to_owned()).collect();
+        for (replique, gestes) in [("a", &gestes_a), ("b", &gestes_b)] {
+            for (rang, geste) in gestes.iter().enumerate() {
+                if matches!(geste, Geste::Ecrire(Ecriture::Noter)) {
+                    attendues.push(idee_notee(replique, rang));
+                }
+            }
+        }
+        attendues.sort_unstable();
+        let mut idees_de_a = cles(a.automerge(), &objet(a.automerge(), &ROOT, IDEES));
+        idees_de_a.sort_unstable();
+        prop_assert_eq!(
+            &idees_de_a,
+            &attendues,
+            "A rouverte ne porte pas les idées communes et les idées notées"
+        );
     }
 }
 
