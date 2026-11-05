@@ -8,7 +8,6 @@
 
 mod commun;
 
-use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -47,33 +46,6 @@ fn dossier_des_ajouts(racine: &Path) -> PathBuf {
 /// Le fichier complet du fonds de la racine des données `racine`, relu du disque.
 fn lire_le_complet(racine: &Path) -> Vec<u8> {
     fs::read(dossier_du_fonds(racine).join("complet.automerge")).expect("lire le fichier complet")
-}
-
-/// L'empreinte de chaque fichier sous `dossier`, à toute profondeur, par chemin relatif.
-fn empreintes(dossier: &Path) -> BTreeMap<PathBuf, String> {
-    let mut vues = BTreeMap::new();
-    let mut a_lire = vec![dossier.to_path_buf()];
-    while let Some(courant) = a_lire.pop() {
-        let entrees =
-            fs::read_dir(&courant).unwrap_or_else(|e| panic!("lire {} : {e}", courant.display()));
-        for entree in entrees {
-            let chemin = entree
-                .unwrap_or_else(|e| panic!("lire {} : {e}", courant.display()))
-                .path();
-            if chemin.is_dir() {
-                a_lire.push(chemin);
-            } else {
-                let octets =
-                    fs::read(&chemin).unwrap_or_else(|e| panic!("lire {} : {e}", chemin.display()));
-                let relatif = chemin
-                    .strip_prefix(dossier)
-                    .expect("un fichier sous le dossier")
-                    .to_path_buf();
-                vues.insert(relatif, empreinte(&octets));
-            }
-        }
-    }
-    vues
 }
 
 #[test]
@@ -358,7 +330,7 @@ fn un_ajout_altere_se_nomme_et_rien_ne_bouge() {
     octets[milieu] ^= 0xFF;
     fs::write(&altere, &octets).expect("altérer le fichier d'ajout");
     let dossier = dossier_du_fonds(racine.chemin());
-    let avant = empreintes(&dossier);
+    let avant = commun::empreintes(&dossier);
 
     match racine.fonds() {
         Err(Erreur::AjoutAltere { chemin }) => {
@@ -368,7 +340,7 @@ fn un_ajout_altere_se_nomme_et_rien_ne_bouge() {
         Ok(_) => panic!("le fonds s'est ouvert sur un fichier d'ajout altéré"),
     }
     assert_eq!(
-        empreintes(&dossier),
+        commun::empreintes(&dossier),
         avant,
         "l'ouverture a touché un fichier du fonds"
     );

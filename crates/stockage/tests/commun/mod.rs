@@ -1,10 +1,11 @@
 //! Les aides des tests du stockage : le dossier jetable de chaque test, ce que contient un
-//! dossier, des octets engendrés au lieu d'un fichier, un texte long, la copie d'un arbre de
-//! fichiers, et les gestes de test sur le fonds.
+//! dossier et l'empreinte de chacun de ses fichiers, des octets engendrés au lieu d'un fichier,
+//! un texte long, la copie d'un arbre de fichiers, et les gestes de test sur le fonds.
 
 // Chaque fichier de test n'emploie qu'une partie des aides.
 #![allow(dead_code)]
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -12,6 +13,7 @@ use std::path::{Path, PathBuf};
 use automerge::transaction::{Transactable, Transaction};
 use automerge::{AutomergeError, ObjId, ObjType, ROOT, ReadDoc, Value};
 use noyau::donnees::fonds::{ETIQUETTES, FORMAT, IDEE, IDEES, PRISES, TEXTE};
+use stockage::empreinte;
 
 /// Le dossier jetable du test `nom`, dans le dossier temporaire du système, jamais dans le
 /// dossier de l'application (I30) : `pupitre-stockage-<nom>-<processus>`. Ce qu'un passage
@@ -43,6 +45,33 @@ pub fn entrees(dossier: &Path) -> Vec<String> {
         .collect();
     noms.sort();
     noms
+}
+
+/// L'empreinte de chaque fichier sous `dossier`, à toute profondeur, par chemin relatif.
+pub fn empreintes(dossier: &Path) -> BTreeMap<PathBuf, String> {
+    let mut vues = BTreeMap::new();
+    let mut a_lire = vec![dossier.to_path_buf()];
+    while let Some(courant) = a_lire.pop() {
+        let entrees =
+            fs::read_dir(&courant).unwrap_or_else(|e| panic!("lire {} : {e}", courant.display()));
+        for entree in entrees {
+            let chemin = entree
+                .unwrap_or_else(|e| panic!("lire {} : {e}", courant.display()))
+                .path();
+            if chemin.is_dir() {
+                a_lire.push(chemin);
+            } else {
+                let octets =
+                    fs::read(&chemin).unwrap_or_else(|e| panic!("lire {} : {e}", chemin.display()));
+                let relatif = chemin
+                    .strip_prefix(dossier)
+                    .expect("un fichier sous le dossier")
+                    .to_path_buf();
+                vues.insert(relatif, empreinte(&octets));
+            }
+        }
+    }
+    vues
 }
 
 /// Un générateur congruentiel ou xorshift semé par `graine`, dont on garde les bits hauts : une
