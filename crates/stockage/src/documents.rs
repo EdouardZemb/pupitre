@@ -160,15 +160,15 @@ impl Document<'_> {
         }
     }
 
-    /// § 31 · 2.2 : `save()` dans un fichier complet neuf, écrit à côté puis renommé ; relu par
-    /// `Automerge::load` ; puis les fichiers que désigne `a_retirer` sont retirés. Le fichier
-    /// complet relu ne mène pas aux mêmes heads : rien n'est retiré, et `CompactionInfidele`.
-    /// Un document à relire : `ARelire`, et rien ne s'écrit.
+    /// § 31 · 2.2 : les octets de `save()`, relus en mémoire par `Automerge::load`, puis écrits
+    /// dans un fichier complet neuf, à côté puis renommé, et relus du disque ; puis les fichiers
+    /// d'ajout que désigne `a_retirer` sont retirés. Un document à relire : `ARelire`, et rien
+    /// ne s'écrit.
     ///
-    /// Les octets de `save()` sont relus avant d'être écrits : s'ils ne se lisent pas, ou ne
-    /// mènent pas aux mêmes heads, rien ne s'écrit, et l'ancien fichier complet garde
-    /// l'histoire qu'il porte seul (« elle ne retire jamais d'histoire »). Écrit, le fichier
-    /// complet se relit du disque : il doit rendre ces mêmes octets.
+    /// Les octets de `save()` qui ne se lisent pas, ou ne mènent pas aux mêmes heads, ne
+    /// s'écrivent pas : `CompactionInfidele`, et l'ancien fichier complet garde l'histoire qu'il
+    /// porte seul (« elle ne retire jamais d'histoire »). Écrit, le fichier complet relu du
+    /// disque doit rendre ces mêmes octets ; sinon, rien n'est retiré, et `CompactionInfidele`.
     pub fn compacter(&mut self) -> Result<(), Erreur> {
         if self.a_relire {
             return Err(Erreur::ARelire);

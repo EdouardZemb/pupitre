@@ -59,8 +59,20 @@ impl RacineDesDonnees {
         Captations::de(self)
     }
 
-    /// Le fonds, rouvert s'il est né (son `complet.automerge` existe) ; sinon `None`.
-    /// Chaque ouverture tire un acteur neuf (`set_actor(ActorId::random())`).
+    /// Le fonds, rouvert s'il est né (son `complet.automerge` existe) ; sinon `None`. Le fichier
+    /// complet se lit, puis chaque fichier d'ajout (`load_incremental`) ; chaque ouverture tire
+    /// un acteur neuf (`set_actor(ActorId::random())`) ; puis le fonds se compacte quand
+    /// `a_l_ouverture` le dit, c'est-à-dire dès qu'il a un fichier d'ajout.
+    ///
+    /// Un fichier d'ajout dont le contenu ne donne pas l'empreinte de son nom rend
+    /// [`Erreur::AjoutAltere`] ; une modification qui attend encore ses dépendances, tout lu,
+    /// [`Erreur::DependancesManquantes`] ; un fichier qu'Automerge ne lit pas,
+    /// [`Erreur::Automerge`]. Une compaction qui échoue fait échouer l'ouverture, avec son erreur.
+    ///
+    /// Un seul [`Document`] du fonds doit vivre à la fois : chacun se compacte de sa seule
+    /// mémoire, et deux `Document` qui écrivent puis se compactent perdent les écritures de l'un.
+    /// Le verrou de la racine des données écarte les autres processus, pas un second `Document`
+    /// du même processus ; le lot 1 pose la garde.
     pub fn fonds(&self) -> Result<Option<Document<'_>>, Erreur> {
         documents::rouvrir_le_fonds(self)
     }

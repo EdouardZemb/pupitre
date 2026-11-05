@@ -16,7 +16,11 @@ pub fn voisin(chemin: &Path) -> PathBuf {
 
 /// Écrit le voisin, le synchronise (`sync_all`), le ferme, le renomme en `chemin`
 /// (`std::fs::rename`, qui remplace au besoin), puis rend le renommage durable.
-/// En cas d'échec, retire le voisin et rend l'erreur.
+///
+/// Un échec avant ou pendant le renommage retire le voisin et rend l'erreur : `chemin` garde ce
+/// qu'il portait. Un échec de [`rendre_durable`] arrive après le renommage : l'erreur se rend,
+/// mais le fichier est déjà en place sous `chemin`, avec ses nouveaux octets, et il n'y a plus
+/// de voisin à retirer.
 pub fn ecrire_a_cote(chemin: &Path, octets: &[u8]) -> io::Result<()> {
     let voisin = voisin(chemin);
     if let Err(erreur) = ecrire_puis_renommer(&voisin, chemin, octets) {
