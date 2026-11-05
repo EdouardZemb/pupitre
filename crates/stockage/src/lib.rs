@@ -40,8 +40,16 @@ pub enum Erreur {
     /// s'applique pas ; le texte est celui d'Automerge.
     Genese(String),
     /// Automerge a refusé : le geste, une écriture du document, ou la lecture de son fichier
-    /// complet.
+    /// complet ou d'un fichier d'ajout.
     Automerge(AutomergeError),
+    /// Le contenu du fichier d'ajout `chemin` ne donne pas l'empreinte que porte son nom : le
+    /// document ne s'ouvre pas, et rien n'est retiré ni réécrit.
+    AjoutAltere { chemin: PathBuf },
+    /// Ses fichiers lus, le document a une modification qui attend ses dépendances
+    /// (`get_missing_deps`) : un fichier d'ajout manque, et le document ne s'ouvre pas.
+    DependancesManquantes,
+    /// Une écriture a échoué : le document refuse d'écrire jusqu'à sa réouverture.
+    ARelire,
 }
 
 /// Le SHA-256 de `octets`, en 64 caractères hexadécimaux minuscules (`Sha256::digest`).
