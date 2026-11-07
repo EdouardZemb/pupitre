@@ -10,6 +10,7 @@
 # les plans de lot, méthode du modèle
 !.claude/plans/
 .claude/settings.local.json
+CLAUDE.local.md
 .cursor/
 .superpowers/
 *.memory.json

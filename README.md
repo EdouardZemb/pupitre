@@ -55,3 +55,7 @@ Les autres commandes, dont le cahier des tables en PDF, sont dans [CLAUDE.md](CL
 ## Contribuer
 
 Projet personnel : aucune contribution n'est attendue.
+
+## Licence
+
+[MIT](LICENSE)
