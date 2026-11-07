@@ -21,9 +21,9 @@
 //    module, numérotées sans trou ni doublon. Le tableau « Les fonctions » nomme chacune, avec
 //    son titre, et la matrice de traçabilité la rattache à au moins un besoin, chaque besoin
 //    ayant sa ligne.
-// 4. Les portes de CI. Le tableau de CONVENTIONS.md (« Portes de CI »), son compte en lettres
-//    et la liste du README nomment les contrôles des workflows lancés sur une PR. CLAUDE.md
-//    nomme les jobs de ci.yml.
+// 4. Les portes de CI. Le tableau de CONVENTIONS.md (« Portes de CI ») et son compte en
+//    lettres nomment les contrôles des workflows lancés sur une PR. CLAUDE.md nomme les jobs
+//    de ci.yml. Le README ne les recopie pas : il renvoie à CONVENTIONS.md.
 // 5. Les contrôles requis. Ils se disent à un seul endroit, « Protection de `main` » dans
 //    CONVENTIONS.md : ailleurs, aucune phrase ne dit un contrôle requis, exigé, obligatoire,
 //    imposé ou bloquant, qu'elle nomme une porte ou parle de la règle de protection, sauf pour
@@ -32,8 +32,8 @@
 //    portes y sont dites non requises. En CI, la liste est comparée à la règle de protection
 //    réelle, lue sur GitHub ; hors CI, la comparaison est tentée, et son échec n'est qu'un
 //    avertissement.
-// 6. Les crates. CLAUDE.md et la ligne « Code » du README nomment les membres de l'espace de
-//    travail.
+// 6. Les crates. CLAUDE.md nomme les membres de l'espace de travail ; le README ne les
+//    recopie pas.
 // 7. Les comptes écrits dans README.md, CLAUDE.md et CONVENTIONS.md, en chiffres ou en
 //    lettres, devant « portes », « jobs », « modules », « crates » ou « situations » : chacun
 //    vaut le total.
@@ -486,11 +486,6 @@ export function phrasesSurLesRequis(texte, portes) {
   return res;
 }
 
-// Les portes en gras d'une section du README : **`socle / secrets`**.
-export function portesDuReadme(s) {
-  return s.lignes.flatMap((l) => [...l.matchAll(/\*\*`([^`]+)`\*\*/g)].map((m) => m[1]));
-}
-
 // CLAUDE.md : « La CI (…) a pour jobs `a`, `b` et `c`. »
 export function jobsDeClaude(texte) {
   const lignes = texte.split("\n");
@@ -522,15 +517,6 @@ export function cratesDeClaude(texte) {
     crates.push({ nom: m[1], chemin: m[2] });
   }
   return { ligne: i + 1, crates };
-}
-
-// Le README : la ligne « | **Code** | » du tableau Statut, et les crates qu'elle nomme en code,
-// hors parenthèses.
-export function cratesDuReadme(texte) {
-  const lignes = texte.split("\n");
-  const i = lignes.findIndex((l) => /^\| \*\*Code\*\* \|/.test(l));
-  if (i < 0) return null;
-  return { ligne: i + 1, crates: enCode(lignes[i].replace(/\([^)]*\)/g, "")) };
 }
 
 // Les comptes écrits devant un nom : « sept portes », « 6 jobs », « **six** crates ».
@@ -688,13 +674,6 @@ async function principal() {
     if (!memes(portes, controles)) ecart("CONVENTIONS.md", sPortes.debut, `le tableau des portes nomme ${liste(portes)} ; les workflows lancés sur une PR posent ${liste(controles)}`);
     if (compte !== controles.length) ecart("CONVENTIONS.md", sPortes.debut, `« **N, aujourd'hui.** » doit compter ${pluriel(controles.length, "porte", "portes")}, en lettres (lu : ${compte ?? "rien"})`);
   }
-  const readme = lire("README.md");
-  const sReadme = section(readme, "## Conventions et portes");
-  if (!sReadme) ecart("README.md", 1, "section « ## Conventions et portes » introuvable");
-  else {
-    const portes = portesDuReadme(sReadme);
-    if (!memes(portes, controles)) ecart("README.md", sReadme.debut, `la liste des portes nomme ${liste(portes)} ; les workflows lancés sur une PR posent ${liste(controles)}`);
-  }
   const claude = lire("CLAUDE.md");
   const jobsCi = jobsDuWorkflow(workflows.get(`${dossierWf}/ci.yml`)).map((j) => j.id);
   const jc = jobsDeClaude(claude);
@@ -747,9 +726,6 @@ async function principal() {
     const reel = crates.map((c) => `${c.nom} (${c.chemin})`);
     if (!memes(ecrit, reel)) ecart("CLAUDE.md", cc.ligne, `crates ${liste(ecrit)} ; l'espace de travail a ${liste(reel)}`);
   }
-  const cr = cratesDuReadme(readme);
-  if (!cr) ecart("README.md", 1, "ligne « | **Code** | » du tableau Statut introuvable");
-  else if (!memes(cr.crates, nomsCrates)) ecart("README.md", cr.ligne, `crates ${liste(cr.crates)} ; l'espace de travail a ${liste(nomsCrates)}`);
 
   // 7. Les comptes écrits devant un nom, dans les trois fichiers d'état ; ceux des ADR et des
   // décisions d'architecture sont lus au point 2.

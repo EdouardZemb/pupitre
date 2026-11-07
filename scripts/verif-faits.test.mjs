@@ -11,7 +11,6 @@ import {
   controlesDesWorkflows,
   controlesRequisEcrits,
   cratesDeClaude,
-  cratesDuReadme,
   fonctionsDuModule,
   jobsDeClaude,
   jobsDuWorkflow,
@@ -29,7 +28,6 @@ import {
   paragraphes,
   phrasesSurLesRequis,
   plages,
-  portesDuReadme,
   portesDuTableau,
   section,
   trous,
@@ -422,11 +420,6 @@ test("phrasesSurLesRequis refuse la phrase même de LE-9, et rien de ce qui ne d
   assert.deepEqual(phrasesSurLesRequis(faux, portes).map((p) => p.ligne), [1, 3, 5, 7, 9]);
 });
 
-test("portesDuReadme lit les portes en gras d'une section", () => {
-  const texte = "## Conventions et portes\n\n- **`socle / secrets`** cherche ;\n- **`verifier`** et **`windows`** gardent.\n\n## Suite\n- **`autre`**\n";
-  assert.deepEqual(portesDuReadme(section(texte, "## Conventions et portes")), ["socle / secrets", "verifier", "windows"]);
-});
-
 test("jobsDeClaude lit la liste des jobs de CLAUDE.md", () => {
   const texte = "- La CI (`.github/workflows/ci.yml`) a pour jobs `socle`, `contenu` et `mutants`. Le passage…\n";
   assert.deepEqual(jobsDeClaude(texte), { ligne: 1, jobs: ["socle", "contenu", "mutants"] });
@@ -444,15 +437,6 @@ test("cratesDeClaude lit la liste des crates et leurs chemins", () => {
   assert.deepEqual(cratesDeClaude(texte), {
     ligne: 1, crates: [{ nom: "noyau", chemin: "crates/noyau" }, { nom: "interface", chemin: "app/ui" }],
   });
-});
-
-test("cratesDuReadme ne lit que la ligne « Code » du tableau Statut", () => {
-  const texte = [
-    "| **Code** | En Rust : les crates `noyau` (la théorie, `svg`), `cahier` (le PDF) et `etabli` |",
-    "| **Prochaine étape** | INC-1 ajoutera les crates `stockage` et `synchro` |",
-  ].join("\n");
-  assert.deepEqual(cratesDuReadme(texte), { ligne: 1, crates: ["noyau", "cahier", "etabli"] });
-  assert.equal(cratesDuReadme("| **Autre** | rien |"), null);
 });
 
 test("comptesNommes relève les comptes en lettres et en chiffres, et laisse les articles", () => {
