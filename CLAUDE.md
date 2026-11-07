@@ -46,13 +46,14 @@ Les commandes de Rust, telles que la CI les lance. Deux usages du poste : chaque
 
 ## Ce qui fait foi
 
-*En cas de désaccord, c'est l'endroit nommé qui a raison.*
+*En cas de désaccord, c'est l'endroit nommé qui a raison. Un fichier de la racine s'y cite par un lien.*
 
-- Le comportement attendu, c'est la SFD (`docs/20-sfd/`) et `docs/70-qualite-et-verification.md` ; une fois écrits, le code et ses tests.
-- Les décisions, ce sont `docs/adr/` (série `adr-NNN`) et `docs/modele/decisions/` (préfixe `M-`).
-- La feuille de route, ce sont les issues, `docs/pistes.md` et `docs/40-architecture.md` (§ 9, la trajectoire de construction).
-- Le vocabulaire, c'est `docs/80-glossaire.md`.
-- Les constats, c'est `docs/registre.md`.
+- Le comportement attendu, c'est [la SFD](docs/20-sfd/README.md) et [la qualité et la vérification](docs/70-qualite-et-verification.md) ; une fois écrits, le code et ses tests.
+- Le besoin de départ, c'est [le brief](docs/00-brief-initial.md), qui ne se réécrit pas, et les choix de départ, [le cadrage](docs/cadrage.md), qui renvoie aux documents de la conception.
+- Les décisions, ce sont [celles du projet](docs/adr/) (série `adr-NNN`) et [celles du modèle](docs/modele/decisions/) (préfixe `M-`).
+- La feuille de route, ce sont les issues, [les pistes](docs/pistes.md) et [l'architecture](docs/40-architecture.md) (§ 9, la trajectoire de construction).
+- Le vocabulaire, c'est [le glossaire](docs/80-glossaire.md).
+- Les constats, c'est [le registre](docs/registre.md).
 
 ## Invariants — ne jamais violer
 
