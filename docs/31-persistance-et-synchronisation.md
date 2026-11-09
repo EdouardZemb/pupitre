@@ -140,22 +140,23 @@ réglages), historique compris : une copie complète par appareil est
 raisonnable, y compris sur un téléphone. Ce sont les captations audio qui pèsent (§ 6).
 
 **La taille visée du fonds** est celle de
-[CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds) · 6 : 2 000 idées.
-Les 300 morceaux de ce critère éprouvent la recherche, pas le budget ci-dessus, compté sur
-une soixantaine. Sacha écrit par périodes, depuis une quinzaine d'années, et apporte un fonds
-de démos, de *stems*, de fichiers MIDI, de textes et de notes
+[CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds) · 6 : 2 000 idées,
+et, depuis l'import, 6 000 prises dont 100 prises en stems (plus bas). Les 300 morceaux de
+ce critère éprouvent la recherche, pas le budget ci-dessus, compté sur une soixantaine.
+Sacha écrit par périodes, depuis une quinzaine d'années, et apporte un fonds de démos, de
+*stems*, de fichiers MIDI, de textes et de notes
 ([§ 11](11-persona-et-situations.md#1-fiche)). À quelques idées par semaine, une semaine sur
 deux — une hypothèse, que le persona ne chiffre pas —, il s'en capte une à deux centaines
 par an : 2 000 au plus après une dizaine d'années. C'est une borne haute, avec de la marge.
 Déclarés, les jeux de stems y ajoutent peu d'idées, une par prise, mais des captations
 ([CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)). Un stem en
-WAV pèse environ 11 Mo par minute, et un jeu de stems en compte huit à douze : les douze stems d'une
-version de trois minutes, autour de 400 Mo. La taille visée compte donc, parmi les 6 000 prises
-du fonds de mesure, **100 prises en stems** de douze stems, chaque stem avec son MIDI versé, soit 2 400 captations de plus
-et environ 40 Go d'audio : les ordres de grandeur d'un relevé, raisonnés pour Sacha
-([ADR-024](adr/adr-024-import-d-un-fonds.md)). Le fonds tient sous **4,5 Mo**, historique compris : c'est sa part des 125 Mo
-ci-dessus. Le fonds de mesure le vérifie, avec les métadonnées de ces captations, sans leur
-audio (§ 10, test 13).
+WAV pèse environ 11 Mo par minute, et un jeu de stems en compte huit à douze : les douze
+stems d'une version de trois minutes, autour de 400 Mo. La taille visée compte donc, parmi
+ses 6 000 prises, **100 prises en stems** de douze stems, chaque stem avec son MIDI versé,
+soit 2 400 captations de plus et environ 40 Go d'audio : les ordres de grandeur d'un relevé,
+raisonnés pour Sacha ([ADR-024](adr/adr-024-import-d-un-fonds.md)). Le fonds tient sous
+**4,5 Mo**, historique compris : c'est sa part des 125 Mo ci-dessus. Le fonds de mesure le
+vérifie, avec les métadonnées de ces captations, sans leur audio (§ 10, test 13).
 
 Les **appareils appairés et leurs jetons** ne sont **pas** dans un document synchronisé :
 ce sont des données de sécurité, gardées sur le nœud seul. Chaque appareil garde, lui, son
@@ -740,7 +741,7 @@ miroir/
   fonds/
     idees.txt                     une ligne par idée
     prises.txt                    une ligne par prise : empreinte, noms d'origine, durée lue, origine déclarée, diapason
-    stems.txt                     une ligne par stem d'une prise en stems : prise, empreinte, type, noms d'origine, durée, MIDI qui l'accompagne
+    stems.txt                     une ligne par stem d'une prise en stems : prise, empreinte, type, noms d'origine, durée, et pour chaque MIDI qui l'accompagne : empreinte, noms d'origine, format, division
     verses.txt                    une ligne par MIDI versé seul et par texte versé : empreinte, idée, noms d'origine, format, division d'un MIDI, origine déclarée
     motifs/<id>-<slug>/           mêmes fichiers qu'un bloc, plus paroles.txt (l'accroche)
   morceaux/<id>-<slug>/
@@ -859,7 +860,8 @@ pupitre-archive-AAAA-MM-JJ/               un dossier, écrit sous un nom proviso
 - **Elle annonce sa taille avant de commencer** : le total des octets à écrire, face à la
   place libre du support. Sans la place, elle ne commence pas, et Pupitre dit ce qui manque
   ([SYN-07](20-sfd/29-socle-donnees-appareils.md#syn-07--exporter-et-importer) · 6). Un
-  fonds de stems pèse des dizaines de gigaoctets (§ 2 ; [ADR-024](adr/adr-024-import-d-un-fonds.md)).
+  fonds de stems pèse des dizaines de gigaoctets (§ 2 ;
+  [ADR-024](adr/adr-024-import-d-un-fonds.md)).
 - **Elle n'est dite faite qu'une fois sur son support, puis relue** : chaque fichier y est
   écrit, synchronisé (`sync_all`), fermé, puis relu ; chaque document rouvert, sa teneur
   comparée à `teneurs.txt` ; chaque captation relue contre son empreinte. Le dossier n'est

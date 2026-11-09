@@ -99,14 +99,15 @@ la notice qu'Android impose pendant un enregistrement au premier plan (I29).
 - Une idée non reliée est un **objet légitime et durable**, pas une tâche en souffrance
   ([ADR-006](../adr/adr-006-le-partiel-est-normal.md)).
 - Gestes : écouter une prise, et les **gestes de tri**, qui écrivent : compléter le texte ;
-  étiqueter (poser ou ôter une étiquette libre) ; **relier** à une autre idée, un motif ou un
-  morceau, et délier ; **regrouper** des prises comme versions d'une même idée, avec les photos, les MIDI versés et les textes versés qui vont avec ; **retirer**
-  une idée, et la rétablir. À côté, **promouvoir** en motif ou en morceau.
+  étiqueter (poser ou ôter une étiquette libre) ; **relier** à une autre idée, un motif ou
+  un morceau, et délier ; **regrouper** des prises comme versions d'une même idée, avec les
+  photos, les MIDI versés et les textes versés qui vont avec ; **retirer** une idée, et la
+  rétablir. À côté, **promouvoir** en motif ou en morceau.
 - Une relation, un mécanisme
   ([§ 30 · 9.3](../30-modele-de-domaine.md#93-regrouper-et-relier)) :
-  - **regrouper** verse des prises, des photos, des MIDI versés seuls ou des textes versés dans une autre idée, qui les contient
-    désormais : rien n'est copié, et chaque captation reste distincte. Une idée que le geste
-    laisse sans rien est retirée avec lui ;
+  - **regrouper** verse des prises, des photos, des MIDI versés seuls ou des textes versés
+    dans une autre idée, qui les contient désormais : rien n'est copié, et chaque captation
+    reste distincte. Une idée que le geste laisse sans rien est retirée avec lui ;
   - **relier** pose un lien « apparenté à ». Une idée est **reliée** quand elle porte au
     moins un lien vers ce qui n'est pas une idée retirée ;
   - « versions d'une même idée » n'est pas un lien, et un lien ne regroupe rien.
@@ -119,12 +120,12 @@ la notice qu'Android impose pendant un enregistrement au premier plan (I29).
   faite par erreur ne s'annule pas : elle se retire.
 - Promouvoir crée l'objet, y verse la matière de l'idée (sa prise devient la première
   prise), et **garde l'idée**, reliée à ce qu'elle est devenue.
-- La boîte se trie par date, étiquette, durée, état (reliée ou non) et provenance (captée
-  ou importée, [§ 30 · 8.1](../30-modele-de-domaine.md#81-la-provenance)), et se filtre par
-  ce que l'idée contient : texte, prise, photo, MIDI versé, texte versé. La durée d'une idée est celle de sa prise la
-  plus longue, et `—` dès qu'une de ses prises n'a pas encore la sienne
-  ([§ 30 · 9.2](../30-modele-de-domaine.md#92-prises-photos-et-analyses)) ; une idée sans
-  durée se range à part, jamais exclue.
+- La boîte se trie par date, étiquette, durée, état (reliée ou non) et provenance (captée ou
+  importée, [§ 30 · 8.1](../30-modele-de-domaine.md#81-la-provenance)), et se filtre par ce
+  que l'idée contient : texte, prise, photo, MIDI versé, texte versé. La durée d'une idée
+  est celle de sa prise la plus longue, et `—` dès qu'une de ses prises n'a pas encore la
+  sienne ([§ 30 · 9.2](../30-modele-de-domaine.md#92-prises-photos-et-analyses)) ; une idée
+  sans durée se range à part, jamais exclue.
 
 **Ne fait pas** — ne relance pas, ne compte pas les jours, ne propose pas de « vider la
 boîte », ne regroupe ni ne relie rien d'office, ne supprime jamais une prise sans opération
@@ -190,17 +191,19 @@ destructrice explicite.
   idée.
 - **Avant de rien verser**, Sacha fait ses déclarations, dossier par dossier, et Pupitre
   compare la taille à verser à la place libre.
-- Un dossier que Sacha déclare **jeu de stems** devient une seule prise, la **prise en
-  stems** : chaque fichier audio en est un stem, et le MIDI qui porte son nom l'accompagne.
-  Pupitre propose de déclarer ainsi un dossier dont au moins deux fichiers WAV ont la même
-  durée, sans jamais le faire d'office. Le type d'un stem (voix, batterie, basse…) se propose
-  d'après son nom, et se décide d'un geste.
-- Sacha peut déclarer l'**origine** d'un dossier versé, à l'import ou plus tard : de sa main,
-  ou produite par un générateur externe, qu'il nomme. Elle vaut pour ses sous-dossiers, sauf
-  ceux qu'il déclare à part. Non déclarée, elle vaut `—`. Déclarée générée, elle se garde à
-  vie : elle ne se retire pas. Verser à nouveau un contenu connu sous une autre déclaration
-  ne l'efface jamais : une origine générée l'emporte sur toute autre, une origine déclarée
-  sur `—`, et le rapport le dit. Pupitre ne la déduit jamais d'un nom ni d'une métadonnée.
+- Un dossier que Sacha déclare **jeu de stems** devient une seule prise, la
+  **prise en stems** : chaque fichier audio en est un stem, et le MIDI qui porte son nom
+  l'accompagne. Pupitre propose de déclarer ainsi un dossier dont au moins deux fichiers WAV
+  ont la même durée, sans jamais le faire d'office. Le type d'un stem (voix, batterie,
+  basse…) se propose d'après son nom, et se décide d'un geste.
+- Sacha peut déclarer l'**origine** d'un dossier versé, à l'import ou plus tard : de sa
+  main, ou produite par un générateur externe, qu'il nomme. Elle vaut pour ses
+  sous-dossiers, sauf ceux qu'il déclare à part ; plus tard, elle porte aussi sur une prise,
+  un MIDI versé seul ou un texte versé. Non déclarée, elle vaut `—`. Elle se range par
+  empreinte : un même contenu n'en a qu'une, la plus forte de celles qu'il a reçues, à
+  quelque rôle que ce soit (générée, puis de la main de Sacha, puis `—`), et le rapport dit
+  chaque origine qu'un import change. Déclarée générée, elle se garde à vie : elle ne se
+  retire pas. Pupitre ne la déduit jamais d'un nom ni d'une métadonnée.
 - Un fichier **MIDI** devient une captation : il accompagne le stem dont il porte le nom,
   ou, **MIDI versé seul**, appartient à une idée. Sa mélodie devient une **proposition**
   (provenance `importee`) en INC-2, dans un morceau ; d'ici là, l'établi en montre le format
@@ -263,8 +266,8 @@ aucune origine.
    pas, 3 prises existent.
 9. *Étant donné* un dossier déclaré produit par un générateur externe, *alors* chacune de
    ses prises porte cette origine, la retirer est refusé, et le reverser déclaré de la main
-   de Sacha la laisse générée ; *étant donné* un dossier non déclaré, l'origine de ses prises
-   vaut `—`.
+   de Sacha la laisse générée ; *étant donné* un dossier non déclaré, l'origine de ses
+   prises vaut `—`.
 10. *Étant donné* un même contenu sous deux noms, dans deux sous-dossiers, *alors* un objet
     existe, avec ses deux noms d'origine et leurs chemins.
 11. *Étant donné* un dossier qui contient une archive zip et un PDF, *quand* il est importé,
@@ -273,6 +276,8 @@ aucune origine.
 12. *Étant donné* une prise que la lecture simple de l'appareil ne sait pas jouer, *quand*
     Sacha l'écoute, *alors* l'établi montre ses faits et « lecture impossible sur cet
     appareil », et aucune erreur.
+13. *Étant donné* un dossier plus lourd que la place libre, *quand* Sacha l'importe, *alors*
+    rien n'est versé, et Pupitre dit la taille à verser et ce qui manque.
 
 ---
 

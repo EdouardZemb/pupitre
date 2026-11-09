@@ -518,12 +518,15 @@ s'appliquent qu'au contenu : une idée ne se détecte pas, ne se suggère pas et
 pas.
 
 **L'origine déclarée d'un fichier versé n'est pas une provenance d'idée.** De la main de
-Sacha, produit par un générateur externe qu'il nomme, ou `—` tant qu'il ne l'a pas dit, elle
-est portée par la prise, le MIDI versé ou le texte versé (§ 9.2) : une idée peut regrouper un
-original de Sacha et une version générée. Le contenu qu'on en accepte garde la provenance
-`importee`, et l'origine déclarée de son fichier se lit par son empreinte, son champ
-`depuis` ([ADR-024](adr/adr-024-import-d-un-fonds.md)). Déclarée générée, elle ne se retire jamais, et ce contenu compte dans la
-part d'origine
+Sacha, produite par un générateur externe qu'il nomme, ou `—` tant qu'il ne l'a pas dit,
+elle se range par empreinte, avec chaque captation versée (prise, manifeste, stem, MIDI,
+texte), et non avec l'idée : une idée peut regrouper un original de Sacha et une version
+générée. Un même contenu n'en a qu'une, la plus forte de celles qu'il a reçues, à quelque
+rôle que ce soit : générée, puis de la main de Sacha, puis `—` ; générée sous deux noms de
+générateur, elle garde les deux. Le contenu qu'on en accepte garde la provenance `importee`,
+et l'origine déclarée de son fichier se lit par son empreinte, son champ `depuis`
+([ADR-024](adr/adr-024-import-d-un-fonds.md)). Déclarée générée, elle ne se retire jamais,
+et ce contenu compte dans la part d'origine
 ([PRO-02](20-sfd/26-propositions-suggestions-provenance.md#pro-02--provenance-et-part-dorigine)).
 
 ### 8.2 Ce qui est stocké, ce qui ne l'est pas
@@ -576,20 +579,20 @@ stateDiagram-v2
   pas une idée retirée. Cet état s'engendre ; il n'est jamais stocké.
 - Une idée **retirée** porte la date de son retrait. Elle quitte la boîte, la vue du fonds
   et les requêtes, et ne compte dans aucune assiette. Rien n'en est effacé : ni son texte,
-  ni ses étiquettes, ni ses liens, ni ses prises, ni ses photos, ni leurs captations. La
-  **rétablir** ôte la marque, et elle revient telle qu'elle était. La suppression définitive
-  d'une idée et de ses captations sera une opération destructrice explicite
-  ([§ 40 · 7.3](40-architecture.md#73-appairage-et-sessions)), conçue plus tard ; d'ici là,
-  rien ne s'efface. Retirée, l'idée reste dans le document, dans sa teneur et dans son
-  historique ([ADR-023](adr/adr-023-stockage-des-documents.md)).
+  ni ses étiquettes, ni ses liens, ni ses prises, ni ses photos, ni ses MIDI ou textes
+  versés, ni leurs captations. La **rétablir** ôte la marque, et elle revient telle qu'elle
+  était. La suppression définitive d'une idée et de ses captations sera une opération
+  destructrice explicite ([§ 40 · 7.3](40-architecture.md#73-appairage-et-sessions)), conçue
+  plus tard ; d'ici là, rien ne s'efface. Retirée, l'idée reste dans le document, dans sa
+  teneur et dans son historique ([ADR-023](adr/adr-023-stockage-des-documents.md)).
 
 ### 9.2 Prises, photos et analyses
 
 | Objet | Contenu | Nature |
 |---|---|---|
-| **Prise** | Empreinte, idée, noms d'origine tels quels, format, durée (engendrée pour une prise en stems), date, appareil, origine déclarée, diapason mesuré ; pour une prise en stems, l'entrée de chacun de ses stems | Captation, ou manifeste d'un jeu de stems ; ses métadonnées sont des décisions, des faits et une mesure (ci-dessous) |
-| **Stem** | Empreinte, noms d'origine, type, format, durée, MIDI qui l'accompagne ; une entrée sous chaque prise dont il est stem | Captation ; son type est une décision, le reste des faits |
-| **MIDI versé** | Empreinte, noms d'origine, format SMF, division ; seul, son idée et son origine déclarée. Celui qui accompagne un stem se range dans l'entrée du stem, et a l'origine de sa prise | Captation ; ses métadonnées sont des décisions et des faits |
+| **Prise** | Empreinte, idée, noms d'origine tels quels, format, durée (engendrée, et non stockée, pour une prise en stems), date, appareil, origine déclarée, diapason mesuré ; pour une prise en stems, l'entrée de chacun de ses stems | Captation, ou manifeste d'un jeu de stems ; ses métadonnées sont des décisions, des faits et une mesure (ci-dessous) |
+| **Stem** | Empreinte, noms d'origine, type, format, durée, origine déclarée, MIDI qui l'accompagnent ; une entrée sous chaque prise dont il est stem | Captation ; son type est une décision, le reste des faits |
+| **MIDI versé** | Empreinte, noms d'origine, format SMF, division, origine déclarée ; seul, son idée. Celui qui accompagne un stem se range dans l'entrée de ce stem, et un même MIDI peut en accompagner plusieurs | Captation ; ses métadonnées sont des décisions et des faits |
 | **Texte versé** | Empreinte, idée, noms d'origine, format (brut, Markdown, ChordPro), origine déclarée | Captation ; ses métadonnées sont des décisions et des faits |
 | **Photo** | Empreinte, idée, format, date, appareil | Captation ; ses métadonnées sont une décision et des faits (ci-dessous) |
 | **Rattachement** | Morceau, rôle (`référence`, `version`, `travail`, `maquette`, `maquette générée`), carte de temps | Décision, dans le document du morceau |
@@ -601,15 +604,17 @@ côte à côte. Les décisions déjà prises gardent la provenance de celui qu'e
 accepté.
 
 **La prise en stems.** Un jeu de stems versé est une seule prise
-([CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)) : chaque stem
-en est une captation audio, et la prise est nommée par l'empreinte de son **manifeste**,
-l'ensemble des empreintes de ses stems, rangées dans l'ordre de leurs octets, une par ligne,
-figé en captation. Verser deux fois le même jeu de stems donne donc la même prise. Ce que
-Pupitre sait d'un stem se range dans son **entrée**, sous sa prise : un même contenu peut
-être stem de deux prises, avec une entrée sous chacune, et deux stems identiques d'un même
-jeu n'en font qu'un, avec ses deux noms. Regrouper déplace la prise entière, jamais un stem
-seul : les prises d'une idée sont ses versions, les stems d'une prise sont ses parties. Un
-MIDI versé qui porte le nom d'un stem l'accompagne ; un autre appartient à une idée
+([CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)) : chaque
+stem en est une captation audio, et la prise est nommée par l'empreinte de son
+**manifeste**, l'ensemble des empreintes de ses stems, rangées dans l'ordre de leurs octets,
+une par ligne, figé en captation. Verser deux fois le même jeu de stems donne donc la même
+prise. Ce que Pupitre sait d'un stem se range dans son **entrée**, sous sa prise : un même
+contenu peut être stem de deux prises, avec une entrée sous chacune, et deux stems
+identiques d'un même jeu n'en font qu'un, avec ses deux noms. Une entrée garde tous les MIDI
+qui l'accompagnent : deux stems identiques, chacun avec son MIDI, donnent une entrée et deux
+MIDI. Regrouper déplace la prise entière, jamais un stem seul : les prises d'une idée sont
+ses versions, les stems d'une prise sont ses parties. Un MIDI versé qui porte le nom d'un
+stem l'accompagne ; un autre appartient à une idée
 ([ADR-024](adr/adr-024-import-d-un-fonds.md)).
 
 **Ce que portent une prise et une photo.** Trois natures s'y côtoient, comme dans un stem,
@@ -636,11 +641,12 @@ un MIDI versé ou un texte versé :
 durée musicale, celle d'une occurrence, d'un morceau ou d'un album : elle s'engendre de la
 forme, des mesures, de la métrique et du tempo, et se désynchroniserait si on la stockait.
 La durée d'une prise est le temps de son enregistrement : elle ne dépend d'aucune autre
-donnée, et sa captation ne change jamais. Celle d'une prise en stems, elle, s'engendre de ses
-stems : c'est celle du plus long, et `—` dès qu'un stem n'a pas la sienne. La durée d'une idée, elle, s'engendre : c'est
-celle de sa prise la plus longue. Comme toute valeur engendrée, elle prend le statut le plus
-faible de ses entrées ([§ 50 · 4.1](50-interfaces-et-appareils.md#41-statut-dune-valeur)) :
-`—` si l'idée n'a pas de prise, ou si l'une de ses prises n'a pas encore sa durée lue.
+donnée, et sa captation ne change jamais. Celle d'une prise en stems, elle, s'engendre de
+ses stems : c'est celle du plus long, et `—` dès qu'un stem n'a pas la sienne. La durée
+d'une idée, elle, s'engendre : c'est celle de sa prise la plus longue. Comme toute valeur
+engendrée, elle prend le statut le plus faible de ses entrées
+([§ 50 · 4.1](50-interfaces-et-appareils.md#41-statut-dune-valeur)) : `—` si l'idée n'a pas
+de prise, ou si l'une de ses prises n'a pas encore sa durée lue.
 
 ### 9.3 Regrouper et relier
 
@@ -770,8 +776,8 @@ erDiagram
   IDEE ||--o{ PHOTO : regroupe
   IDEE |o--o{ MIDI_VERSE : regroupe
   IDEE ||--o{ TEXTE_VERSE : regroupe
-  PRISE ||--o{ STEM : "se compose de"
-  STEM |o--o| MIDI_VERSE : accompagne
+  PRISE }o--o{ STEM : "se compose de"
+  STEM }o--o{ MIDI_VERSE : accompagne
   LIEN }o--o{ IDEE : relie
   MORCEAU ||--o{ BLOC : definit
   MORCEAU ||--o{ OCCURRENCE : "ordonne en forme"

@@ -28,7 +28,8 @@ Sacha :
   basse… ;
 - en WAV, 48 kHz, 16 bits, stéréo, un stem pèse **environ 11 Mo par minute** : autour de
   400 Mo pour les douze stems d'une version de trois minutes ;
-- presque chaque stem a **son fichier MIDI**, au tempo variable ; quelques-uns n'en ont pas ;
+- presque chaque stem a **son fichier MIDI**, au tempo variable ; quelques-uns n'en ont
+  pas ;
 - un même morceau peut exister en **plusieurs versions**, chacune avec son jeu de stems : un
   original, et des versions qu'un générateur de maquettes externe en a tirées ;
 - un tel fonds peut ne porter aucun tableau d'analyses ; des archives y doublent souvent des
@@ -40,27 +41,29 @@ Sacha :
    captation audio. La prise est nommée par l'empreinte de son **manifeste** : l'ensemble
    des empreintes de ses stems, rangées dans l'ordre de leurs octets, une par ligne, figé en
    captation. Verser deux fois le même jeu de stems donne la même prise. Ce que Pupitre sait
-   d'un stem se range **sous sa prise** : ses noms d'origine, son format, sa durée, son type,
-   et le MIDI qui l'accompagne. Un même contenu peut ainsi être stem de deux prises, avec une
-   entrée sous chacune ; deux stems identiques d'un même jeu n'en font qu'un, avec ses deux
-   noms. La durée d'une prise en stems s'engendre : celle de son stem le plus long, `—` dès
-   qu'un stem n'a pas la sienne. Les prises d'une idée restent ses versions : regrouper
-   déplace la prise entière, jamais un stem seul. Le type d'un stem est une décision de
-   Sacha ; l'import le propose d'après le nom d'origine, sans le décider.
+   d'un stem se range **sous sa prise** : ses noms d'origine, son format, sa durée, son
+   type, et les MIDI qui l'accompagnent. Un même contenu peut ainsi être stem de deux
+   prises, avec une entrée sous chacune ; deux stems identiques d'un même jeu n'en font
+   qu'un, avec ses deux noms. La durée d'une prise en stems s'engendre : celle de son stem
+   le plus long, `—` dès qu'un stem n'a pas la sienne. Les prises d'une idée restent ses
+   versions : regrouper déplace la prise entière, jamais un stem seul. Le type d'un stem est
+   une décision de Sacha ; l'import le propose d'après le nom d'origine, sans le décider.
 2. **Sacha dit ce qui est un jeu de stems**, dossier par dossier, pendant les déclarations
-   de l'import, avant que rien ne soit versé. Pupitre le propose pour un dossier dont au moins
-   deux fichiers WAV ont la même durée, et ne l'applique jamais d'office. Sans cette
+   de l'import, avant que rien ne soit versé. Pupitre le propose pour un dossier dont au
+   moins deux fichiers WAV ont la même durée, et ne l'applique jamais d'office. Sans cette
    déclaration, chaque fichier audio est une prise.
 3. **L'origine déclarée.** Sacha peut déclarer, à l'import ou plus tard, l'origine d'un
    dossier versé : de sa main, ou produite par un générateur externe, qu'il nomme en texte
    libre. La déclaration vaut pour ses sous-dossiers, sauf ceux qu'il déclare à part, et
-   s'écrit sur chaque prise, chaque MIDI versé seul et chaque texte versé ; un MIDI qui
-   accompagne un stem a celle de sa prise. Non déclarée, elle vaut `—`. Déclarée générée,
-   elle se garde à vie : elle ne se retire pas. Verser à nouveau un contenu connu sous une
-   autre déclaration ne l'efface jamais : une origine générée l'emporte sur toute autre, une
-   origine déclarée l'emporte sur `—`, et le rapport nomme chaque origine ainsi changée.
-   Pupitre ne la déduit jamais d'un nom ni d'une métadonnée. Le contenu qu'on accepte d'un
-   fichier déclaré généré compte dans la part d'origine, avec les pistes
+   pour chaque captation qui en est versée : prise, stem, MIDI, texte. Plus tard, elle porte
+   sur une prise, un MIDI versé seul, un texte versé, ou sur tous les fichiers versés dont
+   un chemin d'origine commence par un dossier donné. Non déclarée, elle vaut `—`. Elle se
+   range par empreinte : un même contenu n'en a qu'une, la plus forte de celles qu'il a
+   reçues, à quelque rôle que ce soit, générée, puis de la main de Sacha, puis `—` ; générée
+   sous deux noms, elle garde les deux. Déclarée générée, elle se garde à vie : elle ne se
+   retire pas. Le rapport nomme chaque origine qu'un import change. Pupitre ne la déduit
+   jamais d'un nom ni d'une métadonnée. Le contenu qu'on accepte d'un fichier déclaré généré
+   compte dans la part d'origine, avec les pistes
    ([PRO-02](../20-sfd/26-propositions-suggestions-provenance.md#pro-02--provenance-et-part-dorigine)) ;
    celui d'un fichier d'origine `—` forme le groupe « versé sans origine déclarée ». Ni l'un
    ni l'autre ne compte jamais de la main de Sacha.
@@ -78,8 +81,8 @@ Sacha :
 5. **Un fichier versé garde tous ses noms d'origine**, chacun avec son chemin relatif au
    dossier versé, séparé par `/` : l'ensemble ne fait que croître. Verser le même contenu
    sous un autre nom ajoute ce nom. Le premier vu, par date d'import, puis dans l'ordre de
-   ses octets, s'affiche ; les autres se lisent à la demande. Le nom d'origine d'une prise en
-   stems est celui de son dossier.
+   ses octets, s'affiche ; les autres se lisent à la demande. Le nom d'origine d'une prise
+   en stems est celui de son dossier.
 6. **Ce que l'établi lit seul.** Sans nœud qui décode, l'établi lit l'en-tête d'un WAV
    (codage, canaux, fréquence, bits, durée) et celui d'un MIDI (format, division), par du
    code natif, sans dépendance nouvelle. Les autres formats audio sont versés avec leurs
@@ -89,15 +92,15 @@ Sacha :
 7. **Ce que joue la lecture simple** : ce que la WebView de l'appareil sait jouer. Une prise
    qu'elle ne joue pas montre ses faits et « lecture impossible sur cet appareil », sans
    erreur. Une prise en stems s'y joue stem par stem. Les jouer ensemble, ou en n'en gardant
-   que certains, relève de l'écoute de contrôle, qui le dit : ce n'est pas un mixage, puisque
-   rien ne s'y règle ni ne s'exporte
+   que certains, relève de l'écoute de contrôle, qui le dit : ce n'est pas un mixage,
+   puisque aucun volume ni effet ne s'y règle par stem, et rien ne s'exporte
    ([ECO-01](../20-sfd/27-ecoute-et-compagnon.md#eco-01--écoute-de-contrôle),
    [Q16](../90-questions-ouvertes.md#q16--quelle-brique-pour-lécoute-de-contrôle-)).
 8. **Ce qui n'est ni audio, ni MIDI, ni texte est ignoré** : une archive, un PDF, une image,
    un tableau, les métadonnées d'un générateur. Rien n'en est ouvert, aucune archive n'est
    dépliée, et le rapport le compte parmi les ignorés, avec ses octets. Les analyses
-   existantes, que CAP-03 importe en propositions selon un mappage déclaré, entrent en INC-2,
-   quand une proposition a un morceau où se lire.
+   existantes, que CAP-03 importe en propositions selon un mappage déclaré, entrent en
+   INC-2, quand une proposition a un morceau où se lire.
 9. **Une idée par prise, par MIDI versé seul et par texte versé** : l'import n'en regroupe
    aucune d'office, même d'un même dossier. Chaque import a un identifiant, un ULID : la
    provenance `importee` des idées qu'il crée porte cet identifiant en `depuis`, et le rôle
@@ -105,15 +108,16 @@ Sacha :
    **rapport** compte les fichiers vus, versés, dédoublonnés, illisibles et ignorés, avec
    leurs octets, et se fige en captation à la fin de l'import ; l'opération nommée qui clôt
    l'import ([§ 30 · 11](../30-modele-de-domaine.md#11-journal-décisions-questions)) porte
-   l'identifiant et l'empreinte de ce rapport. Rejouer un import ne verse rien de plus : seul
-   s'ajoute son rapport.
-10. **Les volumes.** Avant de verser, l'import compare la taille à verser à la place libre, et
-    ne commence pas sans elle. La taille visée du fonds compte, parmi ses 6 000 prises,
-    100 prises en stems de douze stems, chaque stem avec son MIDI : 2 400 captations de plus,
-    environ 40 Go ([§ 31 · 2](../31-persistance-et-synchronisation.md#2-les-documents)). Le
-    fonds de mesure en porte les métadonnées, sans audio, et son fichier complet reste sous
-    4,5 Mo. L'archive complète annonce sa taille avant de commencer, et ne commence pas sans
-    la place libre
+   l'identifiant et l'empreinte de ce rapport. Rejouer un import ne verse rien de plus :
+   seul s'ajoute son rapport.
+10. **Les volumes.** Avant de verser, l'import compare la taille à verser à la place libre,
+    et ne commence pas sans elle. La taille visée du fonds compte, parmi ses 6 000 prises,
+    100 prises en stems de douze stems, chaque stem avec son MIDI : 2 400 captations de
+    plus, environ 40 Go
+    ([§ 31 · 2](../31-persistance-et-synchronisation.md#2-les-documents)). Le fonds de
+    mesure en porte les métadonnées, sans audio, et son fichier complet reste sous 4,5 Mo.
+    L'archive complète annonce sa taille avant de commencer, et ne commence pas sans la
+    place libre
     ([§ 31 · 9.1](../31-persistance-et-synchronisation.md#91-sans-nœud-larchive-complète)).
 
 ## Conséquences
@@ -157,13 +161,14 @@ Sacha :
 
 ## Comment on vérifie
 
-Par les critères 7 à 12 de
-[CAP-03](../20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant), le
-critère 6 de
+Par les critères 7 à 13 de
+[CAP-03](../20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant), le critère
+6 de
 [PRO-02](../20-sfd/26-propositions-suggestions-provenance.md#pro-02--provenance-et-part-dorigine),
-le critère 7 d'[ECO-01](../20-sfd/27-ecoute-et-compagnon.md#eco-01--écoute-de-contrôle) et
+le critère 8 d'[ECO-01](../20-sfd/27-ecoute-et-compagnon.md#eco-01--écoute-de-contrôle) et
 le critère 6 de
 [SYN-07](../20-sfd/29-socle-donnees-appareils.md#syn-07--exporter-et-importer), par les
-tests 13 et 14 du [§ 31 · 10](../31-persistance-et-synchronisation.md#10-les-tests-qui-verrouillent-ce-document),
+tests 13 et 14 du
+[§ 31 · 10](../31-persistance-et-synchronisation.md#10-les-tests-qui-verrouillent-ce-document),
 et par la règle « Les faits d'un fichier versé » du noyau
 ([§ 70 · 1](../70-qualite-et-verification.md#1-la-stratégie)), que la mutation éprouve.

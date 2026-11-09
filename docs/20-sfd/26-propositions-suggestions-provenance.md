@@ -85,8 +85,8 @@ acceptation par seuil de confiance : la confiance d'un détecteur n'est pas sa j
   ([CAP-03](21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)). Par dimension,
   **à la demande** seulement.
 - Le matériau accepté d'un fichier versé sans origine déclarée forme un groupe explicite,
-  « versé sans origine déclarée » : il ne compte ni dans la part d'origine, ni comme de la main de
-  Sacha ([ADR-024](../adr/adr-024-import-d-un-fonds.md)).
+  « versé sans origine déclarée » : il ne compte ni dans la part d'origine, ni comme de la
+  main de Sacha ([ADR-024](../adr/adr-024-import-d-un-fonds.md)).
 - Un **rapport de provenance** s'exporte (texte ou PDF) : il liste chaque élément issu d'une
   piste ou d'un fichier versé déclaré généré, avec son moteur, son modèle ou le générateur
   déclaré, et sa date. Il sert par exemple quand une démarche de
@@ -108,8 +108,8 @@ jugement.
    son modèle et sa date.
 6. *Étant donné* 2 lignes acceptées sur 20, venues d'un texte versé déclaré produit par un
    générateur externe, et 3 d'un texte versé sans origine déclarée, *alors* la part
-   d'origine du texte vaut 2/20, les 3 autres forment le groupe « versé sans origine déclarée », et
-   le rapport exporté liste les 2 premières avec le générateur déclaré.
+   d'origine du texte vaut 2/20, les 3 autres forment le groupe « versé sans origine
+   déclarée », et le rapport exporté liste les 2 premières avec le générateur déclaré.
 
 ---
 

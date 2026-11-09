@@ -706,23 +706,22 @@ flowchart LR
   - **lot 1, le fonds sur l'établi**, en `v0.3.0`. Le stockage des documents et des
     captations, côté natif ([ADR-022](adr/adr-022-documents-cote-natif.md),
     [ADR-023](adr/adr-023-stockage-des-documents.md)). L'adaptateur `Documents` en mémoire
-    naît avec celui des fichiers, et la même suite de tests des commandes passe sur les deux,
-    en natif ([ADR-022](adr/adr-022-documents-cote-natif.md)) ; la compilation des services
-    en WebAssembly, la construction navigateur et ses parcours de bout en bout viennent avec
-    la ligne 5 des portes, qui reste à venir
+    naît avec celui des fichiers, et la même suite de tests des commandes passe sur les
+    deux, en natif ([ADR-022](adr/adr-022-documents-cote-natif.md)) ; la compilation des
+    services en WebAssembly, la construction navigateur et ses parcours de bout en bout
+    viennent avec la ligne 5 des portes, qui reste à venir
     ([§ 70 · 8](70-qualite-et-verification.md#8-les-portes-de-ci)). La boîte d'idées : noter
     une idée en texte
-    ([CAP-01](20-sfd/21-capter-et-organiser.md#cap-01--capter-en-un-geste)), la trier
-    — compléter le texte, étiqueter, relier et délier, regrouper des prises, des MIDI et des textes versés (les photos, au
-    lot 2), retirer et rétablir —
+    ([CAP-01](20-sfd/21-capter-et-organiser.md#cap-01--capter-en-un-geste)), la trier —
+    compléter le texte, étiqueter, relier et délier, regrouper des prises, des MIDI et des
+    textes versés (les photos, au lot 2), retirer et rétablir —
     ([CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées)), annuler le
     dernier geste de tri. Écouter une prise, par la lecture simple que dit « Il ne contient
     pas », servie par le protocole des captations
     ([§ 7.5](#75-linterface-la-csp-et-les-commandes)). L'import d'un fonds existant
     ([CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)), prises
-    en stems, MIDI et textes versés compris
-    ([ADR-024](adr/adr-024-import-d-un-fonds.md)). La recherche
-    par attribut d'idée et par texte, et ses requêtes enregistrées
+    en stems, MIDI et textes versés compris ([ADR-024](adr/adr-024-import-d-un-fonds.md)).
+    La recherche par attribut d'idée et par texte, et ses requêtes enregistrées
     ([CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds)), et la vue du
     fonds, sans ses morceaux
     ([CAP-07](20-sfd/21-capter-et-organiser.md#cap-07--voir-le-fonds)). L'archive complète
@@ -740,8 +739,8 @@ flowchart LR
     dans un fichier `.automerge`
     ([§ 31 · 2.3](31-persistance-et-synchronisation.md#23-la-genèse-et-le-point-de-départ-du-fonds)) ;
     un document de test s'engendre à l'exécution, comme le jeu factice. Si un document de
-    test doit un jour être suivi, il vit dans un seul dossier, que la porte exempte, et la PR
-    qui l'y met le dit. La CSP et les droits de Tauri du
+    test doit un jour être suivi, il vit dans un seul dossier, que la porte exempte, et la
+    PR qui l'y met le dit. La CSP et les droits de Tauri du
     [§ 7.5](#75-linterface-la-csp-et-les-commandes) sont posés, et, avant eux, les trois
     styles calculés d'INC-0 repris en propriétés. Dans la PR de clôture du lot,
     l'application prend l'identifiant `app.pupitre` et la version `0.3.0`

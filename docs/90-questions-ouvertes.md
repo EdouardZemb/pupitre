@@ -29,10 +29,10 @@ les questions sur ce qu'il calcule sont tranchées le même jour : le plan d'INC
 s'écrire ([§ 40 · 9](40-architecture.md#9-trajectoire-de-construction)), et INC-0 est livré
 ([l'état](../CLAUDE.md#état)).
 
-Le plan du lot 1 d'INC-1 attendait une question, [Q23](#q23--comment-verser-un-fonds-existant-),
-l'import d'un fonds existant. Elle est tranchée le 2026-11-09 (plus bas) ; le plan attend
-encore que l'[ADR-024](adr/adr-024-import-d-un-fonds.md), que la PR d'import écrit, soit
-acceptée.
+Le plan du lot 1 d'INC-1 attendait une question,
+[Q23](#q23--comment-verser-un-fonds-existant-), l'import d'un fonds existant. Elle est
+tranchée le 2026-11-09 (plus bas) ; le plan attend encore que
+l'[ADR-024](adr/adr-024-import-d-un-fonds.md), que la PR d'import écrit, soit acceptée.
 
 ---
 
@@ -121,10 +121,11 @@ employé ; le mettre à jour quand l'outil change.
 **Enjeu.** La pile Rust ne la tranche pas encore
 ([§ 41 · 5.4](41-pile-technique.md#54-lécoute-de-contrôle)), et elle bloque
 [ECO-01](20-sfd/27-ecoute-et-compagnon.md#eco-01--écoute-de-contrôle), livrée avec INC-3.
-Trois exigences la bornent : un graphe fait d'échantillonneurs, de lecteurs de prise, un
-par stem d'une prise en stems ([ADR-024](adr/adr-024-import-d-un-fonds.md)), de volumes et d'une sortie, sans exportation audio (I21) ; des échantillons servis par le
-nœud, jamais par un hôte public, et gardés en cache pour l'écoute hors ligne (I24) ; aucun
-environnement de production sonore ([ADR-009](adr/adr-009-ecoute-de-controle.md)).
+Trois exigences la bornent : un graphe fait d'échantillonneurs, de lecteurs de prise, un par
+stem d'une prise en stems ([ADR-024](adr/adr-024-import-d-un-fonds.md)), de volumes et d'une
+sortie, sans exportation audio (I21) ; des échantillons servis par le nœud, jamais par un
+hôte public, et gardés en cache pour l'écoute hors ligne (I24) ; aucun environnement de
+production sonore ([ADR-009](adr/adr-009-ecoute-de-controle.md)).
 
 **Recommandation.** Trancher avant INC-3, au gabarit des couches du § 41 : ses concurrents
 écartés, et la fonction de la SFD qui la justifie. D'ici là, réécouter une prise se fait par
@@ -248,8 +249,8 @@ disent.
 ## ✅ Tranchées le 2026-11-09
 
 Deux questions sur l'import d'un fonds existant, tranchées selon leur recommandation. Le
-relevé qu'elles demandaient, des formats et des volumes d'un fonds réel, fait par la maîtrise
-d'ouvrage, reste hors du dépôt, qui n'en garde que des ordres de grandeur.
+relevé qu'elles demandaient, des formats et des volumes d'un fonds réel, fait par la
+maîtrise d'ouvrage, reste hors du dépôt, qui n'en garde que des ordres de grandeur.
 
 ### Q23 — Comment verser un fonds existant ?
 
@@ -258,8 +259,9 @@ jusqu'à la relecture de la PR d'import, qui l'écrit. Ce que CAP-03 tenait rest
 quel, garder le nom d'origine, ne rien rattacher d'office, vérifier un import par ses
 comptes. S'y ajoutent :
 
-- un jeu de stems versé est une seule prise, la prise en stems, nommée par l'empreinte de son
-  manifeste ; ses stems en sont les parties, et les prises d'une idée restent ses versions ;
+- un jeu de stems versé est une seule prise, la prise en stems, nommée par l'empreinte de
+  son manifeste ; ses stems en sont les parties, et les prises d'une idée restent ses
+  versions ;
 - Sacha déclare, dossier par dossier, ce qui est un jeu de stems, et l'origine de ce qu'il
   verse : de sa main, ou produit par un générateur externe, qu'il nomme. Déclarée générée,
   l'origine se garde à vie et compte dans la part d'origine ; non déclarée, elle forme son
@@ -269,24 +271,27 @@ comptes. S'y ajoutent :
 - un fichier versé garde tous ses noms d'origine, chacun avec son chemin ;
 - sans nœud qui décode, l'établi lit l'en-tête d'un WAV et celui d'un MIDI ; le reste
   attend que le nœud sache le décoder ;
-- la lecture simple joue ce que joue la WebView, une prise en stems stem par stem ; une prise
-  qu'elle ne joue pas le dit, sans erreur ; jouer les stems ensemble relève de l'écoute de
-  contrôle, et n'est pas un mixage ;
+- la lecture simple joue ce que joue la WebView, une prise en stems stem par stem ; une
+  prise qu'elle ne joue pas le dit, sans erreur ; jouer les stems ensemble relève de
+  l'écoute de contrôle, et n'est pas un mixage ;
 - ce qui n'est ni audio, ni MIDI, ni texte est ignoré, jamais ouvert, et compté au rapport ;
 - la taille visée du fonds compte, parmi ses 6 000 prises, 100 prises en stems, soit environ
-  40 Go d'audio ; l'import et l'archive complète comparent leur taille à la place libre avant
-  de commencer.
+  40 Go d'audio ; l'import et l'archive complète comparent leur taille à la place libre
+  avant de commencer.
 
 **Ce que ça règle.**
+[CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées),
 [CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant),
-[PRO-02](20-sfd/26-propositions-suggestions-provenance.md#pro-02--provenance-et-part-dorigine)
-, [SYN-07](20-sfd/29-socle-donnees-appareils.md#syn-07--exporter-et-importer) et
-[ECO-01](20-sfd/27-ecoute-et-compagnon.md#eco-01--écoute-de-contrôle), et l'enjeu de
-[Q16](#q16--quelle-brique-pour-lécoute-de-contrôle-) ; le
-[§ 30 · 8.1](30-modele-de-domaine.md#81-la-provenance) et le
-[§ 30 · 9.2](30-modele-de-domaine.md#92-prises-photos-et-analyses) ; la ligne « Matière » du
-[§ 11](11-persona-et-situations.md#1-fiche) ; la taille visée du fonds, le fonds de mesure et
-l'archive complète ([§ 31 · 2](31-persistance-et-synchronisation.md#2-les-documents),
+[CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds),
+[PRO-02](20-sfd/26-propositions-suggestions-provenance.md#pro-02--provenance-et-part-dorigine),
+[SYN-07](20-sfd/29-socle-donnees-appareils.md#syn-07--exporter-et-importer) et
+[ECO-01](20-sfd/27-ecoute-et-compagnon.md#eco-01--écoute-de-contrôle), avec l'enjeu de
+[Q16](#q16--quelle-brique-pour-lécoute-de-contrôle-) ; les
+[§ 30 · 8.1](30-modele-de-domaine.md#81-la-provenance),
+[§ 30 · 9.2](30-modele-de-domaine.md#92-prises-photos-et-analyses) et
+[§ 30 · 9.3](30-modele-de-domaine.md#93-regrouper-et-relier) ; la ligne « Matière » du
+[§ 11](11-persona-et-situations.md#1-fiche) ; la taille visée du fonds, le fonds de mesure
+et l'archive complète ([§ 31 · 2](31-persistance-et-synchronisation.md#2-les-documents),
 [§ 31 · 9.1](31-persistance-et-synchronisation.md#91-sans-nœud-larchive-complète) et
 [§ 31 · 10](31-persistance-et-synchronisation.md#10-les-tests-qui-verrouillent-ce-document)).
 Le plan du lot 1 d'INC-1 s'écrit une fois l'ADR-024 acceptée.
