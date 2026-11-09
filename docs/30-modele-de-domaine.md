@@ -587,9 +587,9 @@ stateDiagram-v2
 
 | Objet | Contenu | Nature |
 |---|---|---|
-| **Prise** | Empreinte, idée, noms d'origine tels quels, format, durée, date, appareil, origine déclarée, diapason mesuré ; pour une prise en stems, ses stems | Captation, ou manifeste d'un jeu de stems ; ses métadonnées sont des décisions, des faits et une mesure (ci-dessous) |
-| **Stem** | Empreinte, noms d'origine, type, format, durée ; rangé sous sa prise | Captation ; son type est une décision, le reste des faits |
-| **MIDI versé** | Empreinte, stem qu'il accompagne ou idée, noms d'origine, format SMF, division, origine déclarée | Captation ; ses métadonnées sont des décisions et des faits |
+| **Prise** | Empreinte, idée, noms d'origine tels quels, format, durée (engendrée pour une prise en stems), date, appareil, origine déclarée, diapason mesuré ; pour une prise en stems, l'entrée de chacun de ses stems | Captation, ou manifeste d'un jeu de stems ; ses métadonnées sont des décisions, des faits et une mesure (ci-dessous) |
+| **Stem** | Empreinte, noms d'origine, type, format, durée, MIDI qui l'accompagne ; une entrée sous chaque prise dont il est stem | Captation ; son type est une décision, le reste des faits |
+| **MIDI versé** | Empreinte, noms d'origine, format SMF, division ; seul, son idée et son origine déclarée. Celui qui accompagne un stem se range dans l'entrée du stem, et a l'origine de sa prise | Captation ; ses métadonnées sont des décisions et des faits |
 | **Texte versé** | Empreinte, idée, noms d'origine, format (brut, Markdown, ChordPro), origine déclarée | Captation ; ses métadonnées sont des décisions et des faits |
 | **Photo** | Empreinte, idée, format, date, appareil | Captation ; ses métadonnées sont une décision et des faits (ci-dessous) |
 | **Rattachement** | Morceau, rôle (`référence`, `version`, `travail`, `maquette`, `maquette générée`), carte de temps | Décision, dans le document du morceau |
@@ -601,13 +601,16 @@ côte à côte. Les décisions déjà prises gardent la provenance de celui qu'e
 accepté.
 
 **La prise en stems.** Un jeu de stems versé est une seule prise
-([CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)) : chaque stem en est une captation audio, et la prise est nommée par
-l'empreinte de son **manifeste**, la liste des empreintes de ses stems, rangées dans l'ordre
-de leurs octets, une par ligne, figée en captation. Verser deux fois le même jeu donne donc
-la même prise. Sa durée est celle de son stem le plus long. Regrouper la déplace entière,
-jamais un stem seul : les prises d'une idée sont ses versions, les stems d'une prise sont ses
-parties. Un MIDI versé qui porte le nom d'un stem l'accompagne ; un autre appartient à une
-idée ([ADR-024](adr/adr-024-import-d-un-fonds.md)).
+([CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)) : chaque stem
+en est une captation audio, et la prise est nommée par l'empreinte de son **manifeste**,
+l'ensemble des empreintes de ses stems, rangées dans l'ordre de leurs octets, une par ligne,
+figé en captation. Verser deux fois le même jeu de stems donne donc la même prise. Ce que
+Pupitre sait d'un stem se range dans son **entrée**, sous sa prise : un même contenu peut
+être stem de deux prises, avec une entrée sous chacune, et deux stems identiques d'un même
+jeu n'en font qu'un, avec ses deux noms. Regrouper déplace la prise entière, jamais un stem
+seul : les prises d'une idée sont ses versions, les stems d'une prise sont ses parties. Un
+MIDI versé qui porte le nom d'un stem l'accompagne ; un autre appartient à une idée
+([ADR-024](adr/adr-024-import-d-un-fonds.md)).
 
 **Ce que portent une prise et une photo.** Trois natures s'y côtoient, comme dans un stem,
 un MIDI versé ou un texte versé :
@@ -619,8 +622,10 @@ un MIDI versé ou un texte versé :
 - son **format**, sa **date**, l'**appareil** qui l'a faite, la **durée** d'une prise et les
   **noms d'origine** d'un fichier versé, chacun avec son chemin dans le dossier versé, sont
   des **faits de la captation**. Lus une fois, sur la captation ou à sa création, ils ne
-  changent jamais, puisqu'elle est immuable ; verser le même contenu sous un autre nom ajoute
-  ce nom, et rien d'autre. Ils sont
+  changent jamais, puisqu'elle est immuable ; l'ensemble des noms d'origine ne fait que
+  croître, puisque verser le même contenu sous un autre nom y ajoute ce nom. Le premier vu,
+  par date d'import, puis dans l'ordre de ses octets, s'affiche ; celui d'une prise en stems
+  est le nom de son dossier. Ils sont
   écrits dans le document du fonds, à côté de l'empreinte, pour trier et chercher sans la
   captation, qu'un appareil n'a pas toujours
   ([§ 31 · 6.2](31-persistance-et-synchronisation.md#62-ce-quun-appareil-garde)). Tant qu'un
@@ -631,7 +636,8 @@ un MIDI versé ou un texte versé :
 durée musicale, celle d'une occurrence, d'un morceau ou d'un album : elle s'engendre de la
 forme, des mesures, de la métrique et du tempo, et se désynchroniserait si on la stockait.
 La durée d'une prise est le temps de son enregistrement : elle ne dépend d'aucune autre
-donnée, et sa captation ne change jamais. La durée d'une idée, elle, s'engendre : c'est
+donnée, et sa captation ne change jamais. Celle d'une prise en stems, elle, s'engendre de ses
+stems : c'est celle du plus long, et `—` dès qu'un stem n'a pas la sienne. La durée d'une idée, elle, s'engendre : c'est
 celle de sa prise la plus longue. Comme toute valeur engendrée, elle prend le statut le plus
 faible de ses entrées ([§ 50 · 4.1](50-interfaces-et-appareils.md#41-statut-dune-valeur)) :
 `—` si l'idée n'a pas de prise, ou si l'une de ses prises n'a pas encore sa durée lue.
@@ -642,14 +648,15 @@ Trois relations partent d'une idée, et chacune n'a qu'un mécanisme.
 
 | Relation | Mécanisme | Gestes | Ce qui s'écrit |
 |---|---|---|---|
-| **Versions d'une même idée** | Les prises d'une même idée : chaque prise et chaque photo appartient à une seule idée | Regrouper ([CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées)) ; accepter « ces deux prises semblent la même idée » ([CAP-05](20-sfd/21-capter-et-organiser.md#cap-05--rapprocher-des-idées-et-des-prises)) | L'idée de chaque prise ou photo regroupée |
+| **Versions d'une même idée** | Les prises d'une même idée : chaque prise, chaque photo, chaque MIDI versé seul et chaque texte versé appartient à une seule idée | Regrouper ([CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées)) ; accepter « ces deux prises semblent la même idée » ([CAP-05](20-sfd/21-capter-et-organiser.md#cap-05--rapprocher-des-idées-et-des-prises)) | L'idée de chaque prise, photo, MIDI versé ou texte versé regroupé |
 | **Parenté** | Un lien « apparenté à », non orienté, entre deux idées, motifs ou morceaux | Relier et délier ([CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées)) ; accepter un autre rapprochement ([CAP-05](20-sfd/21-capter-et-organiser.md#cap-05--rapprocher-des-idées-et-des-prises)) | Un lien |
 | **Ce qu'une idée est devenue** | Un lien « devenue », orienté, de l'idée vers le motif ou le morceau qu'elle a fait naître | Promouvoir ([CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées)) | Un lien |
 
 - **Regrouper** ne copie, ne fusionne et ne réécrit aucune captation : une prise ne change
   que d'idée. Il ne mêle ni les textes, ni les étiquettes, ni les liens des deux idées :
   chacune garde les siens. Une idée que le geste laisse sans rien, ni prise, ni photo, ni
-  texte, ni étiquette, ni lien, est retirée par le même geste (§ 9.1).
+  MIDI ou texte versé, ni texte propre, ni étiquette, ni lien, est retirée par le même geste
+  (§ 9.1).
 - **Un lien se nomme par son type et ses deux bouts** (§ 2) : pour « apparenté à », non
   orienté, les deux identifiants rangés dans l'ordre de leurs octets ; pour « devenue »,
   l'idée, puis ce qu'elle est devenue. Deux appareils qui posent hors ligne le même lien, dans
@@ -734,9 +741,9 @@ lu par aucun diagnostic ([ADR-006](adr/adr-006-le-partiel-est-normal.md)).
 |---|---|
 | Un nom d'accord, un degré, une fonction | Rendus de l'objet harmonique et de la tonalité |
 | Un numéro de mesure ou d'occurrence | Engendrés par position ; stockés, ils se désynchronisent |
-| Une durée musicale (d'une occurrence, d'un morceau, d'un album), un horodatage de section, la durée d'une idée | Engendrés depuis forme, mesures, métrique et tempo ; celle d'une idée, depuis ses prises. La durée d'une prise, fait de sa captation, n'en est pas ([§ 9.2](#92-prises-photos-et-analyses)) |
-| Une densité, un compte, un total, une statistique, dont le nombre de notes d'un MIDI versé et les comptes d'un rapport d'import | Engendrés ; c'est la source classique des chiffres faux. Le rapport d'import se fige en captation, hors des documents ([ADR-024](adr/adr-024-import-d-un-fonds.md)) |
-| Les prises, les photos, les MIDI versés et les textes versés d'une idée, les étiquettes du fonds, l'état « reliée » d'une idée, les résultats d'une requête enregistrée | Engendrés depuis l'idée que porte chaque prise et chaque photo, les étiquettes des idées et les liens ([§ 9](#9-idées-prises-et-analyses)) ; une requête ne garde que son nom et ses critères ([CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds)) |
+| Une durée musicale (d'une occurrence, d'un morceau, d'un album), un horodatage de section, la durée d'une idée ou d'une prise en stems | Engendrés depuis forme, mesures, métrique et tempo ; celle d'une idée, depuis ses prises ; celle d'une prise en stems, depuis ses stems. La durée d'une autre prise, ou d'un stem, fait de sa captation, n'en est pas ([§ 9.2](#92-prises-photos-et-analyses)) |
+| Une densité, un compte, un total, une statistique, dont le nombre de notes d'un MIDI versé et les comptes d'un rapport d'import | Engendrés ; c'est la source classique des chiffres faux. Les comptes d'un rapport d'import vivent dans sa captation, que nomme l'opération qui clôt l'import ([ADR-024](adr/adr-024-import-d-un-fonds.md)) |
+| Les prises, les photos, les MIDI versés et les textes versés d'une idée, les étiquettes du fonds, l'état « reliée » d'une idée, les résultats d'une requête enregistrée | Engendrés depuis l'idée que porte chaque prise, chaque photo, chaque MIDI versé seul et chaque texte versé, les étiquettes des idées et les liens ([§ 9](#9-idées-prises-et-analyses)) ; une requête ne garde que son nom et ses critères ([CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds)) |
 | L'état « à envoyer » d'une captation ou d'une idée | Propre à l'appareil qui garde la captation : il se lit dans sa file d'envoi ([§ 31 · 2.1](31-persistance-et-synchronisation.md#21-sur-le-disque)) et dans les accusés du nœud ([§ 31 · 4.2](31-persistance-et-synchronisation.md#42-le-retour-à-la-maison)), et se montre comme le dit le [§ 31 · 4.3](31-persistance-et-synchronisation.md#43-létat-visible-de-la-synchronisation) |
 | Le matériau effectif d'une occurrence, le texte d'une occurrence qui reprend des paroles | Engendrés depuis le bloc et ses écarts, depuis l'occurrence reprise et les lignes propres |
 | Un doigté ou un renversement calculé, l'état actif ou inactif d'un épinglage | Engendrés selon le contexte ; seul l'épinglage est une décision |

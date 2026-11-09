@@ -31,7 +31,8 @@ s'écrire ([§ 40 · 9](40-architecture.md#9-trajectoire-de-construction)), et I
 
 Le plan du lot 1 d'INC-1 attendait une question, [Q23](#q23--comment-verser-un-fonds-existant-),
 l'import d'un fonds existant. Elle est tranchée le 2026-11-09 (plus bas) ; le plan attend
-encore que l'[ADR-024](adr/adr-024-import-d-un-fonds.md), qu'elle écrit, soit acceptée.
+encore que l'[ADR-024](adr/adr-024-import-d-un-fonds.md), que la PR d'import écrit, soit
+acceptée.
 
 ---
 
@@ -120,8 +121,8 @@ employé ; le mettre à jour quand l'outil change.
 **Enjeu.** La pile Rust ne la tranche pas encore
 ([§ 41 · 5.4](41-pile-technique.md#54-lécoute-de-contrôle)), et elle bloque
 [ECO-01](20-sfd/27-ecoute-et-compagnon.md#eco-01--écoute-de-contrôle), livrée avec INC-3.
-Trois exigences la bornent : un graphe fait d'échantillonneurs, d'un lecteur de prise, de
-volumes et d'une sortie, sans exportation audio (I21) ; des échantillons servis par le
+Trois exigences la bornent : un graphe fait d'échantillonneurs, de lecteurs de prise, un
+par stem d'une prise en stems ([ADR-024](adr/adr-024-import-d-un-fonds.md)), de volumes et d'une sortie, sans exportation audio (I21) ; des échantillons servis par le
 nœud, jamais par un hôte public, et gardés en cache pour l'écoute hors ligne (I24) ; aucun
 environnement de production sonore ([ADR-009](adr/adr-009-ecoute-de-controle.md)).
 
@@ -246,10 +247,9 @@ disent.
 
 ## ✅ Tranchées le 2026-11-09
 
-Deux questions sur l'import d'un fonds existant, tranchées selon leur recommandation, après
-le relevé qu'elles demandaient. Un relevé des formats et des volumes d'un fonds réel, fait
-par la maîtrise d'ouvrage, les a précédées ; il reste hors du dépôt, qui n'en garde que des
-ordres de grandeur.
+Deux questions sur l'import d'un fonds existant, tranchées selon leur recommandation. Le
+relevé qu'elles demandaient, des formats et des volumes d'un fonds réel, fait par la maîtrise
+d'ouvrage, reste hors du dépôt, qui n'en garde que des ordres de grandeur.
 
 ### Q23 — Comment verser un fonds existant ?
 
@@ -264,21 +264,25 @@ comptes. S'y ajoutent :
   verse : de sa main, ou produit par un générateur externe, qu'il nomme. Déclarée générée,
   l'origine se garde à vie et compte dans la part d'origine ; non déclarée, elle forme son
   propre groupe. Ni l'une ni l'autre ne passe jamais pour de la main de Sacha ;
-- un MIDI et un texte entrent dès le lot 1, comme captations ; leur contenu devient une
-  proposition en INC-2, dans un morceau ;
+- un MIDI et un texte entrent dès le lot 1, comme captations, et se regroupent comme une
+  prise ; leur contenu devient une proposition en INC-2, dans un morceau ;
 - un fichier versé garde tous ses noms d'origine, chacun avec son chemin ;
-- sans le nœud, l'établi lit l'en-tête d'un WAV et celui d'un MIDI ; le reste attend le
-  lot 3 ;
+- sans nœud qui décode, l'établi lit l'en-tête d'un WAV et celui d'un MIDI ; le reste
+  attend que le nœud sache le décoder ;
 - la lecture simple joue ce que joue la WebView, une prise en stems stem par stem ; une prise
-  qu'elle ne joue pas le dit, sans erreur ;
+  qu'elle ne joue pas le dit, sans erreur ; jouer les stems ensemble relève de l'écoute de
+  contrôle, et n'est pas un mixage ;
 - ce qui n'est ni audio, ni MIDI, ni texte est ignoré, jamais ouvert, et compté au rapport ;
-- la taille visée du fonds compte 100 prises en stems de plus, soit environ 40 Go d'audio, et
-  l'archive complète annonce sa taille avant de commencer.
+- la taille visée du fonds compte, parmi ses 6 000 prises, 100 prises en stems, soit environ
+  40 Go d'audio ; l'import et l'archive complète comparent leur taille à la place libre avant
+  de commencer.
 
 **Ce que ça règle.**
 [CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant),
 [PRO-02](20-sfd/26-propositions-suggestions-provenance.md#pro-02--provenance-et-part-dorigine)
-et [SYN-07](20-sfd/29-socle-donnees-appareils.md#syn-07--exporter-et-importer) ; le
+, [SYN-07](20-sfd/29-socle-donnees-appareils.md#syn-07--exporter-et-importer) et
+[ECO-01](20-sfd/27-ecoute-et-compagnon.md#eco-01--écoute-de-contrôle), et l'enjeu de
+[Q16](#q16--quelle-brique-pour-lécoute-de-contrôle-) ; le
 [§ 30 · 8.1](30-modele-de-domaine.md#81-la-provenance) et le
 [§ 30 · 9.2](30-modele-de-domaine.md#92-prises-photos-et-analyses) ; la ligne « Matière » du
 [§ 11](11-persona-et-situations.md#1-fiche) ; la taille visée du fonds, le fonds de mesure et
@@ -290,7 +294,7 @@ Le plan du lot 1 d'INC-1 s'écrit une fois l'ADR-024 acceptée.
 ### Q14 — Le fonds existant contient-il des analyses ou des fichiers MIDI déjà produits ?
 
 **Tranchée le 2026-11-09, avec Q23, par le même relevé : des MIDI, et aucune analyse.** Le
-fonds relevé porte un fichier MIDI pour presque chaque stem, et aucun tableau d'analyses.
+relevé compte un fichier MIDI pour presque chaque stem, et aucun tableau d'analyses.
 Les MIDI entrent comme MIDI versés dès le lot 1, et leur mélodie devient une proposition en
 INC-2, sans que rien ne soit recalculé. La règle de CAP-03 pour les analyses existantes,
 importées en propositions selon un mappage déclaré, ne change pas ; elle entre en INC-2.

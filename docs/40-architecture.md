@@ -498,7 +498,7 @@ script de l'interface, dont le chargeur en ligne que Trunk écrit dans `index.ht
 | `default-src` | `'self'` | Rien que les fichiers de l'application |
 | `script-src` | `'self' 'wasm-unsafe-eval'` | L'interface est un module WebAssembly, que la WebView compile ; son seul script en ligne, le chargeur de Trunk, n'est admis que par l'empreinte que Tauri ajoute ; ni `'unsafe-inline'`, ni `eval` |
 | `style-src` | `'self'` | La feuille de style de l'interface. Un style calculé se pose propriété par propriété (`style:left=…` en Leptos, soit `style.setProperty`), jamais par un attribut `style`, ni par `cssText`, que la CSP refuse. Les trois styles calculés d'INC-0 (`app/ui/src/vue_table.rs`, `style_du_recouvrement` et `style_de_la_palette` ; `app/ui/src/panneau_palette.rs`, la largeur) passent ainsi en propriétés au lot 1, avant que la CSP ne soit posée |
-| `img-src`, `media-src` | `'self'`, et le protocole des captations, `captation`, qui s'écrit `http://captation.localhost` sous Windows et Android, comme `ipc` | Une photo, une prise : le côté natif les sert par leur empreinte, en lecture seule, et rien d'autre. Le protocole de fichiers de Tauri (`asset:`), qui sert tout un dossier, n'est pas employé. Si `useHttpsScheme` est un jour posé, la valeur passe en `https` |
+| `img-src`, `media-src` | `'self'`, et le protocole des captations, `captation`, qui s'écrit `http://captation.localhost` sous Windows et Android, comme `ipc` | Une photo, une prise, un stem : le côté natif les sert par leur empreinte, en lecture seule, et rien d'autre. Le protocole de fichiers de Tauri (`asset:`), qui sert tout un dossier, n'est pas employé. Si `useHttpsScheme` est un jour posé, la valeur passe en `https` |
 | `connect-src` | `'self'`, et le canal des commandes de Tauri (`ipc:`, `http://ipc.localhost`) | L'interface ne lit que ses propres fichiers, son module WebAssembly compris, et ne parle qu'au côté natif ; la synchronisation se fait de ce côté-là ([ADR-022](adr/adr-022-documents-cote-natif.md)) |
 | `object-src`, `frame-src`, `base-uri`, `form-action` | `'none'` | Rien à incorporer, rien à envoyer |
 
@@ -713,7 +713,7 @@ flowchart LR
     ([§ 70 · 8](70-qualite-et-verification.md#8-les-portes-de-ci)). La boîte d'idées : noter
     une idée en texte
     ([CAP-01](20-sfd/21-capter-et-organiser.md#cap-01--capter-en-un-geste)), la trier
-    — compléter le texte, étiqueter, relier et délier, regrouper des prises (les photos, au
+    — compléter le texte, étiqueter, relier et délier, regrouper des prises, des MIDI et des textes versés (les photos, au
     lot 2), retirer et rétablir —
     ([CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées)), annuler le
     dernier geste de tri. Écouter une prise, par la lecture simple que dit « Il ne contient
@@ -810,7 +810,8 @@ flowchart LR
 - **Il ne contient pas** les morceaux, l'écoute de contrôle, les analyses, l'application du
   lutrin ni le document de réglages. Ce qui en découle :
   - **le tri** s'y borne à compléter le texte, étiqueter, relier deux idées et les délier,
-    regrouper des prises comme versions d'une même idée, retirer et rétablir. Relier une idée
+    regrouper des prises comme versions d'une même idée, avec les MIDI et les textes versés,
+    retirer et rétablir. Relier une idée
     à un motif ou à un morceau, et la promouvoir en l'un ou l'autre, attendent qu'ils
     existent ; rattacher une prise
     ([CAP-04](20-sfd/21-capter-et-organiser.md#cap-04--rattacher-une-prise-à-un-morceau))

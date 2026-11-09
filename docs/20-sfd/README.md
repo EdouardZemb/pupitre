@@ -188,7 +188,7 @@ moins un besoin. Une fonction qui ne servirait aucun besoin n'aurait rien à fai
 | **B07** Entendre l'écrit | ECO-01 · ECO-02 |
 | **B08** Garder les mains sur l'instrument | ECO-02 · ECO-03 · ECO-04 · ECO-05 · REN-02 · REN-04 · REN-08 · MIC-08 · MIC-12 · MOR-14 |
 | **B09** Des pistes, pas des réponses | PRO-03 · PRO-04 · PRO-06 · MIC-08 · MIC-10 · MIC-12 · SEC-07 · MOR-10 · MOR-14 · ALB-08 |
-| **B10** Savoir qui a écrit quoi | PRO-02 · PRO-05 · MIC-04 |
+| **B10** Savoir qui a écrit quoi | PRO-02 · PRO-05 · MIC-04 · CAP-03 |
 | **B11** Construire l'album | ALB-01 · ALB-02 · ALB-03 · ALB-04 · ALB-05 · ALB-06 · ALB-07 · ALB-08 · ALB-09 · ALB-10 |
 | **B12** Lire et annoter sur encre ou papier | REN-01 · REN-02 · REN-03 · REN-04 · REN-05 · REN-06 · REN-07 · REN-08 · ALB-10 |
 | **B13** Garder la main sur ses données | SYN-02 · SYN-04 · SYN-05 · SYN-06 · SYN-07 · SYN-08 · PRO-04 |

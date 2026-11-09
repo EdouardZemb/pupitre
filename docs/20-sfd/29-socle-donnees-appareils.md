@@ -256,15 +256,16 @@ accords suivants avec INC-4 ([§ 40 · 9](../40-architecture.md#9-trajectoire-de
 - Un export **avec perte** dit, avant de partir, ce qui sera perdu.
 - Les exports emploient les variantes **retenues**.
 - Un import écrit des **propositions**, jamais des décisions
-  ([CAP-03](21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)).
-- L'**archive complète** annonce sa taille avant de commencer, et ne commence pas sans la
-  place libre : un fonds de stems pèse des dizaines de gigaoctets
-  ([ADR-024](../adr/adr-024-import-d-un-fonds.md)).
+  ([CAP-03](21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)) ; ce que Sacha y
+  déclare, un jeu de stems ou une origine, est son geste.
 - L'**archive complète** fait exception : réimportée dans un Pupitre neuf, elle restitue les
   documents tels qu'ils étaient, décisions et historique compris. C'est une reprise après
   sinistre, pas un import
   ([§ 31 · 9.1](../31-persistance-et-synchronisation.md#91-sans-nœud-larchive-complète)). Un
   Pupitre qui a déjà un fonds la refuse, et dit pourquoi.
+- L'**archive complète** annonce sa taille avant de commencer, et ne commence pas sans la
+  place libre : un fonds de stems pèse des dizaines de gigaoctets
+  ([ADR-024](../adr/adr-024-import-d-un-fonds.md)).
 
 **Critères d'acceptation**
 1. *Quand* un morceau est exporté en MusicXML puis réimporté, *alors* les mêmes notes, accords
