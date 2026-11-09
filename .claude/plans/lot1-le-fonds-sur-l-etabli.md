@@ -271,6 +271,11 @@ sur les adaptateurs en mémoire et sur ceux des fichiers, en natif.
 - Une première mesure du poids : le générateur du fonds de mesure, dans `services`, sur 2 000 idées et 6 000 prises
   sans stems, par un test `#[ignore]` de `stockage`, lancé par `--ignored` dans une étape à part de `verifier`, hors
   de `windows` (test 13, que la tranche 5 complète).
+- Ce que le plan de la tranche 1 lui laisse (`.claude/plans/lot1-tranche1-stockage-durci.md`, « Les écarts au plan
+  maître », point 1) : la suite des commandes ouvre un fonds de version de schéma N + 1 et voit la commande refusée
+  en le nommant, sur les deux paires ; le doctest « une synchronisation lancée pendant l'écriture ne voit pas
+  l'opération en cours » se reprouve sur l'API qui applique les écritures du noyau ; le plan de la tranche dit qui
+  conduit la migration.
 
 **Elle dépend de** la tranche 1. **Critères de sortie :** la suite verte sur les deux paires dans `verifier`, sur la
 paire de fichiers dans `windows` ; CAP-01 · 6, CAP-02 · 3, 4 et 6 à 8, et CAP-02 · 5 pour la boîte, y passent, sur
