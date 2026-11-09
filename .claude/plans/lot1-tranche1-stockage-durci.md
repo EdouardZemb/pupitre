@@ -38,36 +38,37 @@ Recopiées du plan maître (« Contraintes générales », « Le déroulé ») ;
 - « **Les mots du glossaire**, dits en entier : la racine des données et la racine du document, la version de schéma, l'origine déclarée, l'identifiant de propriétaire, le manifeste de l'application. »
 - « Une PR qui ajoute un mot au glossaire le cherche d'abord (`git grep -n -i -w <mot> -- docs README.md CONVENTIONS.md`), requalifie chaque emploi antérieur et cite la recherche (LE-2) ; une PR qui périme un mot ou un identifiant le cherche dans tout le dépôt, maquettes et commentaires SVG compris (LE-3). »
 - « Conventional Commits en français, en-tête de 100 caractères au plus, titre de 93 au plus ; « Refs #24 » » ; `git add` par chemins explicites, jamais `git add .` ; `git commit -F <scratchpad>/msg-<tâche>-<étape>.txt` (un texte accentué passe par un fichier).
-- « Chaque PR qui livre un critère de la SFD en entier l'inscrit au tableau du § 70 · 4.1, et un test le nomme (`cap06_7_…`) et en calcule l'exemple. » La tranche 1 n'en livre aucun (relevé, E52) : le tableau ne change pas, et la revue de chaque PR le vérifie.
-- « fusion par squash, une fois tout vert » ; mode `session` : `gh pr merge <n> --squash`, depuis le worktree, sans `cd` ni `-R`.
+- « Chaque PR qui livre un critère de la SFD en entier l'inscrit au tableau du § 70 · 4.1, et un test le nomme (`cap06_7_…`) et en calcule l'exemple. » La tranche 1 n'en livre aucun (ses critères de sortie, au plan maître, n'en nomment aucun ; § 70 · 4.1) : le tableau ne change pas, et la revue de chaque PR le vérifie.
+- « fusion par squash, une fois tout vert » ; mode `session` : la PR s'est ouverte en brouillon, donc `gh pr ready <n>`, puis `gh pr merge <n> --squash`, depuis le worktree, sans `cd` ni `-R`.
 - « une tranche qui alourdit les tests remesure les délais de `verifier` et de `windows` ; l'installateur NSIS reste en artefact. »
 - Chaque PR part de `main` à jour (depuis le clone principal `pupitre`, jamais depuis un worktree, où le chemin relatif mènerait dans `pupitre.worktrees/pupitre.worktrees/` : `git fetch`, puis `git worktree add ../pupitre.worktrees/<branche> -b <branche> origin/main`, en barres obliques, qui valent sous Git Bash comme sous PowerShell ; aucun chemin de machine n'entre dans le dépôt), s'ouvre en brouillon au premier envoi (`ci.yml` ne tourne que sur une PR), et dit dans sa description les tests réécrits et pourquoi.
 - **Lire la CI** : `gh run list --branch <branche> --workflow ci --limit 1`, `gh run watch <n> --exit-status`, `gh run view <n> --log-failed`. Un rouge attendu se lit à l'étape « Lint » de `verifier` (`unresolved import`, `cannot find`, E0599) ou à « Tests » (`panicked at`, avec le nom du test) ; un rouge à « Format » se corrige (`style: le format de rustfmt`) avant de relire. Un vert se lit à « Tests » de `verifier` et à « Tests du stockage et de la synchronisation (H07) » de `windows` : `test result: ok.` pour chaque fichier touché. Les tests du noyau ne tournent que dans `verifier` et `mutants` (écart 2 au plan maître, plus bas).
-- Chaque test qui prouve un des tests 4, 8, 9, 10 ou 11 du § 31 · 10 porte au-dessus de lui le commentaire `// § 31 · 10, test N : <la clause>`.
+- Chaque test qui prouve un des tests 4, 8, 9, 10 ou 11 du § 31 · 10 porte au-dessus de lui le commentaire `// § 31 · 10, test N : <la clause>` ; les tests d'H07 qui prouvent déjà une clause le prennent aussi, à la tâche 17, qui les liste.
 
 ---
 
 ## Ce que les passages ont levé
 
-Les deux passages (AM-2, LE-6) sont dans le dossier temporaire de la session qui a écrit ce plan ; la PR de
-ce plan consigne (`/consigner`), au motif « Une spec qui se contredit », une ligne qui nomme C2, C7, C12 et
-Éc-1 à Éc-7, avec leurs décisions ci-dessous.
+Les deux passages (AM-2, LE-6), faits avant ce plan, ne sont pas dans le dépôt : leur détail a servi à écrire ce
+plan ; la description de sa PR (#27) porte la table de couverture. La PR de ce plan consigne (`/consigner`), au
+motif « Une spec qui se contredit », une ligne, LE-12, qui nomme C2, C7, C12 et Éc-1 à Éc-7, avec leurs décisions
+ci-dessous ; la tâche 17 la clôt.
 
 ### Le passage d'AM-2
 
 | Constat | Décision de ce plan | Tâche |
 |---|---|---|
 | C1. La relecture du disque qui échoue : la mémoire montrerait l'opération refusée | Le document passe en lecture seule `RelectureManquee { chemin }`, sur `fork_at(heads d'avant)` de sa mémoire, jamais la mémoire telle quelle ; il n'envoie ni ne reçoit | 6 |
-| C2. « Faite, avec un avertissement » contre le § 31 · 2.1 et l'ADR-023 | « En place » veut dire « renommé ». Avant le renommage : refus, voisin retiré, relecture du disque. Après : un `rendre_durable` refusé, ou une compaction qui échoue, laisse « faite, avec un avertissement ». La règle vaut pour l'opération, la réception, le premier fichier complet et la migration. La PR (b) récrit le § 31 · 2.1, texte et diagramme, et demande à la maîtrise d'ouvrage : précision ou amendement de l'ADR-023 ? Défaut : une précision | 6, 8, 13 |
+| C2. « Faite, avec un avertissement » contre le § 31 · 2.1 et l'ADR-023 | « En place » veut dire « renommé ». Avant le renommage : refus, voisin retiré, relecture du disque. Après : un `rendre_durable` refusé, ou une compaction qui échoue, laisse « faite, avec un avertissement ». La règle vaut pour l'opération, la réception, le premier fichier complet et la migration. La PR (b) récrit le § 31 · 2.1, texte et diagramme ; c'est une précision de l'ADR-023, non un amendement (question 4 de la PR de ce plan, tranchée le 2026-11-09) | 6, 8, 13 |
 | C3. Le voisin du premier fichier complet, une seconde naissance | Le prédicat `pupitre_neuf` au noyau : ni fichier complet, ni voisin du complet lisible. `faire_naitre_le_fonds` refuse (`FondsDejaNe`) dès qu'il est faux ; les tranches 2 et 6 le reprennent, sans en écrire un autre | 9, 11 |
-| C4. Aucune étape « retrait » | Huitième étape `Retrait`. Un voisin qui ne se retire pas se tronque à zéro octet : non conforme, le démarrage le retire. La double panne (retrait et troncature) est la seule qui puisse faire paraître l'opération refusée, et le § 31 · 2.1 le dit | 3, 7, 8, 11 |
+| C4. Aucune étape « retrait » | Huitième étape `Retrait`. Un voisin qui ne se retire pas se tronque à zéro octet : vide, il ne se lit pas, et le démarrage le retire. La double panne (retrait et troncature) est la seule qui puisse faire paraître l'opération refusée, et le § 31 · 2.1 le dit | 3, 7, 8, 11 |
 | C5. « Entiers » : des parts vivent ailleurs | « Entier » : chaque clause des tests 4 et 8 à 11 qui porte sur les chemins d'écriture de `stockage`, la genèse d'aujourd'hui et l'API du stockage. Partent ailleurs : test 4 rejoué sur la copie en flux (tranches 5, 6) et sa règle étendue (tranches 2, 5) ; la réponse de la commande du test 8 (tranche 2) ; le bandeau du test 10 (tranche 3), « l'idée qui la reçoit naît après la mise à jour » (PR de conception du lot 2), son refus par une commande sur les deux paires (tranche 2) ; le manifeste témoin du test 11 (tranche 5), sa porte du gel (tranche 8), ses références changées (tranche 2). Les tests du noyau tournent dans `verifier` seul | — |
 | C6. Opération, commande, refus nommé avant les tranches 2 et 3 | En tranche 1 : une opération est un appel d'`ecrire` ; sa réponse, `Result<Option<Avertissement>, Erreur>` ; un refus nommé, une variante d'`Erreur` qui porte la raison. Pour le plan de la tranche 2 : la suite des commandes ouvre un fonds de version N + 1 et voit la commande refusée en le nommant, sur les deux paires ; le doctest « pendant l'écriture » se reprouve sur l'API qui applique les écritures du noyau ; son plan dit qui conduit la migration. Les tests nouveaux de la tranche écrivent par `commun::ecrire` | 1, 6 |
-| C7. « `synchro` ne change pas » ; le test N + 1 qui passerait à vide ; la lignée | Les dépendances et le rôle de `synchro` ne changent pas ; deux fonctions s'y ajoutent : `Echange::reprendre` (tâche 6), sans laquelle un échange ne reprend pas après une réception refusée (l'autre copie ne renvoie pas ce qu'elle croit envoyé), et `prochain_message_sans_modification` (tâche 14). Le test N + 1 donne à la copie une modification que l'autre n'a pas. La règle de la lignée reste au noyau ; `comparer`, `Copie` et `Echange::ouvrir` ne changent pas avant le lot 4 ; le cas de `synchro` d'E46 sort de la tranche | 6, 14, 16 |
+| C7. « `synchro` ne change pas » ; le test N + 1 qui passerait à vide ; la lignée | Les dépendances et le rôle de `synchro` ne changent pas ; deux fonctions s'y ajoutent : `Echange::reprendre` (tâche 6), sans laquelle un échange ne reprend pas après une réception refusée (l'autre copie ne renvoie pas ce qu'elle croit envoyé), et `prochain_message_sans_modification` (tâche 14). Le test N + 1 donne à la copie une modification que l'autre n'a pas. La règle de la lignée reste au noyau ; `comparer`, `Copie` et `Echange::ouvrir` ne changent pas avant le lot 4 ; le cas de `synchro` de la règle de la lignée (`Echange::ouvrir` qui la consulterait) sort de la tranche | 6, 14, 16 |
 | C8. La clé des lignées remplacées naît après le gel | La constante `noyau::donnees::fonds::LIGNEES_REMPLACEES`, que rien n'écrit avant le lot 4 ; la teneur l'exclut dès la tranche 1, avec un cas de test ; la genèse ne change pas | 15 |
-| C9. La table des versions de Pupitre, livrée et reportée | La table existe : le type `Migration`, et `MIGRATIONS`, vide. Elle arrive en argument de l'ouverture (`fonds_selon`) ; la migration de test y entre le temps du test, avec la version de Pupitre `0.0.0-essai` ; sa lecture dans le journal reste reportée | 13 |
-| C10. Lecture seule, avertissement, voisin, reprise | Deux états dans le type (`LectureSeule`, `Acces`) ; une entrée « Lecture seule (d'un document) » au glossaire, PR (b) ; « faite, avec un avertissement » défini au § 31 · 2.1, sans entrée ; l'entrée « Voisin » prend le suffixe, PR (c) ; le code dit « ranger » un nom provisoire, jamais « reprendre » | 8, 12 |
-| C11. Des documents qu'aucune PR ne nomme | (b) : § 31 · 2.1, § 31 · 2.2, glossaire, § 40 · 3, `CLAUDE.md` ; (c) : § 31 · 2.1, 2.2 et 6.1, glossaire ; (d) : § 31 · 2.4 et 2.6 | 8, 12, 17 |
+| C9. La table des versions de Pupitre, livrée et reportée | La table existe : le type `Migration`, et `MIGRATIONS`, vide. Elle arrive en argument de l'ouverture (`fonds_selon`, un point d'entrée des tests, sous `pannes`) ; la migration de test y entre le temps du test, avec la version de Pupitre `0.0.0-essai` ; sa lecture dans le journal reste reportée | 13 |
+| C10. Lecture seule, avertissement, voisin, reprise | Deux états dans le type (`LectureSeule`, `Acces`) ; une entrée « Lecture seule (d'un document) » au glossaire, PR (b) ; « faite, avec un avertissement » défini au § 31 · 2.1, sans entrée ; l'entrée « Voisin » prend le suffixe, PR (c) ; le code dit « ranger » un nom provisoire, jamais « reprendre », et la PR (c) récrit en ce sens la clause du test 4 du § 31 · 10 (« prend son nom au démarrage ») | 8, 12 |
+| C11. Des documents qu'aucune PR ne nomme | (b) : § 31 · 2.1, § 31 · 2.2, glossaire, § 40 · 3, `CLAUDE.md` ; (c) : § 31 · 2.1, 2.2, 6.1 et 10 (test 4), glossaire ; (d) : § 31 · 2.4 et 2.6, § 40 · 3 et `CLAUDE.md` (`fonds_selon`), le registre (AM-4 et LE-12) ; et, si le repli de la tâche 14 joue, le glossaire (Lecture seule) et, au registre, la ligne de la contradiction | 8, 12, 14, 17 |
 | C12. « Sans exemption », quand le § 40 · 9 en prévoit une | Aucun dossier n'est exempté, et la porte n'a aucun mécanisme d'exemption ; la PR qui suivrait un document de test l'ajouterait et le dirait ; la ligne `contenu` le dit | 2 |
 | C13. « Compaction retentée » | Le `Document` tient `compaction_due`, levé par toute compaction qui échoue, baissé par une qui réussit ; `apres_une_ecriture` le reçoit et compacte alors à l'écriture suivante | 4, 6, 7 |
 | C14. Une seule fonction de dossier jetable par crate | `stockage` : `commun::dossier_jetable` ; `etabli` : `dossier_jetable`, renommée ; `cahier` : `fichier_temporaire` compte comme sa fonction ; `noyau`, `synchro`, `interface` : aucun test n'écrit. L'écriture de la maquette, à la demande et jamais en CI, sort d'I30 | 1 |
@@ -76,7 +77,7 @@ ce plan consigne (`/consigner`), au motif « Une spec qui se contredit », une l
 
 | Écart ou point | Décision de ce plan | Tâche |
 |---|---|---|
-| Éc-1. `Lu::conforme` ne vaut jamais pour le voisin du complet | `conforme` devient « lisible » : un fichier d'ajout dont le contenu donne l'empreinte de son nom, ou un voisin du complet non vide que `load` relit sans erreur. `Lu::nom` devient le chemin relatif au dossier du document (`ajouts/<e>.automerge`, `complet.automerge.<processus>.partiel`) | 11 |
+| Éc-1. `Lu::conforme` ne vaut jamais pour le voisin du complet | Le champ se renomme `lisible` (tâche 4), le mot que `Partiel::DansLeDossier` emploie : un fichier d'ajout dont le contenu donne l'empreinte de son nom, et (tâche 7) que `load_incremental` charge, puis aussi (tâche 11) un voisin du complet non vide que `load` relit sans erreur ; `compacter` le calcule ainsi. `Lu::nom` devient le chemin relatif au dossier du document (`ajouts/<e>.automerge`, `complet.automerge.<processus>.partiel`) | 4, 7, 11 |
 | Éc-2. Les règles de compaction disent « compacter » en lecture seule | `a_l_ouverture` et `apres_une_ecriture` reçoivent l'`Acces` ; la doc d'`AJOUTS_AU_PLUS` se réécrit | 4, 14 |
 | Éc-3. Le complet relu après son renommage | `ecrire_a_cote` relit le voisin, synchronisé et fermé, avant de le renommer, pour tout fichier : l'ordre des captations. `a_retirer` perd `meme_point`. Le § 31 · 2.2, point 3, suit | 3, 4, 8 |
 | Éc-4. Le voisin du complet vide | « Lisible » : non vide, et `load` sans erreur ; un voisin vide est retiré, et Pupitre reste neuf | 9, 11, 12 |
@@ -84,51 +85,79 @@ ce plan consigne (`/consigner`), au motif « Une spec qui se contredit », une l
 | Éc-6. « Sans rien transmettre » est irréalisable | Les messages partent sans modification (`ChunkList::empty()`), et annoncent les heads de l'autre copie (le champ public `State::their_heads`, `Option<Vec<ChangeHash>>` en 0.12.0, vide au premier) : sans cela, `generate_sync_message` ne rend jamais `None` et l'échange ne finit pas. Le test borne les messages ; s'il n'en vient pas à bout, la tâche 14 s'arrête (voir elle) | 14 |
 | Éc-7. La forme d'un `F64` n'est pas fixée | La plus courte de `{}` et de `{:e}`, la fixe à égalité ; l'infini `inf`, `-inf` ; NaN refusé ; jamais `{:?}`. Le § 31 · 2.6 le dit | 15, 17 |
 | Éc-8. « Décision 12 du plan d'H07 » | La décision 12 est celle du plan maître ; ce plan lit les décisions 7 et 8 d'H07 | — |
-| R3 | Voir C13 | 4 |
-| R6 | `fichier_du_voisin` reconnaît `-<n>` ; le test 9, clause 4, coupe le renommage du voisin de la compaction | 9, 11 |
-| R7 | La garde de la naissance voit le voisin lisible du complet | 11 |
-| R8 | La règle se lit sur l'état mis à jour : de deux noms provisoires du même contenu, le premier dans l'ordre des noms ; une captation rangée altérée reste au contrôle des empreintes, le nom provisoire reste ; en lecture seule, « que le fonds nomme » porte sur ce qui se lit | 9, 12 |
-| R9 | Une version de schéma absente, nulle ou qui n'est pas un `Uint` : `Lecture::Illisible`, lecture seule `VersionIllisible`, sans échange | 13 |
-| R11 | La liste des lignées remplacées se veut complète : la règle ne lit que l'appartenance, et le lot 4 écrit la liste entière ; deux lignées qui se nomment l'une l'autre sont étrangères | 16 |
-| R13 | Le test 11 écrit l'empreinte des 106 octets : `aa03e0cee230ee1aab90c1d53a6a00e51da250b8b5944b67560dd4f9b301c105` | 17 |
-| R1, R2, R4 à R5, R10, R12, R14 à R16 | Repris par les écarts ci-dessus, ou tenus | — |
+| Une compaction d'ouverture refusée, que la décision 12 du plan maître dit « retentée », quand les règles du noyau ne la retentent qu'à l'ouverture suivante | Voir C13 | 4 |
+| Le suffixe (§ 31 · 2.1) : un voisin suffixé doit se reconnaître au démarrage, et le test 9, clause 4, passerait sans suffixe s'il ne coupait rien | `fichier_du_voisin` reconnaît `-<n>` ; le test 9, clause 4, coupe le renommage du voisin de la compaction | 9, 11 |
+| La garde de la naissance ne regarde que `complet.automerge` : une naissance par-dessus un voisin lisible du complet (§ 31 · 2.1, « à la naissance du document ») en écrirait une seconde | La garde de la naissance voit le voisin lisible du complet | 11 |
+| Le rangement des noms provisoires (décision 12 du plan maître ; § 31 · 6.1) : deux noms provisoires du même contenu, une captation rangée altérée, un fonds en lecture seule | La règle se lit sur l'état mis à jour : de deux noms provisoires du même contenu, le premier dans l'ordre des noms (sinon le second écrirait sur une captation rangée, contre I14) ; une captation rangée altérée reste au contrôle des empreintes, le nom provisoire reste ; en lecture seule, « que le fonds nomme » porte sur ce qui se lit | 9, 12 |
+| Une version de schéma absente, nulle ou qui n'est pas un `Uint`, dont le § 31 · 2.4 ne dit rien | `Lecture::Illisible`, lecture seule `VersionIllisible`, sans échange | 13 |
+| Les lignées remplacées (§ 31 · 2.5) : une lignée qui en remplace une qui en remplaçait une troisième ; deux lignées qui se nomment l'une l'autre | La liste des lignées remplacées se veut complète : la règle ne lit que l'appartenance, et le lot 4 écrit la liste entière ; deux lignées qui se nomment l'une l'autre sont étrangères | 16 |
+| L'empreinte de la genèse que le test 11 écrit : celle des 106 octets de `GENESE`, ou celle de sa modification pour Automerge | L'empreinte des 106 octets, lecture littérale du test 11 : `aa03e0cee230ee1aab90c1d53a6a00e51da250b8b5944b67560dd4f9b301c105` | 17 |
+| Les seuils de compaction (§ 31 · 2.2, point 1 : « plus que son fichier complet », « passent la centaine ») | Tenus ; « passent la centaine » ne s'éprouve qu'au noyau, ce qui suffit à la mutation | — |
+| Le voisin du complet dans `a_retirer` (§ 31 · 2.2, point 4) ; en lecture seule, pas de compaction (§ 31 · 2.2) ; l'ordre de la relecture du complet (§ 31 · 2.2, point 3 ; LE-10) ; ce qu'une copie reçoit et transmet devant une version de schéma plus récente (§ 31 · 2.4) | Éc-1, Éc-2, Éc-3 et Éc-6, ci-dessus | — |
+| La teneur (§ 31 · 2.6) : les clés dans l'ordre de leurs octets (« Z » avant « a », « é » après « z »), les textes pris octet pour octet, la forme d'un `F64` | Tenus, sauf la forme d'un `F64` : Éc-7 | 15 |
+| Les ordres de grandeur du § 31 · 6.1 (256 sous-dossiers, quelques dizaines de captations chacun au fonds visé, quelques centaines à cent mille) | Tenus | — |
+| Les chiffres recopiés : les 39 tests d'H07, les neuf modules de `.cargo/mutants.toml`, les délais de 35 minutes (`mutants`), 40 (`windows`) et 15 (`verifier`) | Tenus ; « décision 12 du plan d'H07 » : Éc-8 | — |
+| Les « jamais » et les « toujours » : « la compaction n'écrit jamais son propre voisin par-dessus celui qu'elle fond » (§ 31 · 2.1), « un nom provisoire […] n'est jamais retiré d'office » (§ 31 · 6.1), « une captation se verse toujours » (décision 12 du plan maître), « chaque ouverture tire un acteur neuf » (§ 31 · 2.1) ; le doctest `compile_fail` qui « fige » | Tenus, avec le suffixe de `voisin` et de `verser` ; un doctest `compile_fail` passe sur toute erreur de compilation : il dit la sienne, E0502 | 6, 10 |
 
-Les points du relevé des exigences (§ 9) : 2 → C7 ; 3 → en (b), heads et `hydrate`, la teneur en (d) ; 5 → C9 ;
-6 → la PR (a) écrit le `.gitignore` ; 7 → une dépendance de test de `stockage` sur elle-même ; 8 →
-`CompactionInfidele` reste, rendue par l'injection sur `Save` ; 10 → R8 ; 11 → C2 ; 12 → le suffixe vaut pour
-`verser` ; 13 → les tests du noyau dans `verifier` seul (écart 2) ; 14 → la tranche 2 change les références du test 11
-et le dit ; 15 → aucun test de part de CAP-01 · 3 ; 16 → le démarrage a lieu à chaque `fonds()`, après le
-verrou par construction.
+Les tensions que le relevé des exigences a trouvées en lisant les sources, et leur sort :
+
+- la « décision 12 du plan d'H07 », qui est celle du plan maître → Éc-8 ;
+- « `synchro` ne change pas » (décision 7 du plan maître) contre le test d'une copie N + 1 et la règle de la lignée → C7 ;
+- les tests 8 et 9, qui se complètent en (c), et le test 9 en (d), sa colonne « Échoue si » nommant la teneur → en (b),
+  le test 9 compare les heads et `hydrate`, et la teneur s'y ajoute en (d) ;
+- les aides recopiées dans deux crates (`copie`, `reunir`, `HEURE`), quand une crate ne voit pas le `tests/commun`
+  d'une autre → un exemplaire par crate (tâche 1) ;
+- la table des versions de Pupitre d'une migration, livrée (plan maître, tranche 1, sixième puce) et reportée
+  (« Ce qui est reporté ») → C9 ;
+- le `.gitignore` de `main`, sans les deux motifs que le plan maître dit ajouter → la PR (a) les écrit ;
+- le mécanisme de `pannes`, qui touche ou non `ci.yml` et les « Commandes » de `CLAUDE.md` → une dépendance de test
+  de `stockage` sur elle-même ;
+- `CompactionInfidele`, qu'aucun test d'H07 ne provoque et que le plan maître ne nomme pas → elle reste, rendue par
+  l'injection sur `Save` ;
+- deux lectures seules, devant un fichier illisible et devant une version de schéma plus récente → C10 ;
+- le rangement des noms provisoires d'un fonds en lecture seule → « que le fonds nomme » porte sur ce qui se lit ;
+- `rendre_durable` refusé après le renommage du premier fichier complet, qui ferait se croire Pupitre neuf (test 8)
+  → la naissance faite, avec un avertissement (C2) ;
+- le suffixe, que le nom provisoire d'une captation demande aussi (§ 31 · 6.1 ; test 4) → il vaut pour `verser` ;
+- « verts dans `verifier` et `windows` », quand `windows` ne lance que `stockage` et `synchro` → les tests du noyau
+  dans `verifier` seul (écart 2) ;
+- le test 11 et « chaque genèse », quand la seule genèse du lot 1 change encore en tranche 2 → la tranche 2 change
+  les références du test 11 et le dit ;
+- les tests de part de CAP-01 · 3 et de SYN-01 · 4 (§ 70 · 4.1) → aucun en tranche 1 : l'exemple de CAP-01 · 3
+  suppose un enregistrement, qui vient au lot 2 ;
+- l'ordre de l'ouverture (décision 12 : les voisins de `documents/`, puis les noms provisoires de `captations/`) → le
+  démarrage a lieu à chaque `fonds()`, après le verrou par construction.
 
 ### Les écarts au plan maître
 
 Le plan maître le veut (en tête) : un plan de tranche qui le contredit le dit dans sa PR, et la maîtrise
-d'ouvrage relit ce point. La description de la PR de ce plan liste ces trois écarts, chacun avec son défaut,
-puis la question C2 :
+d'ouvrage relit ce point. La description de la PR de ce plan a listé ces trois écarts, puis la question C2 ;
+la maîtrise d'ouvrage les a tranchés le 2026-11-09, chacun selon son défaut :
 
 1. **Des obligations passent à la tranche 2** (C5, C6), que la section « Tranche 2 » du plan maître ne porte
    pas : la suite des commandes ouvre un fonds de version de schéma N + 1 et voit la commande refusée en le
    nommant, sur les deux paires ; le doctest « une synchronisation lancée pendant l'écriture ne voit pas
    l'opération en cours » se reprouve sur l'API qui applique les écritures du noyau ; son plan dit qui conduit
    la migration. La PR de ce plan les écrit dans la section « Tranche 2 » du plan maître, liste « Elle livre ».
-2. **Les tests du noyau tournent dans `verifier` seul** (C5 ; point 13 du relevé), quand le critère de sortie
+   Retenu.
+2. **Les tests du noyau tournent dans `verifier` seul** (C5 ; `windows` ne lance que `stockage` et `synchro`), quand le critère de sortie
    dit « verts dans `verifier` et `windows` ». Un seul porte un marqueur, `les_noms_provisoires_a_ranger`
    (test 4), dont la clause a aussi son test de `stockage` dans `windows`,
-   `une_captation_nommee_prend_son_nom_au_demarrage`. Défaut : l'écart accepté par écrit, les règles du noyau
-   étant sans entrée-sortie ; sinon, `cargo test -p noyau --test donnees --test demarrage --test teneur`
-   s'ajoute au job `windows`, et `CONVENTIONS.md` le dit.
-3. **`synchro` gagne deux fonctions** (C7), quand la décision 7 dit « `synchro` ne change pas ». Défaut : ses
+   `une_captation_nommee_prend_son_nom_au_demarrage`. Retenu : l'écart accepté par écrit, les règles du noyau
+   étant sans entrée-sortie ; le job `windows` ne change pas.
+3. **`synchro` gagne deux fonctions** (C7), quand la décision 7 dit « `synchro` ne change pas ». Retenu : ses
    dépendances et son rôle ne changent pas, ce que la décision 7 garde.
 
 La question C2, qui touche l'ADR-023 et non le plan maître : « faite, avec un avertissement », précision ou
-amendement de l'ADR-023 ? Défaut : une précision. La PR (b) la repose.
+amendement de l'ADR-023 ? Retenu : une précision ; la PR (b) récrit le § 31 · 2.1 en ce sens, et l'ADR-023
+ne change pas.
 
 ---
 
 ## Points de revue
 
-Cinq conditions que la spec implique et qu'aucun test du relevé n'éprouve ; chacune a son test, dans la tâche
-qui possède le code.
+Cinq conditions que la spec implique sans qu'aucune de ses sources ne demande de les éprouver ; chacune a son test,
+dans la tâche qui possède le code.
 
 1. **Une ouverture qui échoue rend la garde.** Sinon le fonds ne se rouvre plus sans relancer Pupitre.
    `une_ouverture_qui_echoue_rend_la_garde`, tâche 5.
@@ -138,7 +167,8 @@ qui possède le code.
    vides. `Echange::reprendre` demande à l'autre copie d'oublier ce qu'elle a envoyé (drapeau `SYNC_RESET`), et
    la réunion converge. `une_reception_refusee_relit_le_document_et_l_echange_reprend`, tâche 6.
 3. **Un fichier étranger dans `documents/`** (`desktop.ini`, `Thumbs.db`, que Windows dépose) : ni lu, ni
-   retiré, et le document s'ouvre entier. `un_fichier_etranger_est_laisse_tel_quel`, tâche 11.
+   retiré, et le document s'ouvre entier. `un_fichier_etranger_est_laisse_tel_quel`, tâche 11, une
+   caractérisation : le code d'H07 ne lit déjà que les `.automerge` d'`ajouts/`, et le démarrage doit le garder.
 4. **Un nom provisoire dont le sous-dossier de l'empreinte n'existe pas encore** : le rangement au démarrage le
    crée. `une_captation_nommee_prend_son_nom_au_demarrage`, cas du sous-dossier absent, tâche 12.
 5. **Un document illisible d'une version de schéma plus ancienne** : il ne migre pas, et rien ne s'écrit.
@@ -152,7 +182,7 @@ qui possède le code.
 crates/noyau/src/donnees/
   mod.rs            + pub mod acces; demarrage; teneur; version;
   acces.rs          (b, d) Acces : ce que permet un document ouvert                       (muté)
-  compaction.rs     (b, c) a_l_ouverture, apres_une_ecriture avec l'accès et « due » ; Lu ; a_retirer
+  compaction.rs     (b, c) a_l_ouverture, apres_une_ecriture avec l'accès et « due » ; Lu::lisible ; a_retirer
   demarrage.rs      (c) voisin_libre, fichier_du_voisin, sort_d_un_partiel, pupitre_neuf, a_ranger (muté)
   version.rs        (d) Migration, Lecture, lecture, connue, a_appliquer, message_de_la_migration (muté)
   teneur.rs         (d) Valeur, ErreurDeTeneur, ecrire_la_teneur                           (muté)
@@ -168,21 +198,21 @@ crates/stockage/
   src/pannes.rs     (b) Etape, point, relue ; sous la fonction : Panne, couper, alterer_la_relecture
   src/fichier.rs    (b) Echec, ecrire_a_cote relit avant de renommer ; les étapes ; (c) voisin suffixé
   src/lib.rs        Erreur, LectureSeule, Avertissement ; (d) teneur
-  src/racine_des_donnees.rs  (b) la garde ; (d) fonds_selon
+  src/racine_des_donnees.rs  (b) la garde, la doc de fonds ; (d) fonds_selon, sous pannes
   src/documents.rs  (b) écriture, relecture, lecture seule ; (c) démarrage ; (d) migration, envoi
   src/captations.rs (b) les étapes ; (c) suffixe, ranger_les_noms_provisoires
   tests/commun/mod.rs        (a) les aides ; (d) migration_de_test
   tests/fichier.rs, captations.rs, ajouts.rs, compaction.rs, fonds.rs, synchronisation.rs
-  tests/demarrage.rs (c) ; tests/version.rs, teneur.rs, references.rs (d)
+  tests/demarrage.rs (c) ; tests/version.rs, teneur.rs, references.rs (d) ; (d) les marqueurs des tests d'H07, h07.rs compris
 app/src-tauri/src/lib.rs   (a) dossier_jetable
 scripts/verif-confidentialite.sh, .gitignore   (a)
 .cargo/mutants.toml, .github/workflows/ci.yml, .github/workflows/mutants-complet.yml   (b, c, d) délais
 .github/workflows/ci.yml   (b) « Lint du stockage, sans pannes », dans verifier et windows
-docs/31-persistance-et-synchronisation.md   § 2.1, 2.2 (b, c), 6.1 (c), 2.4, 2.6 (d)
-docs/80-glossaire.md   Lecture seule (b), Voisin (c)
-docs/40-architecture.md § 3, CLAUDE.md   pannes, et la commande sans pannes (b)
+docs/31-persistance-et-synchronisation.md   § 2.1, 2.2 (b, c), 6.1 et 10, test 4 (c), 2.4, 2.6 (d)
+docs/80-glossaire.md   Lecture seule (b), Voisin (c) ; Lecture seule (d), si le repli de la tâche 14 joue
+docs/40-architecture.md § 3, CLAUDE.md   pannes, et la commande sans pannes (b) ; fonds_selon (d)
 CONVENTIONS.md   contenu (a), mutants (b, c, d), verifier et windows (b)
-docs/registre.md   LE-10 (b), AM-4 (d)
+docs/registre.md   LE-10 (b), AM-4 et LE-12 (d) ; la contradiction (d), si le repli de la tâche 14 joue
 ```
 
 ---
@@ -192,7 +222,7 @@ docs/registre.md   LE-10 (b), AM-4 (d)
 **Branche :** `t1a-aides-et-contenu`. **Titre :** `test: les aides des tests du stockage en un seul endroit, la
 porte contenu refuse un fonds` (90). **Documents :** `CONVENTIONS.md` (ligne `contenu`). **Fin :** `contenu`,
 `documentation`, `verifier`, `windows` et `mutants` verts (rien à muter) ; l'essai de la tâche 2 dans la
-description ; aucune remesure.
+description ; aucune remesure ; `gh pr ready <n>`, puis fusion par squash.
 
 ### Tâche 1 : les aides des tests, une fois par crate
 
@@ -222,7 +252,7 @@ pub fn rangee(racine_des_donnees: &Path, e: &str) -> PathBuf;
 pub fn objet(doc: &Automerge, parent: &ObjId, cle: &str) -> ObjId;
 /// Le fonds né (`faire_naitre`) dans `<dossier jetable>/a`, fermé, puis copié dans `<…>/b` : A, B.
 pub fn deux_copies(nom: &str) -> (PathBuf, PathBuf);
-/// Le seul chemin d'écriture des tests de la tranche : la tranche 2 le changera seul (C6).
+/// Le seul chemin d'écriture des tests de la tranche : la tranche 2 le changera seul.
 pub fn ecrire(
     document: &mut Document<'_>,
     geste: impl FnOnce(&mut Transaction<'_>) -> Result<(), AutomergeError>,
@@ -357,7 +387,7 @@ fn ecrire_a_cote_coupee_a_chaque_etape() {
     // RendreDurable : Err(Echec::NonDurable(_)), le fichier porte "apres", aucun voisin
 }
 
-// § 31 · 10, test 8 : renommage refusé, le voisin est retiré ; sa double panne le vide (C4)
+// § 31 · 10, test 8 : renommage refusé, le voisin est retiré ; sa double panne le vide
 #[test]
 fn un_voisin_qui_ne_se_retire_pas_se_vide() {
     // couper(Renommage, 1) et couper(Retrait, 1) : Err(Echec::Refusee(_)) ; le fichier porte
@@ -399,7 +429,7 @@ fn verser_coupe_a_chaque_etape_ne_laisse_aucune_captation_alteree() {
 **Fichiers :** créer `crates/noyau/src/donnees/acces.rs` ; modifier `donnees/mod.rs`, `donnees/compaction.rs`
 (:5-42), `crates/noyau/tests/donnees.rs`, `.cargo/mutants.toml`, `CONVENTIONS.md` (ligne `mutants`, :115) ;
 `crates/stockage/src/documents.rs` (appels : `Acces::Entier`, `due` à `false` jusqu'à la tâche 6 ; `compacter`
-perd sa relecture d'après le renommage, :186-188, et `meme_point`).
+perd sa relecture d'après le renommage, :186-188, et `meme_point` ; `Lu { lisible: est_conforme(…), … }`, :194-202).
 
 **Interfaces — produit :**
 
@@ -416,7 +446,7 @@ pub enum Acces {
 impl Acces {
     /// Il écrit une opération, se compacte et transmet ses modifications : `Entier` seul.
     pub fn ecrit(self) -> bool;
-    /// Il envoie et reçoit des messages de synchronisation : `Entier` seul (la tâche 13 ajoute `PlusRecent`).
+    /// Il envoie et reçoit des messages de synchronisation : `Entier` seul.
     pub fn echange(self) -> bool;
 }
 // noyau::donnees::compaction
@@ -426,10 +456,16 @@ pub fn a_l_ouverture(acces: Acces, ajouts: usize, voisin_du_complet: bool) -> bo
 // = acces.ecrit() && (ajouts > 0 || voisin_du_complet)
 pub fn apres_une_ecriture(acces: Acces, due: bool, octets_du_complet: u64, octets_des_ajouts: u64, ajouts: usize) -> bool;
 // = acces.ecrit() && (due || octets_des_ajouts > octets_du_complet || ajouts > AJOUTS_AU_PLUS)
-pub fn a_retirer(lus: &[Lu]) -> Vec<String>; // les conformes et absorbés, dans l'ordre reçu
+pub struct Lu {
+    pub nom: String,
+    /// Lisible : son contenu donne l'empreinte de son nom.
+    pub lisible: bool,
+    pub absorbe: bool,
+}
+pub fn a_retirer(lus: &[Lu]) -> Vec<String>; // les lisibles et absorbés, dans l'ordre reçu
 ```
 
-- [ ] **Étape 1 : écrire les tests** (`crates/noyau/tests/donnees.rs`) ; `a_retirer_ne_retire_rien_si_le_complet_relu_mene_ailleurs` disparaît : la relecture garde désormais le renommage (Éc-3), et deux tests de `stockage` l'éprouvent, sous `pannes::alterer_la_relecture`, que `stockage` n'étant pas sous mutation demande : `un_voisin_relu_autre_ne_prend_pas_la_place` (tâche 3) et `une_compaction_dont_le_complet_se_relit_autre_ne_retire_rien` (tâche 7).
+- [ ] **Étape 1 : écrire les tests** (`crates/noyau/tests/donnees.rs`) ; `a_retirer_ne_retire_rien_si_le_complet_relu_mene_ailleurs` disparaît : la relecture garde désormais le renommage (Éc-3), et deux tests de `stockage` l'éprouvent, sous `pannes::alterer_la_relecture`, que `stockage` n'étant pas sous mutation demande : `un_voisin_relu_autre_ne_prend_pas_la_place` (tâche 3) et `une_compaction_dont_le_complet_se_relit_autre_ne_retire_rien` (tâche 7). `a_retirer_garde_un_fichier_non_conforme` devient `a_retirer_garde_un_fichier_illisible`, l'aide `lu(nom, conforme, absorbe)` devient `lu(nom, lisible, absorbe)`, et la doc de `quatre_lus` dit « lisible ».
 
 ```rust
 #[test]
@@ -451,18 +487,18 @@ fn compacter_apres_une_ecriture() {
     assert!(apres_une_ecriture(Acces::Entier, false, 100, 101, 1));
     assert!(!apres_une_ecriture(Acces::Entier, false, 10_000, 10, 100));
     assert!(apres_une_ecriture(Acces::Entier, false, 10_000, 10, 101));
-    assert!(apres_une_ecriture(Acces::Entier, true, 10_000, 10, 1));   // compaction due (C13)
+    assert!(apres_une_ecriture(Acces::Entier, true, 10_000, 10, 1));   // compaction due
     assert!(!apres_une_ecriture(Acces::Illisible, true, 100, 101, 101));
 }
 #[test]
-fn a_retirer_garde_un_fichier_non_conforme() {
-    // [a conforme absorbé, b non conforme absorbé, c conforme non absorbé, d conforme absorbé]
+fn a_retirer_garde_un_fichier_illisible() {
+    // [a lisible absorbé, b illisible absorbé, c lisible non absorbé, d lisible absorbé]
     assert_eq!(a_retirer(&quatre_lus()), ["a", "d"]);
 }
 ```
 
 - [ ] **Étape 2 : voir échouer.** Committer (`test: l'accès d'un document, et la compaction qui le reçoit`), pousser. Attendu : « Lint » rouge, `unresolved import noyau::donnees::acces`.
-- [ ] **Étape 3 : écrire `acces.rs` et les nouvelles signatures.** `.cargo/mutants.toml` : `crates/noyau/src/donnees/acces.rs` dans `examine_globs` ; en tête (l. 2-3), « Dix modules » et « les règles des données (la compaction, l'accès d'un document et la comparaison des copies) » ; l. 17, « ces dix modules ». `CONVENTIONS.md`, ligne `mutants` : « …les règles des données : la compaction, l'accès d'un document et la comparaison des copies ».
+- [ ] **Étape 3 : écrire `acces.rs` et les nouvelles signatures.** La doc d'`a_retirer` (`compaction.rs`:30-33) suit le mot et la signature : « Points 3 et 4 : les seuls fichiers lisibles et absorbés, dans l'ordre reçu. Un fichier illisible n'est jamais retiré : un fichier altéré se lit sans erreur jusqu'à son premier tronçon altéré, et seule l'empreinte de son nom le dit », sa condition sur le fichier complet relu tombant avec `meme_point`. `.cargo/mutants.toml` : `crates/noyau/src/donnees/acces.rs` dans `examine_globs` ; en tête (l. 2-3), « Dix modules » et « les règles des données (la compaction, l'accès d'un document et la comparaison des copies) » ; l. 17, « ces dix modules ». `CONVENTIONS.md`, ligne `mutants` : « …les règles des données : la compaction, l'accès d'un document et la comparaison des copies ».
 - [ ] **Étape 4 : voir passer.** Committer (`feat: l'accès d'un document, au noyau, que la compaction reçoit`), pousser. Attendu : `tests/donnees.rs` : `test result: ok. 5 passed` dans `verifier` ; `mutants` vert, sans `MISSED`.
 
 ### Tâche 5 : un seul `Document` du fonds à la fois
@@ -493,7 +529,8 @@ fn a_retirer_garde_un_fichier_non_conforme() {
 **Fichiers :** modifier `crates/stockage/src/lib.rs` (`Erreur` :24-66 ; `LectureSeule`, `Avertissement`),
 `src/documents.rs` (:32-212, :331-401), `tests/commun/mod.rs` (`ecrire`), `crates/synchro/src/lib.rs`
 (`Echange::reprendre`) ; tests : `tests/ajouts.rs` (et, à `un_geste_refuse_n_ecrit_rien_et_le_document_reste_ouvert`,
-:183, `Ok(())` devient `Ok(_)`, l'écriture rendant désormais une `Option`), `tests/compaction.rs`,
+:183, `Ok(())` devient `Ok(_)`, l'écriture rendant désormais une `Option` ; sa doc de module, :3-4, dont « une
+écriture qui échoue laisse le document à relire » devient « une écriture refusée relit le document du disque »), `tests/compaction.rs`,
 `tests/synchronisation.rs` (et sa doc de module, :3, qui dit « un document à relire »), `tests/fonds.rs`, et deux
 doctests sur `Document::ecrire`.
 
@@ -506,7 +543,7 @@ doctests sur `Document::ecrire`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LectureSeule {
     /// La relecture du disque, après une écriture refusée, a échoué sur `chemin` : le document
-    /// montre sa mémoire d'avant l'écriture refusée (C1).
+    /// montre sa mémoire d'avant l'écriture refusée.
     RelectureManquee { chemin: PathBuf },
 }
 impl LectureSeule { pub fn acces(&self) -> Acces; }
@@ -526,7 +563,8 @@ impl Document<'_> {
     ) -> Result<Option<Avertissement>, Erreur>;
     pub fn recevoir(&mut self, echange: &mut Echange, message: &[u8]) -> Result<Option<Avertissement>, Erreur>;
     pub fn lecture_seule(&self) -> Option<&LectureSeule>;
-    /// Les avertissements de la naissance ou de l'ouverture.
+    /// Les avertissements de la naissance ou de l'ouverture, et celui qu'une réception refusée n'a
+    /// pu rendre, son refus se rendant à sa place.
     pub fn avertissements(&self) -> &[Avertissement];
 }
 // commun::ecrire rend désormais Result<Option<Avertissement>, Erreur>.
@@ -552,7 +590,10 @@ par `fichier::lire`, sans compaction ni démarrage. La relecture remplace la mé
 acteur neuf ; un `Err` de cette lecture laisse `fork_at(heads d'avant)` de la mémoire, en
 `RelectureManquee { chemin }`, `chemin` celui du fichier refusé, ou le dossier du document si l'erreur n'en
 nomme aucun. Dans `recevoir`, après la relecture qui suit un `Echec::Refusee`, `echange.reprendre()`, puis
-`Err(Erreur::Disque)`. `compacter` passe `point(Etape::Save)` après `save()` : en échec, comme des octets qui ne se
+`Err(Erreur::Disque)`. Une réception que `synchro` refuse, mais qui a changé les heads, écrit son fichier d'ajout
+comme une autre ; si cette écriture donne un avertissement (`NonDurable`, ou la compaction qui suit), `recevoir`
+rend `Err(Erreur::Synchro(_))` et l'avertissement rejoint `avertissements()` : le refus de la réception se dit, et
+l'avertissement ne se perd pas. `compacter` passe `point(Etape::Save)` après `save()` : en échec, comme des octets qui ne se
 relisent pas, `CompactionInfidele`, et rien ne s'écrit. Dans `recevoir`, quand les heads ont changé,
 `point(Etape::Reception)` en échec remplace un `Ok` de la réception par
 `Err(synchro::Erreur::Automerge(AutomergeError::Fail))`, et non `MessageIllisible`, dont la doc promet que le
@@ -563,20 +604,20 @@ naissance : `NonDurable` → le document, avec `avertissements() == [NonDurable]
 et `recevoir` rendent `Err(Erreur::LectureSeule(raison.clone()))`, et `prochain_message` rend `None`, selon
 `acces().ecrit()` et `acces().echange()`.
 
-- [ ] **Étape 1 : écrire les tests.** Chaque écriture des tests nouveaux passe par `commun::ecrire`. Deux tests sont des caractérisations, qui passent dès qu'ils compilent, l'essai faisant déjà ce qu'ils vérifient : `un_message_illisible_rend_synchro` et le complément de `ce_qui_est_recu_se_relit_du_disque` ; la description de la PR les relève comme tels.
+- [ ] **Étape 1 : écrire les tests.** Chaque écriture des tests nouveaux passe par `commun::ecrire`. Quatre tests sont des caractérisations, qui passent dès qu'ils compilent, l'essai faisant déjà ce qu'ils vérifient : `un_message_illisible_rend_synchro`, le complément de `ce_qui_est_recu_se_relit_du_disque`, et les deux doctests sur `Document::ecrire`, qui passent aujourd'hui, `ecrire` prenant déjà `&mut self` ; la description de la PR les relève comme tels.
   - `tests/ajouts.rs` :
     - `une_ecriture_refusee_relit_le_document_du_disque` (réécrit `une_ecriture_qui_echoue_laisse_le_document_a_relire` ; AM-4 (2)) — `// § 31 · 10, test 8 : relire du disque après une opération refusée, puis une opération`. `couper(Renommage, 1)` ; `ecrire` (idee-2) rend `Err(Erreur::Disque { .. })` ; `lecture_seule() == None` ; heads égales à celles d'avant ; `get_actor()` différent d'avant ; aucun fichier de plus dans `ajouts/` ; `racine.fonds()` rend `Err(Erreur::FondsDejaOuvert)`, la relecture n'ayant pas rendu la garde. Puis `ecrire` (idee-3) rend `Ok(None)` ; son fichier d'ajout vaut exactement `save_after(&heads_avant)` et `get_changes(&heads_avant).len() == 1`.
     - `une_ecriture_coupee_a_chaque_etape` — `// § 31 · 10, test 8 : interrompre à chaque étape, puis rouvrir`. Pour `VoisinEcrit`, `SyncAll`, `Relecture`, `Renommage` (rang 1), chacun dans son dossier : `Err(Erreur::Disque { .. })`, aucun `.partiel` dans `ajouts/`, et le fonds rouvert a les heads d'avant. Pour `RendreDurable` : `Ok(Some(Avertissement::NonDurable { chemin, .. }))`, `chemin` sous `ajouts/` et présent, et le fonds rouvert porte l'idée.
-    - `une_relecture_qui_echoue_met_le_document_en_lecture_seule` (E19, C1, E22) : `couper(Renommage, 1)` et `couper(Relecture, 2)` (la première relecture est celle du voisin) ; `ecrire` (idee-2) rend `Err(Erreur::Disque { .. })` ; `lecture_seule() == Some(&LectureSeule::RelectureManquee { chemin: <dossier du fonds>/complet.automerge })` ; idee-2 absente de la mémoire, heads d'avant ; `ecrire` et `compacter` rendent `Err(Erreur::LectureSeule(LectureSeule::RelectureManquee { .. }))` ; `prochain_message` rend `None` ; `recevoir` rend `Err(Erreur::LectureSeule(_))` ; `racine.captations().verser(&octets(3, 100))` rend `Ok(_)`. Lâché puis rouvert sans panne : `lecture_seule() == None`, idee-2 absente.
-    - `un_rendre_durable_refuse_apres_le_renommage_laisse_l_operation_faite` (E25) — `// § 31 · 10, test 8 : une opération dite faite ne manque pas`. `couper(RendreDurable, 1)` sur une écriture : `Ok(Some(NonDurable { chemin, .. }))`, rouvert l'idée y est. Puis, dans une racine neuve, `couper(RendreDurable, 1)` sur `faire_naitre_le_fonds` : `Ok(document)`, `avertissements()` est `[NonDurable { chemin: <dossier du fonds>/complet.automerge, .. }]` ; lâché, `fonds()` rend `Ok(Some(_))`.
+    - `une_relecture_qui_echoue_met_le_document_en_lecture_seule` (C1 ; décision 12 du plan maître : « Une relecture du disque qui échoue met le document en lecture seule », « Une captation se verse toujours ») : `couper(Renommage, 1)` et `couper(Relecture, 2)` (la première relecture est celle du voisin) ; `ecrire` (idee-2) rend `Err(Erreur::Disque { .. })` ; `lecture_seule() == Some(&LectureSeule::RelectureManquee { chemin: <dossier du fonds>/complet.automerge })` ; idee-2 absente de la mémoire, heads d'avant ; `ecrire` et `compacter` rendent `Err(Erreur::LectureSeule(LectureSeule::RelectureManquee { .. }))` ; `prochain_message` rend `None` ; `recevoir` rend `Err(Erreur::LectureSeule(_))` ; `racine.captations().verser(&octets(3, 100))` rend `Ok(_)`. Lâché puis rouvert sans panne : `lecture_seule() == None`, idee-2 absente.
+    - `un_rendre_durable_refuse_apres_le_renommage_laisse_l_operation_faite` (plan maître, tranche 1, quatrième puce : « l'échec de `rendre_durable` après le renommage, qu'aucun test d'H07 ne provoque » ; décision 12) — `// § 31 · 10, test 8 : une opération dite faite ne manque pas`. `couper(RendreDurable, 1)` sur une écriture : `Ok(Some(NonDurable { chemin, .. }))`, rouvert l'idée y est. Puis, dans une racine neuve, `couper(RendreDurable, 1)` sur `faire_naitre_le_fonds` : `Ok(document)`, `avertissements()` est `[NonDurable { chemin: <dossier du fonds>/complet.automerge, .. }]` ; lâché, `fonds()` rend `Ok(Some(_))`.
   - `tests/fonds.rs`, `une_naissance_refusee_avant_le_renommage_laisse_pupitre_neuf` (C2) : dans une racine neuve, `couper(Renommage, 1)` (le premier renommage de la naissance est celui du fichier complet) ; `faire_naitre_le_fonds(&NAISSANCE, …)` rend `Err(Erreur::Disque { .. })` ; `documents/fonds/` ne porte que `ajouts/`, vide ; `fonds()` rend `Ok(None)`, la garde rendue ; puis, sans panne, une seconde naissance réussit.
   - `tests/compaction.rs`, `une_compaction_qui_echoue_apres_une_ecriture_ne_la_defait_pas` (AM-4 (5), décision 8 d'H07) : un fonds né d'une idée courte (« Un refrain qui monte »), puis une écriture de `texte_long()`, plus lourde que le fichier complet, sous `couper(Save, 1)` : `Ok(Some(Avertissement::Compaction(Erreur::CompactionInfidele)))` ; un fichier dans `ajouts/` ; la panne levée, l'écriture suivante rend `Ok(None)` et `ajouts/` est vide ; rouvert, les deux idées y sont.
   - `tests/synchronisation.rs` :
-    - `ce_qui_est_recu_se_relit_du_disque` complété (E27, mineur d'H07) : le contenu du fichier reçu vaut exactement `doc.automerge().save_after(&heads_d_avant)`.
-    - `une_reception_refusee_en_chemin_ecrit_ce_qui_a_change` (E26, décision 8 d'H07) : `deux_copies`, `b` note une idée ; `couper(Reception, 1)` ; réunir à la main (au plus 1 000 messages, comme `commun::reunir`) ; la réception de `a` qui change ses heads rend `Err(Erreur::Synchro(_))` ; un fichier d'ajout de plus dans `a`, égal à `save_after` des heads d'avant cette réception ; l'idée est dans `a`, et dans `a` rouvert.
+    - `ce_qui_est_recu_se_relit_du_disque` complété (plan maître, tranche 1, huitième puce : « Le fichier reçu comparé à `save_after` des heads d'avant (mineur d'H07) ») : le contenu du fichier reçu vaut exactement `doc.automerge().save_after(&heads_d_avant)`.
+    - `une_reception_refusee_en_chemin_ecrit_ce_qui_a_change` (plan maître, tranche 1, quatrième puce : « une réception refusée en chemin, qui écrit ce qui a changé les heads » ; décision 8 d'H07) : `deux_copies`, `b` note une idée ; `couper(Reception, 1)` ; réunir à la main (au plus 1 000 messages, comme `commun::reunir`) ; la réception de `a` qui change ses heads rend `Err(Erreur::Synchro(_))` ; un fichier d'ajout de plus dans `a`, égal à `save_after` des heads d'avant cette réception ; l'idée est dans `a`, et dans `a` rouvert. Puis, sur deux copies neuves, de même sous `couper(Reception, 1)` et `couper(RendreDurable, 1)` (le premier `rendre_durable` est celui du fichier d'ajout de cette réception) : `Err(Erreur::Synchro(_))`, et `a.avertissements()` est `[Avertissement::NonDurable { chemin, .. }]`, `chemin` sous `ajouts/` et présent.
     - `une_reception_refusee_relit_le_document_et_l_echange_reprend` (réécrit `un_document_a_relire_ne_laisse_rien_partir` ; point de revue 2) : `couper(Renommage, 1)` ; la réception qui change les heads de `a` rend `Err(Erreur::Disque { .. })` ; les heads de `a` sont celles d'avant ; puis la boucle continue, sur les mêmes `Echange`, au plus 1 000 messages, jusqu'à ce que ni l'un ni l'autre n'ait rien à dire : après le refus, une réception de `a` change de nouveau ses heads et écrit un fichier d'ajout (`b` a renvoyé ce qu'elle avait envoyé, ce que seul `Echange::reprendre` obtient) ; les heads de `a` et `b` sont égales, et l'idée est dans `a` rouvert.
-    - `un_message_illisible_rend_synchro` (E29) : `a.recevoir(&mut echange, b"pas un message")` rend `Err(Erreur::Synchro(synchro::Erreur::MessageIllisible(_)))`, et aucun fichier ne s'écrit.
-  - Les doctests sur `Document::ecrire` (E28) — `// § 31 · 10, test 8 : une synchronisation lancée pendant l'écriture ne voit pas l'opération en cours`. Le premier ne compile pas, le second, identique hors l'endroit de l'appel, compile ; si la CI rend un autre code que E0502, le doctest prend celui-là :
+    - `un_message_illisible_rend_synchro` (plan maître, tranche 1, huitième puce : « chaque variante d'`Erreur` jamais provoquée (`Genese`, `ChampAbsent`, `Synchro`) a son test, ou disparaît ») : `a.recevoir(&mut echange, b"pas un message")` rend `Err(Erreur::Synchro(synchro::Erreur::MessageIllisible(_)))`, et aucun fichier ne s'écrit.
+  - Les doctests sur `Document::ecrire` (plan maître, tranche 1, huitième puce : « un doctest `compile_fail` fige qu'aucun message ne se prépare pendant une écriture ») — `// § 31 · 10, test 8 : une synchronisation lancée pendant l'écriture ne voit pas l'opération en cours`. Le premier ne compile pas, le second, identique hors l'endroit de l'appel, compile ; si la CI rend un autre code que E0502, le doctest prend celui-là. Deux caractérisations : ils passent déjà sur le code d'H07 :
 
 ```rust
 /// ```compile_fail,E0502
@@ -603,29 +644,47 @@ et `recevoir` rendent `Err(Erreur::LectureSeule(raison.clone()))`, et `prochain_
 ### Tâche 7 : l'ouverture en lecture seule, et la compaction d'ouverture avec un avertissement
 
 **Fichiers :** modifier `crates/stockage/src/lib.rs` (`Erreur`, `LectureSeule`), `src/documents.rs` (:172-212,
-:243-307) ; tests : `tests/ajouts.rs`, `tests/compaction.rs`, `tests/fonds.rs`.
+:243-307), `src/racine_des_donnees.rs` (doc de `fonds`, :62-70, qui dit encore `AjoutAltere`,
+`DependancesManquantes`, `Automerge` et « Une compaction qui échoue fait échouer l'ouverture » : elle dit la lecture
+seule et l'avertissement), `crates/noyau/src/donnees/compaction.rs` (doc de `Lu::lisible`) ; tests :
+`tests/ajouts.rs` (et sa doc de module, :2-3, dont « Un fichier d'ajout altéré ou manquant fait refuser
+l'ouverture » devient « … ouvre le document en lecture seule, en se nommant »), `tests/compaction.rs`,
+`tests/fonds.rs`.
 
 **Interfaces — produit :**
 
 ```rust
-// LectureSeule : + AjoutAltere { chemin: PathBuf }, + CompletIllisible { chemin: PathBuf },
-//                + DependancesManquantes { chemin: PathBuf }
+// LectureSeule : + AjoutAltere { chemin: PathBuf }, + AjoutIllisible { chemin: PathBuf },
+//                + CompletIllisible { chemin: PathBuf }, + DependancesManquantes { chemin: PathBuf }
+// AjoutIllisible : un fichier d'ajout dont le contenu donne l'empreinte de son nom, mais que
+//                  `load_incremental` refuse (par exemple `DuplicateSeqNumber`) ; il n'est pas chargé.
 // Erreur : − AjoutAltere, − DependancesManquantes ; CompactionInfidele ne sort plus que de `compacter`
 //          appelé seul, et des avertissements ; sa doc perd « ou, écrit, le disque n'en rend pas les
 //          octets » : un voisin relu autre rend `Disque` (`InvalidData`), par `Echec::Refusee` (tâche 3).
+//          La doc d'`Automerge` perd « la lecture de son fichier complet ou d'un fichier d'ajout »,
+//          cas devenus `CompletIllisible` et `AjoutIllisible` : « Automerge a refusé : le geste, une
+//          écriture du document, ou la lecture de sa racine ».
 ```
 
 L'ouverture lit le fichier complet par `Automerge::load` ; refusé, il se relit par
 `Automerge::load_with_options(&octets, LoadOptions::new().on_partial_load(OnPartialLoad::Ignore))` (sinon
 `Automerge::new()`), et la raison est `CompletIllisible`. Les fichiers d'ajout se lisent triés par nom ; un
-fichier qui trahit son empreinte n'est pas chargé, et le premier donne `AjoutAltere` ; tout lu,
+fichier qui trahit son empreinte n'est pas chargé, et donne `AjoutAltere` ; un fichier qui la donne, mais que
+`load_incremental` refuse, donne `AjoutIllisible`, au lieu de l'`Erreur::Automerge` d'H07, qui faisait refuser
+l'ouverture : c'est un fichier illisible, qui ouvre en lecture seule en se nommant (décision 12) ; le premier
+fichier, dans l'ordre des noms, qui donne l'une ou l'autre l'emporte ; tout lu,
 `get_missing_deps(&[])` non vide donne `DependancesManquantes { chemin }`, `chemin` le premier fichier d'ajout,
 dans l'ordre des noms, dont une modification attend : seul dans un document neuf (`load_incremental`), il
 attend des modifications (`get_missing_deps(&[])`) dont l'une manque au document lu (`get_change_by_hash` rend
 `None`). Le fichier qui manque ne se nomme pas, celui qui l'attend si : le bandeau de la tranche 3 a un fichier
-à nommer dans les trois cas (décision 12). La première raison trouvée l'emporte, dans cet ordre. Un refus du
+à nommer dans chaque cas (décision 12). La première raison trouvée l'emporte, dans cet ordre : le fichier complet,
+puis les fichiers d'ajout, puis les dépendances. Un refus du
 disque à la lecture rend `Err(Erreur::Disque)`. La compaction d'ouverture suit `a_l_ouverture(acces, …)` ; son échec pousse `Avertissement::Compaction(e)` et lève `compaction_due`.
-`compacter` retire par `fichier::retirer` (`point(Etape::Retrait)`). Chaque fichier se lit par
+`compacter` retire par `fichier::retirer` (`point(Etape::Retrait)`), et calcule `Lu::lisible` d'un fichier
+d'ajout ainsi : son contenu donne l'empreinte de son nom (`est_conforme`), et `load_incremental` le charge sans
+erreur, dans le `fork()` du fichier complet relu où `est_absorbe` le charge déjà ; la doc de `lisible` le dit
+(« un fichier d'ajout dont le contenu donne l'empreinte de son nom et que `load_incremental` charge »), et un
+fichier `AjoutIllisible` n'est donc pas lisible. Chaque fichier se lit par
 `fichier::lire`. Ces lectures vivent dans `lire_le_dossier` (tâche 6), que la relecture du disque appelle
 aussi : une raison de lecture seule qu'elle trouve devient celle du document, sur ce qui se lit.
 
@@ -633,18 +692,19 @@ aussi : une raison de lecture seule qu'elle trouve devient celle du document, su
   - `tests/ajouts.rs` :
     - `un_ajout_manquant_ouvre_en_lecture_seule` (réécrit `un_ajout_manquant_rend_dependances_manquantes`) : le fichier d'ajout de la première écriture retiré ; `lecture_seule() == Some(&LectureSeule::DependancesManquantes { chemin })`, `chemin` le fichier d'ajout de la seconde, qui l'attend ; la mémoire porte la naissance, sans l'étiquette ni l'idée écrites.
     - `un_ajout_altere_ouvre_en_lecture_seule_et_se_nomme` (réécrit `un_ajout_altere_se_nomme_et_rien_ne_bouge`) : deux écritures, un octet changé dans le fichier de la seconde ; `lecture_seule() == Some(&LectureSeule::AjoutAltere { chemin })`, son chemin ; la première idée se lit, la seconde non.
-    - `un_complet_illisible_ouvre_en_lecture_seule_et_se_nomme` (AM-4 (6), E21) : l'octet du milieu du fichier complet changé ; `lecture_seule() == Some(&LectureSeule::CompletIllisible { chemin: <dossier du fonds>/complet.automerge })` ; la mémoire montre ce qui se lit : ses heads sont celles que le test calcule à part, par `Automerge::load_with_options` des octets altérés (`OnPartialLoad::Ignore`), ou un document neuf s'il les refuse, puis `load_incremental` de chaque fichier d'ajout.
+    - `un_ajout_qu_automerge_refuse_ouvre_en_lecture_seule` : un fonds né, lâché ; le test bâtit, depuis le fichier complet (`Automerge::load`, heads `h`), deux `fork()` auxquels il donne le même acteur (`set_actor(ActorId::from(b"acteur-en-double".as_slice()))`), l'un notant idee-2, l'autre idee-3 : deux modifications du même acteur au même rang ; il écrit `save_after(&h)` de chacun dans `ajouts/<empreinte>.automerge` ; rouvert : `lecture_seule() == Some(&LectureSeule::AjoutIllisible { chemin })`, `chemin` le second des deux dans l'ordre des noms ; l'idée du premier se lit, celle du second non.
+    - `un_complet_illisible_ouvre_en_lecture_seule_et_se_nomme` (AM-4 (6) ; décision 12 du plan maître : « un fichier complet que `load` refuse ») : l'octet du milieu du fichier complet changé ; `lecture_seule() == Some(&LectureSeule::CompletIllisible { chemin: <dossier du fonds>/complet.automerge })` ; la mémoire montre ce qui se lit : ses heads sont celles que le test calcule à part, par `Automerge::load_with_options` des octets altérés (`OnPartialLoad::Ignore`), ou un document neuf s'il les refuse, puis `load_incremental` de chaque fichier d'ajout.
   - `tests/compaction.rs` :
     - `la_compaction_garde_un_ajout_altere` réécrit — `// § 31 · 10, test 9 : un fichier d'ajout altéré, puis compacter`. Sa fin : `fonds()` rend un document, `lecture_seule() == Some(&LectureSeule::AjoutAltere { chemin })`, le fichier altéré toujours là, octet pour octet.
-    - `une_compaction_infidele_n_ecrit_rien` (LE-10, E15) : deux écritures, `complet_avant = lire_le_complet(..)`, `couper(Save, 1)`, `compacter()` rend `Err(Erreur::CompactionInfidele)` ; `entrees(<dossier du fonds>) == ["ajouts", "complet.automerge"]` ; `lire_le_complet(..) == complet_avant` ; deux fichiers dans `ajouts/`.
-    - `une_compaction_dont_le_complet_se_relit_autre_ne_retire_rien` (LE-10, E16, § 31 · 2.2, point 3) : de même, sous `pannes::alterer_la_relecture(1)` (la première relecture de `compacter` est celle du voisin du fichier complet) ; `compacter()` rend `Err(Erreur::Disque { erreur, .. })`, `erreur.kind() == io::ErrorKind::InvalidData` ; `entrees(<dossier du fonds>) == ["ajouts", "complet.automerge"]` ; `lire_le_complet(..) == complet_avant` ; les deux fichiers d'ajout toujours là.
+    - `une_compaction_infidele_n_ecrit_rien` (LE-10 ; § 31 · 2.2, point 2) : deux écritures, `complet_avant = lire_le_complet(..)`, `couper(Save, 1)`, `compacter()` rend `Err(Erreur::CompactionInfidele)` ; `entrees(<dossier du fonds>) == ["ajouts", "complet.automerge"]` ; `lire_le_complet(..) == complet_avant` ; deux fichiers dans `ajouts/`.
+    - `une_compaction_dont_le_complet_se_relit_autre_ne_retire_rien` (LE-10 ; § 31 · 2.2, point 3) : de même, sous `pannes::alterer_la_relecture(1)` (la première relecture de `compacter` est celle du voisin du fichier complet) ; `compacter()` rend `Err(Erreur::Disque { erreur, .. })`, `erreur.kind() == io::ErrorKind::InvalidData` ; `entrees(<dossier du fonds>) == ["ajouts", "complet.automerge"]` ; `lire_le_complet(..) == complet_avant` ; les deux fichiers d'ajout toujours là.
     - `une_compaction_coupee_a_chaque_etape_ne_perd_rien` — `// § 31 · 10, test 9 : compacter en s'interrompant à chaque étape, puis rouvrir, et revenir avant chaque opération`. Pour `Save`, `VoisinEcrit`, `SyncAll`, `Relecture`, `Renommage`, `RendreDurable` et `Retrait` (rang 1), chacun dans son dossier, sur trois écritures : `compacter()` rend `Err(_)` ; pour les cinq premières, le fichier complet est celui d'avant et aucun voisin ne reste ; rouvert, les heads et `hydrate(None)` sont ceux d'avant ; pour chaque modification de `get_changes(&[])`, `fork_at(&[hash])` du document rouvert et de la mémoire d'avant ont le même `hydrate(None)`. Après `Retrait`, la compaction suivante, sans panne, laisse `ajouts/` vide.
-    - `une_compaction_d_ouverture_infidele_ouvre_avec_un_avertissement` (E23) : une écriture, lâché ; `couper(Save, 1)` ; `fonds()` rend un document, `lecture_seule() == None`, `avertissements()` est `[Avertissement::Compaction(Erreur::CompactionInfidele)]` ; le fichier complet et l'ajout sont en place ; la panne levée, une écriture rend `Ok(None)` et laisse `ajouts/` vide (compaction due).
-    - `une_compaction_d_ouverture_refusee_par_le_disque_ouvre_avec_un_avertissement` (AM-4 (6), E23) : de même, sous `couper(Renommage, 1)` ; `avertissements()` est `[Avertissement::Compaction(Erreur::Disque { .. })]`.
-  - `tests/fonds.rs`, `une_copie_sans_lignee_rend_champ_absent` (E29), une caractérisation, que l'essai passe déjà et que la description relève comme telle : le test écrit `documents/fonds/complet.automerge` d'un document qu'il bâtit (la genèse, `IDENTIFIANT` et `PROPRIETAIRE`, sans `LIGNEE`) et crée `ajouts/` ; `fonds()` rend un document, et `copie()` rend `Err(Erreur::ChampAbsent { champ: "lignee" })`.
+    - `une_compaction_d_ouverture_infidele_ouvre_avec_un_avertissement` (décision 12 du plan maître : « Une compaction d'ouverture infidèle, ou refusée par le disque, n'empêche pas d'ouvrir ») : une écriture, lâché ; `couper(Save, 1)` ; `fonds()` rend un document, `lecture_seule() == None`, `avertissements()` est `[Avertissement::Compaction(Erreur::CompactionInfidele)]` ; le fichier complet et l'ajout sont en place ; la panne levée, une écriture rend `Ok(None)` et laisse `ajouts/` vide (compaction due).
+    - `une_compaction_d_ouverture_refusee_par_le_disque_ouvre_avec_un_avertissement` (AM-4 (6) ; décision 12 du plan maître) : de même, sous `couper(Renommage, 1)` ; `avertissements()` est `[Avertissement::Compaction(Erreur::Disque { .. })]`.
+  - `tests/fonds.rs`, `une_copie_sans_lignee_rend_champ_absent` (plan maître, tranche 1, huitième puce, la variante `ChampAbsent`), une caractérisation, que l'essai passe déjà et que la description relève comme telle : le test écrit `documents/fonds/complet.automerge` d'un document qu'il bâtit (la genèse, `IDENTIFIANT` et `PROPRIETAIRE`, sans `LIGNEE`) et crée `ajouts/` ; `fonds()` rend un document, et `copie()` rend `Err(Erreur::ChampAbsent { champ: "lignee" })`.
 - [ ] **Étape 2 : voir échouer.** Committer (`test: l'ouverture en lecture seule, et son avertissement`), pousser. Attendu : « Lint » rouge, `no variant … AjoutAltere` sur `LectureSeule`.
 - [ ] **Étape 3 : écrire l'ouverture et `compacter`.**
-- [ ] **Étape 4 : voir passer.** Committer (`feat: un fichier illisible ouvre en lecture seule, une compaction d'ouverture en échec avertit`), pousser. Attendu, dans `verifier` et `windows` : `ajouts.rs` `ok. 12 passed`, `compaction.rs` `ok. 10`, `fonds.rs` `ok. 8`.
+- [ ] **Étape 4 : voir passer.** Committer (`feat: un fichier illisible ouvre en lecture seule, une compaction d'ouverture en échec avertit`), pousser. Attendu, dans `verifier` et `windows` : `ajouts.rs` `ok. 13 passed`, `compaction.rs` `ok. 10`, `fonds.rs` `ok. 8`.
 
 ### Tâche 8 : les documents de la PR (b), et la mutation remesurée
 
@@ -654,19 +714,19 @@ aussi : une raison de lecture seule qu'elle trouve devient celle du document, su
 `docs/registre.md` (LE-10), `.github/workflows/ci.yml` (`mutants`, :169-176), `.github/workflows/mutants-complet.yml`
 (:19).
 
-- [ ] **Étape 1 : le § 31 · 2.1.** Une opération « n'est faite qu'une fois son fichier d'ajout renommé » ; trois issues : faite ; faite, avec un avertissement (le renommage non rendu durable, ou la compaction qui échoue, pour une opération, une réception, le premier fichier complet ou une migration) ; refusée, son voisin retiré, le document relu du disque ; une réception refusée relance en outre l'échange, pour que l'autre copie renvoie ce que la relecture a ôté. Chaque fichier : écrit, synchronisé, fermé, relu, puis renommé. Un voisin qui ne se retire pas se vide ; seule cette double panne peut faire paraître une opération refusée à la relance. Une relecture du disque qui échoue met le document en lecture seule, sur sa mémoire d'avant l'opération refusée. Les deux lectures seules, illisible et plus récente (§ 2.4), se nomment. Le diagramme gagne `R -.->|"rendre durable refusé, compaction en échec"| A["Opération faite, avec un avertissement"]`.
+- [ ] **Étape 1 : le § 31 · 2.1.** Une opération « n'est faite qu'une fois son fichier d'ajout renommé » ; trois issues : faite ; faite, avec un avertissement (le renommage non rendu durable, ou la compaction qui échoue, pour une opération, une réception, le premier fichier complet ou une migration) ; refusée, son voisin retiré, le document relu du disque ; une réception refusée relance en outre l'échange, pour que l'autre copie renvoie ce que la relecture a ôté. Chaque fichier : écrit, synchronisé, fermé, relu, puis renommé. Un voisin qui ne se retire pas se vide ; seule cette double panne peut faire paraître une opération refusée à la relance. Une relecture du disque qui échoue met le document en lecture seule, sur sa mémoire d'avant l'opération refusée. Les deux lectures seules se nomment : illisible (un fichier qui ne se lit pas, une relecture manquée, une version de schéma absente, nulle, ou qui n'est pas un entier non signé, que le § 2.4 dira en (d)), et plus récente (§ 2.4). C'est la réponse à la question C2, tranchée le 2026-11-09 : une précision de l'ADR-023, qui ne change pas ; le texte la dit sans la reposer. Le diagramme gagne `R -.->|"rendre durable refusé, compaction en échec"| A["Opération faite, avec un avertissement"]`.
 - [ ] **Étape 2 : le § 31 · 2.2.** Point 3 : « Elle l'écrit dans un voisin, synchronisé, fermé, puis relu, qui doit rendre les octets écrits, et seulement alors renommé en fichier complet (§ 2.1) » (Éc-3, LE-10). Après le point 4 : une compaction qui échoue, à l'ouverture ou après une écriture, n'empêche ni d'ouvrir ni d'écrire ; elle avertit, laisse les fichiers en place et se retente à l'écriture suivante ; un retrait interrompu laisse des fichiers absorbés, que la compaction suivante retire.
-- [ ] **Étape 3 : le glossaire, le § 40 · 3, `CLAUDE.md`.** `git grep -n -i -w "lecture seule" -- docs README.md CONVENTIONS.md`, la sortie citée dans la PR. Entrée « **Lecture seule (d'un document)** » : « L'état d'un document qui montre ce qui se lit sans y écrire : un fichier illisible, ou une relecture du disque manquée, et il n'envoie ni ne reçoit ; une version de schéma plus récente, et il reçoit sans rien transmettre ([§ 31 · 2.1], [§ 31 · 2.4]) ». Les emplois qui ne disent pas un document (SFD 22, l. 38 ; § 40 · 7.5, l. 501 ; M-0006) restent, et la PR dit pourquoi. § 40 · 3 et `CLAUDE.md`, après la crate `stockage` : « sa fonction de Cargo `pannes`, que seuls ses tests activent, coupe une écriture à l'étape voulue ». `CLAUDE.md`, « Commandes », et `CONVENTIONS.md`, colonne « Script » des lignes `verifier` et `windows` : `cargo clippy -p stockage --lib -- -D warnings`, qui compile le stockage sans `pannes`, tel que l'établi le recevra. Puis la recherche de LE-3 sur ce que la PR périme : `git grep -n -i -E "à relire|ARelire|a_relire|Erreur::Genese|Erreur::AjoutAltere|Erreur::DependancesManquantes" -- . ':!docs/registre.md' ':!.claude/plans'` (le registre et les plans disent un état passé) ; aucune ligne de code ni de test ne doit rester ; les deux emplois d'un autre sens, l'artefact `cargo-lock` « à relire puis à committer » (`ci.yml`, `CLAUDE.md`), restent, et la PR le dit ; la sortie citée dans la PR.
+- [ ] **Étape 3 : le glossaire, le § 40 · 3, `CLAUDE.md`.** `git grep -n -i -w "lecture seule" -- docs README.md CONVENTIONS.md`, la sortie citée dans la PR. Entrée « **Lecture seule (d'un document)** », sur le modèle des entrées « Racine » et « Conteneur », qui disent leurs autres sens : « L'état d'un document qui montre ce qui se lit, sans y écrire ni se compacter. Devant un fichier illisible, une relecture du disque manquée, ou une version de schéma absente, nulle, ou qui n'est pas un entier non signé, il n'envoie ni ne reçoit ; devant une version de schéma plus récente, il reçoit, et ne transmet aucune modification ([§ 31 · 2.1], [§ 31 · 2.4]). Au sens d'une vue, ce qui se montre sans se modifier, comme la mesure d'avant et celle d'après sous la loupe ([MIC-01]) ; au sens de l'application, un protocole qui sert sans écrire, celui des captations ([§ 40 · 7.5]) ; au sens du nœud, un dossier monté sans écriture ([M-0006]). On dit duquel il s'agit dès que le contexte ne le dit pas ». Les emplois qui ne disent pas un document (SFD 22, l. 38 ; § 40 · 7.5, l. 501 ; M-0006, l. 59, 185 et 199) restent : l'entrée nomme leur sens, et la PR le dit. § 40 · 3 et `CLAUDE.md`, après la crate `stockage` : « sa fonction de Cargo `pannes`, que seuls ses tests activent, coupe une écriture à l'étape voulue ». `CLAUDE.md`, « Commandes », et `CONVENTIONS.md`, colonne « Script » des lignes `verifier` et `windows` : `cargo clippy -p stockage --lib -- -D warnings`, qui compile le stockage sans `pannes`, tel que l'établi le recevra. Puis la recherche de LE-3 sur ce que la PR périme : `git grep -n -i -E "à relire|ARelire|a_relire|Erreur::Genese|Erreur::AjoutAltere|Erreur::DependancesManquantes" -- . ':!docs/registre.md' ':!.claude/plans'` (le registre et les plans disent un état passé) ; aucune ligne de code ni de test ne doit rester ; les deux emplois d'un autre sens, l'artefact `cargo-lock` « à relire puis à committer » (`ci.yml`, `CLAUDE.md`), restent, et la PR le dit. « À » et « relire » tombant parfois sur deux lignes (`crates/stockage/tests/ajouts.rs:3-4`), une deuxième recherche prend le mot seul, avec la ligne d'avant : `git grep -n -i -w -B1 "relire" -- . ':!docs/registre.md' ':!.claude/plans'` ; chaque emploi qui commence une ligne après un « à » se lit, et aucun ne doit dire l'état « à relire » ; les autres (`Captations::relire`, le moment « Relire », « relire le disque ») gardent leur sens. Une troisième prend les refus d'ouverture qu'H07 décrivait : `git grep -n -i -E "refuser l'ouverture|fait échouer l'ouverture|font échouer l'ouverture" -- . ':!docs/registre.md' ':!.claude/plans'` ; aucune ligne ne doit rester (avant la PR : `crates/stockage/src/racine_des_donnees.rs:70`, `crates/stockage/src/documents.rs:245`, `crates/stockage/tests/ajouts.rs:3`, que les tâches 6 et 7 récrivent). Une quatrième prend le mot que la tâche 4 retire du noyau : `git grep -n -w -E "conforme|conformes" -- crates/noyau` ; aucune ligne attendue (avant la PR : `crates/noyau/src/donnees/compaction.rs:25`, `:31`, `:32`, `:39`, `crates/noyau/tests/donnees.rs:7`, `:10`, `:15`, `:16`). Les quatre sorties citées dans la PR.
 - [ ] **Étape 4 : le registre.** LE-10, colonne « État » : « clos le AAAA-MM-JJ, par `une_compaction_infidele_n_ecrit_rien` (`crates/stockage/tests/compaction.rs`), PR #NN ». `node scripts/verif-liens.mjs` et `node scripts/verif-faits.mjs` verts après le `git add` ; `verif-diagrammes` se lit dans `documentation`.
-- [ ] **Étape 5 : remesurer la mutation, à froid**, selon le plan d'H07, tâche 4, pas 5 : `gh workflow run mutants-complet.yml --ref t1b-pannes-et-lecture-seule`, « No cache found. » dans le journal de rust-cache, la durée du job et « N mutants tested » ; ce passage complet vert, sans `MISSED` ni `TIMEOUT`, son lien dans la description ; les deux `timeout-minutes` à deux fois la durée, arrondie à la minute au-dessus, et leurs commentaires (« à froid », le compte, la durée, la date, la PR).
-- [ ] **Étape 6 : committer** par chemins (`docs: la lecture seule et l'écriture faite avec un avertissement`, puis `ci: les délais de la mutation, remesurés avec l'accès d'un document`), pousser. **Fin de la PR (b) :** `verifier`, `windows`, `mutants` (sans `MISSED`), `contenu` et `documentation` verts ; la description dit les tests réécrits (`une_ecriture_qui_echoue_laisse_le_document_a_relire`, `un_document_a_relire_ne_laisse_rien_partir`, `un_ajout_manquant_rend_dependances_manquantes`, `un_ajout_altere_se_nomme_et_rien_ne_bouge`, `la_compaction_garde_un_ajout_altere`, `ce_qui_est_recu_se_relit_du_disque`), le test adapté à la seule signature (`un_geste_refuse_n_ecrit_rien_et_le_document_reste_ouvert`), les caractérisations (tâches 6 et 7) et le test noyau retiré, les recherches de LE-2 et de LE-3, `Echange::reprendre` (écart 3) et la question C2 à la maîtrise d'ouvrage ; fusion par squash.
+- [ ] **Étape 5 : remesurer la mutation, à froid**, selon le plan d'H07, tâche 4, pas 5 : `gh workflow run mutants-complet.yml --ref t1b-pannes-et-lecture-seule`, puis `gh run list --workflow mutants-complet --branch t1b-pannes-et-lecture-seule --limit 1` pour son numéro ; dans le journal de l'étape rust-cache, lire « No cache found. ». Si un cache a été restauré (« Restored from cache key … »), retirer ceux que ce dispatch peut lire : `gh cache list --key v0-rust-mutants --json key,ref` (les deux jobs s'appellent `mutants`, d'où la clé), puis `gh cache delete <clé> --ref refs/heads/main` et `--ref refs/heads/t1b-pannes-et-lecture-seule`, et relancer. Relever la durée du job (`gh run view <n> --json jobs`, `startedAt` et `completedAt`) et « N mutants tested ». Si la mesure n'a pu se prendre que sur un cache, les commentaires le disent, et la PR le donne comme un écart au § 70 · 1. Ce passage complet vert, sans `MISSED` ni `TIMEOUT`, son lien dans la description ; les deux `timeout-minutes` à deux fois la durée, arrondie à la minute au-dessus, et leurs commentaires (« à froid », le compte, la durée, la date, la PR).
+- [ ] **Étape 6 : committer** par chemins (`docs: la lecture seule et l'écriture faite avec un avertissement`, puis `ci: les délais de la mutation, remesurés avec l'accès d'un document`), pousser. **Fin de la PR (b) :** `verifier`, `windows`, `mutants` (sans `MISSED`), `contenu` et `documentation` verts ; la description dit les tests réécrits (`une_ecriture_qui_echoue_laisse_le_document_a_relire`, `un_document_a_relire_ne_laisse_rien_partir`, `un_ajout_manquant_rend_dependances_manquantes`, `un_ajout_altere_se_nomme_et_rien_ne_bouge`, `la_compaction_garde_un_ajout_altere`, `ce_qui_est_recu_se_relit_du_disque`), le test adapté à la seule signature (`un_geste_refuse_n_ecrit_rien_et_le_document_reste_ouvert`), le test noyau renommé (`a_retirer_garde_un_fichier_non_conforme`, devenu `a_retirer_garde_un_fichier_illisible`), les caractérisations (tâches 6 et 7, les deux doctests compris) et le test noyau retiré, les recherches de LE-2 et de LE-3, `Echange::reprendre` (écart 3) et la réponse à la question C2, tranchée le 2026-11-09 (une précision de l'ADR-023, que le § 31 · 2.1 applique) ; `gh pr ready <n>`, puis fusion par squash.
 
 ---
 
 ## PR (c) · le démarrage et le suffixe
 
-**Branche :** `t1c-demarrage-et-suffixe`. **Titre :** `feat: le démarrage reprend voisins et noms provisoires,
-le voisin prend un suffixe (AM-4)` (89). **Documents :** § 31 · 2.1, 2.2 et 6.1 ; glossaire (Voisin) ;
+**Branche :** `t1c-demarrage-et-suffixe`. **Titre :** `feat: le démarrage met en place les voisins et range les
+noms provisoires (AM-4)` (80) ; le verbe « reprendre » est écarté (C10), et la description dit le suffixe. **Documents :** § 31 · 2.1, 2.2, 6.1 et 10 (test 4) ; glossaire (Voisin) ;
 `CONVENTIONS.md` (`mutants`) ; `.cargo/mutants.toml` ; délais. **Fin :** voir la tâche 12.
 
 ### Tâche 9 : les règles du démarrage, au noyau
@@ -703,14 +763,16 @@ pub enum Sort { MettreEnPlace, Lire, Retirer }
 /// DansLeDossier : Lire si `fichier_du_voisin(nom) == Some("complet.automerge")` et lisible ;
 /// sinon Retirer.
 pub fn sort_d_un_partiel(partiel: Partiel<'_>) -> Sort;
-/// Pupitre est neuf : ni fichier complet, ni voisin du complet lisible (C3, § 31 · 9.1).
+/// Pupitre est neuf : ni fichier complet, ni voisin du complet lisible (§ 31 · 9.1).
 pub fn pupitre_neuf(complet: bool, voisins_du_complet_lisibles: usize) -> bool;
 /// Un nom provisoire de `captations/` : son nom, l'empreinte de son contenu entier, et si une
-/// captation de cette empreinte est déjà rangée.
+/// captation de cette empreinte est déjà rangée (`deja_rangee`, et non `rangee`, que le noyau
+/// emploie pour la rangée de la table : `table::Rangee`, `Position { rangee }`).
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Provisoire { pub nom: String, pub empreinte: String, pub rangee: bool }
+pub struct Provisoire { pub nom: String, pub empreinte: String, pub deja_rangee: bool }
 /// (nom provisoire, empreinte) de chaque nom provisoire dont l'empreinte est nommée et non rangée ;
-/// de deux du même contenu, le premier dans l'ordre reçu, que l'adaptateur donne trié par nom (R8).
+/// de deux du même contenu, le premier dans l'ordre reçu, que l'adaptateur donne trié par nom : le
+/// second écrirait sur une captation rangée (I14 ; § 31 · 6.1).
 pub fn a_ranger(provisoires: &[Provisoire], nommees: &BTreeSet<String>) -> Vec<(String, String)>;
 ```
 
@@ -759,7 +821,7 @@ fn pupitre_est_neuf_sans_complet_ni_voisin_lisible() {
 // § 31 · 10, test 4 : la captation nommée par un document prend son nom au démarrage
 #[test]
 fn les_noms_provisoires_a_ranger() {
-    let pr = |nom: String, n: u8, rangee| Provisoire { nom, empreinte: e(n), rangee };
+    let pr = |nom: String, n: u8, deja_rangee| Provisoire { nom, empreinte: e(n), deja_rangee };
     let nommees = BTreeSet::from([e(1), e(2), e(4)]);
     let provisoires = [
         pr(format!("{}.4242.partiel", e(1)), 1, false),   // nommée, absente : rangée
@@ -798,7 +860,7 @@ pub fn voisin(chemin: &Path) -> io::Result<PathBuf>;
 
 - [ ] **Étape 1 : écrire les tests.**
   - `tests/fichier.rs` : `le_voisin_porte_le_numero_du_processus` réécrit dans un dossier jetable (`voisin(&d.join("complet.automerge")).unwrap()` se termine par `complet.automerge.<pid>.partiel`) ; `un_nom_de_voisin_pris_recoit_un_suffixe` : ce nom créé, `voisin` rend `-2` ; créé, `-3` ; `-2` retiré, `-2` ; puis, `<nom>.<pid>.partiel` présent avec « laissé », `ecrire_a_cote(chemin, b"apres")` rend `Ok(())`, le fichier porte « apres » et le voisin laissé porte toujours « laissé ».
-  - `tests/captations.rs`, `verser_laisse_intact_un_nom_provisoire_laisse` (R6, conflit 3) : `captations/<e>.<pid>.partiel` déposé avec `octets(6, 200)`, `e` l'empreinte d'`octets(7, 300)` ; `couper(Renommage, 1)` ; `verser(&octets(7, 300))` rend `Err(_)` ; le nom laissé porte toujours `octets(6, 200)` ; sans panne, `verser` réussit et le nom laissé reste.
+  - `tests/captations.rs`, `verser_laisse_intact_un_nom_provisoire_laisse` (§ 31 · 6.1 : un nom provisoire laissé par un arrêt « n'est jamais retiré d'office » ; sans suffixe, `File::create` le tronquerait, puis l'échec le retirerait) : `captations/<e>.<pid>.partiel` déposé avec `octets(6, 200)`, `e` l'empreinte d'`octets(7, 300)` ; `couper(Renommage, 1)` ; `verser(&octets(7, 300))` rend `Err(_)` ; le nom laissé porte toujours `octets(6, 200)` ; sans panne, `verser` réussit et le nom laissé reste.
 - [ ] **Étape 2 : voir échouer.** Committer (`test: le suffixe du voisin`), pousser. Attendu : « Lint » rouge, E0599, `no method named unwrap found for struct PathBuf` : `voisin` rend encore un `PathBuf`.
 - [ ] **Étape 3 : écrire `voisin`, et ses deux appels.**
 - [ ] **Étape 4 : voir passer.** Committer (`feat: un nom de voisin pris reçoit un suffixe`), pousser. Attendu : `fichier.rs` `ok. 8 passed`, `captations.rs` `ok. 6`, dans `verifier` et `windows`.
@@ -806,8 +868,9 @@ pub fn voisin(chemin: &Path) -> io::Result<PathBuf>;
 ### Tâche 11 : le démarrage dans `documents/`
 
 **Fichiers :** modifier `crates/noyau/src/donnees/compaction.rs` (doc de `Lu`, :19-28),
-`crates/stockage/src/documents.rs` (ouverture, `compacter`, `faire_naitre_le_fonds`) ; tests : créer
-`crates/stockage/tests/demarrage.rs` ; modifier `tests/ajouts.rs` (:103-141).
+`crates/stockage/src/lib.rs` (`Avertissement`), `crates/stockage/src/documents.rs` (ouverture, `lire_le_dossier`,
+`compacter`, `faire_naitre_le_fonds`) ; tests : créer `crates/stockage/tests/demarrage.rs` ; modifier
+`tests/ajouts.rs` (:103-141).
 
 **Interfaces — consomme :** `sort_d_un_partiel`, `fichier_du_voisin`, `pupitre_neuf`. **Produit :**
 
@@ -816,48 +879,70 @@ pub struct Lu {
     /// Son chemin relatif au dossier du document, `/` pour séparateur, tel que l'adaptateur le
     /// retirera : `ajouts/<empreinte>.automerge`, ou `complet.automerge.<processus>.partiel`.
     pub nom: String,
-    /// Lisible : un fichier d'ajout dont le contenu donne l'empreinte de son nom, ou un voisin du
-    /// fichier complet non vide que `load` relit sans erreur (Éc-1, Éc-4).
-    pub conforme: bool,
+    /// Lisible : un fichier d'ajout dont le contenu donne l'empreinte de son nom et que
+    /// `load_incremental` charge, ou un voisin du fichier complet non vide que `load` relit sans
+    /// erreur.
+    pub lisible: bool,
     pub absorbe: bool,
 }
+// Avertissement : + VoisinRestant { chemin: PathBuf, erreur: io::Error }
+/// Le voisin `chemin` d'un fichier d'ajout n'a pu prendre sa place : il se lit où il est, et se
+/// met en place à l'ouverture suivante.
+// lire_le_dossier(dossier: &Path)
+//     -> Result<(Automerge, Option<LectureSeule>, usize, usize), Erreur>
+// la mémoire, la première raison de lecture seule, le nombre de fichiers d'ajout lus (un voisin
+// d'ajout resté compris) et, nouveau, le nombre de voisins du fichier complet lus.
 ```
 
 À chaque `fonds()`, la garde prise : chaque `.partiel` de `documents/` (`Ailleurs`), de `documents/fonds/`
 (`DansLeDossier`) et de `documents/fonds/ajouts/` (`DansAjouts`) reçoit son sort. Un dossier absent
 (`documents/fonds/` d'une racine des données neuve, `ajouts/` à côté d'un seul voisin du complet) ne contient
-aucun `.partiel` : `NotFound` n'est pas une erreur, et le démarrage ne crée aucun dossier. `MettreEnPlace` :
-`fichier::renommer` vers `ajouts/<fichier_du_voisin>`, puis `rendre_durable` ; un refus rend
-`Err(Erreur::Disque)`. `Retirer` : `fichier::retirer`, un refus tu, retenté à l'ouverture suivante. `Lire` : le
-voisin se charge (`load_incremental`, dans l'ordre des noms) après le fichier complet, ou sur
-`Automerge::new()` sans lui, et avant les fichiers d'ajout, dans `lire_le_dossier` (tâche 6) : la relecture du
-disque lit donc aussi un voisin du complet qu'une compaction d'ouverture en échec a laissé. `pupitre_neuf(complet présent, voisins lus)` vrai :
-`Ok(None)`. La compaction d'ouverture suit `a_l_ouverture(acces, ajouts, voisins lus > 0)` ; `compacter` lit,
-outre les fichiers d'ajout, chaque voisin du complet de `documents/fonds/`, et retire par
-`dossier.join(nom)`. `faire_naitre_le_fonds` rend `FondsDejaNe` quand `pupitre_neuf` est faux, voisins
-lisibles compris (R7). Un fichier qui n'est ni un `.partiel`, ni `complet.automerge`, ni un fichier d'ajout,
-n'est ni lu ni retiré.
+aucun `.partiel` : `NotFound` n'est pas une erreur, et le démarrage ne crée aucun dossier. Toute autre erreur de
+`read_dir`, ou un refus du disque à la lecture d'un `.partiel` dont le sort demande le contenu (l'empreinte d'un
+`DansAjouts`, `lisible` d'un `DansLeDossier`), rend `Err(Erreur::Disque)`, la règle de la tâche 7, la garde
+rendue (tâche 5) : un voisin non lu peut porter une opération dite faite, ou le premier fichier complet, et
+l'ouverture sans lui montrerait le document sans elle, ou Pupitre neuf, prêt à une seconde naissance. Le rangement
+de `captations/` avertit au contraire devant les mêmes refus (tâche 12) : un nom provisoire qui reste ne perd
+rien, et se range à l'ouverture suivante. `MettreEnPlace` :
+`fichier::renommer` vers `ajouts/<fichier_du_voisin>`, puis `rendre_durable_apres_le_renommage`. Un refus du
+renommage ne fait pas échouer l'ouverture, comme le veut AM-4 (6) pour une erreur du disque à l'ouverture : le
+voisin porte une opération dite faite (§ 31 · 10, test 8), il reste où il est, et `lire_le_dossier`, qui lit
+dans `ajouts/` chaque `.partiel` dont le sort est `MettreEnPlace`, le charge avec les fichiers d'ajout, dans
+l'ordre des noms, et le compte parmi eux ; il pousse `Avertissement::VoisinRestant { chemin, erreur }` ; le
+démarrage suivant le remet en place. Un `rendre_durable` refusé après ce renommage laisse le fichier en place, avec
+`Avertissement::NonDurable { chemin }` (C2). `Retirer` : `fichier::retirer`, un refus tu, retenté à l'ouverture
+suivante. `Lire` : le voisin se charge (`load_incremental`, dans l'ordre des noms) après le fichier complet, ou
+sur `Automerge::new()` sans lui, et avant les fichiers d'ajout, dans `lire_le_dossier` (tâche 6) : la relecture du
+disque lit donc aussi un voisin du complet qu'une compaction d'ouverture en échec a laissé. `lire_le_dossier`
+rend désormais aussi le nombre de voisins du fichier complet lus : `pupitre_neuf(complet présent, voisins lus)`
+vrai, `Ok(None)` ; la compaction d'ouverture suit `a_l_ouverture(acces, ajouts lus, voisins lus > 0)`.
+`compacter` lit, outre les fichiers d'ajout, chaque voisin du complet de `documents/fonds/`, dont il calcule
+`lisible` comme la doc de `Lu` le dit (non vide, et que `load` relit sans erreur), et retire par
+`dossier.join(nom)` ; un voisin d'ajout resté n'est pas des siens. `faire_naitre_le_fonds` rend `FondsDejaNe`
+quand `pupitre_neuf` est faux, voisins lisibles compris (C3). Un fichier qui n'est ni un `.partiel`, ni
+`complet.automerge`, ni un fichier d'ajout, n'est ni lu ni retiré.
 
 - [ ] **Étape 1 : écrire les tests** (`tests/demarrage.rs`, sauf mention) :
   - `rouvrir_relit_le_complet_puis_les_ajouts` réécrit (`tests/ajouts.rs`) : le `.partiel` non conforme déposé dans `ajouts/` a disparu après la réouverture.
   - `le_voisin_conforme_d_un_ajout_prend_sa_place` — `// § 31 · 10, test 8 : renommage perdu après la réponse, le voisin entier reste`. Une écriture faite ; son fichier d'ajout renommé par le test en `<e>.automerge.4242.partiel` ; rouvert, l'idée y est, et `ajouts/` ne garde aucun `.partiel`.
+  - `un_voisin_d_ajout_qui_ne_se_met_pas_en_place_se_lit_et_avertit` : de même, le voisin `<e>.automerge.4242.partiel` déposé, lâché ; `couper(Renommage, 1)` (le premier renommage de l'ouverture est celui du démarrage) ; `fonds()` rend un document : l'idée y est, `lecture_seule() == None`, `avertissements()` est `[Avertissement::VoisinRestant { chemin, .. }]`, `chemin` ce voisin, toujours là, octet pour octet ; lâché, rouvert sans panne : l'idée y est, et `ajouts/` ne garde aucun `.partiel`.
   - `un_voisin_incomplet_ou_non_conforme_est_retire` — `// § 31 · 10, test 8 : un voisin incomplet n'est pas lu comme une écriture`. Déposés : un voisin d'ajout tronqué de moitié, un voisin d'ajout vide, le voisin vidé d'une opération refusée (tâche 3), `complet.automerge.4242.partiel` qui porte « pas un document », et `documents/x.4242.partiel` ; rouvert : tous retirés, `lecture_seule() == None`, heads d'avant.
   - `le_voisin_du_complet_se_lit_puis_se_fond` — `// § 31 · 10, test 9 : renommage du fichier complet perdu, les ajouts absorbés déjà retirés, puis rouvrir`. `c0` : le fichier complet après la naissance ; trois écritures ; lâché ; `s = relire_le_dossier_du_fonds(..).save()` ; le test écrit `complet.automerge.4242.partiel` = `s`, remet `c0` en fichier complet, vide `ajouts/` ; rouvert : les trois idées, puis le voisin retiré et le fichier complet relu seul les porte.
   - `un_voisin_au_numero_du_processus_n_est_pas_ecrase` — `// § 31 · 10, test 9 : de même quand le voisin laissé porte le numéro du processus qui rouvre`. Comme le précédent, le voisin nommé `complet.automerge.<std::process::id()>.partiel` ; `couper(Renommage, 1)` ; `fonds()` rend un document avec `[Avertissement::Compaction(Erreur::Disque { .. })]` ; le voisin laissé garde son empreinte ; lâché, rouvert sans panne : les trois idées.
   - `a_la_naissance_le_voisin_du_premier_complet_fait_exister_le_fonds` — `// § 31 · 10, test 8 : à la naissance, renommage du premier fichier complet perdu, puis relancer`. Né, lâché ; `complet.automerge` renommé en `complet.automerge.4242.partiel` ; `faire_naitre_le_fonds` rend `Err(Erreur::FondsDejaNe)` et le voisin garde son empreinte ; `fonds()` rend le fonds avec son idée, puis `complet.automerge` existe et le voisin a disparu.
   - `un_voisin_du_complet_vide_laisse_pupitre_neuf` (Éc-4) : seul `complet.automerge.4242.partiel`, vide ; `fonds()` rend `Ok(None)` et le voisin a disparu ; `faire_naitre_le_fonds` réussit.
-  - `deux_voisins_du_complet_se_lisent_puis_se_fondent` (R6, conflit 2) : sans fichier complet, `….4242.partiel` porte la naissance, `….4242-2.partiel` la naissance et une idée ; rouvert : l'idée y est, les deux voisins sont retirés, `complet.automerge` existe.
-  - `un_fichier_etranger_est_laisse_tel_quel` (point de revue 3) : `ajouts/desktop.ini` et `documents/fonds/Thumbs.db` (« inventé ») ; rouvert puis `compacter()` : les deux toujours là, octet pour octet, `lecture_seule() == None`, heads d'avant.
-  - `le_demarrage_ne_touche_rien_sans_le_verrou` (E31), une caractérisation (`ouvrir` ne touche déjà rien), que la description relève comme telle : une racine ouverte ; des `.partiel` déposés dans `ajouts/` et `captations/` ; `RacineDesDonnees::ouvrir` du même chemin rend `Err(Erreur::RacineDesDonneesTenue)` ; `empreintes(<racine>/documents)` et `empreintes(<racine>/captations)` inchangés, jamais `empreintes(<racine>)` : sous Windows, le verrou que tient la racine ouverte peut refuser la lecture du fichier `verrou` (`h07.rs`, :252-253).
-- [ ] **Étape 2 : voir échouer.** Committer (`test: le démarrage dans documents`), pousser. Attendu : « Tests » rouge, `le_voisin_conforme_d_un_ajout_prend_sa_place` `panicked at`, l'idée absente.
+  - `deux_voisins_du_complet_se_lisent_puis_se_fondent` (§ 31 · 2.1 : « un nom déjà pris reçoit un suffixe » ; deux voisins laissés sous le même numéro de processus) : sans fichier complet, `….4242.partiel` porte la naissance, `….4242-2.partiel` la naissance et une idée ; rouvert : l'idée y est, les deux voisins sont retirés, `complet.automerge` existe.
+  - `un_fichier_etranger_est_laisse_tel_quel` (point de revue 3), une caractérisation (le code d'H07 ne lit et ne retire déjà que les `.automerge` d'`ajouts/`, et le test passe dès qu'il compile), que la description relève comme telle : `ajouts/desktop.ini` et `documents/fonds/Thumbs.db` (« inventé ») ; rouvert puis `compacter()` : les deux toujours là, octet pour octet, `lecture_seule() == None`, heads d'avant.
+  - `le_demarrage_ne_touche_rien_sans_le_verrou` (§ 31 · 2.1 : « Le démarrage ne retire ni ne renomme rien dans `documents/` ni dans `captations/` avant d'avoir pris le verrou »), une caractérisation (`ouvrir` ne touche déjà rien), que la description relève comme telle : une racine ouverte ; des `.partiel` déposés dans `ajouts/` et `captations/` ; `RacineDesDonnees::ouvrir` du même chemin rend `Err(Erreur::RacineDesDonneesTenue)` ; `empreintes(<racine>/documents)` et `empreintes(<racine>/captations)` inchangés, jamais `empreintes(<racine>)` : sous Windows, le verrou que tient la racine ouverte peut refuser la lecture du fichier `verrou` (`h07.rs`, :252-253).
+- [ ] **Étape 2 : voir échouer.** Committer (`test: le démarrage dans documents`), pousser. Attendu : « Lint » rouge, E0599, `no variant or associated item named VoisinRestant found for enum Avertissement`.
 - [ ] **Étape 3 : écrire le démarrage, la lecture des voisins, `compacter` et la garde de la naissance.**
-- [ ] **Étape 4 : voir passer.** Committer (`feat: le démarrage met en place, lit ou retire chaque voisin de documents`), pousser. Attendu : `tests/demarrage.rs` `ok. 9 passed`, `ajouts.rs` `ok. 12`, dans `verifier` et `windows` ; `mutants` vert.
+- [ ] **Étape 4 : voir passer.** Committer (`feat: le démarrage met en place, lit ou retire chaque voisin de documents`), pousser. Attendu : `tests/demarrage.rs` `ok. 10 passed`, `ajouts.rs` `ok. 13`, dans `verifier` et `windows` ; `mutants` vert.
 
 ### Tâche 12 : les noms provisoires de `captations/` rangés, et les documents de la PR (c)
 
 **Fichiers :** modifier `crates/stockage/src/captations.rs`, `src/documents.rs` (fin de l'ouverture),
 `src/lib.rs` (`Avertissement`) ; tests : `tests/demarrage.rs` ; documents :
-`docs/31-persistance-et-synchronisation.md` (§ 2.1 :209-216, § 2.2 point 1, § 6.1 :624-636),
+`docs/31-persistance-et-synchronisation.md` (§ 2.1 :209-216, § 2.2 point 1, § 6.1 :624-636, § 10 test 4 :898),
 `docs/80-glossaire.md` (Voisin, :112), `.github/workflows/ci.yml`, `.github/workflows/mutants-complet.yml`.
 
 **Interfaces — consomme :** `demarrage::{a_ranger, Provisoire}`. **Produit :**
@@ -869,34 +954,39 @@ impl Captations<'_> {
     pub(crate) fn ranger_les_noms_provisoires(&self, nommees: &BTreeSet<String>) -> Vec<Avertissement>;
 }
 // Avertissement : + NomProvisoireRestant { chemin: PathBuf, erreur: io::Error }
-/// Le nom provisoire `chemin` n'a pu prendre le nom de son empreinte : il reste, et se range à
-/// l'ouverture suivante.
+/// Le nom provisoire `chemin` n'a pu se lire, ou prendre le nom de son empreinte : il reste, et se
+/// range à l'ouverture suivante.
 ```
 
-Les noms provisoires sont les fichiers de `captations/` même, triés par nom, lus en entier. `nommees` : les clés
-de `PRISES` de la racine du document, telles qu'elles se lisent, même en lecture seule. Le rangement suit la
-compaction d'ouverture ; il crée le sous-dossier au besoin (et, hors de Windows, rend `captations/` durable),
-renomme par `fichier::renommer`, puis `rendre_durable_apres_le_renommage` ; ses avertissements s'ajoutent à
-`avertissements()`.
+Les noms provisoires sont les fichiers de `captations/` même, triés par nom, lus en entier, chacun par
+`fichier::lire`. `nommees` : les clés de `PRISES` de la racine du document, telles qu'elles se lisent, même en
+lecture seule. Le rangement suit la compaction d'ouverture ; il crée le sous-dossier au besoin (et, hors de
+Windows, rend `captations/` durable), renomme par `fichier::renommer`, puis `rendre_durable_apres_le_renommage` ;
+ses avertissements s'ajoutent à `avertissements()`. Une erreur du rangement ne fait jamais échouer l'ouverture
+(AM-4 (6) ; décision 12 : une captation se verse toujours, et un nom provisoire n'est jamais retiré) : un nom
+provisoire qui ne se lit pas n'entre pas dans `a_ranger`, reste intact, et donne
+`NomProvisoireRestant { chemin, erreur }`, comme un renommage refusé ; un refus de lister `captations/` en donne
+un, `chemin` ce dossier, et rien ne se range.
 
 - [ ] **Étape 1 : écrire les tests** (`tests/demarrage.rs`) :
   - `une_captation_nommee_prend_son_nom_au_demarrage` — `// § 31 · 10, test 4 : renommage perdu après la réponse, la captation nommée par un document prend son nom au démarrage`. Né avec la prise d'empreinte `e`, `e = empreinte(&octets(5, 300))` (`poser_une_prise`, au premier geste) ; le sous-dossier `captations/<e[..2]>/` n'existe pas (point de revue 4) ; déposés : `captations/<e>.4242.partiel` = `octets(5, 300)`, un nom provisoire d'un contenu non nommé (`octets(8, 100)`), et `captations/<e2>.4242.partiel` qui porte la moitié d'`octets(9, 300)`, `e2` son empreinte entière, nommée aussi ; rouvert : `relire(&e)` rend `octets(5, 300)`, `captations/<e>.4242.partiel` a disparu, les deux autres restent intacts, `verifier()` rend `[]`.
-  - `un_nom_provisoire_qui_ne_se_range_pas_avertit` : le même dépôt du nom provisoire de `e` ; `couper(Renommage, 1)` ; `fonds()` rend un document, `avertissements()` est `[Avertissement::NomProvisoireRestant { chemin, .. }]`, ce nom ; lâché, rouvert sans panne : rangée.
-  - `en_lecture_seule_seul_ce_qui_se_lit_nomme` (R8) : né avec la prise d'empreinte `e` ; une écriture pose la prise d'empreinte `e9 = empreinte(&octets(9, 300))`, puis un octet de son fichier d'ajout est changé ; déposés : `captations/<e>.4242.partiel` = `octets(5, 300)` et `captations/<e9>.4242.partiel` = `octets(9, 300)` ; rouvert : `lecture_seule() == Some(&LectureSeule::AjoutAltere { .. })` ; `relire(&e)` rend `octets(5, 300)` et son nom provisoire a disparu ; `<e9>.4242.partiel` reste, intact, `e9` n'étant nommée que par le fichier qui ne se lit pas.
+  - `un_nom_provisoire_qui_ne_se_range_pas_avertit` : le même dépôt du nom provisoire de `e` ; `couper(Renommage, 1)` ; `fonds()` rend un document, `avertissements()` est `[Avertissement::NomProvisoireRestant { chemin, .. }]`, ce nom ; lâché, rouvert sans panne : rangée. Puis, dans une racine neuve, le même dépôt sous `couper(Relecture, 2)` (la première relecture de l'ouverture est celle du fichier complet, la seconde celle du nom provisoire) : `fonds()` rend un document, `avertissements()` est `[Avertissement::NomProvisoireRestant { chemin, .. }]`, ce nom, intact, et la captation n'est pas rangée ; rouvert sans panne : rangée.
+  - `en_lecture_seule_seul_ce_qui_se_lit_nomme` (décision 12 du plan maître ; en lecture seule, « que le fonds nomme » porte sur ce qui se lit) : né avec la prise d'empreinte `e` ; une écriture pose la prise d'empreinte `e9 = empreinte(&octets(9, 300))`, puis un octet de son fichier d'ajout est changé ; déposés : `captations/<e>.4242.partiel` = `octets(5, 300)` et `captations/<e9>.4242.partiel` = `octets(9, 300)` ; rouvert : `lecture_seule() == Some(&LectureSeule::AjoutAltere { .. })` ; `relire(&e)` rend `octets(5, 300)` et son nom provisoire a disparu ; `<e9>.4242.partiel` reste, intact, `e9` n'étant nommée que par le fichier qui ne se lit pas.
 - [ ] **Étape 2 : voir échouer.** Committer (`test: les noms provisoires nommés prennent leur nom au démarrage`), pousser. Attendu : « Lint » rouge, E0599, `no variant or associated item named NomProvisoireRestant found for enum Avertissement`.
 - [ ] **Étape 3 : écrire `ranger_les_noms_provisoires`, et son appel.**
-- [ ] **Étape 4 : voir passer.** Committer (`feat: au démarrage, un nom provisoire nommé par le fonds prend son nom, partout`), pousser. Attendu : `tests/demarrage.rs` `ok. 12 passed`, dans `verifier` et `windows`.
-- [ ] **Étape 5 : les documents.** § 31 · 6.1 : « Sous Windows, où un renommage peut se perdre… » devient « Un renommage peut se perdre après la réponse, sous Windows comme ailleurs (§ 2.1) : au démarrage, à l'ouverture du fonds, un nom provisoire de `captations/` dont le contenu entier donne une empreinte que le fonds nomme, et qu'aucun fichier ne porte encore, prend ce nom ; de deux noms provisoires du même contenu, le premier dans l'ordre des noms. » ; le nom provisoire, `<empreinte>.<processus>.partiel`, prend le suffixe `-2`, `-3`… si le nom est pris. § 31 · 2.1 et § 2.2, point 1 : « le voisin entier » et « que `load` relit sans erreur » deviennent « le voisin lisible : non vide, et que `load` relit sans erreur » ; un `.partiel` d'un autre nom de `documents/` est retiré, un autre fichier est laissé. Glossaire, Voisin : « …`<nom>.<processus>.partiel`, ou, si ce nom est pris, `<nom>.<processus>-2.partiel`, `-3`… : écrit, synchronisé sur le disque, fermé et relu, il prend ensuite la place du fichier par un renommage. … Le nom provisoire d'une captation se forme de même, mais ne remplace aucun fichier : ce n'est pas un voisin ». `git grep -n -i "partiel" -- docs CONVENTIONS.md` (LE-3), la sortie citée dans la PR.
-- [ ] **Étape 6 : remesurer la mutation, à froid** (comme à la tâche 8, `--ref t1c-demarrage-et-suffixe`), puis committer par chemins (`docs: le démarrage, le suffixe et les noms provisoires, partout`, `ci: les délais de la mutation, remesurés avec le démarrage`), pousser. **Fin de la PR (c) :** tous les jobs verts, `mutants` sans `MISSED` ; la description dit les tests réécrits (`le_voisin_porte_le_numero_du_processus`, `rouvrir_relit_le_complet_puis_les_ajouts`), le test adapté à la seule signature (`une_captation_alteree_ou_absente_se_nomme`, `voisin(…).unwrap()`), la caractérisation de la tâche 11 et les recherches ; fusion par squash.
+- [ ] **Étape 4 : voir passer.** Committer (`feat: au démarrage, un nom provisoire nommé par le fonds prend son nom, partout`), pousser. Attendu : `tests/demarrage.rs` `ok. 13 passed`, dans `verifier` et `windows`.
+- [ ] **Étape 5 : les documents.** § 31 · 6.1 : « Sous Windows, où un renommage peut se perdre… » devient « Un renommage peut se perdre après la réponse, sous Windows comme ailleurs (§ 2.1) : au démarrage, à l'ouverture du fonds, un nom provisoire de `captations/` dont le contenu entier donne une empreinte que le fonds nomme, et qu'aucun fichier ne porte encore, prend ce nom ; de deux noms provisoires du même contenu, le premier dans l'ordre des noms. » ; le nom provisoire, `<empreinte>.<processus>.partiel`, prend le suffixe `-2`, `-3`… si le nom est pris. § 31 · 2.1 et § 2.2, point 1 : « le voisin entier » et « que `load` relit sans erreur » deviennent « le voisin lisible : non vide, et que `load` relit sans erreur » ; le voisin d'un fichier d'ajout que le disque refuse de mettre en place se lit où il est, avec un avertissement, et se met en place au démarrage suivant ; un `.partiel` d'un autre nom de `documents/` est retiré, un autre fichier est laissé. § 31 · 10, test 4 : « la captation nommée par un document reprend son nom au démarrage » devient « la captation nommée par un document prend son nom au démarrage », le verbe que suit le code (C10), et la clause que citent les marqueurs de `les_noms_provisoires_a_ranger` et d'`une_captation_nommee_prend_son_nom_au_demarrage`. Glossaire, Voisin : « …`<nom>.<processus>.partiel`, ou, si ce nom est pris, `<nom>.<processus>-2.partiel`, `-3`… : écrit, synchronisé sur le disque, fermé et relu, il prend ensuite la place du fichier par un renommage. … Le nom provisoire d'une captation se forme de même, mais ne remplace aucun fichier : ce n'est pas un voisin ». `git grep -n -i "partiel" -- docs CONVENTIONS.md` (LE-3), la sortie citée dans la PR.
+- [ ] **Étape 6 : remesurer la mutation, à froid** (comme à la tâche 8, `--ref t1c-demarrage-et-suffixe`), puis committer par chemins (`docs: le démarrage, le suffixe et les noms provisoires, partout`, `ci: les délais de la mutation, remesurés avec le démarrage`), pousser. **Fin de la PR (c) :** tous les jobs verts, `mutants` sans `MISSED` ; la description dit les tests réécrits (`le_voisin_porte_le_numero_du_processus`, `rouvrir_relit_le_complet_puis_les_ajouts`), le test adapté à la seule signature (`une_captation_alteree_ou_absente_se_nomme`, `voisin(…).unwrap()`), les deux caractérisations de la tâche 11 (`un_fichier_etranger_est_laisse_tel_quel`, `le_demarrage_ne_touche_rien_sans_le_verrou`) et les recherches ; `gh pr ready <n>`, puis fusion par squash.
 
 ---
 
 ## PR (d) · la version de schéma, les migrations, la teneur, la lignée, le test 11
 
 **Branche :** `t1d-version-teneur-lignee`. **Titre :** `feat: la version de schéma, les migrations, la teneur,
-la lignée et le test 11 (AM-4)` (85). **Documents :** § 31 · 2.4 et 2.6 ; `CONVENTIONS.md` (`mutants`) ;
-`.cargo/mutants.toml` ; délais de `mutants`, et de `verifier` et `windows` ; registre (AM-4 clos). **Fin :** voir
-la tâche 17.
+la lignée et le test 11 (AM-4)` (85). **Documents :** § 31 · 2.4 et 2.6 ; § 40 · 3 et `CLAUDE.md` (`fonds_selon`,
+sous `pannes`) ; `CONVENTIONS.md` (`mutants`) ; `.cargo/mutants.toml` ; délais de `mutants`, et de `verifier` et
+`windows` ; registre (AM-4 et LE-12 clos) ; si le repli de la tâche 14 joue, glossaire (Lecture seule) et, au
+registre, la ligne de la contradiction. **Fin :** voir la tâche 17.
 
 ### Tâche 13 : la version de schéma et les migrations
 
@@ -925,12 +1015,17 @@ pub fn a_appliquer<'m, 'a>(migrations: &'m [Migration<'a>], de: u64) -> &'m [Mig
 /// « Fonds passé à la version de schéma {vers} ».
 pub fn message_de_la_migration(vers: u64) -> String;
 // noyau::donnees::fonds : pub const MIGRATIONS: &[Migration<'static>] = &[];
-// noyau::donnees::acces : Acces + PlusRecent ; ecrit() faux, echange() vrai.
+// noyau::donnees::acces : Acces + PlusRecent ; ecrit() faux, echange() vrai ; la doc d'echange() dit « Entier et PlusRecent ».
 // stockage::LectureSeule : + VersionPlusRecente { version: u64 }, + VersionIllisible
 impl RacineDesDonnees {
-    pub fn fonds(&self) -> Result<Option<Document<'_>>, Erreur>; // = fonds_selon(MIGRATIONS)
+    pub fn fonds(&self) -> Result<Option<Document<'_>>, Erreur>; // = l'ouverture selon MIGRATIONS
+    /// L'ouverture selon la table `migrations` qu'un test lui donne : un point d'entrée des tests,
+    /// hors de l'API livrée.
+    #[cfg(feature = "pannes")]
     pub fn fonds_selon(&self, migrations: &[Migration<'_>]) -> Result<Option<Document<'_>>, Erreur>;
 }
+// documents::rouvrir_le_fonds(racine, migrations) : pub(crate), compilée dans les deux configurations,
+// que `fonds()` appelle avec `MIGRATIONS` et `fonds_selon` avec sa table.
 // tests/commun/mod.rs
 pub const CONTENEUR_DE_LA_MIGRATION: &str = "elements_de_test";
 /// La migration de test vers la version de schéma 2, engendrée depuis `GENESE` : acteur
@@ -946,10 +1041,25 @@ pub fn migrations_de_test(octets: &[u8]) -> [Migration<'_>; 1];
 autre → `None`), puis : `Ecrire` → entier ; `Migrer { de, .. }` → chaque migration de `a_appliquer`
 s'applique (`Change::try_from`, `apply_changes`, `expect` : la table est du code, que ses tests éprouvent),
 puis `save_after` des heads d'avant s'écrit en un fichier d'ajout ; son refus rend `Err(Erreur::Disque)`, son
-`NonDurable` un avertissement ; `LireSansEcrire` → `VersionPlusRecente { version }` ; `Illisible` →
-`VersionIllisible`. Un document illisible ne migre pas. `LectureSeule::acces` : `VersionPlusRecente` →
+`NonDurable` un avertissement, et lève `compaction_due`, comme après une écriture ; `LireSansEcrire` →
+`VersionPlusRecente { version }` ; `Illisible` → `VersionIllisible`. Un document illisible ne migre pas. `LectureSeule::acces` : `VersionPlusRecente` →
 `PlusRecent`, les autres → `Illisible`. En `PlusRecent`, `recevoir` applique et écrit son fichier d'ajout, et
 `apres_une_ecriture` ne compacte pas.
+
+L'ordre de l'ouverture : le démarrage (tâche 11), puis `lire_le_dossier`, qui rend le nombre de fichiers d'ajout
+et de voisins du complet lus ; puis la version de schéma, et la migration s'il y a lieu ; puis la compaction
+d'ouverture, décidée par `a_l_ouverture(acces, ajouts lus, voisins lus > 0)` sur les nombres lus **avant** la
+migration, l'accès étant celui qui suit la lecture de la version ; puis le rangement des noms provisoires
+(tâche 12). Le fichier d'ajout de la migration ne compte donc pas : un fonds sans fichier d'ajout ni voisin qui
+migre garde ce fichier dans `ajouts/`, ce que veulent le second cas de
+`une_migration_que_le_disque_refuse_n_ouvre_pas_le_fonds` et la tâche 14 ; un fonds qui a déjà des fichiers
+d'ajout se compacte, et la compaction fond aussi celui de la migration.
+
+`fonds_selon` vit sous la fonction de Cargo `pannes` : c'est un point d'entrée des tests, et l'établi, qui
+n'active jamais `pannes` (décision 7 du plan maître), ne le voit pas. La tranche 2 en aura besoin pour ouvrir un
+fonds de version de schéma N + 1 sur la paire de fichiers, mais dans ses tests, qui activent déjà `pannes` pour
+ses commandes coupées par une panne : la condition ne lui coûte rien. Si son plan en a besoin hors de ses tests, il
+lève la condition et le dit.
 
 - [ ] **Étape 1 : écrire les tests.**
   - Noyau (`tests/donnees.rs`) :
@@ -977,26 +1087,28 @@ fn la_version_de_schema_decide_de_la_lecture() {
 fn l_acces_d_un_document_plus_recent() {
     assert!(!Acces::PlusRecent.ecrit() && Acces::PlusRecent.echange());
     assert!(!a_l_ouverture(Acces::PlusRecent, 3, true));
-    assert!(!apres_une_ecriture(Acces::PlusRecent, false, 1600, 15150, 101)); // Éc-2, R4
+    assert!(!apres_une_ecriture(Acces::PlusRecent, false, 1600, 15150, 101)); // § 31 · 2.2 : en lecture seule, pas de compaction
 }
 ```
 
   - Stockage (`tests/version.rs`) :
-    - `migrer_a_l_ouverture_ecrit_la_migration_avec_son_message` (E40, I28) : né, lâché ; `fonds_selon(&migrations_de_test(&m))` : `VERSION_DE_SCHEMA` vaut `ScalarValue::Uint(2)` ; une modification de plus, de message « Fonds passé à la version de schéma 2 », d'heure 0, d'acteur `ActorId::from(ACTEUR_DE_LA_GENESE)`, d'empreinte celle de `Change::try_from(m.as_slice())` ; `CONTENEUR_DE_LA_MIGRATION` est un objet à clés de la racine du document. Lâché, rouvert de même : aucune modification de plus.
+    - `migrer_a_l_ouverture_ecrit_la_migration_avec_son_message` (plan maître, tranche 1, sixième puce : « les migrations, éprouvées par une migration de test engendrée à l'exécution depuis la genèse courante, de façon déterministe (acteur fixe, heure 0) » ; § 31 · 2.4 ; I28) : né, lâché ; `fonds_selon(&migrations_de_test(&m))` : `VERSION_DE_SCHEMA` vaut `ScalarValue::Uint(2)` ; une modification de plus, de message « Fonds passé à la version de schéma 2 », d'heure 0, d'acteur `ActorId::from(ACTEUR_DE_LA_GENESE)`, d'empreinte celle de `Change::try_from(m.as_slice())` ; `CONTENEUR_DE_LA_MIGRATION` est un objet à clés de la racine du document. Lâché, rouvert de même : aucune modification de plus.
     - `un_document_n_plus_1_se_lit_sans_ecrire` — `// § 31 · 10, test 10 : ouvrir un document de version de schéma N + 1 avec une application qui ne connaît que N`. Migré comme ci-dessus, lâché ; `fonds()` : `lecture_seule() == Some(&LectureSeule::VersionPlusRecente { version: 2 })` ; `ecrire` et `compacter` rendent `Err(Erreur::LectureSeule(LectureSeule::VersionPlusRecente { version: 2 }))` ; `verser(&octets(4, 100))` rend `Ok(_)` ; `empreintes(<dossier du fonds>)` inchangé.
     - `deux_migrations_separees_n_en_font_qu_une` — `// § 31 · 10, test 10 : migrer deux répliques chacune de son côté, puis les fusionner`. `deux_copies` ; chacune ouverte par `fonds_selon` ; `reunir` ; dans chacune, une seule modification au message de la migration, et les mêmes heads.
     - `deux_elements_de_la_donnee_nouvelle_restent` — `// § 31 · 10, test 10 : deux éléments différents de la donnée nouvelle d'un même objet ancien`. Après la migration des deux, `a` pose `idee-1/a` = « x » et `b` `idee-1/b` = « y » sous `CONTENEUR_DE_LA_MIGRATION` ; `reunir` ; les deux clés dans les deux copies.
-    - `une_version_de_schema_illisible_ouvre_en_lecture_seule` (R9) : une écriture pose `VERSION_DE_SCHEMA` = « deux » (`Str`) ; rouvert : `lecture_seule() == Some(&LectureSeule::VersionIllisible)` ; `ecrire` refusé ; `prochain_message` rend `None`.
+    - `une_version_de_schema_illisible_ouvre_en_lecture_seule` (une version de schéma qui n'est pas un `Uint`, dont le § 31 · 2.4 ne disait rien ; voir « Le passage de LE-6 ») : une écriture pose `VERSION_DE_SCHEMA` = « deux » (`Str`) ; rouvert : `lecture_seule() == Some(&LectureSeule::VersionIllisible)` ; `ecrire` refusé ; `prochain_message` rend `None`.
     - `un_document_illisible_ne_migre_pas` (point de revue 5) : un fichier d'ajout altéré ; `fonds_selon(&migrations_de_test(&m))` : `lecture_seule() == Some(&LectureSeule::AjoutAltere { .. })`, aucune modification au message de la migration, `empreintes(<dossier du fonds>)` inchangé.
     - `une_migration_que_le_disque_refuse_n_ouvre_pas_le_fonds` (C2) : né, lâché, sans fichier d'ajout, voisin ni nom provisoire, si bien que le premier renommage et le premier `rendre_durable` de l'ouverture sont ceux de la migration. Sous `couper(Renommage, 1)`, `fonds_selon(&migrations_de_test(&m))` rend `Err(Erreur::Disque { .. })` et `empreintes(<dossier du fonds>)` est inchangé ; puis, sans panne, `fonds_selon` rend le fonds migré (la garde rendue). Dans une racine neuve, sous `couper(RendreDurable, 1)`, `fonds_selon` rend le fonds migré, et `avertissements()` est `[Avertissement::NonDurable { chemin, .. }]`, `chemin` sous `ajouts/` et présent.
 - [ ] **Étape 2 : voir échouer.** Committer (`test: la version de schéma et les migrations`), pousser. Attendu : « Lint » rouge, `unresolved import noyau::donnees::version`.
-- [ ] **Étape 3 : écrire `version.rs`, `PlusRecent`, `fonds_selon` et la migration à l'ouverture.** `.cargo/mutants.toml` : `version.rs` dans `examine_globs` (ses tests sont dans `donnees.rs`, déjà nommé) ; en tête, « Douze modules » et « les règles des données (la compaction, l'accès d'un document, le démarrage, la version de schéma et la comparaison des copies) » ; l. 17, « ces douze modules ». `CONVENTIONS.md`, ligne `mutants` : « …les règles des données : la compaction, l'accès d'un document, le démarrage, la version de schéma et la comparaison des copies ».
+- [ ] **Étape 3 : écrire `version.rs`, `PlusRecent`, `fonds_selon` (sous `pannes`) et la migration à l'ouverture, dans l'ordre dit plus haut.** `.cargo/mutants.toml` : `version.rs` dans `examine_globs` (ses tests sont dans `donnees.rs`, déjà nommé) ; en tête, « Douze modules » et « les règles des données (la compaction, l'accès d'un document, le démarrage, la version de schéma et la comparaison des copies) » ; l. 17, « ces douze modules ». `CONVENTIONS.md`, ligne `mutants` : « …les règles des données : la compaction, l'accès d'un document, le démarrage, la version de schéma et la comparaison des copies ».
 - [ ] **Étape 4 : voir passer.** Committer (`feat: la version de schéma au noyau, et les migrations à l'ouverture`), pousser. Attendu : `donnees.rs` `ok. 7 passed` dans `verifier` ; `version.rs` `ok. 7 passed` dans `verifier` et `windows` ; `mutants` vert.
 
 ### Tâche 14 : une copie plus récente reçoit sans rien transmettre
 
 **Fichiers :** modifier `crates/synchro/src/lib.rs`, `crates/synchro/tests/echange.rs`,
-`crates/stockage/src/documents.rs` (`prochain_message`, :66-71), `crates/stockage/tests/version.rs`.
+`crates/stockage/src/documents.rs` (`prochain_message`, :66-71), `crates/stockage/tests/version.rs` ; si le repli
+joue : `crates/noyau/src/donnees/acces.rs` (`echange()` faux), `crates/noyau/tests/donnees.rs`, `docs/registre.md`
+(la ligne de la contradiction).
 
 **Interfaces — produit :**
 
@@ -1017,7 +1129,7 @@ impl Echange {
   - `crates/stockage/tests/version.rs`, `une_copie_plus_recente_recoit_sans_rien_transmettre` : `deux_copies` ; la racine de `a` migrée par `fonds_selon`, lâchée, rouverte par `fonds()` (`PlusRecent`) ; `b` note idee-2 ; `avant = entrees(<ajouts de a>)`, où se trouve déjà le fichier d'ajout de la migration ; `commun::reunir(&mut a, &mut b)` finit ; `a` porte idee-2, son fichier complet est celui d'avant la réunion, et `ajouts/` porte au moins un fichier de plus qu'`avant`, chacun nommé par l'empreinte de son contenu ; `a` lâchée puis rouverte par `fonds()` porte idee-2 ; `b` n'a aucune modification au message de la migration, et sa version de schéma vaut `Uint(1)`.
 - [ ] **Étape 2 : voir échouer.** Committer (`test: une copie plus récente reçoit sans rien transmettre`), pousser. Attendu : « Lint » rouge, `no method named prochain_message_sans_modification`.
 - [ ] **Étape 3 : écrire `prochain_message_sans_modification`**, et son appel dans `Document::prochain_message`.
-- [ ] **Étape 4 : voir passer.** Committer (`feat: une copie plus récente reçoit, ses messages partent sans modification`), pousser. Attendu : `echange.rs` `ok. 4 passed`, `version.rs` `ok. 8`, dans `verifier` et `windows`. **Si la boucle atteint sa borne**, la tâche s'arrête : la PR (d) consigne la contradiction au motif « Une spec qui se contredit » (décision 20 du plan maître), retire la fonction et son test, fait rendre `None` à `prochain_message` en `PlusRecent` (une copie plus récente n'envoie rien, et ne reçoit donc rien avant sa mise à jour), le dit au § 31 · 2.4 et à l'entrée « Lecture seule (d'un document) » du glossaire (tâche 17), et pose la question à la maîtrise d'ouvrage avec ce défaut.
+- [ ] **Étape 4 : voir passer.** Committer (`feat: une copie plus récente reçoit, ses messages partent sans modification`), pousser. Attendu : `echange.rs` `ok. 4 passed`, `version.rs` `ok. 8`, dans `verifier` et `windows`. **Si la boucle atteint sa borne**, la tâche s'arrête : la PR (d) consigne la contradiction au motif « Une spec qui se contredit » (décision 20 du plan maître), retire la fonction et son test de `synchro`, et fait de `PlusRecent` un accès qui n'échange pas : `Acces::PlusRecent.echange()` devient faux (`l_acces_d_un_document_plus_recent`, au noyau, le suit), si bien que `prochain_message` rend `None` et `recevoir` rend `Err(Erreur::LectureSeule(LectureSeule::VersionPlusRecente { .. }))` ; une copie plus récente n'envoie ni ne reçoit avant sa mise à jour. `une_copie_plus_recente_recoit_sans_rien_transmettre` devient alors `une_copie_plus_recente_n_envoie_ni_ne_recoit` : `deux_copies` ; la racine de `a` migrée par `fonds_selon`, lâchée, rouverte par `fonds()` ; `b` note idee-2 ; `avant = empreintes(<dossier du fonds de a>)` ; `a.prochain_message(..)` rend `None` ; le premier message de `b` rend, à `a.recevoir(..)`, `Err(Erreur::LectureSeule(LectureSeule::VersionPlusRecente { version: 2 }))` ; `a` ne porte pas idee-2, et `empreintes(<dossier du fonds de a>) == avant` ; `b` n'a aucune modification au message de la migration. Attendu alors : `echange.rs` `ok. 3`, `version.rs` `ok. 8`. Le § 31 · 2.4 et l'entrée « Lecture seule (d'un document) » du glossaire le disent (tâche 17), et la question va à la maîtrise d'ouvrage avec ce défaut.
 
 ### Tâche 15 : la teneur
 
@@ -1030,7 +1142,7 @@ impl Echange {
 ```rust
 // noyau::donnees::fonds
 /// À la racine du document : les lignées que remplace la lignée (§ 31 · 2.5), que seule la naissance
-/// d'un document reconstruit pose, au lot 4. La teneur l'exclut (C8).
+/// d'un document reconstruit pose, au lot 4. La teneur l'exclut.
 pub const LIGNEES_REMPLACEES: &str = "lignees_remplacees";
 // noyau::donnees::teneur (§ 31 · 2.6)
 /// Une valeur que présente un document, que `stockage` tire du document.
@@ -1140,7 +1252,8 @@ pub enum Rapport {
     /// Aucune ne remplace l'autre, ou chacune nomme l'autre : rien, et Pupitre le dit.
     Etrangeres,
 }
-/// La liste des lignées remplacées se veut complète (R11) : seule l'appartenance compte.
+/// La liste des lignées remplacées se veut complète, celles que remplaçait une lignée remplacée
+/// comprises, que le lot 4 écrira : seule l'appartenance compte (§ 31 · 2.5).
 pub fn rapport_des_lignees(locale: &str, remplacees_par_la_locale: &[&str], distante: &str,
     remplacees_par_la_distante: &[&str]) -> Rapport;
 ```
@@ -1168,16 +1281,18 @@ fn la_lignee_qui_l_emporte() {
 
 ### Tâche 17 : le test 11, les documents de la PR (d), et la clôture de la tranche
 
-**Fichiers :** créer `crates/stockage/tests/references.rs` ; modifier
-`docs/31-persistance-et-synchronisation.md` (§ 2.4 :340-376, § 2.6 :400-425), `docs/registre.md` (AM-4, :27),
+**Fichiers :** créer `crates/stockage/tests/references.rs` ; modifier `crates/stockage/tests/captations.rs`,
+`tests/fichier.rs`, `tests/ajouts.rs` et `tests/h07.rs` (les marqueurs des tests d'H07, rien d'autre),
+`docs/31-persistance-et-synchronisation.md` (§ 2.4 :340-376, § 2.6 :400-425), `docs/40-architecture.md` (§ 3,
+`fonds_selon`), `CLAUDE.md` (« Les crates », `stockage`), `docs/registre.md` (AM-4, :27 ; LE-12, :29),
 `.github/workflows/ci.yml` (`mutants` ; `verifier` et `windows` si la mesure le demande),
-`.github/workflows/mutants-complet.yml`.
+`.github/workflows/mutants-complet.yml` ; `docs/80-glossaire.md` (Lecture seule), si le repli de la tâche 14 joue.
 
 - [ ] **Étape 1 : écrire les tests** (`tests/references.rs`, le seul fichier des empreintes de référence, décision 16 du plan maître). Le document témoin : `NAISSANCE`, puis, en un seul geste, `noter(tx, "idee-1", "Un refrain qui monte, en ré")` et `etiqueter(tx, "idee-1", "refrain")`.
 
 ```rust
 /// Les empreintes de référence du test 11. Une ligne se change ou se retire avant la `v0.3.0`, et
-/// la PR le dit ; dès elle, seule une ligne ajoutée passe (décision 16 du plan maître).
+/// la PR le dit ; dès elle, seule une ligne ajoutée passe (§ 31 · 10, test 11 ; ADR-023).
 const GENESE_DU_FONDS: &str = "aa03e0cee230ee1aab90c1d53a6a00e51da250b8b5944b67560dd4f9b301c105";
 const TENEUR_DU_TEMOIN: &str = "a349d135957809fcbf348db20cfb69a8752fe5a32b28296f7b8d9744900a58a4";
 
@@ -1198,60 +1313,82 @@ fn la_lignee_ne_change_pas_la_teneur() {
 }
 ```
 
+  Puis les tests d'H07 qui prouvent déjà une clause prennent leur marqueur (`// § 31 · 10, test N : <la clause>`), sans autre changement :
+  - test 4, « l'empreinte de chaque objet égale son nom » : `une_captation_se_range_sous_son_empreinte` et `une_captation_alteree_ou_absente_se_nomme` (`tests/captations.rs`), `une_copie_restauree_relit_chaque_captation_contre_son_empreinte` et `une_captation_alteree_ou_absente_de_la_copie_se_nomme` (`tests/h07.rs`, sur la copie restaurée) ;
+  - test 4, « aucun objet modifié après écriture » : `verser_deux_fois_ne_fait_qu_un_objet` (`tests/captations.rs`) ;
+  - test 8, « renommage refusé : le voisin est retiré » : `un_renommage_refuse_retire_le_voisin` (`tests/fichier.rs`) ;
+  - test 8, « rouvrir un document […] puis faire une opération : son fichier d'ajout ne porte que sa modification » : `chaque_ouverture_tire_un_acteur_neuf` (`tests/ajouts.rs`).
+
 - [ ] **Étape 2 : voir le vert.** Committer (`test: la genèse et la teneur figées (test 11)`), pousser. Le rouge s'est lu à la tâche 15 : ces tests n'appellent que ce qu'elle livre. Attendu : `references.rs` `ok. 2 passed`, dans `verifier` et `windows`. Une empreinte qui diffère se corrige dans le code de la teneur, jamais dans la référence, qui découle de la forme écrite à la tâche 15.
-- [ ] **Étape 3 : le § 31 · 2.4.** « Elle en reçoit encore les modifications par la synchronisation, et ne lui transmet aucune modification : ses messages partent sans modification » (ou la forme de la tâche 14 si elle s'est arrêtée) ; « ce qu'elle reçoit s'écrit en fichiers d'ajout, sans compaction » ; « une version de schéma absente, ou qui n'est pas un entier non signé, ouvre le document en lecture seule, sans échange ». **Le § 31 · 2.6** : « Un `F64` s'écrit en chiffres les plus courts qui se relisent à l'identique, en notation fixe ou à exposant, la plus courte, la fixe à égalité (`0.1`, `1e300`, `100`) ; `-0` distinct de `0` ; l'infini s'écrit `inf` et `-inf` ; un NaN fait échouer l'écriture. » ; « Sa forme exacte est celle de `noyau::donnees::teneur`, que le test 11 fige » ; et la clé des lignées remplacées, exclue dès la tranche 1.
-- [ ] **Étape 4 : le registre.** AM-4, colonne « État » : « clos le AAAA-MM-JJ : (1) `un_second_fonds_est_refuse` ; (2) `une_ecriture_refusee_relit_le_document_du_disque` ; (3) `un_ajout_altere_ouvre_en_lecture_seule_et_se_nomme`, `un_ajout_manquant_ouvre_en_lecture_seule`, `la_compaction_garde_un_ajout_altere`, `une_compaction_d_ouverture_infidele_ouvre_avec_un_avertissement` ; (4) les tests de `crates/stockage/tests/demarrage.rs`, `un_nom_de_voisin_pris_recoit_un_suffixe` (`crates/stockage/tests/fichier.rs`) et `la_lignee_qui_l_emporte`, la copie remplacée reportée au lot 4 ; (5) `une_compaction_qui_echoue_apres_une_ecriture_ne_la_defait_pas` ; (6) `un_complet_illisible_ouvre_en_lecture_seule_et_se_nomme`, `une_compaction_d_ouverture_refusee_par_le_disque_ouvre_avec_un_avertissement` ; (7) reporté au lot 4 (plan maître, décision 3) ; PR #NN à #MM ». `node scripts/verif-liens.mjs` et `node scripts/verif-faits.mjs` verts après le `git add`.
+- [ ] **Étape 3 : le § 31 · 2.4.** « Elle en reçoit encore les modifications par la synchronisation, et ne lui transmet aucune modification : ses messages partent sans modification » (ou, si la tâche 14 s'est arrêtée, la forme de son repli, ici et dans l'entrée « Lecture seule (d'un document) » de `docs/80-glossaire.md`) ; « ce qu'elle reçoit s'écrit en fichiers d'ajout, sans compaction » ; « une version de schéma absente, nulle, ou qui n'est pas un entier non signé, ouvre le document en lecture seule, sans échange ». **Le § 31 · 2.6** : « Un `F64` s'écrit en chiffres les plus courts qui se relisent à l'identique, en notation fixe ou à exposant, la plus courte, la fixe à égalité (`0.1`, `1e300`, `100`) ; `-0` distinct de `0` ; l'infini s'écrit `inf` et `-inf` ; un NaN fait échouer l'écriture. » ; « Sa forme exacte est celle de `noyau::donnees::teneur`, que le test 11 fige » ; et la clé des lignées remplacées, exclue dès la tranche 1. **Le § 40 · 3 et `CLAUDE.md`**, à la fonction `pannes` de `stockage` : « …coupe une écriture à l'étape voulue, et ouvre le fonds selon la table de migrations qu'un test lui donne (`fonds_selon`) ».
+- [ ] **Étape 4 : le registre.** AM-4, colonne « État » : « clos le AAAA-MM-JJ : (1) `un_second_fonds_est_refuse` ; (2) `une_ecriture_refusee_relit_le_document_du_disque` ; (3) `un_ajout_altere_ouvre_en_lecture_seule_et_se_nomme`, `un_ajout_manquant_ouvre_en_lecture_seule`, `un_ajout_qu_automerge_refuse_ouvre_en_lecture_seule`, `la_compaction_garde_un_ajout_altere`, `une_compaction_d_ouverture_infidele_ouvre_avec_un_avertissement` ; (4) les tests de `crates/stockage/tests/demarrage.rs`, `un_nom_de_voisin_pris_recoit_un_suffixe` (`crates/stockage/tests/fichier.rs`) et `la_lignee_qui_l_emporte`, la copie remplacée reportée au lot 4 ; (5) `une_compaction_qui_echoue_apres_une_ecriture_ne_la_defait_pas` ; (6) `un_complet_illisible_ouvre_en_lecture_seule_et_se_nomme`, `une_compaction_d_ouverture_refusee_par_le_disque_ouvre_avec_un_avertissement` ; (7) reporté au lot 4 (plan maître, décision 3) ; PR #NN à #MM ». LE-12, colonne « État », son critère de sortie rempli : « clos le AAAA-MM-JJ : les PR (b) #NN, (c) #NN et (d) #NN fusionnées ; sections corrigées : § 31 · 2.1 et 2.2 (b, c), § 31 · 6.1 (c), § 31 · 2.4 et 2.6 (d) ; la question C2 tranchée le 2026-11-09, une précision de l'ADR-023 ». `node scripts/verif-liens.mjs` et `node scripts/verif-faits.mjs` verts après le `git add`.
 - [ ] **Étape 5 : remesurer.** La mutation, à froid (comme à la tâche 8, `--ref t1d-version-teneur-lignee`) : ce passage complet de `mutants-complet`, sur tout le noyau et non sur le seul diff, vert, sans `MISSED` ni `TIMEOUT`. Puis, sur le dernier passage vert de `ci`, `gh run view <n> --json jobs` : la durée de `verifier` et de `windows` ; si deux fois l'une dépasse son `timeout-minutes`, il passe à deux fois la mesure, arrondie à la minute au-dessus, et son commentaire dit la mesure, la date et la PR ; sinon, la description de la PR donne les deux mesures.
-- [ ] **Étape 6 : committer** par chemins (`docs: la version de schéma et la teneur, telles que la tranche 1 les écrit`, `ci: les délais remesurés avec la version de schéma et la teneur`), pousser. **Fin de la PR (d), et de la tranche :** tous les jobs verts ; `mutants` sans `MISSED`, et le passage complet de l'étape 5 vert, sans `MISSED`, son lien dans la description ; la description relève, dans `verifier` et `windows`, les lignes `test result: ok.` de `captations.rs`, `fichier.rs`, `ajouts.rs`, `compaction.rs`, `fonds.rs`, `demarrage.rs`, `version.rs`, `teneur.rs`, `references.rs`, `synchronisation.rs` et `echange.rs`, et de `Doc-tests stockage`, seule preuve de la clause du test 8 « une synchronisation lancée pendant l'écriture ne voit pas l'opération en cours » (tests 4, 8 à 11), et dans `verifier` celles de `donnees.rs`, `demarrage.rs` et `teneur.rs` du noyau ; elle renvoie aux trois sorties de l'essai de la porte `contenu` (le `*.automerge` indexé refusé), dans la description de la PR (a), par son lien ; elle dit les références du test 11, qui changeront en tranche 2 avec le schéma de la `v0.3.0` ; aucune dépendance nouvelle ; LE-10 et AM-4 clos ; fusion par squash.
+- [ ] **Étape 6 : committer** par chemins (`docs: la version de schéma et la teneur, telles que la tranche 1 les écrit`, `ci: les délais remesurés avec la version de schéma et la teneur`), pousser. **Fin de la PR (d), et de la tranche :** tous les jobs verts ; `mutants` sans `MISSED`, et le passage complet de l'étape 5 vert, sans `MISSED`, son lien dans la description ; la description relève, dans `verifier` et `windows`, les lignes `test result: ok.` de `captations.rs`, `fichier.rs`, `ajouts.rs`, `compaction.rs`, `fonds.rs`, `demarrage.rs`, `version.rs`, `teneur.rs`, `references.rs`, `synchronisation.rs` et `echange.rs`, et de `Doc-tests stockage`, seule preuve de la clause du test 8 « une synchronisation lancée pendant l'écriture ne voit pas l'opération en cours » (tests 4, 8 à 11), et dans `verifier` celles de `donnees.rs`, `demarrage.rs` et `teneur.rs` du noyau ; elle renvoie aux trois sorties de l'essai de la porte `contenu` (le `*.automerge` indexé refusé), dans la description de la PR (a), par son lien ; elle dit les références du test 11, qui changeront en tranche 2 avec le schéma de la `v0.3.0`, et les marqueurs posés sur les tests d'H07 ; aucune dépendance nouvelle ; LE-10, AM-4 et LE-12 clos ; `gh pr ready <n>`, puis fusion par squash.
 
 ---
 
 ## Auto-relecture
 
-**La couverture**, exigence du relevé → tâche :
+**La couverture**, exigence → tâche. Les numéros E01 à E60 sont ceux du relevé des exigences, dont la description
+de la PR #27 porte la table ; chacun est suivi ici de sa source, à lire dans le dépôt.
 
-| Exigences | Tâches |
+| Exigences (source) | Tâches |
 |---|---|
-| E01, E03, E09, E52, E60 | Contraintes générales ; la fin de chaque PR |
-| E02 (les huit tests d'H07 qui changent) | 6 (`une_ecriture_qui_echoue…`, `un_document_a_relire…`, `ce_qui_est_recu…`), 7 (`un_ajout_manquant…`, `un_ajout_altere…`, `la_compaction_garde…`), 10 (`le_voisin_porte…`), 11 (`rouvrir_relit…`) ; deux de plus, adaptés à la seule signature : 6 (`un_geste_refuse…`, `Ok(_)`), 10 (`une_captation_alteree_ou_absente_se_nomme`, `.unwrap()`) |
-| E04, E37, E48 | 4, 9, 13, 15, 16 |
-| E05, E55 | 4, 9, 13, 15 (modules) ; 8, 12, 17 (remesures) |
-| E06, E10, E50 | 1 |
-| E07 | 2, 13 (la migration engendrée), contraintes |
-| E08, E59 | 8, 12, 17 |
-| E11, E12, E13, E53, E56 | 2 |
-| E14 | 3 |
-| E15, E57 | 7, 8 |
-| E16 | 3 (la relecture avant le renommage ; `un_voisin_relu_autre_ne_prend_pas_la_place`, sous `alterer_la_relecture`), 7 (`une_compaction_dont_le_complet_se_relit_autre_ne_retire_rien`, et le test 9, étape `Relecture`, qui n'éprouve qu'un refus du disque) |
-| E17 | 5 |
-| E18, E19, E22, E24, E25, E26, E27, E28 | 6 ; E22 aussi en 13 |
-| E20, E21, E23 | 7 |
-| E29 | 6 (`Genese` retirée, `Synchro`), 7 (`ChampAbsent`, `CompactionInfidele`) |
-| E30, E49 | 3, 12 |
-| E31 à E34 | 11 |
-| E35 | 9, 12 |
-| E36 | 9, 10, 11 |
-| E38 | 12 |
-| E39 à E42, E51 | 13, 14 |
-| E43, E44 | 15, 17 |
-| E45 | 17 |
-| E46 | 16 ; le cas de `synchro` reporté au lot 4 (C7) |
-| E47, E54 | le tableau ci-dessous |
-| E58 | 17 |
+| E01 (plan maître, tranche 1, « But ») ; E03 (plan maître, « Contraintes générales », « En CI seulement ») ; E09 (plan maître, « Le déroulé », point 3) ; E52 (§ 70 · 4.1 : aucun critère de la SFD livré en entier) ; E60 (décision 6 du plan maître : l'installateur NSIS en artefact) | Contraintes générales ; la fin de chaque PR |
+| E02 (plan maître, tranche 1, « Elle dépend de » : les 39 tests d'H07, « réécrits quand un comportement change ») : les huit tests d'H07 qui changent | 6 (`une_ecriture_qui_echoue…`, `un_document_a_relire…`, `ce_qui_est_recu…`), 7 (`un_ajout_manquant…`, `un_ajout_altere…`, `la_compaction_garde…`), 10 (`le_voisin_porte…`), 11 (`rouvrir_relit…`) ; deux de plus, adaptés à la seule signature : 6 (`un_geste_refuse…`, `Ok(_)`), 10 (`une_captation_alteree_ou_absente_se_nomme`, `.unwrap()`) ; un test du noyau renommé : 4 (`a_retirer_garde_un_fichier_illisible`) |
+| E04 (décisions 4 et 8 du plan maître ; § 70 · 1 : les règles qui décident, au noyau) ; E37 (décisions 8 et 12 : les règles du démarrage au noyau) ; E48 (§ 70 · 1, la ligne « Le stockage des documents ») | 4, 9, 13, 15, 16 |
+| E05 (décision 4 ; § 70 · 1 : un module de règle entre sous mutation dans sa PR, qui remesure à froid) ; E55 (critères de sortie : « `mutants` sans survivant, délais remesurés ») | 4, 9, 13, 15 (modules) ; 8, 12, 17 (remesures) |
+| E06 (Contraintes générales ; § 70 · 3, I30 : une seule fonction de dossier jetable par crate) ; E10 (plan maître, tranche 1, première puce : les aides de tests) ; E50 (§ 70 · 3, I30, la part de la tranche) | 1 |
+| E07 (Contraintes générales : aucune donnée réelle ; § 40 · 9 : la genèse et les migrations en octets dans un fichier Rust) | 2, 13 (la migration engendrée), contraintes |
+| E08 (Contraintes générales : le glossaire, LE-2 et LE-3) | 8, 12, 17 |
+| E59 (plan maître, tranche 1, « Documents » ; « Ce qui doit survivre au plan ») | 2, 8, 12, 17 |
+| E11 (plan maître, tranche 1, dernière puce : la porte `contenu` ; § 40 · 9) ; E12 (même puce : le `.gitignore`) ; E13 (plan maître, tranche 1, « Documents » : `CONVENTIONS.md`, `contenu`) ; E56 (critères de sortie : un `*.automerge` indexé à l'essai refusé) | 2 |
+| E53 (§ 70 · 8 ; décision 14 : aucune porte nouvelle) | 2 ; 3 (une étape, pas un job) |
+| E14 (plan maître, tranche 1, deuxième puce : le point d'injection `pannes` ; décision 7) | 3 |
+| E15 (§ 31 · 2.2, point 2 ; LE-10 : une compaction infidèle n'écrit rien) ; E57 (critères de sortie ; LE-10 clos) | 7, 8 |
+| E16 (§ 31 · 2.2, point 3 : le fichier complet relu rend les octets écrits) | 3 (la relecture avant le renommage ; `un_voisin_relu_autre_ne_prend_pas_la_place`, sous `alterer_la_relecture`), 7 (`une_compaction_dont_le_complet_se_relit_autre_ne_retire_rien`, et le test 9, étape `Relecture`, qui n'éprouve qu'un refus du disque) |
+| E17 (AM-4 (1) : la garde d'un seul `Document` du fonds) | 5 |
+| E18 (AM-4 (2) ; § 31 · 2.1 : relu du disque, acteur neuf) ; E19 (décision 12 : une relecture qui échoue, lecture seule) ; E22 (décision 12 : une captation se verse toujours ; § 31 · 2.4) ; E24 (AM-4 (5) ; décision 12 : « faite, avec un avertissement ») ; E25 (plan maître, tranche 1, quatrième puce : `rendre_durable` refusé après le renommage) ; E26 (même puce : une réception refusée en chemin ; décisions 7 et 8 d'H07) ; E27 (plan maître, tranche 1, huitième puce : le fichier reçu comparé à `save_after`) ; E28 (même puce : le doctest `compile_fail` ; § 31 · 10, test 8) | 6 ; la captation versée devant une version de schéma plus récente, aussi en 13 |
+| E20 (décision 12 : les fichiers illisibles ouvrent en lecture seule ; § 31 · 2.1 ; AM-4 (3)) ; E21 (AM-4 (6), première moitié : le fichier complet illisible se nomme) ; E23 (décision 12 : la compaction d'ouverture en échec avertit ; AM-4 (6), seconde moitié) | 7 ; le fichier d'ajout que `load_incremental` refuse, aussi en 7 (`AjoutIllisible`) |
+| E29 (plan maître, tranche 1, huitième puce : chaque variante d'`Erreur` jamais provoquée a son test, ou disparaît) | 6 (`Genese` retirée, `Synchro`), 7 (`ChampAbsent`, `CompactionInfidele`) |
+| E30 (§ 31 · 10, test 4, « couper l'écriture à chaque étape » ; § 31 · 6.1) ; E49 (§ 70 · 3, I14 : les captations sont immuables) | 3, 12 ; les tests d'H07 marqués en 17 |
+| E31 (§ 31 · 2.1 : rien avant le verrou) ; E32 (§ 31 · 2.1 : le voisin conforme d'un fichier d'ajout prend sa place ; AM-4 (4)) ; E33 (§ 31 · 2.1 et 2.2, point 1 : le voisin du complet lu, même à la naissance, puis fondu) ; E34 (§ 31 · 2.1 : tout autre `.partiel` de `documents/` retiré) | 11 ; un voisin d'ajout qui ne se met pas en place, aussi en 11 (`VoisinRestant`) |
+| E35 (décision 12 : les noms provisoires de `captations/` rangés, partout ; § 31 · 6.1) | 9, 12 |
+| E36 (§ 31 · 2.1 : le suffixe `-2`, `-3` ; décision 8 d'H07 ; AM-4 (4)) | 9, 10, 11 |
+| E38 (décision 12 : le § 31 · 6.1 corrigé) | 12 |
+| E39 (plan maître, tranche 1, sixième puce : la règle de la version de schéma au noyau) ; E40 (même puce : les migrations, la migration de test ; § 31 · 2.4) ; E41 (§ 31 · 2.4 : une migration ne touche que la racine du document) ; E42 (§ 31 · 2.4 ; décision 12 : devant une version plus récente, lire sans écrire, recevoir) ; E51 (§ 70 · 3, I28 : le message de la migration) | 13, 14 |
+| E43 (plan maître, tranche 1, septième puce ; décision 8 ; § 31 · 2.6 : la teneur au noyau) ; E44 (§ 31 · 2.6 : la teneur laisse l'histoire de côté, lignée comprise) | 15, 17 |
+| E45 (plan maître, tranche 1, septième puce : le test 11 ; décision 16) | 17 |
+| E46 (plan maître, tranche 1, septième puce : la règle de la lignée ; § 31 · 2.5) | 16 ; le cas de `synchro` reporté au lot 4 (C7) |
+| E47 (critères de sortie : les tests 4 et 8 à 11, clause par clause) ; E54 (critères de sortie : ces tests entiers, verts dans `verifier` et `windows`) | le paragraphe « Les clauses des tests du § 31 · 10 », sous ce tableau ; E54, aussi 17 (fin de la tranche) |
+| E58 (critères de sortie ; AM-4 clos, son point 7 reporté par la décision 3 du plan maître) | 17 ; LE-12, que cette PR consigne, clos aussi en 17 |
 
-Les clauses des tests du § 31 · 10 : test 4, tâches 3, 9, 12 (et H07) ; test 8, tâches 3, 6, 11 ; test 9, tâches
-7, 11, 15 ; test 10, tâches 13, 14 ; test 11, tâches 15, 17. Ce qui part ailleurs est dit à C5.
+Les clauses des tests du § 31 · 10 : test 4, tâches 3, 9, 12, et les tests d'H07 que la tâche 17 marque ; test 8,
+tâches 3, 6, 11, et deux tests d'H07 marqués en 17 ; test 9, tâches 7, 11, 15 ; test 10, tâches 13, 14 ; test 11,
+tâches 15, 17. Ce qui part ailleurs est dit à C5.
 
 **Les noms et les types, d'une tâche à l'autre :** `Etape`, `couper`, `Panne` (3) servent en 6, 7, 10, 11, 12,
 13 ; `alterer_la_relecture` (3) en 7 ; `point` et `relue` existent sans la fonction `pannes`, que l'étape « Lint du
-stockage, sans pannes » (3) compile ; `Echec` (3) en 6 ; `lire_le_dossier` (6) en 7 et 11, sans garde ni
-`Document` ; `Echange::reprendre` (6) dans `recevoir` ; `Acces` (4) en 6, 7, 13, 14, son `PlusRecent` né en 13 ; `a_l_ouverture(acces, ajouts,
-voisin_du_complet)` et `apres_une_ecriture(acces, due, …)` (4) en 6, 7, 11, 13 ; `LectureSeule` né en 6
-(`RelectureManquee`), étendu en 7 (chacune de ses trois raisons de lecture porte un `chemin`) et 13 ; `Avertissement` né en 6, étendu en 12 (`NomProvisoireRestant`) ;
-`ecrire` et `recevoir` rendent `Result<Option<Avertissement>, Erreur>` dès 6, `commun::ecrire` de même ;
-`avertissements()` en 6, 7, 11, 12 ; `voisin` rend `io::Result<PathBuf>` dès 10 ; `Lu::nom` relatif dès 11 ;
-`fonds_selon` et `Migration<'a>` dès 13 ; `teneur` dès 15, que 17 appelle ; `LIGNEES_REMPLACEES` né en 15, que
-16 et 17 emploient.
+stockage, sans pannes » (3) compile ; `Echec` (3) en 6 ; `lire_le_dossier` (6) en 7, 11 et 13, sans garde ni
+`Document`, qui rend dès 11 le nombre de voisins du fichier complet lus, pour `pupitre_neuf` et
+`a_l_ouverture(…, voisins lus > 0)` ; `Echange::reprendre` (6) dans `recevoir` ; `Acces` (4) en 6, 7, 13, 14, son
+`PlusRecent` né en 13 ; `a_l_ouverture(acces, ajouts, voisin_du_complet)` et `apres_une_ecriture(acces, due, …)`
+(4) en 6, 7, 11, 13 ; `Lu::lisible` dès 4 (l'ancien `conforme`), étendu au chargement par Automerge en 7 et au voisin du complet en 11, comme
+`Partiel::DansLeDossier { lisible }` (9) ; `Provisoire { deja_rangee }` (9) en 12 ; `LectureSeule` né en 6
+(`RelectureManquee`), étendu en 7 (chacune de ses quatre raisons de lecture porte un `chemin` : `AjoutAltere`,
+`AjoutIllisible`, `CompletIllisible`, `DependancesManquantes`) et 13 ; `Avertissement` né en 6, étendu en 11
+(`VoisinRestant`) et en 12 (`NomProvisoireRestant`) ; `ecrire` et `recevoir` rendent
+`Result<Option<Avertissement>, Erreur>` dès 6, `commun::ecrire` de même ; `avertissements()` en 6 (et
+l'avertissement d'une réception refusée), 7, 11, 12, 13 ; `voisin` rend `io::Result<PathBuf>` dès 10 ; `Lu::nom`
+relatif dès 11 ; `fonds_selon`, sous `pannes`, et `Migration<'a>` dès 13 ; `teneur` dès 15, que 17 appelle ;
+`LIGNEES_REMPLACEES` né en 15, que 16 et 17 emploient.
+
+**Les cas d'erreur décidés par ce plan** (relecture de la PR #27), chacun dans la tâche qui possède le code, au
+plus près d'AM-4 (6) et de la décision 12 : ouvrir, nommer, avertir, plutôt que refuser. Un voisin d'ajout que le
+disque refuse de mettre en place se lit où il est, avec `VoisinRestant` (11) ; un fichier d'ajout dont l'empreinte
+est juste mais qu'Automerge refuse ouvre en lecture seule, `AjoutIllisible` (7) ; une réception refusée dont le
+fichier d'ajout avertit rend son refus, et l'avertissement rejoint `avertissements()` (6) ; un nom provisoire qui
+ne se lit pas reste, avec `NomProvisoireRestant` (12). Chacun a son test.
 
 **La proportion :** dix-sept tâches pour une tranche qui touche une crate d'adaptateurs, cinq modules du noyau et
 deux fonctions de `synchro`. Les corps n'y sont écrits que pour la forme de la teneur, le doctest et le contrôle
@@ -1262,5 +1399,14 @@ un échange qui ne reprenait pas sur les mêmes `Echange` après une réception 
 0.12.0, `sent_hashes`), d'où `Echange::reprendre` ; une comparaison de la relecture qu'aucun test n'exerçait,
 d'où `alterer_la_relecture` ; la configuration livrée de `stockage`, jamais compilée en CI, d'où l'étape sans
 pannes ; une recherche du voisin libre sans borne, dont les mutants auraient bouclé ; des tests sans panne
-(migration, naissance, lecture seule de R8), des attendus de CI faux, des aides mal citées ; et les trois
-écarts au plan maître, que la PR de ce plan soumet.
+(migration, naissance, rangement en lecture seule), des attendus de CI faux, des aides mal citées ; et les trois
+écarts au plan maître, que la maîtrise d'ouvrage a tranchés le 2026-11-09, chacun selon son défaut.
+
+**La relecture de la PR #27** (une session neuve, le 2026-11-09) a levé : LE-12, que rien ne close, d'où la
+tâche 17 ; des renvois à des étiquettes de travail qu'on ne lit pas dans le dépôt, remplacés par leurs sources ;
+trois mots qui doublaient un sens (`Lu::lisible`, `deja_rangee`, le verbe du titre de la PR (c)) ; l'ordre de la
+migration et de la compaction d'ouverture ; quatre cas d'erreur sans réponse, décidés plus haut ; la doc d'H07 qui
+dit encore les refus d'ouverture ; des caractérisations non relevées ; le repli de la tâche 14 côté `stockage` ;
+la remesure à froid sans repli de cache ; les PR en brouillon ; les tests d'H07 sans marqueur ; l'entrée du
+glossaire sans ses autres sens ; la question C2 dite encore ouverte ; le compte des voisins lus ; `fonds_selon`
+dans l'API livrée.
