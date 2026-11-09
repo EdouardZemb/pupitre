@@ -18,7 +18,7 @@ manifeste dans une situation physique précise (§ 5).
 | **Instruments** | Un piano acoustique à la maison, une guitare acoustique. Lit une partition, connaît les degrés et les cadences courantes, veut progresser en harmonie sans perdre la main |
 | **Voix** | Chante ses morceaux. Voix plutôt grave ; tessiture à mesurer plutôt qu'à supposer |
 | **Langues** | Écrit surtout en anglais, parfois en français, parfois les deux dans un même morceau |
-| **Matière** | Un fonds de plusieurs dizaines de démos (téléphone, vieux enregistrements maison), dont beaucoup de fragments de moins d'une minute et plusieurs versions d'une même idée ; des carnets de textes ; des notes éparses ; des *stems* et des fichiers MIDI, dont une part peut venir d'un générateur de maquettes externe |
+| **Matière** | Un fonds de plusieurs dizaines de démos (téléphone, vieux enregistrements maison), dont beaucoup de fragments de moins d'une minute et plusieurs versions d'une même idée ; des carnets de textes ; des notes éparses ; des *stems*, ceux de quelques dizaines de morceaux, par jeux de huit à douze, presque chacun avec son fichier MIDI, dont une part peut venir d'un générateur de maquettes externe |
 | **Équipement** | Un téléphone, un ordinateur portable, une tablette à encre électronique avec stylet, un petit serveur toujours allumé à la maison. **Pas de home studio** : ni interface audio, ni clavier MIDI |
 | **Objectif** | Un album d'une dizaine de titres — le nombre n'est pas arrêté — mené jusqu'à des maquettes abouties, enregistrées soi-même ou obtenues d'un générateur de maquettes à partir de ses morceaux |
 | **Rapport à la technique** | À l'aise : sait faire tourner un service à la maison. Mais l'usage quotidien ne doit demander aucune compétence technique |

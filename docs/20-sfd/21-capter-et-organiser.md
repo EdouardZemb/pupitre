@@ -176,34 +176,60 @@ destructrice explicite.
 | **Lit · écrit** | Écrit des **captations**, des **idées** et des **propositions** importées ; aucune décision musicale |
 
 **Règles**
-- Tout format audio que le nœud sait décoder est accepté, et **versé tel quel**.
+- Tout format audio que le nœud sait décoder est accepté, et **versé tel quel**. À l'import,
+  un fichier se reconnaît audio ou MIDI à sa signature, texte à son extension ; l'établi lit
+  seul l'en-tête d'un WAV et celui d'un MIDI, et les autres faits valent `—` jusqu'au nœud
+  ([ADR-024](../adr/adr-024-import-d-un-fonds.md)).
 - Le **nom d'origine est conservé** exactement, espaces et apostrophes compris : c'est
-  souvent la seule clé qui relie un fichier à d'autres traces.
+  souvent la seule clé qui relie un fichier à d'autres traces. Un fichier versé garde tous
+  ses noms d'origine, chacun avec son chemin dans le dossier versé.
 - **Dédoublonnage par empreinte** : un même contenu sous deux noms donne un objet et deux
   noms d'origine.
-- Un fichier **MIDI** devient une captation, et sa mélodie une **proposition**
-  (provenance `importee`). Son tempo n'est jamais cru d'office : un fichier peut porter un
-  tempo nominal faux ; la lecture se fait au tempo du morceau.
-- Un **texte** (texte brut, Markdown, ChordPro) devient des lignes **proposées**, sans
-  provenance d'auteur présumée.
+- Un dossier que Sacha déclare **jeu de stems** devient une seule prise, la **prise en
+  stems** : chaque fichier audio en est un stem, et le MIDI qui porte son nom l'accompagne.
+  Pupitre propose de déclarer ainsi un dossier dont au moins deux fichiers WAV ont la même
+  durée, sans jamais le faire d'office. Le type d'un stem (voix, batterie, basse…) se propose
+  d'après son nom, et se décide d'un geste.
+- Sacha déclare l'**origine** de chaque dossier versé : de sa main, ou produite par un
+  générateur externe, qu'il nomme. Déclarée générée, elle se garde à vie, comme le rôle
+  `maquette générée` ([MOR-07](24-morceau.md#mor-07--maquettes-et-brief-de-génération)) ;
+  non déclarée, elle vaut `—`, et se déclare plus tard. Pupitre ne la déduit jamais d'un nom
+  ni d'une métadonnée.
+- Un fichier **MIDI** devient une captation, le **MIDI versé**, qui accompagne le stem dont
+  il porte le nom, ou appartient à une idée. Sa mélodie devient une **proposition**
+  (provenance `importee`) en INC-2, dans un morceau ; d'ici là, l'établi en montre le format
+  et la division. Son tempo n'est jamais cru d'office : un fichier peut porter un tempo
+  nominal faux ; la lecture se fait au tempo du morceau.
+- Un **texte** (texte brut, Markdown, ChordPro) devient une captation d'une idée, le **texte
+  versé**, que l'établi montre tel quel. En INC-2, il devient des lignes **proposées** d'un
+  morceau, sans provenance d'auteur présumée.
 - Des **analyses existantes** (tableaux produits par un outil antérieur) s'importent comme
   **propositions**, avec leurs confiances si elles en portent, selon un mappage de colonnes
-  déclaré par Sacha.
-- **Aucun rattachement automatique** : l'import crée des idées, jamais de liens vers des
-  morceaux, même quand les noms se ressemblent. Les rapprochements se demandent
-  ([CAP-05](#cap-05--rapprocher-des-idées-et-des-prises)).
-- Un **rapport d'import** compte les fichiers vus, versés, dédoublonnés et illisibles,
-  avec leurs octets. On vérifie un import par la comparaison des comptes, jamais par
-  l'absence de message d'erreur.
+  déclaré par Sacha. Elles entrent en INC-2 ; avant, un tableau est ignoré.
+- Ce qui n'est ni audio, ni MIDI, ni texte (une archive, un PDF, une image, les métadonnées
+  d'un générateur) est **ignoré** : rien n'en est ouvert, aucune archive n'est dépliée.
+- **Aucun rattachement automatique** : l'import crée une idée par prise, par MIDI versé seul
+  et par texte versé, n'en regroupe aucune d'office, même d'un même dossier, et ne crée
+  jamais de liens vers des morceaux, même quand les noms se ressemblent. Les rapprochements
+  se demandent ([CAP-05](#cap-05--rapprocher-des-idées-et-des-prises)).
+- Un **rapport d'import** compte les fichiers vus, versés, dédoublonnés, illisibles et
+  ignorés, avec leurs octets, et se fige en captation à la fin de l'import. On vérifie un
+  import par la comparaison des comptes, jamais par l'absence de message d'erreur.
+- Une prise versée s'écoute par la **lecture simple** de l'appareil, stem par stem pour une
+  prise en stems. Une prise qu'elle ne sait pas jouer montre ses faits et « lecture
+  impossible sur cet appareil », sans erreur.
 
 **Ne fait pas** — ne renomme pas, ne convertit pas, ne normalise pas le volume, ne décide
-aucune valeur.
+aucune valeur ; ne déplie aucune archive, ne lit aucune métadonnée de générateur, ne déduit
+aucune origine.
 
 **Cas limites**
 - Fichier illisible : versé quand même comme captation, marqué « non décodable ». On ne
   jette pas une prise parce qu'un décodeur a échoué.
 - Arborescence profonde, noms longs ou en Unicode : acceptés.
-- Import interrompu : reprenable ; l'import est idempotent.
+- Import interrompu : reprenable, sous le même identifiant ; l'import est idempotent.
+- Stem sans MIDI : un état normal ([ADR-006](../adr/adr-006-le-partiel-est-normal.md)), que
+  le rapport ne compte pas comme une erreur.
 
 **Critères d'acceptation**
 1. *Étant donné* un dossier de 80 fichiers dont 3 doublons de contenu, *quand* il est
@@ -219,6 +245,20 @@ aucune valeur.
    à 85 BPM, *alors* sa mélodie se lit à 85 BPM.
 6. *Quand* un tableau d'analyses est importé, *alors* toutes ses valeurs sont des
    propositions, et le nombre de décisions créées est zéro.
+7. *Étant donné* un dossier déclaré jeu de stems, de 10 fichiers WAV et de 9 fichiers MIDI
+   qui portent leurs noms, *quand* il est importé, *alors* une prise existe, dans une seule
+   idée, avec 10 stems dont 9 accompagnés de leur MIDI ; l'importer une seconde fois ne crée
+   rien.
+8. *Étant donné* un dossier non déclaré dont 3 fichiers WAV ont la même durée, *quand* il est
+   importé, *alors* 3 prises existent, et Pupitre propose de déclarer le dossier jeu de stems.
+9. *Étant donné* un dossier déclaré produit par un générateur externe, *alors* chacune de
+   ses prises porte cette origine, et la retirer est refusé ; *étant donné* un dossier non
+   déclaré, l'origine de ses prises vaut `—`.
+10. *Étant donné* un même contenu sous deux noms, dans deux sous-dossiers, *alors* un objet
+    existe, avec ses deux noms d'origine et leurs chemins.
+11. *Étant donné* un dossier qui contient une archive zip et un PDF, *quand* il est importé,
+    *alors* aucun des deux n'est ouvert, et le rapport les compte parmi les ignorés, avec
+    leurs octets.
 
 ---
 

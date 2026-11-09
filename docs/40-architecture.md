@@ -719,14 +719,14 @@ flowchart LR
     dernier geste de tri. Écouter une prise, par la lecture simple que dit « Il ne contient
     pas », servie par le protocole des captations
     ([§ 7.5](#75-linterface-la-csp-et-les-commandes)). L'import d'un fonds existant
-    ([CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)), que
-    conçoit la PR d'import
-    ([Q23](90-questions-ouvertes.md#q23--comment-verser-un-fonds-existant-)). La recherche
+    ([CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)), prises
+    en stems, MIDI et textes versés compris
+    ([ADR-024](adr/adr-024-import-d-un-fonds.md)). La recherche
     par attribut d'idée et par texte, et ses requêtes enregistrées
     ([CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds)), et la vue du
     fonds, sans ses morceaux
     ([CAP-07](20-sfd/21-capter-et-organiser.md#cap-07--voir-le-fonds)). L'archive complète
-    du fonds, critères 4 et 5 de
+    du fonds, critères 4 à 6 de
     [SYN-07](20-sfd/29-socle-donnees-appareils.md#syn-07--exporter-et-importer), et la
     reprise depuis elle d'une racine des données abîmée
     ([§ 31 · 2.1](31-persistance-et-synchronisation.md#21-sur-le-disque)). Le mode
@@ -886,9 +886,11 @@ flowchart LR
   de la PR de conception d'INC-1, comme les deux qu'elle écrit :
   [022](adr/adr-022-documents-cote-natif.md), les documents et la synchronisation côté
   natif, et [023](adr/adr-023-stockage-des-documents.md), le stockage des documents. Q23,
-  l'import d'un fonds existant, se tranche ensuite par une courte PR d'import, après un
-  relevé des formats et des volumes
-  ([§ 90](90-questions-ouvertes.md#q23--comment-verser-un-fonds-existant-)).
+  l'import d'un fonds existant, est tranchée le 2026-11-09 par une courte PR d'import, après
+  un relevé des formats et des volumes
+  ([§ 90](90-questions-ouvertes.md#q23--comment-verser-un-fonds-existant-)) ; elle écrit
+  l'[ADR-024](adr/adr-024-import-d-un-fonds.md), l'import d'un fonds existant, que sa
+  relecture accepte avant le plan.
 - **Avant chacun des lots suivants**, une courte PR de conception tranche ce qu'il demande :
   - lot 2 : le détail de ses deux essais ; le choix de la pile TLS et de l'échange PAKE que
     compile H10, le même des deux côtés, puisque l'appareil et le nœud parlent le même

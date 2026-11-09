@@ -257,6 +257,9 @@ accords suivants avec INC-4 ([§ 40 · 9](../40-architecture.md#9-trajectoire-de
 - Les exports emploient les variantes **retenues**.
 - Un import écrit des **propositions**, jamais des décisions
   ([CAP-03](21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)).
+- L'**archive complète** annonce sa taille avant de commencer, et ne commence pas sans la
+  place libre : un fonds de stems pèse des dizaines de gigaoctets
+  ([ADR-024](../adr/adr-024-import-d-un-fonds.md)).
 - L'**archive complète** fait exception : réimportée dans un Pupitre neuf, elle restitue les
   documents tels qu'ils étaient, décisions et historique compris. C'est une reprise après
   sinistre, pas un import
@@ -272,6 +275,9 @@ accords suivants avec INC-4 ([§ 40 · 9](../40-architecture.md#9-trajectoire-de
    captations sont restitués : teneurs égales, et le journal du fonds est le même.
 5. *Étant donné* un Pupitre qui a déjà un fonds, *quand* une archive complète y est
    réimportée, *alors* rien ne s'écrit, et Pupitre dit pourquoi.
+6. *Étant donné* un support dont la place libre est inférieure à la taille de l'archive
+   complète, *quand* Sacha l'y exporte, *alors* rien ne s'écrit, et Pupitre dit la taille de
+   l'archive et ce qui manque.
 
 ---
 
