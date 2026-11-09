@@ -498,7 +498,7 @@ script de l'interface, dont le chargeur en ligne que Trunk écrit dans `index.ht
 | `default-src` | `'self'` | Rien que les fichiers de l'application |
 | `script-src` | `'self' 'wasm-unsafe-eval'` | L'interface est un module WebAssembly, que la WebView compile ; son seul script en ligne, le chargeur de Trunk, n'est admis que par l'empreinte que Tauri ajoute ; ni `'unsafe-inline'`, ni `eval` |
 | `style-src` | `'self'` | La feuille de style de l'interface. Un style calculé se pose propriété par propriété (`style:left=…` en Leptos, soit `style.setProperty`), jamais par un attribut `style`, ni par `cssText`, que la CSP refuse. Les trois styles calculés d'INC-0 (`app/ui/src/vue_table.rs`, `style_du_recouvrement` et `style_de_la_palette` ; `app/ui/src/panneau_palette.rs`, la largeur) passent ainsi en propriétés au lot 1, avant que la CSP ne soit posée |
-| `img-src`, `media-src` | `'self'`, et le protocole des captations, `captation`, qui s'écrit `http://captation.localhost` sous Windows et Android, comme `ipc` | Une photo, une prise : le côté natif les sert par leur empreinte, en lecture seule, et rien d'autre. Le protocole de fichiers de Tauri (`asset:`), qui sert tout un dossier, n'est pas employé. Si `useHttpsScheme` est un jour posé, la valeur passe en `https` |
+| `img-src`, `media-src` | `'self'`, et le protocole des captations, `captation`, qui s'écrit `http://captation.localhost` sous Windows et Android, comme `ipc` | Une photo, une prise, un stem : le côté natif les sert par leur empreinte, en lecture seule, et rien d'autre. Le protocole de fichiers de Tauri (`asset:`), qui sert tout un dossier, n'est pas employé. Si `useHttpsScheme` est un jour posé, la valeur passe en `https` |
 | `connect-src` | `'self'`, et le canal des commandes de Tauri (`ipc:`, `http://ipc.localhost`) | L'interface ne lit que ses propres fichiers, son module WebAssembly compris, et ne parle qu'au côté natif ; la synchronisation se fait de ce côté-là ([ADR-022](adr/adr-022-documents-cote-natif.md)) |
 | `object-src`, `frame-src`, `base-uri`, `form-action` | `'none'` | Rien à incorporer, rien à envoyer |
 
@@ -706,27 +706,26 @@ flowchart LR
   - **lot 1, le fonds sur l'établi**, en `v0.3.0`. Le stockage des documents et des
     captations, côté natif ([ADR-022](adr/adr-022-documents-cote-natif.md),
     [ADR-023](adr/adr-023-stockage-des-documents.md)). L'adaptateur `Documents` en mémoire
-    naît avec celui des fichiers, et la même suite de tests des commandes passe sur les deux,
-    en natif ([ADR-022](adr/adr-022-documents-cote-natif.md)) ; la compilation des services
-    en WebAssembly, la construction navigateur et ses parcours de bout en bout viennent avec
-    la ligne 5 des portes, qui reste à venir
+    naît avec celui des fichiers, et la même suite de tests des commandes passe sur les
+    deux, en natif ([ADR-022](adr/adr-022-documents-cote-natif.md)) ; la compilation des
+    services en WebAssembly, la construction navigateur et ses parcours de bout en bout
+    viennent avec la ligne 5 des portes, qui reste à venir
     ([§ 70 · 8](70-qualite-et-verification.md#8-les-portes-de-ci)). La boîte d'idées : noter
     une idée en texte
-    ([CAP-01](20-sfd/21-capter-et-organiser.md#cap-01--capter-en-un-geste)), la trier
-    — compléter le texte, étiqueter, relier et délier, regrouper des prises (les photos, au
-    lot 2), retirer et rétablir —
+    ([CAP-01](20-sfd/21-capter-et-organiser.md#cap-01--capter-en-un-geste)), la trier —
+    compléter le texte, étiqueter, relier et délier, regrouper des prises, des MIDI et des
+    textes versés (les photos, au lot 2), retirer et rétablir —
     ([CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées)), annuler le
     dernier geste de tri. Écouter une prise, par la lecture simple que dit « Il ne contient
     pas », servie par le protocole des captations
     ([§ 7.5](#75-linterface-la-csp-et-les-commandes)). L'import d'un fonds existant
-    ([CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)), que
-    conçoit la PR d'import
-    ([Q23](90-questions-ouvertes.md#q23--comment-verser-un-fonds-existant-)). La recherche
-    par attribut d'idée et par texte, et ses requêtes enregistrées
+    ([CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)), prises
+    en stems, MIDI et textes versés compris ([ADR-024](adr/adr-024-import-d-un-fonds.md)).
+    La recherche par attribut d'idée et par texte, et ses requêtes enregistrées
     ([CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds)), et la vue du
     fonds, sans ses morceaux
     ([CAP-07](20-sfd/21-capter-et-organiser.md#cap-07--voir-le-fonds)). L'archive complète
-    du fonds, critères 4 et 5 de
+    du fonds, critères 4 à 6 de
     [SYN-07](20-sfd/29-socle-donnees-appareils.md#syn-07--exporter-et-importer), et la
     reprise depuis elle d'une racine des données abîmée
     ([§ 31 · 2.1](31-persistance-et-synchronisation.md#21-sur-le-disque)). Le mode
@@ -740,8 +739,8 @@ flowchart LR
     dans un fichier `.automerge`
     ([§ 31 · 2.3](31-persistance-et-synchronisation.md#23-la-genèse-et-le-point-de-départ-du-fonds)) ;
     un document de test s'engendre à l'exécution, comme le jeu factice. Si un document de
-    test doit un jour être suivi, il vit dans un seul dossier, que la porte exempte, et la PR
-    qui l'y met le dit. La CSP et les droits de Tauri du
+    test doit un jour être suivi, il vit dans un seul dossier, que la porte exempte, et la
+    PR qui l'y met le dit. La CSP et les droits de Tauri du
     [§ 7.5](#75-linterface-la-csp-et-les-commandes) sont posés, et, avant eux, les trois
     styles calculés d'INC-0 repris en propriétés. Dans la PR de clôture du lot,
     l'application prend l'identifiant `app.pupitre` et la version `0.3.0`
@@ -810,7 +809,8 @@ flowchart LR
 - **Il ne contient pas** les morceaux, l'écoute de contrôle, les analyses, l'application du
   lutrin ni le document de réglages. Ce qui en découle :
   - **le tri** s'y borne à compléter le texte, étiqueter, relier deux idées et les délier,
-    regrouper des prises comme versions d'une même idée, retirer et rétablir. Relier une idée
+    regrouper des prises comme versions d'une même idée, avec les MIDI et les textes versés,
+    retirer et rétablir. Relier une idée
     à un motif ou à un morceau, et la promouvoir en l'un ou l'autre, attendent qu'ils
     existent ; rattacher une prise
     ([CAP-04](20-sfd/21-capter-et-organiser.md#cap-04--rattacher-une-prise-à-un-morceau))
@@ -886,9 +886,11 @@ flowchart LR
   de la PR de conception d'INC-1, comme les deux qu'elle écrit :
   [022](adr/adr-022-documents-cote-natif.md), les documents et la synchronisation côté
   natif, et [023](adr/adr-023-stockage-des-documents.md), le stockage des documents. Q23,
-  l'import d'un fonds existant, se tranche ensuite par une courte PR d'import, après un
-  relevé des formats et des volumes
-  ([§ 90](90-questions-ouvertes.md#q23--comment-verser-un-fonds-existant-)).
+  l'import d'un fonds existant, est tranchée le 2026-11-09 par une courte PR d'import, après
+  un relevé des formats et des volumes
+  ([§ 90](90-questions-ouvertes.md#q23--comment-verser-un-fonds-existant-)) ; elle écrit
+  l'[ADR-024](adr/adr-024-import-d-un-fonds.md), l'import d'un fonds existant, acceptée
+  à sa relecture, le même jour.
 - **Avant chacun des lots suivants**, une courte PR de conception tranche ce qu'il demande :
   - lot 2 : le détail de ses deux essais ; le choix de la pile TLS et de l'échange PAKE que
     compile H10, le même des deux côtés, puisque l'appareil et le nœud parlent le même

@@ -93,20 +93,21 @@ la notice qu'Android impose pendant un enregistrement au premier plan (I29).
 | **Échelle · moment** | É0 · M1, M3 |
 | **Appareils** | 💻 conçu pour · 📱 ✅ · 📖 — |
 | **Besoins** | B02 |
-| **Lit · écrit** | Idées, liens, et l'idée de chaque prise et de chaque photo, dans le fonds (décisions) |
+| **Lit · écrit** | Idées, liens, et l'idée de chaque prise, de chaque photo, de chaque MIDI versé seul et de chaque texte versé, dans le fonds (décisions) |
 
 **Règles**
 - Une idée non reliée est un **objet légitime et durable**, pas une tâche en souffrance
   ([ADR-006](../adr/adr-006-le-partiel-est-normal.md)).
 - Gestes : écouter une prise, et les **gestes de tri**, qui écrivent : compléter le texte ;
-  étiqueter (poser ou ôter une étiquette libre) ; **relier** à une autre idée, un motif ou un
-  morceau, et délier ; **regrouper** des prises comme versions d'une même idée ; **retirer**
-  une idée, et la rétablir. À côté, **promouvoir** en motif ou en morceau.
+  étiqueter (poser ou ôter une étiquette libre) ; **relier** à une autre idée, un motif ou
+  un morceau, et délier ; **regrouper** des prises comme versions d'une même idée, avec les
+  photos, les MIDI versés et les textes versés qui vont avec ; **retirer** une idée, et la
+  rétablir. À côté, **promouvoir** en motif ou en morceau.
 - Une relation, un mécanisme
   ([§ 30 · 9.3](../30-modele-de-domaine.md#93-regrouper-et-relier)) :
-  - **regrouper** verse des prises ou des photos dans une autre idée, qui les contient
-    désormais : rien n'est copié, et chaque captation reste distincte. Une idée que le geste
-    laisse sans rien est retirée avec lui ;
+  - **regrouper** verse des prises, des photos, des MIDI versés seuls ou des textes versés
+    dans une autre idée, qui les contient désormais : rien n'est copié, et chaque captation
+    reste distincte. Une idée que le geste laisse sans rien est retirée avec lui ;
   - **relier** pose un lien « apparenté à ». Une idée est **reliée** quand elle porte au
     moins un lien vers ce qui n'est pas une idée retirée ;
   - « versions d'une même idée » n'est pas un lien, et un lien ne regroupe rien.
@@ -119,12 +120,12 @@ la notice qu'Android impose pendant un enregistrement au premier plan (I29).
   faite par erreur ne s'annule pas : elle se retire.
 - Promouvoir crée l'objet, y verse la matière de l'idée (sa prise devient la première
   prise), et **garde l'idée**, reliée à ce qu'elle est devenue.
-- La boîte se trie par date, étiquette, durée, état (reliée ou non) et provenance (captée
-  ou importée, [§ 30 · 8.1](../30-modele-de-domaine.md#81-la-provenance)), et se filtre par
-  ce que l'idée contient : texte, prise, photo. La durée d'une idée est celle de sa prise la
-  plus longue, et `—` dès qu'une de ses prises n'a pas encore la sienne
-  ([§ 30 · 9.2](../30-modele-de-domaine.md#92-prises-photos-et-analyses)) ; une idée sans
-  durée se range à part, jamais exclue.
+- La boîte se trie par date, étiquette, durée, état (reliée ou non) et provenance (captée ou
+  importée, [§ 30 · 8.1](../30-modele-de-domaine.md#81-la-provenance)), et se filtre par ce
+  que l'idée contient : texte, prise, photo, MIDI versé, texte versé. La durée d'une idée
+  est celle de sa prise la plus longue, et `—` dès qu'une de ses prises n'a pas encore la
+  sienne ([§ 30 · 9.2](../30-modele-de-domaine.md#92-prises-photos-et-analyses)) ; une idée
+  sans durée se range à part, jamais exclue.
 
 **Ne fait pas** — ne relance pas, ne compte pas les jours, ne propose pas de « vider la
 boîte », ne regroupe ni ne relie rien d'office, ne supprime jamais une prise sans opération
@@ -152,7 +153,7 @@ destructrice explicite.
 4. Chaque geste de tri apparaît au journal du fonds comme une opération nommée.
 5. *Quand* Sacha retire une idée, *alors* elle quitte la boîte et les requêtes, les
    empreintes de ses captations sont inchangées, et la rétablir la rend telle qu'elle
-   était : texte, étiquettes, liens, prises et photos.
+   était : texte, étiquettes, liens, prises, photos, MIDI et textes versés.
 6. *Quand* Sacha annule le dernier geste de tri, *alors* le fonds revient à son état d'avant
    ce geste, et le journal du fonds porte le geste puis son annulation, chacun comme une
    opération nommée.
@@ -172,45 +173,82 @@ destructrice explicite.
 | **Objet** | Faire entrer en une fois un dossier de démos, de fichiers MIDI, de textes et d'éventuelles analyses déjà produites |
 | **Échelle · moment** | Fonds · M1 |
 | **Appareils** | 💻 conçu pour · 📱 — · 📖 — |
-| **Besoins** | B02, B04 |
-| **Lit · écrit** | Écrit des **captations**, des **idées** et des **propositions** importées ; aucune décision musicale |
+| **Besoins** | B02, B04, B10 |
+| **Lit · écrit** | Écrit des **captations**, des **idées** et des **propositions** importées, et ce que Sacha déclare à l'import ; aucune décision musicale |
 
 **Règles**
-- Tout format audio que le nœud sait décoder est accepté, et **versé tel quel**.
+- Tout format audio que le nœud sait décoder est accepté, et **versé tel quel**. À l'import,
+  un fichier se reconnaît audio ou MIDI à sa signature, texte à son extension ; l'établi lit
+  seul l'en-tête d'un WAV et celui d'un MIDI, et les autres faits valent `—` jusqu'à ce que
+  le nœud sache les décoder ([ADR-024](../adr/adr-024-import-d-un-fonds.md)).
 - Le **nom d'origine est conservé** exactement, espaces et apostrophes compris : c'est
-  souvent la seule clé qui relie un fichier à d'autres traces.
+  souvent la seule clé qui relie un fichier à d'autres traces. Un fichier versé garde tous
+  ses noms d'origine, chacun avec son chemin dans le dossier versé ; le premier vu
+  s'affiche. Le nom d'origine d'une prise en stems est celui de son dossier.
 - **Dédoublonnage par empreinte** : un même contenu sous deux noms donne un objet et deux
-  noms d'origine.
-- Un fichier **MIDI** devient une captation, et sa mélodie une **proposition**
-  (provenance `importee`). Son tempo n'est jamais cru d'office : un fichier peut porter un
-  tempo nominal faux ; la lecture se fait au tempo du morceau.
-- Un **texte** (texte brut, Markdown, ChordPro) devient des lignes **proposées**, sans
-  provenance d'auteur présumée.
+  noms d'origine. Un contenu déjà connu garde ce qu'il était, et prend en plus son rôle
+  nouveau : un WAV versé en prise, puis comme stem d'un jeu de stems, reste la prise de son
+  idée.
+- **Avant de rien verser**, Sacha fait ses déclarations, dossier par dossier, et Pupitre
+  compare la taille à verser à la place libre.
+- Un dossier que Sacha déclare **jeu de stems** devient une seule prise, la
+  **prise en stems** : chaque fichier audio en est un stem, et le MIDI qui porte son nom
+  l'accompagne. Pupitre propose de déclarer ainsi un dossier dont au moins deux fichiers WAV
+  ont la même durée, sans jamais le faire d'office. Le type d'un stem (voix, batterie,
+  basse…) se propose d'après son nom, et se décide d'un geste.
+- Sacha peut déclarer l'**origine** d'un dossier versé, à l'import ou plus tard : de sa
+  main, ou produite par un générateur externe, qu'il nomme. Elle vaut pour ses
+  sous-dossiers, sauf ceux qu'il déclare à part ; plus tard, elle porte aussi sur une prise,
+  un MIDI versé seul ou un texte versé. Non déclarée, elle vaut `—`. Elle se range par
+  empreinte : un même contenu n'en a qu'une, la plus forte de celles qu'il a reçues, à
+  quelque rôle que ce soit (générée, puis de la main de Sacha, puis `—`), et le rapport dit
+  chaque origine qu'un import change. Déclarée générée, elle se garde à vie : elle ne se
+  retire pas. Pupitre ne la déduit jamais d'un nom ni d'une métadonnée.
+- Un fichier **MIDI** devient une captation : il accompagne le stem dont il porte le nom,
+  ou, **MIDI versé seul**, appartient à une idée. Sa mélodie devient une **proposition**
+  (provenance `importee`) en INC-2, dans un morceau ; d'ici là, l'établi en montre le format
+  et la division. Son tempo n'est jamais cru d'office : un fichier peut porter un tempo
+  nominal faux ; la lecture se fait au tempo du morceau.
+- Un **texte** (texte brut, Markdown, ChordPro) devient une captation d'une idée, le **texte
+  versé**, que l'établi montre tel quel. En INC-2, il devient des lignes **proposées** d'un
+  morceau, sans provenance d'auteur présumée.
 - Des **analyses existantes** (tableaux produits par un outil antérieur) s'importent comme
   **propositions**, avec leurs confiances si elles en portent, selon un mappage de colonnes
-  déclaré par Sacha.
-- **Aucun rattachement automatique** : l'import crée des idées, jamais de liens vers des
-  morceaux, même quand les noms se ressemblent. Les rapprochements se demandent
-  ([CAP-05](#cap-05--rapprocher-des-idées-et-des-prises)).
-- Un **rapport d'import** compte les fichiers vus, versés, dédoublonnés et illisibles,
-  avec leurs octets. On vérifie un import par la comparaison des comptes, jamais par
-  l'absence de message d'erreur.
+  déclaré par Sacha. Elles entrent en INC-2 ; avant, un tableau est ignoré.
+- Ce qui n'est ni audio, ni MIDI, ni texte (une archive, un PDF, une image, les métadonnées
+  d'un générateur) est **ignoré** : rien n'en est ouvert, aucune archive n'est dépliée.
+- **Aucun rattachement automatique** : l'import crée une idée par prise, par MIDI versé seul
+  et par texte versé, n'en regroupe aucune d'office, même d'un même dossier, et ne crée
+  jamais de liens vers des morceaux, même quand les noms se ressemblent. Les rapprochements
+  se demandent ([CAP-05](#cap-05--rapprocher-des-idées-et-des-prises)).
+- Un **rapport d'import** compte les fichiers vus, versés, dédoublonnés, illisibles et
+  ignorés, avec leurs octets, et se fige en captation à la fin de l'import ; l'opération
+  nommée qui clôt l'import le nomme. On vérifie un import par la comparaison des comptes,
+  jamais par l'absence de message d'erreur.
+- Une prise versée s'écoute par la **lecture simple** de l'appareil, stem par stem pour une
+  prise en stems. Une prise qu'elle ne sait pas jouer montre ses faits et « lecture
+  impossible sur cet appareil », sans erreur.
 
 **Ne fait pas** — ne renomme pas, ne convertit pas, ne normalise pas le volume, ne décide
-aucune valeur.
+aucune valeur ; ne déplie aucune archive, ne lit aucune métadonnée de générateur, ne déduit
+aucune origine.
 
 **Cas limites**
 - Fichier illisible : versé quand même comme captation, marqué « non décodable ». On ne
   jette pas une prise parce qu'un décodeur a échoué.
 - Arborescence profonde, noms longs ou en Unicode : acceptés.
-- Import interrompu : reprenable ; l'import est idempotent.
+- Import interrompu : reprenable, sous le même identifiant ; l'import est idempotent.
+- Stem sans MIDI : un état normal ([ADR-006](../adr/adr-006-le-partiel-est-normal.md)), que
+  le rapport ne compte pas comme une erreur.
+- Place insuffisante : rien n'est versé, et Pupitre dit la taille à verser et ce qui manque.
 
 **Critères d'acceptation**
 1. *Étant donné* un dossier de 80 fichiers dont 3 doublons de contenu, *quand* il est
-   importé, *alors* 77 captations existent et le rapport indique 80 vus, 77 versés,
-   3 dédoublonnés, avec les octets de chaque catégorie.
-2. *Quand* le même dossier est importé deux fois, *alors* aucun objet ni aucune idée de plus
-   n'est créé.
+   importé, *alors* 77 captations sont versées, chaque idée créée porte l'identifiant de
+   l'import, et le rapport indique 80 vus, 77 versés, 3 dédoublonnés, avec les octets de
+   chaque catégorie.
+2. *Quand* le même dossier est importé deux fois, *alors* aucune captation versée ni aucune
+   idée de plus n'est créée : seul s'ajoute le rapport du second import.
 3. *Étant donné* un fichier nommé `Démo d'hiver 2 - 01_06_2015 18.42.m4a`, *alors* son nom
    d'origine est relu intact.
 4. *Étant donné* des fichiers dont les noms ressemblent aux titres de morceaux existants,
@@ -219,6 +257,27 @@ aucune valeur.
    à 85 BPM, *alors* sa mélodie se lit à 85 BPM.
 6. *Quand* un tableau d'analyses est importé, *alors* toutes ses valeurs sont des
    propositions, et le nombre de décisions créées est zéro.
+7. *Étant donné* un dossier déclaré jeu de stems, de 10 fichiers WAV et de 9 fichiers MIDI
+   qui portent leurs noms, *quand* il est importé, *alors* une prise existe, dans une seule
+   idée, avec 10 stems dont 9 accompagnés de leur MIDI, et le type de chaque stem est
+   proposé, aucun décidé ; l'importer une seconde fois ne verse rien de plus.
+8. *Quand* Sacha importe un dossier dont 3 fichiers WAV ont la même durée, *alors* Pupitre
+   lui propose, avant de rien verser, de le déclarer jeu de stems ; *s'il* ne le déclare
+   pas, 3 prises existent.
+9. *Étant donné* un dossier déclaré produit par un générateur externe, *alors* chacune de
+   ses prises porte cette origine, la retirer est refusé, et le reverser déclaré de la main
+   de Sacha la laisse générée ; *étant donné* un dossier non déclaré, l'origine de ses
+   prises vaut `—`.
+10. *Étant donné* un même contenu sous deux noms, dans deux sous-dossiers, *alors* un objet
+    existe, avec ses deux noms d'origine et leurs chemins.
+11. *Étant donné* un dossier qui contient une archive zip et un PDF, *quand* il est importé,
+    *alors* aucun des deux n'est ouvert, et le rapport les compte parmi les ignorés, avec
+    leurs octets.
+12. *Étant donné* une prise que la lecture simple de l'appareil ne sait pas jouer, *quand*
+    Sacha l'écoute, *alors* l'établi montre ses faits et « lecture impossible sur cet
+    appareil », et aucune erreur.
+13. *Étant donné* un dossier plus lourd que la place libre, *quand* Sacha l'importe, *alors*
+    rien n'est versé, et Pupitre dit la taille à verser et ce qui manque.
 
 ---
 
@@ -306,7 +365,7 @@ de problème.
 **Règles**
 - Sortes de requêtes :
   - **par attribut d'une idée** : date, étiquette, durée, état (reliée ou non), provenance,
-    ce qu'elle contient (texte, prise, photo) ;
+    ce qu'elle contient (texte, prise, photo, MIDI versé, texte versé) ;
   - **par attribut d'un morceau** : tonalité, tempo, durée, nombre de mesures, intensité,
     statut, maturité, type de section présent ou absent, langue ;
   - **par motif harmonique** : une suite de degrés (« IV–iv–I »), cherchée dans toutes les

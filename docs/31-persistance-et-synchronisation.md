@@ -49,7 +49,7 @@ flowchart TB
 | Nature | Exemples | Se modifie ? | Sur les appareils | Sur le nœud | Sauvegardé ? |
 |---|---|---|---|---|---|
 | **Décisions** | Forme, grille, mélodie, paroles, provenance, ordres d'album, réglages | Oui, par opérations nommées | **Copie complète** | Copie complète | Oui, par le miroir durable et la sauvegarde |
-| **Captations** | Prises, photos, traits d'encre, rendus figés, résultats d'analyse | **Jamais** : on en produit une autre | Ce qui est utile ou à envoyer | Toutes | Oui |
+| **Captations** | Prises, stems, photos, MIDI et textes versés, manifestes et rapports d'import, traits d'encre, rendus figés, résultats d'analyse | **Jamais** : on en produit une autre | Ce qui est utile ou à envoyer | Toutes | Oui |
 | **Dérivés** | Index de recherche, rendus, diagnostics, suggestions, doigtés et renversements calculés | Recalculés | Cache | Cache | **Non, par conception** |
 | **Miroir durable** | Projection texte des décisions, dans git | Écrit par le seul exportateur | — | Oui | Oui : sur le disque externe, et hors site si la copie facultative existe |
 
@@ -129,7 +129,7 @@ tout pour une virgule ; un document trop fin multiplie les liens fragiles.
 
 | Document | Contient | Taille estimée |
 |---|---|---|
-| **Fonds** | L'identifiant de propriétaire ; les idées, leurs étiquettes et leurs liens ; les motifs ; les métadonnées des prises et des photos ; les requêtes enregistrées ; la liste des morceaux et albums | 100 Ko à 1 Mo de contenu pour quelques centaines d'idées ; moins de 4,5 Mo, historique compris, pour 2 000 idées, la taille visée |
+| **Fonds** | L'identifiant de propriétaire ; les idées, leurs étiquettes et leurs liens ; les motifs ; les métadonnées des prises, des stems, des photos, des MIDI et des textes versés ; les requêtes enregistrées ; la liste des morceaux et albums | 100 Ko à 1 Mo de contenu pour quelques centaines d'idées ; moins de 4,5 Mo, historique compris, pour la taille visée : 2 000 idées, et 6 000 prises dont 100 en stems |
 | **Morceau** (un par morceau) | Tout le morceau : titres, statut, blocs, occurrences, paroles, alignements, arrangement, rattachements de prises, doigtés épinglés du morceau, annotations, journal | 50 à 300 Ko de contenu ; moins de 2 Mo historique compris |
 | **Album** (un par album) | Intention, sélection, ordres, transitions, arc, doigtés épinglés de l'album, journal | Moins de 100 Ko |
 | **Réglages** | Tessiture, instruments, règles et doctrine, préférences, doigtés épinglés du fonds, consentements | Moins de 100 Ko |
@@ -140,18 +140,23 @@ réglages), historique compris : une copie complète par appareil est
 raisonnable, y compris sur un téléphone. Ce sont les captations audio qui pèsent (§ 6).
 
 **La taille visée du fonds** est celle de
-[CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds) · 6 : 2 000 idées.
-Les 300 morceaux de ce critère éprouvent la recherche, pas le budget ci-dessus, compté sur
-une soixantaine. Sacha écrit par périodes, depuis une quinzaine d'années, et apporte un fonds
-de démos, de *stems*, de fichiers MIDI, de textes et de notes
+[CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds) · 6 : 2 000 idées,
+et, depuis l'import, 6 000 prises dont 100 prises en stems (plus bas). Les 300 morceaux de
+ce critère éprouvent la recherche, pas le budget ci-dessus, compté sur une soixantaine.
+Sacha écrit par périodes, depuis une quinzaine d'années, et apporte un fonds de démos, de
+*stems*, de fichiers MIDI, de textes et de notes
 ([§ 11](11-persona-et-situations.md#1-fiche)). À quelques idées par semaine, une semaine sur
 deux — une hypothèse, que le persona ne chiffre pas —, il s'en capte une à deux centaines
 par an : 2 000 au plus après une dizaine d'années. C'est une borne haute, avec de la marge.
-Ce que l'import y ajoute, en idées et en prises, se chiffre avec
-[Q23](90-questions-ouvertes.md#q23--comment-verser-un-fonds-existant-), après le relevé : la
-taille visée et le fonds de mesure (§ 10, test 13) se revoient alors. Le fonds tient sous
+Déclarés, les jeux de stems y ajoutent peu d'idées, une par prise, mais des captations
+([CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)). Un stem en
+WAV pèse environ 11 Mo par minute, et un jeu de stems en compte huit à douze : les douze
+stems d'une version de trois minutes, autour de 400 Mo. La taille visée compte donc, parmi
+ses 6 000 prises, **100 prises en stems** de douze stems, chaque stem avec son MIDI versé,
+soit 2 400 captations de plus et environ 40 Go d'audio : les ordres de grandeur d'un relevé,
+raisonnés pour Sacha ([ADR-024](adr/adr-024-import-d-un-fonds.md)). Le fonds tient sous
 **4,5 Mo**, historique compris : c'est sa part des 125 Mo ci-dessus. Le fonds de mesure le
-vérifie (§ 10).
+vérifie, avec les métadonnées de ces captations, sans leur audio (§ 10, test 13).
 
 Les **appareils appairés et leurs jetons** ne sont **pas** dans un document synchronisé :
 ce sont des données de sécurité, gardées sur le nœud seul. Chaque appareil garde, lui, son
@@ -735,7 +740,9 @@ miroir/
   LISEZMOI.md                     comment lire ce miroir (engendré)
   fonds/
     idees.txt                     une ligne par idée
-    prises.txt                    une ligne par prise : empreinte, nom d'origine, durée, diapason
+    prises.txt                    une ligne par prise : empreinte, noms d'origine, durée lue, origine déclarée, diapason
+    stems.txt                     une ligne par stem d'une prise en stems : prise, empreinte, type, noms d'origine, durée, et pour chaque MIDI qui l'accompagne : empreinte, noms d'origine, format, division
+    verses.txt                    une ligne par MIDI versé seul et par texte versé : empreinte, idée, noms d'origine, format, division d'un MIDI, origine déclarée
     motifs/<id>-<slug>/           mêmes fichiers qu'un bloc, plus paroles.txt (l'accroche)
   morceaux/<id>-<slug>/
     morceau.toml                  titres, statut, tonique de référence, tonalité, tempo, métrique
@@ -850,6 +857,11 @@ pupitre-archive-AAAA-MM-JJ/               un dossier, écrit sous un nom proviso
   Chaque chemin y est relatif à l'archive et séparé par `/`, chaque ligne terminée par LF,
   même écrite sous Windows. Aucun chemin ne porte de barre oblique inverse, de saut de ligne
   ni de retour chariot : aucun ne demande l'échappement de `sha256sum`.
+- **Elle annonce sa taille avant de commencer** : le total des octets à écrire, face à la
+  place libre du support. Sans la place, elle ne commence pas, et Pupitre dit ce qui manque
+  ([SYN-07](20-sfd/29-socle-donnees-appareils.md#syn-07--exporter-et-importer) · 6). Un
+  fonds de stems pèse des dizaines de gigaoctets (§ 2 ;
+  [ADR-024](adr/adr-024-import-d-un-fonds.md)).
 - **Elle n'est dite faite qu'une fois sur son support, puis relue** : chaque fichier y est
   écrit, synchronisé (`sync_all`), fermé, puis relu ; chaque document rouvert, sa teneur
   comparée à `teneurs.txt` ; chaque captation relue contre son empreinte. Le dossier n'est
@@ -892,5 +904,5 @@ pupitre-archive-AAAA-MM-JJ/               un dossier, écrit sous un nom proviso
 | 10 | **Version de schéma** : ouvrir un document de version de schéma N + 1 avec une application qui ne connaît que la version de schéma N ; migrer deux répliques chacune de son côté, puis les fusionner ; après la migration, deux répliques écrivent hors ligne, chacune de son côté, un élément différent de la donnée nouvelle d'un même objet ancien (deux clés `<objet>/<élément>`) | Une opération s'applique au document plus récent, son refus ne se nomme pas, une captation est refusée ; ou la migration paraît deux fois ; ou l'un des deux éléments sort de la vue |
 | 11 | **Genèse et teneur figées** : comparer les octets de chaque genèse, et la teneur d'un document témoin, à leurs empreintes de référence, écrites dans le test ; le test ne lit aucune étiquette, que la CI ne récupère pas. Avant l'étiquette qui les publie, une PR qui change la genèse ou l'écriture de la teneur y met les nouvelles. Dès elle, ces empreintes ne changent plus : une PR qui en change une est refusée, et le plan du lot 1 dit par quelle porte. Et deux documents qui ne diffèrent que par leur lignée ont la même teneur | L'une ou l'autre a changé ; ou deux documents qui ne diffèrent que par leur lignée ont des teneurs différentes |
 | 12 | **Lignée** : présenter à la synchronisation une copie et le même document reconstruit depuis le miroir | Les deux fusionnent, ou la copie remplacée n'est pas gardée à part, intacte, ou le document reconstruit n'a pas la teneur de la copie qu'il remplace |
-| 13 | **Fonds de mesure** : 2 000 idées, 200 octets de texte en moyenne, chaque texte écrit trois fois, trois étiquettes et un lien par idée, cinq opérations par idée ; 6 000 prises avec toutes leurs métadonnées ([§ 30 · 9.2](30-modele-de-domaine.md#92-prises-photos-et-analyses)) ; un acteur par ouverture, 3 000 en tout ; engendrées à l'exécution | Son fichier complet passe 4,5 Mo |
-| 14 | **Archive complète** : l'exporter, la réimporter dans un Pupitre neuf ; lancer un Pupitre neuf et l'ouvrir sans aucun geste, puis y réimporter l'archive ; la réimporter dans un Pupitre qui a déjà un fonds ; abîmer un fichier d'ajout et repartir de l'archive ; repartir de l'archive alors qu'un autre processus tient ouvert un fichier de la racine abîmée ; refuser le premier geste d'un Pupitre neuf, puis y réimporter l'archive ; exporter deux fois le même jour | Une teneur ou le journal diffère, une captation manque ou trahit son empreinte ; ou le Pupitre seulement ouvert refuse l'archive ; ou la réimportation dans un Pupitre qui a déjà un fonds écrit quoi que ce soit ; ou la racine des données abîmée n'est pas gardée à part, octet pour octet, ou la teneur reprise diffère de celle de l'archive ; ou une reprise dont le renommage échoue écrit quoi que ce soit, ou ne le dit pas ; ou, après un premier geste refusé, l'archive est refusée ; ou deux exports le même jour ne donnent pas deux archives |
+| 13 | **Fonds de mesure** : 2 000 idées, 200 octets de texte en moyenne, chaque texte écrit trois fois, trois étiquettes et un lien par idée, cinq opérations par idée ; 6 000 prises avec toutes leurs métadonnées ([§ 30 · 9.2](30-modele-de-domaine.md#92-prises-photos-et-analyses)), dont 100 prises en stems de douze stems, chaque stem avec son MIDI versé, soit 2 400 captations de plus, sans audio, et chaque nom d'origine de 80 octets en moyenne, chemin compris ; un acteur par ouverture, 3 000 en tout ; engendrées à l'exécution | Son fichier complet passe 4,5 Mo |
+| 14 | **Archive complète** : l'exporter, la réimporter dans un Pupitre neuf ; lancer un Pupitre neuf et l'ouvrir sans aucun geste, puis y réimporter l'archive ; la réimporter dans un Pupitre qui a déjà un fonds ; abîmer un fichier d'ajout et repartir de l'archive ; repartir de l'archive alors qu'un autre processus tient ouvert un fichier de la racine abîmée ; refuser le premier geste d'un Pupitre neuf, puis y réimporter l'archive ; exporter deux fois le même jour ; exporter vers un support trop petit | Une teneur ou le journal diffère, une captation manque ou trahit son empreinte ; ou le Pupitre seulement ouvert refuse l'archive ; ou la réimportation dans un Pupitre qui a déjà un fonds écrit quoi que ce soit ; ou la racine des données abîmée n'est pas gardée à part, octet pour octet, ou la teneur reprise diffère de celle de l'archive ; ou une reprise dont le renommage échoue écrit quoi que ce soit, ou ne le dit pas ; ou, après un premier geste refusé, l'archive est refusée ; ou deux exports le même jour ne donnent pas deux archives ; ou l'export vers un support trop petit écrit quoi que ce soit, ou ne dit pas ce qui manque |

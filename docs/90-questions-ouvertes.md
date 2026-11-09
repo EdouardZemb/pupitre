@@ -29,9 +29,10 @@ les questions sur ce qu'il calcule sont tranchées le même jour : le plan d'INC
 s'écrire ([§ 40 · 9](40-architecture.md#9-trajectoire-de-construction)), et INC-0 est livré
 ([l'état](../CLAUDE.md#état)).
 
-Le plan du lot 1 d'INC-1 attend une question, [Q23](#q23--comment-verser-un-fonds-existant-),
-l'import d'un fonds existant, plus bas. Elle bloque une fonction de ce lot, pas
-l'implémentation, déjà commencée.
+Le plan du lot 1 d'INC-1 attendait une question,
+[Q23](#q23--comment-verser-un-fonds-existant-), l'import d'un fonds existant. Elle est
+tranchée le 2026-11-09 (plus bas), et l'[ADR-024](adr/adr-024-import-d-un-fonds.md), que la
+PR d'import écrit, est acceptée le même jour : le plan peut s'écrire.
 
 ---
 
@@ -120,68 +121,16 @@ employé ; le mettre à jour quand l'outil change.
 **Enjeu.** La pile Rust ne la tranche pas encore
 ([§ 41 · 5.4](41-pile-technique.md#54-lécoute-de-contrôle)), et elle bloque
 [ECO-01](20-sfd/27-ecoute-et-compagnon.md#eco-01--écoute-de-contrôle), livrée avec INC-3.
-Trois exigences la bornent : un graphe fait d'échantillonneurs, d'un lecteur de prise, de
-volumes et d'une sortie, sans exportation audio (I21) ; des échantillons servis par le
-nœud, jamais par un hôte public, et gardés en cache pour l'écoute hors ligne (I24) ; aucun
-environnement de production sonore ([ADR-009](adr/adr-009-ecoute-de-controle.md)).
+Trois exigences la bornent : un graphe fait d'échantillonneurs, de lecteurs de prise, un par
+stem d'une prise en stems ([ADR-024](adr/adr-024-import-d-un-fonds.md)), de volumes et d'une
+sortie, sans exportation audio (I21) ; des échantillons servis par le nœud, jamais par un
+hôte public, et gardés en cache pour l'écoute hors ligne (I24) ; aucun environnement de
+production sonore ([ADR-009](adr/adr-009-ecoute-de-controle.md)).
 
 **Recommandation.** Trancher avant INC-3, au gabarit des couches du § 41 : ses concurrents
 écartés, et la fonction de la SFD qui la justifie. D'ici là, réécouter une prise se fait par
 une lecture simple, à sa vitesse, sans ralenti : elle ne tranche pas Q16
 ([§ 40 · 9](40-architecture.md#9-trajectoire-de-construction)).
-
-### Q23 — Comment verser un fonds existant ?
-
-**Enjeu.** Sacha n'arrive pas les mains vides ([§ 11](11-persona-et-situations.md#1-fiche)) :
-son fonds compte beaucoup d'audio, mais
-aussi des *stems*, les enregistrements séparés des voix et des instruments d'un même
-morceau, des fichiers MIDI et des textes. Une part peut venir d'un générateur de maquettes
-externe : une maquette entière, ou ses stems. Le lot 1 d'INC-1 livre l'import
-([§ 40 · 9](40-architecture.md#9-trajectoire-de-construction)), mais
-[CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant) ne dit pas :
-
-- comment les stems d'un même morceau restent ensemble, et ce qui les distingue des prises
-  regroupées comme versions d'une même idée
-  ([CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées)) ;
-- ce que deviennent un MIDI et un texte avant que les morceaux existent, en INC-2 : CAP-03
-  en tire une mélodie et des lignes proposées, qui se lisent dans un morceau ;
-- quelle provenance porte ce qu'un générateur a produit hors de tout brief. `importee` dit
-  seulement « venu d'un fichier »
-  ([§ 30 · 8.1](30-modele-de-domaine.md#81-la-provenance)). Une maquette née d'un brief le
-  dit à vie, par son rôle de `maquette générée`
-  ([MOR-07](20-sfd/24-morceau.md#mor-07--maquettes-et-brief-de-génération)) ; un matériau
-  généré versé sans cette marque passerait pour de la main de Sacha, hors de la part
-  d'origine
-  ([PRO-02](20-sfd/26-propositions-suggestions-provenance.md#pro-02--provenance-et-part-dorigine)),
-  et brouillerait la paternité que garde
-  l'[ADR-004](adr/adr-004-proposer-n-est-pas-decider.md) (D5) ;
-- comment un même contenu versé sous deux noms garde ses deux noms d'origine, alors qu'une
-  prise n'en porte qu'un
-  ([§ 30 · 9.2](30-modele-de-domaine.md#92-prises-photos-et-analyses)) ;
-- ce que l'établi lit seul d'un fichier versé, puisque CAP-03 confie le décodage au nœud,
-  absent jusqu'au lot 3 ;
-- ce que la lecture simple du lot 1, celle de la WebView, sait jouer des formats versés, et
-  ce que montre une prise qu'elle ne sait pas jouer ;
-- les volumes : un fonds de stems pèse bien plus qu'un fonds de mémos vocaux, et l'archive
-  complète les emporte tous.
-
-Q14, plus bas, en est une part : les analyses et les MIDI déjà produits.
-
-**Échéance.** Avant le plan du lot 1 d'INC-1.
-
-**Ce qui la tranchera.** D'abord un relevé des formats et des volumes d'un fonds réel, fait
-par la maîtrise d'ouvrage : des comptes et des tailles, jamais un nom de fichier. Le relevé
-reste hors du dépôt, qui n'en garde que des ordres de grandeur raisonnés pour Sacha. Puis
-une courte PR d'import, qui complète CAP-03 et le [§ 30](30-modele-de-domaine.md), et
-écrit en ADR ce qu'elle décide. Elle revoit alors, pour Sacha, la ligne « Matière » du
-[§ 11](11-persona-et-situations.md#1-fiche), la taille visée du fonds et le fonds de mesure
-([§ 31 · 2](31-persistance-et-synchronisation.md#2-les-documents)).
-
-**Recommandation.** Relever avant de concevoir : aucune règle d'import ne s'écrit avant le
-relevé. Garder ce que CAP-03 tient déjà : verser tel quel, garder le nom d'origine, ne rien
-rattacher d'office, vérifier un import par ses comptes. Pour un matériau généré, partir de
-ce que MOR-07 fait d'une maquette générée : il le dit à vie, et ne passe jamais pour de la
-main de Sacha.
 
 ---
 
@@ -191,7 +140,6 @@ main de Sacha.
 |---|---|---|
 | Q12 | L'anglais et le français suffisent-ils pour les paroles ? | Oui pour commencer ; ajouter une langue, c'est ajouter un dictionnaire de prononciation et des règles |
 | Q13 | Où afficher la part d'origine ? | À la demande seulement, dans la vue de provenance ; jamais en tête de fiche ([PRO-02](20-sfd/26-propositions-suggestions-provenance.md#pro-02--provenance-et-part-dorigine)) |
-| Q14 | Le fonds existant contient-il des analyses ou des fichiers MIDI déjà produits ? | Si oui, les importer **en propositions**, avec un mappage déclaré ; ne pas recalculer ce qui est déjà mesuré tant que le banc n'a pas montré mieux ([CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)). Elle se tranche avec [Q23](#q23--comment-verser-un-fonds-existant-), par le même relevé |
 | Q15 | La tessiture : déclarée ou mesurée ? | Mesurée : chanter sa note la plus grave et la plus aiguë tenables, trois minutes |
 
 ---
@@ -295,6 +243,66 @@ l'établi ou au carnet.
 ([§ 50 · 3.7](50-interfaces-et-appareils.md#37-la-table-de-la-tonalité)) et
 [MIC-12](20-sfd/22-micro-motif-et-phrase.md#mic-12--parcourir-la-table-de-la-tonalité) le
 disent.
+
+---
+
+## ✅ Tranchées le 2026-11-09
+
+Deux questions sur l'import d'un fonds existant, tranchées selon leur recommandation. Le
+relevé qu'elles demandaient, des formats et des volumes d'un fonds réel, fait par la
+maîtrise d'ouvrage, reste hors du dépôt, qui n'en garde que des ordres de grandeur.
+
+### Q23 — Comment verser un fonds existant ?
+
+**Tranchée le 2026-11-09 : par l'[ADR-024](adr/adr-024-import-d-un-fonds.md)**, acceptée
+à la relecture de la PR d'import, qui l'écrit. Ce que CAP-03 tenait reste : verser tel
+quel, garder le nom d'origine, ne rien rattacher d'office, vérifier un import par ses
+comptes. S'y ajoutent :
+
+- un jeu de stems versé est une seule prise, la prise en stems, nommée par l'empreinte de
+  son manifeste ; ses stems en sont les parties, et les prises d'une idée restent ses
+  versions ;
+- Sacha déclare, dossier par dossier, ce qui est un jeu de stems, et l'origine de ce qu'il
+  verse : de sa main, ou produit par un générateur externe, qu'il nomme. Déclarée générée,
+  l'origine se garde à vie et compte dans la part d'origine ; non déclarée, elle forme son
+  propre groupe. Ni l'une ni l'autre ne passe jamais pour de la main de Sacha ;
+- un MIDI et un texte entrent dès le lot 1, comme captations, et se regroupent comme une
+  prise ; leur contenu devient une proposition en INC-2, dans un morceau ;
+- un fichier versé garde tous ses noms d'origine, chacun avec son chemin ;
+- sans nœud qui décode, l'établi lit l'en-tête d'un WAV et celui d'un MIDI ; le reste
+  attend que le nœud sache le décoder ;
+- la lecture simple joue ce que joue la WebView, une prise en stems stem par stem ; une
+  prise qu'elle ne joue pas le dit, sans erreur ; jouer les stems ensemble relève de
+  l'écoute de contrôle, et n'est pas un mixage ;
+- ce qui n'est ni audio, ni MIDI, ni texte est ignoré, jamais ouvert, et compté au rapport ;
+- la taille visée du fonds compte, parmi ses 6 000 prises, 100 prises en stems, soit environ
+  40 Go d'audio ; l'import et l'archive complète comparent leur taille à la place libre
+  avant de commencer.
+
+**Ce que ça règle.**
+[CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées),
+[CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant),
+[CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds),
+[PRO-02](20-sfd/26-propositions-suggestions-provenance.md#pro-02--provenance-et-part-dorigine),
+[SYN-07](20-sfd/29-socle-donnees-appareils.md#syn-07--exporter-et-importer) et
+[ECO-01](20-sfd/27-ecoute-et-compagnon.md#eco-01--écoute-de-contrôle), avec l'enjeu de
+[Q16](#q16--quelle-brique-pour-lécoute-de-contrôle-) ; les
+[§ 30 · 8.1](30-modele-de-domaine.md#81-la-provenance),
+[§ 30 · 9.2](30-modele-de-domaine.md#92-prises-photos-et-analyses) et
+[§ 30 · 9.3](30-modele-de-domaine.md#93-regrouper-et-relier) ; la ligne « Matière » du
+[§ 11](11-persona-et-situations.md#1-fiche) ; la taille visée du fonds, le fonds de mesure
+et l'archive complète ([§ 31 · 2](31-persistance-et-synchronisation.md#2-les-documents),
+[§ 31 · 9.1](31-persistance-et-synchronisation.md#91-sans-nœud-larchive-complète) et
+[§ 31 · 10](31-persistance-et-synchronisation.md#10-les-tests-qui-verrouillent-ce-document)).
+L'ADR-024 acceptée, le plan du lot 1 d'INC-1 peut s'écrire.
+
+### Q14 — Le fonds existant contient-il des analyses ou des fichiers MIDI déjà produits ?
+
+**Tranchée le 2026-11-09, avec Q23, par le même relevé : des MIDI, et aucune analyse.** Le
+relevé compte un fichier MIDI pour presque chaque stem, et aucun tableau d'analyses.
+Les MIDI entrent comme MIDI versés dès le lot 1, et leur mélodie devient une proposition en
+INC-2, sans que rien ne soit recalculé. La règle de CAP-03 pour les analyses existantes,
+importées en propositions selon un mappage déclaré, ne change pas ; elle entre en INC-2.
 
 ---
 

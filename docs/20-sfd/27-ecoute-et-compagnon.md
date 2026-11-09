@@ -58,6 +58,9 @@ flowchart TB
   [§ 90](../90-questions-ouvertes.md#les-arbitrages-pris-dans-cette-conception)).
 - Les échantillons sont servis par le nœud, jamais par un hôte public, puis gardés en
   cache pour l'écoute hors ligne.
+- Une prise en stems se joue par un lecteur de prise par stem : tous ensemble, ou en n'en
+  gardant que certains. Ce n'est pas un mixage : aucun volume ni effet ne s'y règle par
+  stem, et rien ne s'exporte ([ADR-024](../adr/adr-024-import-d-un-fonds.md)).
 
 **Ne fait pas** — pas de mixage, pas d'effet, pas de rendu instrument par instrument de
 l'arrangement, pas de batterie, pas d'interprétation « humanisée », **aucune exportation
@@ -72,7 +75,7 @@ audio**.
 1. *Quand* une phrase est jouée, *alors* sa durée jouée égale sa durée engendrée à 1 % près.
 2. *Étant donné* la guitare choisie et un doigté épinglé, *alors* l'accord joué contient
    exactement les notes du diagramme.
-3. *Alors* le graphe audio ne contient qu'échantillonneurs, lecteur de prise (ralenti à
+3. *Alors* le graphe audio ne contient qu'échantillonneurs, lecteurs de prise (ralentis à
    hauteur constante), volumes et sortie, et aucune fonction d'exportation audio n'existe
    (I21).
 4. *Étant donné* le carnet hors ligne, *alors* l'écoute fonctionne.
@@ -80,6 +83,9 @@ audio**.
 6. *Alors* aucun échantillon n'est demandé à un autre hôte que le nœud (I24).
 7. *Étant donné* le lutrin, *quand* un accord ou une suite est joué, *alors* rien ne bouge à
    l'écran : ni curseur, ni animation (I18).
+8. *Étant donné* une prise en stems, *quand* Sacha la joue, *alors* tous ses stems jouent
+   ensemble, depuis le même instant ; *quand* il en coupe un, *alors* les autres continuent,
+   et rien ne s'exporte.
 
 ---
 
