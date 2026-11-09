@@ -57,7 +57,7 @@ entrée du [glossaire](../80-glossaire.md), pas dans l'ADR.**
 | [ADR-021](adr-021-cle-du-noeud-epinglee.md) | Réseau domestique seulement ; TLS par la clé du nœud, épinglée à l'appairage | ✅ acceptée | P8 |
 | [ADR-022](adr-022-documents-cote-natif.md) | Les documents et la synchronisation côté natif | ✅ acceptée | P5, P8 |
 | [ADR-023](adr-023-stockage-des-documents.md) | Le stockage des documents | ✅ acceptée | P5, P8 |
-| [ADR-024](adr-024-import-d-un-fonds.md) | L'import d'un fonds existant | 🟡 proposée | P2, P4 |
+| [ADR-024](adr-024-import-d-un-fonds.md) | L'import d'un fonds existant | ✅ acceptée | P2, P4 |
 
 Légende : une flèche A → B se lit « B s'appuie sur A » ; la ligne « S'appuie sur » de
 chaque ADR reprend exactement ses flèches entrantes. Une ADR remplacée garde ses flèches,

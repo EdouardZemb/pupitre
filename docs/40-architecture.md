@@ -889,8 +889,8 @@ flowchart LR
   l'import d'un fonds existant, est tranchée le 2026-11-09 par une courte PR d'import, après
   un relevé des formats et des volumes
   ([§ 90](90-questions-ouvertes.md#q23--comment-verser-un-fonds-existant-)) ; elle écrit
-  l'[ADR-024](adr/adr-024-import-d-un-fonds.md), l'import d'un fonds existant, que sa
-  relecture accepte avant le plan.
+  l'[ADR-024](adr/adr-024-import-d-un-fonds.md), l'import d'un fonds existant, acceptée
+  à sa relecture, le même jour.
 - **Avant chacun des lots suivants**, une courte PR de conception tranche ce qu'il demande :
   - lot 2 : le détail de ses deux essais ; le choix de la pile TLS et de l'échange PAKE que
     compile H10, le même des deux côtés, puisque l'appareil et le nœud parlent le même

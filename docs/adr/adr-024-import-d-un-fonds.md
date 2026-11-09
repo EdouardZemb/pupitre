@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Statut** | 🟡 proposée |
+| **Statut** | ✅ acceptée |
 | **Date** | 2026-11-09 |
 | **Sert** | B02, B04, B10 · principes P2, P4 |
 | **S'appuie sur** | [ADR-004](adr-004-proposer-n-est-pas-decider.md), [ADR-006](adr-006-le-partiel-est-normal.md) et [ADR-022](adr-022-documents-cote-natif.md) |

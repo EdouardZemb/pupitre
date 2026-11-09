@@ -31,8 +31,8 @@ s'écrire ([§ 40 · 9](40-architecture.md#9-trajectoire-de-construction)), et I
 
 Le plan du lot 1 d'INC-1 attendait une question,
 [Q23](#q23--comment-verser-un-fonds-existant-), l'import d'un fonds existant. Elle est
-tranchée le 2026-11-09 (plus bas) ; le plan attend encore que
-l'[ADR-024](adr/adr-024-import-d-un-fonds.md), que la PR d'import écrit, soit acceptée.
+tranchée le 2026-11-09 (plus bas), et l'[ADR-024](adr/adr-024-import-d-un-fonds.md), que la
+PR d'import écrit, est acceptée le même jour : le plan peut s'écrire.
 
 ---
 
@@ -254,8 +254,8 @@ maîtrise d'ouvrage, reste hors du dépôt, qui n'en garde que des ordres de gra
 
 ### Q23 — Comment verser un fonds existant ?
 
-**Tranchée le 2026-11-09 : par l'[ADR-024](adr/adr-024-import-d-un-fonds.md)**, proposée
-jusqu'à la relecture de la PR d'import, qui l'écrit. Ce que CAP-03 tenait reste : verser tel
+**Tranchée le 2026-11-09 : par l'[ADR-024](adr/adr-024-import-d-un-fonds.md)**, acceptée
+à la relecture de la PR d'import, qui l'écrit. Ce que CAP-03 tenait reste : verser tel
 quel, garder le nom d'origine, ne rien rattacher d'office, vérifier un import par ses
 comptes. S'y ajoutent :
 
@@ -294,7 +294,7 @@ comptes. S'y ajoutent :
 et l'archive complète ([§ 31 · 2](31-persistance-et-synchronisation.md#2-les-documents),
 [§ 31 · 9.1](31-persistance-et-synchronisation.md#91-sans-nœud-larchive-complète) et
 [§ 31 · 10](31-persistance-et-synchronisation.md#10-les-tests-qui-verrouillent-ce-document)).
-Le plan du lot 1 d'INC-1 s'écrit une fois l'ADR-024 acceptée.
+L'ADR-024 acceptée, le plan du lot 1 d'INC-1 peut s'écrire.
 
 ### Q14 — Le fonds existant contient-il des analyses ou des fichiers MIDI déjà produits ?
 
