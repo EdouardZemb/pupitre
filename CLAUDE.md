@@ -28,7 +28,7 @@ Les vérifications du projet, que la CI rejoue (`contenu` et `documentation`) :
 
 - `bash scripts/verif-confidentialite.sh` : refuse tout motif interdit dans les fichiers suivis ; ce qu'il refuse est dit dans `CONVENTIONS.md` (« Portes de CI », ligne `contenu`).
 - `node scripts/verif-liens.mjs` : chaque lien interne et chaque ancre mènent quelque part.
-- `node scripts/verif-faits.mjs` : chaque fait recopié dit la même chose que sa source ; ce qu'il lit est dit dans `CONVENTIONS.md` (« Portes de CI », ligne `documentation`). Ses tests : `node --test scripts/verif-faits.test.mjs`. Hors CI, il compare les contrôles requis à GitHub s'il le peut, et sinon il avertit.
+- `node scripts/verif-faits.mjs` : chaque fait recopié dit la même chose que sa source, et chaque critère inscrit au § 70 · 4.1 a un test Rust qui le nomme ; ce qu'il lit est dit dans `CONVENTIONS.md` (« Portes de CI », ligne `documentation`). Ses tests : `node --test scripts/verif-faits.test.mjs`. Hors CI, il compare les contrôles requis à GitHub s'il le peut, et sinon il avertit.
 - `node scripts/verif-diagrammes.mjs` : chaque diagramme Mermaid se rend. Il lui faut d'abord `npm install --no-save --no-package-lock --no-audit --no-fund @mermaid-js/mermaid-cli@12.0.0`, puis `npx --no-install puppeteer browsers install chrome`, qui télécharge le navigateur de Puppeteer ; `CHROME_PATH` peut en désigner un autre, au lieu de cette seconde commande.
 
 Les commandes de Rust, telles que la CI les lance. Deux usages du poste : chaque commande qui construit se lance avec `-p <crate>`, jamais sur tout l'espace de travail ; les tests du cahier sont lents en debug, de l'ordre d'une minute et demie.

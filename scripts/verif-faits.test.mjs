@@ -11,11 +11,14 @@ import {
   controlesDesWorkflows,
   controlesRequisEcrits,
   cratesDeClaude,
+  criteresDuModule,
   fonctionsDuModule,
+  fonctionsNommeesCritere,
   jobsDeClaude,
   jobsDuWorkflow,
   lanceSurPr,
   lireAdr,
+  lireCriteresLivres,
   lireGraphe,
   lireIndexAdr,
   lireIndexSfd,
@@ -32,6 +35,7 @@ import {
   section,
   trous,
   verifierAdr,
+  verifierCriteres,
 } from "./verif-faits.mjs";
 
 test("numeros relève chaque numéro, et ceux qui reviennent", () => {
@@ -276,6 +280,252 @@ test("lireModulesSfd, lireIndexSfd et lireMatrice lisent les tableaux de la SFD"
 test("fonctionsDuModule compte chaque titre, doublon compris", () => {
   const texte = "### CAP-01 · Capter\n\n### CAP-02 · Trier\n### CAP-02 · Trier encore\n#### CAP-03 · pas un titre de fonction";
   assert.deepEqual(fonctionsDuModule(texte, "CAP").map((f) => f.id), ["CAP-01", "CAP-02", "CAP-02"]);
+});
+
+const MODULE = [
+  "### CAP-01 · Capter",
+  "",
+  "**Règles**",
+  "1. Une règle numérotée n'est pas un critère.",
+  "",
+  "**Critères d'acceptation**",
+  "1. *Quand* Sacha capte, *alors* une idée naît.",
+  "   Une ligne de suite, en retrait.",
+  "   1. Une liste en retrait n'est pas un critère.",
+  "2. ~~*Étant donné* un fonds vide, *alors* rien.~~ Retiré : remplacé par le critère 3.",
+  "```",
+  "3. dans un bloc de code",
+  "```",
+  "3. *Étant donné* un fonds vide, *quand* Sacha capte, *alors* il compte une idée.",
+  "",
+  "---",
+  "",
+  "4. Après le filet, plus rien n'est un critère.",
+  "### CAP-02 · Trier",
+  "**Critères d’acceptation**",
+  "1. Un critère.",
+  "1. Le même numéro.",
+  "3. Un trou avant lui.",
+  "**Cas limites**",
+  "4. Après le gras, plus rien.",
+  "### CAP-03 · Chercher",
+  "**Critères d'acceptation**",
+  "1. Un critère.",
+  "#### Un titre plus bas",
+  "2. Après un titre, plus rien.",
+  "## Une autre section",
+  "5. Hors de toute fonction.",
+].join("\n");
+
+test("criteresDuModule lit les critères de chaque fonction, leurs retraits, et rien d'autre", () => {
+  const r = criteresDuModule(MODULE, "CAP");
+  assert.deepEqual([...r.keys()], ["CAP-01", "CAP-02", "CAP-03"]);
+  assert.deepEqual(r.get("CAP-01"), [
+    { n: 1, ligne: 7, retire: false }, { n: 2, ligne: 10, retire: true }, { n: 3, ligne: 14, retire: false },
+  ]);
+  assert.deepEqual(r.get("CAP-02").map((c) => c.n), [1, 1, 3]);
+  assert.deepEqual(r.get("CAP-03").map((c) => c.n), [1]);
+  assert.deepEqual(criteresDuModule("### CAP-04 · Sans critères\n\nTexte.", "CAP").get("CAP-04"), []);
+});
+
+const LIVRES = [
+  "### 4.1 Les critères livrés",
+  "",
+  "Un texte, puis le tableau.",
+  "",
+  "| Fonction | Critères | Livrés par |",
+  "|:---|:---:|---:|",
+  "| CAP-06 | 1, 4, 7 à 10 | INC-1, lot 1 |",
+  "| [SYN-07](20-sfd/29-socle.md#syn-07) | 6 | INC-1, lot 1 |",
+  "| CAP06 | 1 | coquille |",
+  "| CAP-01 | 1-3 | tiret |",
+  "| CAP-02 | 4 à 2 | à l'envers |",
+  "| CAP-03 | 0 | zéro |",
+  "| CAP-05 | 7 à 7 | plage d'un seul |",
+  "CAP-07 | 2 | sans barre initiale, la ligne compte |",
+  "",
+  "| CAP-04 | 1 | après la ligne vide, hors du tableau |",
+  "## 5. La suite",
+].join("\n");
+
+test("lireCriteresLivres lit chaque ligne du tableau jusqu'à la ligne vide, et dit pourquoi une ligne ne se lit pas", () => {
+  const r = lireCriteresLivres(section(LIVRES, "### 4.1 Les critères livrés"));
+  assert.deepEqual(r.filter((l) => !l.illisible), [
+    { ligne: 7, id: "CAP-06", criteres: [1, 4, 7, 8, 9, 10] },
+    { ligne: 8, id: "SYN-07", criteres: [6] },
+    { ligne: 14, id: "CAP-07", criteres: [2] },
+  ]);
+  assert.deepEqual(r.filter((l) => l.illisible).map((l) => [l.ligne, l.id]), [
+    [9, undefined], [10, "CAP-01"], [11, "CAP-02"], [12, "CAP-03"], [13, "CAP-05"],
+  ]);
+  assert.equal(r.length, 8);
+});
+
+test("lireCriteresLivres rend une liste vide sous un tableau vide, et null sans tableau", () => {
+  const vide = "### 4.1 Les critères livrés\n\n| Fonction | Critères | Livrés par |\n|---|---|---|\n\nAucun encore.";
+  assert.deepEqual(lireCriteresLivres(section(vide, "### 4.1 Les critères livrés")), []);
+  assert.equal(lireCriteresLivres(section("### 4.1 Les critères livrés\n\nRien.", "### 4.1 Les critères livrés")), null);
+});
+
+const SOURCE_RUST = `#[test]
+fn cap06_7_la_reponse_declare_son_assiette() {}
+
+/// Un commentaire de documentation.
+#[test]
+#[ignore = "lent"]
+fn cap06_8_ignore() {}
+
+fn cap06_9_une_aide() {}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(16))]
+    #[test]
+    fn syn07_6_par_proprietes(a in 0..3u8) {}
+}
+
+#[tokio::test] async fn eco01_8() {}
+
+// fn cap06_10_en_commentaire() {}
+fn cap06_7x() {}
+fn autre_cap06_7() {}
+#[test]
+pub fn cap06_12_generique<T>() {}
+#[cfg(test)]
+fn cap06_11_aide_de_test() {}
+#[test]
+#[should_panic(
+    expected = "la racine des données est tenue par un autre processus : fermer l'autre Pupitre d'abord"
+)]
+fn cap06_13_attribut_sur_plusieurs_lignes() {}
+#[test]
+// Un commentaire entre l'attribut et la fonction.
+
+fn cap06_14_commentaire_et_ligne_vide() {}
+#[test]
+#[cfg_attr(windows, ignore = "lent sous Windows")]
+fn cap06_15_ignore_sous_windows() {}
+#[ignore]
+#[cfg_attr(
+    windows,
+    allow(unused_variables)
+)]
+#[test]
+fn cap06_16_ignore_au_dessus_d_un_attribut_coupe() {}
+#[test]
+fn cap06_17_la_réponse_accentuée() {}
+#[test]
+fn cap_06_7_mauvaise_forme() {}
+#[ignore] // lent : à lancer à la main
+#[test]
+fn cap06_18_ignore_commente() {}
+#[test] // H07 : sous Windows aussi
+fn cap06_19_test_commente() {}
+#[test]
+/* un commentaire de bloc */
+fn cap06_20_bloc() {}
+#[should_panic(expected = "voir http://exemple")]
+#[test]
+fn cap06_21_double_barre_dans_une_chaine() {}
+`;
+
+test("fonctionsNommeesCritere relève les fonctions nommées d'après un critère, et leurs attributs", () => {
+  const r = fonctionsNommeesCritere("t.rs", SOURCE_RUST, ["CAP", "SYN", "ECO"]);
+  assert.deepEqual(r.map((f) => [f.ligne, f.nom, f.id, f.n, f.forme, f.test, f.ignore]), [
+    [2, "cap06_7_la_reponse_declare_son_assiette", "CAP-06", 7, true, true, false],
+    [7, "cap06_8_ignore", "CAP-06", 8, true, true, true],
+    [9, "cap06_9_une_aide", "CAP-06", 9, true, false, false],
+    [14, "syn07_6_par_proprietes", "SYN-07", 6, true, true, false],
+    [17, "eco01_8", "ECO-01", 8, true, true, false],
+    [23, "cap06_12_generique", "CAP-06", 12, true, true, false],
+    [25, "cap06_11_aide_de_test", "CAP-06", 11, true, false, false],
+    [30, "cap06_13_attribut_sur_plusieurs_lignes", "CAP-06", 13, true, true, false],
+    [34, "cap06_14_commentaire_et_ligne_vide", "CAP-06", 14, true, true, false],
+    [37, "cap06_15_ignore_sous_windows", "CAP-06", 15, true, true, true],
+    [44, "cap06_16_ignore_au_dessus_d_un_attribut_coupe", "CAP-06", 16, true, true, true],
+    [46, "cap06_17_la_réponse_accentuée", "CAP-06", 17, true, true, false],
+    [48, "cap_06_7_mauvaise_forme", "CAP-06", 7, false, true, false],
+    [51, "cap06_18_ignore_commente", "CAP-06", 18, true, true, true],
+    [53, "cap06_19_test_commente", "CAP-06", 19, true, true, false],
+    [56, "cap06_20_bloc", "CAP-06", 20, true, true, false],
+    [59, "cap06_21_double_barre_dans_une_chaine", "CAP-06", 21, true, true, false],
+  ]);
+  assert.ok(r.every((f) => f.fichier === "t.rs"));
+  assert.deepEqual(fonctionsNommeesCritere("t.rs", "#[test]\r\nfn cap06_7_crlf() {}\r\n", ["CAP"]).map((f) => [f.ligne, f.test]), [[2, true]]);
+});
+
+// Une SFD de deux fonctions : CAP-06 a les critères 1 à 3, SYN-07 les critères 1 et 2, le 2 retiré.
+const sfd = () => ({
+  criteres: new Map([
+    ["CAP-06", [{ n: 1, ligne: 10, retire: false }, { n: 2, ligne: 11, retire: false }, { n: 3, ligne: 12, retire: false }]],
+    ["SYN-07", [{ n: 1, ligne: 40, retire: false }, { n: 2, ligne: 41, retire: true }]],
+  ]),
+  fichierDe: new Map([["CAP-06", "docs/20-sfd/21.md"], ["SYN-07", "docs/20-sfd/29.md"]]),
+  fichierListe: "docs/70.md",
+});
+const nomme = (id, n, autres = {}) => ({
+  fichier: "t.rs", ligne: 1, nom: `${id.toLowerCase().replace("-", "")}_${n}_x`, id, n, forme: true, test: true, ignore: false, ...autres,
+});
+
+test("verifierCriteres accepte des critères inscrits, chacun nommé par un test qui tourne", () => {
+  const livres = [{ ligne: 7, id: "CAP-06", criteres: [1, 3] }, { ligne: 8, id: "SYN-07", criteres: [1] }];
+  const tests = [
+    nomme("CAP-06", 1), nomme("CAP-06", 3), nomme("CAP-06", 3, { ignore: true }), nomme("SYN-07", 1),
+    nomme("CAP-06", 2, { test: false }),
+  ];
+  assert.deepEqual(verifierCriteres({ ...sfd(), livres, tests }), []);
+  assert.deepEqual(verifierCriteres({ ...sfd(), livres: [], tests: [] }), []);
+});
+
+test("verifierCriteres refuse un critère livré sans test qui tourne, ou que la SFD n'a pas", () => {
+  const livres = [
+    { ligne: 7, id: "CAP-06", criteres: [1, 2, 3, 4, 2] },
+    { ligne: 8, id: "MIC-99", criteres: [1] },
+    { ligne: 9, id: "CAP-06", criteres: [] },
+    { ligne: 10, illisible: "la première colonne nomme une fonction" },
+    { ligne: 11, id: "SYN-07", criteres: [1, 2] },
+  ];
+  const tests = [
+    nomme("CAP-06", 1), nomme("CAP-06", 2, { ignore: true }), nomme("CAP-06", 4),
+    nomme("CAP-06", 3, { forme: false, nom: "cap_06_3_x" }), nomme("SYN-07", 1, { test: false }),
+  ];
+  const e = verifierCriteres({ ...sfd(), livres, tests });
+  const dit = (motif) => e.filter((x) => motif.test(x.message)).length;
+  assert.equal(dit(/^CAP-06 · 2 est inscrit, mais t\.rs:1 le nomme sans être un test qui tourne/), 1);
+  assert.equal(dit(/^CAP-06 · 3 est inscrit, sans test qui le nomme : une fonction « fn cap06_3_… »/), 1);
+  assert.equal(dit(/^SYN-07 · 1 est inscrit, mais t\.rs:1 le nomme sans être un test qui tourne/), 1);
+  assert.equal(dit(/^SYN-07 · 2 est retiré \(docs\/20-sfd\/29\.md:41\) : il ne s'inscrit pas$/), 1);
+  assert.equal(dit(/^CAP-06 · 4 : la SFD n'a pas ce critère/), 1);
+  assert.equal(dit(/^CAP-06 · 2 inscrit deux fois/), 1);
+  assert.equal(dit(/^MIC-99 n'est pas une fonction de la SFD/), 1);
+  assert.equal(dit(/^CAP-06 : plusieurs lignes ; une ligne par fonction/), 1);
+  assert.equal(dit(/^ligne du tableau illisible/), 1);
+  assert.equal(dit(/^fn cap06_4_x nomme CAP-06 · 4, que la SFD n'a pas/), 1);
+  assert.equal(dit(/^fn cap_06_3_x : un nom de test d'après un critère s'écrit « cap06_3_… »/), 1);
+  assert.equal(e.length, 11);
+  assert.ok(e.every((x) => x.fichier === (x.message.startsWith("fn ") ? "t.rs" : "docs/70.md")));
+});
+
+test("verifierCriteres refuse un tableau introuvable, des critères mal numérotés, et un test qui nomme ce qui n'existe pas", () => {
+  const base = sfd();
+  base.criteres.set("CAP-06", [{ n: 1, ligne: 10 }, { n: 1, ligne: 11 }, { n: 4, ligne: 12 }]);
+  base.criteres.set("ECO-01", [{ n: 2, ligne: 70 }]);
+  base.fichierDe.set("ECO-01", "docs/20-sfd/27.md");
+  base.criteres.set("ECO-02", []);
+  base.fichierDe.set("ECO-02", "docs/20-sfd/27.md");
+  const tests = [nomme("MIC-99", 1), nomme("SYN-07", 3, { test: false }), nomme("SYN-07", 2)];
+  const e = verifierCriteres({ ...base, livres: null, tests });
+  assert.deepEqual(e.map((x) => [x.fichier, x.ligne]), [
+    ["docs/20-sfd/21.md", 11], ["docs/20-sfd/21.md", 10], ["docs/20-sfd/27.md", 70], ["docs/20-sfd/27.md", 1],
+    ["docs/70.md", 1], ["t.rs", 1], ["t.rs", 1], ["t.rs", 1],
+  ]);
+  assert.match(e[0].message, /^CAP-06 · 1 écrit deux fois/);
+  assert.match(e[1].message, /^CAP-06 : critères absents, 2, 3 ; un critère retiré garde son numéro/);
+  assert.match(e[2].message, /^ECO-01 : critères absents, 1 ;/);
+  assert.match(e[3].message, /^ECO-02 : aucun critère lu sous « \*\*Critères d'acceptation\*\* »/);
+  assert.match(e[4].message, /^tableau « \| Fonction \| Critères \| Livrés par \| » introuvable/);
+  assert.match(e[5].message, /^fn mic99_1_x nomme MIC-99, qui n'est pas une fonction de la SFD$/);
+  assert.match(e[6].message, /^fn syn07_3_x nomme SYN-07 · 3, que la SFD n'a pas/);
+  assert.match(e[7].message, /^fn syn07_2_x nomme SYN-07 · 2, qui est retiré \(docs\/20-sfd\/29\.md:41\)$/);
 });
 
 const CI = `name: ci

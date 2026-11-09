@@ -37,6 +37,15 @@
 // 7. Les comptes écrits dans README.md, CLAUDE.md et CONVENTIONS.md, en chiffres ou en
 //    lettres, devant « portes », « jobs », « modules », « crates » ou « situations » : chacun
 //    vaut le total.
+// 8. Les critères livrés. Les critères d'acceptation de chaque fonction de la SFD se numérotent
+//    depuis 1, sans trou ni doublon, un critère retiré gardant son numéro. Le tableau « Les
+//    critères livrés » du § 70 · 4.1 inscrit des critères que la SFD a, non retirés, une ligne
+//    par fonction, et chacun a au moins un test Rust qui le nomme : une fonction
+//    « fn mic12_1_… » (le critère 1 de MIC-12), marquée #[test], sans #[ignore]. Une fonction
+//    Rust nommée ainsi d'après un critère que la SFD n'a pas, ou retiré, est refusée aussi, comme
+//    un nom écrit « mic_12_1_… ». C'est la porte d'un second motif, « Une spec qui se contredit »
+//    (AM-2, LE-6, LE-11). Elle vérifie qu'un test qui tourne nomme chaque critère inscrit ; qu'il
+//    en calcule l'exemple, c'est la revue de la PR qui le vérifie.
 //
 // Trois conventions en découlent. Une plage qui part du premier numéro couvre toute la famille.
 // Un compte partiel ne s'écrit pas en chiffres devant « ADR », ni, dans ces trois fichiers, en
@@ -532,6 +541,173 @@ export function comptesNommes(texte, noms) {
   return res;
 }
 
+// Les critères d'acceptation des fonctions d'un module : pour chaque fonction, les numéros lus
+// sous « **Critères d'acceptation** », jusqu'au gras, au filet ou au titre suivants, chacun avec
+// sa ligne, et s'il est retiré (« n. ~~texte~~ Retiré : raison. »). Un critère est une ligne qui
+// commence par « n. » ; ses lignes de suite, en retrait, n'en sont pas, ni les listes numérotées
+// des règles.
+export function criteresDuModule(texte, code) {
+  const res = new Map();
+  const titre = new RegExp(`^### (${code}-\\d{2}) · `);
+  let id = null;
+  let dedans = false;
+  lignesHorsCode(texte).forEach((l, i) => {
+    const t = titre.exec(l);
+    if (t) {
+      id = t[1];
+      dedans = false;
+      if (!res.has(id)) res.set(id, []);
+      return;
+    }
+    if (/^#{1,6}\s/.test(l)) { id = null; dedans = false; return; }
+    if (!id) return;
+    if (/^\*\*Critères d['’]acceptation\*\*\s*$/.test(l)) { dedans = true; return; }
+    if (!dedans) return;
+    if (/^\*\*/.test(l) || /^(-{3,}|_{3,})\s*$/.test(l)) { dedans = false; return; }
+    const m = /^(\d+)\.\s+(~~)?/.exec(l);
+    if (m) res.get(id).push({ n: Number(m[1]), ligne: i + 1, retire: Boolean(m[2]) });
+  });
+  return res;
+}
+
+// Le tableau des critères livrés (§ 70 · 4.1) : | CAP-06 | 1, 4, 7 à 10 | INC-1, lot 1 |
+// L'en-tête précède le filet ; les lignes le suivent jusqu'à la première ligne vide, la barre
+// initiale facultative, comme sur GitHub. La fonction se nomme seule ou par un lien ; ses
+// critères, par numéros et par plages « n à m », séparés par des virgules. Une ligne qui ne se
+// lit pas ainsi est rendue avec sa raison. Sans tableau, null.
+export function lireCriteresLivres(s) {
+  const filet = (l) => /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?\s*$/.test(l);
+  const k = s.lignes.findIndex(filet);
+  if (k < 0) return null;
+  const res = [];
+  for (let i = k + 1; i < s.lignes.length && s.lignes[i].trim(); i++) {
+    const l = s.lignes[i];
+    const ligne = s.debut + 1 + i;
+    const m = /^\s*\|?\s*(?:\[([A-Z]{3}-\d{2})\]\([^)]*\)|([A-Z]{3}-\d{2}))\s*\|([^|]*)(?:\||$)/.exec(l);
+    if (!m) {
+      res.push({ ligne, illisible: "la première colonne nomme une fonction, « CAP-06 » ou « [CAP-06](…) »" });
+      continue;
+    }
+    const id = m[1] ?? m[2];
+    const criteres = [];
+    let illisible = null;
+    for (const morceau of m[3].split(",").map((x) => x.trim())) {
+      const r = /^([1-9]\d*)(?:\s+à\s+([1-9]\d*))?$/.exec(morceau);
+      if (!r || (r[2] && Number(r[2]) <= Number(r[1]))) {
+        illisible = `« ${morceau} » : des numéros et des plages « n à m », n plus petit que m, séparés par des virgules`;
+        break;
+      }
+      for (let n = Number(r[1]); n <= Number(r[2] ?? r[1]); n++) criteres.push(n);
+    }
+    res.push(illisible ? { ligne, id, illisible } : { ligne, id, criteres });
+  }
+  return res;
+}
+
+// Les attributs d'une fonction Rust, de la ligne `fn` vers le haut : ceux de sa ligne, puis
+// les lignes d'attributs, un attribut écrit sur plusieurs lignes compris (rustfmt coupe ainsi
+// un attribut de plus de 100 colonnes), les commentaires et les lignes vides ; un commentaire
+// en fin de ligne est ôté. La remontée
+// s'arrête à toute autre ligne : la fin de l'élément précédent. Chaque attribut est rendu en
+// une seule chaîne, « #[should_panic(expected = "…")] ».
+function attributsAuDessus(lignes, i, avant) {
+  const attributs = [...avant.matchAll(/#!?\[[^\]]*\]/g)].map((a) => a[0]);
+  const bloc = [];
+  for (let k = i - 1; k >= 0; k--) {
+    const t = lignes[k].trim().replace(/\s*\/\/[^"]*$/, "").replace(/^\/\*.*\*\/$/, "");
+    if (bloc.length) {
+      bloc.unshift(t);
+      if (/^#!?\[/.test(t)) { attributs.push(bloc.join(" ")); bloc.length = 0; }
+      else if (/[{};]$/.test(t)) break;
+      continue;
+    }
+    if (!t || t.startsWith("//")) continue;
+    if (/^#!?\[/.test(t)) {
+      if (/\]$/.test(t)) attributs.push(...[...t.matchAll(/#!?\[[^\]]*\]/g)].map((a) => a[0]));
+      else break;
+      continue;
+    }
+    if (/\]$/.test(t)) { bloc.push(t); continue; }
+    break;
+  }
+  return attributs;
+}
+
+// Les fonctions Rust nommées d'après un critère, à la façon des tests d'INC-0 : « fn
+// mic12_1_do_majeur » nomme le critère 1 de MIC-12 (le code de la fonction en minuscules, son
+// numéro collé, puis le numéro du critère). Chacune dit si ses attributs en font un test
+// (#[test], #[tokio::test]…) et l'ignorent (#[ignore], ou un #[cfg_attr(…)] qui ignore). Une
+// fonction écrite « mic_12_1_… » est rendue aussi, marquée : ce n'est pas la forme, et la porte
+// le dit. Une ligne commentée par « // » n'en déclare aucune ; un commentaire de bloc ou le corps
+// d'une macro ne sont pas distingués : la revue de la PR les voit.
+export function fonctionsNommeesCritere(fichier, texte, codes) {
+  const nom = new RegExp(`\\bfn\\s+((${codes.map((c) => c.toLowerCase()).join("|")})(_?)(\\d{2})_(\\d+)(?:_[\\p{L}\\p{N}_]*)?)\\s*[(<]`, "u");
+  const lignes = texte.replace(/\r\n/g, "\n").split("\n");
+  const res = [];
+  lignes.forEach((l, i) => {
+    if (l.trim().startsWith("//")) return;
+    const m = nom.exec(l);
+    if (!m) return;
+    const noms = attributsAuDessus(lignes, i, l.slice(0, m.index))
+      .map((a) => ({ a, nom: /^#!?\[\s*((?:\w+::)*\w+)/.exec(a)?.[1] ?? "" }));
+    res.push({
+      fichier, ligne: i + 1, nom: m[1], id: `${m[2].toUpperCase()}-${m[4]}`, n: Number(m[5]),
+      forme: m[3] === "",
+      test: noms.some((x) => /(?:^|::)\w*test$/.test(x.nom)),
+      ignore: noms.some((x) => x.nom === "ignore" || (x.nom === "cfg_attr" && /\bignore\b/.test(x.a))),
+    });
+  });
+  return res;
+}
+
+// Le point 8. criteres : les critères de chaque fonction de la SFD, id → [{ n, ligne, retire }] ;
+// fichierDe : le module de chaque fonction ; livres : le tableau lu par lireCriteresLivres, ou
+// null ; tests : les fonctions lues par fonctionsNommeesCritere.
+export function verifierCriteres({ criteres, fichierDe, livres, fichierListe, tests }) {
+  const ecarts = [];
+  const ecart = (fichier, ligne, message) => ecarts.push({ fichier, ligne, message });
+  const nomDe = (id, n) => `${id.toLowerCase().replace("-", "")}_${n}`;
+  for (const [id, cs] of criteres) {
+    if (!cs.length) ecart(fichierDe.get(id), 1, `${id} : aucun critère lu sous « **Critères d'acceptation** », que chaque fonction porte (§ 70 · 4)`);
+    const vus = new Set();
+    for (const c of cs) {
+      if (vus.has(c.n)) ecart(fichierDe.get(id), c.ligne, `${id} · ${c.n} écrit deux fois : un critère garde son numéro, un nouveau prend le suivant`);
+      vus.add(c.n);
+    }
+    const manquent = trous([...vus]);
+    if (manquent.length) ecart(fichierDe.get(id), cs[0]?.ligne ?? 1, `${id} : critères absents, ${liste(manquent)} ; un critère retiré garde son numéro (« n. ~~texte~~ Retiré : raison. »)`);
+  }
+  const critere = (id, n) => criteres.get(id)?.find((c) => c.n === n);
+  if (!livres) ecart(fichierListe, 1, "tableau « | Fonction | Critères | Livrés par | » introuvable sous « ### 4.1 Les critères livrés »");
+  const inscrits = new Set();
+  for (const l of livres ?? []) {
+    if (l.illisible) { ecart(fichierListe, l.ligne, `ligne du tableau illisible : ${l.illisible}`); continue; }
+    if (inscrits.has(l.id)) ecart(fichierListe, l.ligne, `${l.id} : plusieurs lignes ; une ligne par fonction`);
+    inscrits.add(l.id);
+    if (!criteres.has(l.id)) { ecart(fichierListe, l.ligne, `${l.id} n'est pas une fonction de la SFD`); continue; }
+    const dits = new Set();
+    for (const n of l.criteres) {
+      if (dits.has(n)) { ecart(fichierListe, l.ligne, `${l.id} · ${n} inscrit deux fois`); continue; }
+      dits.add(n);
+      const c = critere(l.id, n);
+      if (!c) { ecart(fichierListe, l.ligne, `${l.id} · ${n} : la SFD n'a pas ce critère (${fichierDe.get(l.id)})`); continue; }
+      if (c.retire) { ecart(fichierListe, l.ligne, `${l.id} · ${n} est retiré (${fichierDe.get(l.id)}:${c.ligne}) : il ne s'inscrit pas`); continue; }
+      const nomment = tests.filter((t) => t.forme && t.id === l.id && t.n === n);
+      if (nomment.some((t) => t.test && !t.ignore)) continue;
+      if (!nomment.length) ecart(fichierListe, l.ligne, `${l.id} · ${n} est inscrit, sans test qui le nomme : une fonction « fn ${nomDe(l.id, n)}_… », marquée #[test]`);
+      else ecart(fichierListe, l.ligne, `${l.id} · ${n} est inscrit, mais ${liste(nomment.map((t) => `${t.fichier}:${t.ligne}`))} le nomme sans être un test qui tourne : #[test], sans #[ignore]`);
+    }
+  }
+  for (const t of tests) {
+    const c = critere(t.id, t.n);
+    if (!t.forme) ecart(t.fichier, t.ligne, `fn ${t.nom} : un nom de test d'après un critère s'écrit « ${nomDe(t.id, t.n)}_… », le code collé à son numéro (§ 70 · 4.1)`);
+    else if (!criteres.has(t.id)) ecart(t.fichier, t.ligne, `fn ${t.nom} nomme ${t.id}, qui n'est pas une fonction de la SFD`);
+    else if (!c) ecart(t.fichier, t.ligne, `fn ${t.nom} nomme ${t.id} · ${t.n}, que la SFD n'a pas (${fichierDe.get(t.id)})`);
+    else if (c.retire) ecart(t.fichier, t.ligne, `fn ${t.nom} nomme ${t.id} · ${t.n}, qui est retiré (${fichierDe.get(t.id)}:${c.ligne})`);
+  }
+  return ecarts;
+}
+
 // La règle de protection réelle de la branche principale, lue sur GitHub.
 async function controlesRequisSurGitHub(depot, branche) {
   const jeton = process.env.GITHUB_TOKEN;
@@ -561,10 +737,12 @@ async function principal() {
   const ecart = (fichier, ligne, message) => ecarts.push({ fichier, ligne, message });
   const avertissements = [];
 
-  const markdown = execFileSync(
-    "git", ["ls-files", "--cached", "--others", "--exclude-standard", "*.md"],
+  // Les fichiers suivis ou à suivre ; -z garde un nom accentué tel quel (sans -z, git le cite).
+  const fichiers = (motif) => execFileSync(
+    "git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard", motif],
     { encoding: "utf8" },
-  ).split("\n").filter((f) => f && existsSync(f) && !GERES.test(f) && !HORS_ETAT.test(f));
+  ).split("\0").filter((f) => f && existsSync(f) && !GERES.test(f));
+  const markdown = fichiers("*.md").filter((f) => !HORS_ETAT.test(f));
   const textes = new Map(markdown.map((f) => [f, lire(f)]));
 
   // 1. Les familles d'identifiants.
@@ -631,8 +809,10 @@ async function principal() {
   const modules = lireModulesSfd(texteSfd);
   if (!modules.length) ecart(indexSfd, 1, "tableau des modules illisible");
   const fonctions = [];
+  const textesModules = new Map();
   for (const m of modules) {
-    const ici = fonctionsDuModule(lire(join("docs/20-sfd", m.fichier)), m.code);
+    textesModules.set(m, lire(join("docs/20-sfd", m.fichier)));
+    const ici = fonctionsDuModule(textesModules.get(m), m.code);
     fonctions.push(...ici);
     if (ici.length !== m.compte) ecart(indexSfd, m.ligne, `${m.code} : ${pluriel(m.compte, "fonction écrite", "fonctions écrites")}, ${pluriel(ici.length, "titre", "titres")} « ### ${m.code}-nn · » dans ${m.fichier}`);
     const r = numeros(ici.map((f) => f.id).join("\n"), new RegExp(`^${m.code}-(\\d{2})$`, "gm"));
@@ -739,6 +919,24 @@ async function principal() {
     }
   }
 
+  // 8. Les critères livrés : la SFD, le tableau du § 70 · 4.1 et les tests Rust qui les nomment.
+  const criteres = new Map();
+  const fichierDe = new Map();
+  for (const [m, texte] of textesModules) {
+    for (const [id, cs] of criteresDuModule(texte, m.code)) {
+      criteres.set(id, cs);
+      fichierDe.set(id, `docs/20-sfd/${m.fichier}`);
+    }
+  }
+  const qualite = "docs/70-qualite-et-verification.md";
+  const sLivres = section(lire(qualite), "### 4.1 Les critères livrés");
+  const livres = sLivres ? lireCriteresLivres(sLivres) : null;
+  const sources = fichiers("*.rs");
+  const codes = modules.map((m) => m.code);
+  const tests = sources.flatMap((f) => fonctionsNommeesCritere(f, lire(f), codes));
+  ecarts.push(...verifierCriteres({ criteres, fichierDe, livres, fichierListe: qualite, tests }));
+  const nLivres = (livres ?? []).reduce((n, l) => n + (l.criteres?.length ?? 0), 0);
+
   // En dernier, l'appel réseau : la règle de protection réelle.
   if (requis) {
     const depot = process.env.GITHUB_REPOSITORY ?? "EdouardZemb/pupitre";
@@ -754,7 +952,7 @@ async function principal() {
 
   for (const a of avertissements) console.log(`AVERTIT — ${a}`);
   for (const e of ecarts) console.log(`REFUSE — ${e.fichier}:${e.ligne} — ${e.message}`);
-  console.log(`Faits recopiés : ${textes.size} fichiers Markdown, ${adrs.length} ADR, ${fonctions.length} fonctions, ${controles.length} portes, ${crates.length} crates ; ${pluriel(ecarts.length, "écart", "écarts")}.`);
+  console.log(`Faits recopiés : ${textes.size} fichiers Markdown, ${adrs.length} ADR, ${fonctions.length} fonctions, ${controles.length} portes, ${crates.length} crates, ${pluriel(nLivres, "critère livré", "critères livrés")} ; ${pluriel(ecarts.length, "écart", "écarts")}.`);
   process.exitCode = ecarts.length ? 1 : 0;
 }
 

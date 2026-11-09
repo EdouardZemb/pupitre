@@ -159,9 +159,9 @@ I17, I18, I28 à I31), 7 et 8 ; M-0001 ; au registre, AM-3, AM-4 et LE-10 ; le p
        prise importée : rien au lot 1, une piste dans `docs/pistes.md`, que la PR de ce plan écrit, sauf si une PR de
        conception amende CAP-06 avant la tranche 4.
     3. La porte due de la décision 20 : chaque critère que le lot livre a un test qui le nomme
-       (`cap_06_7_…`) et en calcule l'exemple (LE-6) ; `verif-faits.mjs` refuse un critère de la liste des critères
-       livrés, écrite au § 70 · 4, sans test qui le nomme ; une PR à part, avant la tranche 1. Aucune porte ne lit
-       le sens de deux phrases : pour le reste, le passage croisé d'AM-2 demeure.
+       (`cap06_7_…`, la forme des tests d'INC-0) et en calcule l'exemple (LE-6) ; `verif-faits.mjs` refuse un
+       critère de la liste des critères livrés, écrite au § 70 · 4, sans test qui le nomme ; une PR à part, avant
+       la tranche 1. Aucune porte ne lit le sens de deux phrases : pour le reste, le passage croisé d'AM-2 demeure.
     4. Le moyen de voir « le même journal du fonds » au contrôle d'installation du § 70 · 7 : la vue du
        fonds montre, à un geste, la liste en lecture seule des messages du journal, avec leurs heures (`—` pour la
        genèse), en tranche 4.
@@ -187,6 +187,10 @@ I17, I18, I28 à I31), 7 et 8 ; M-0001 ; au registre, AM-3, AM-4 et LE-10 ; le p
   dépôt, maquettes et commentaires SVG compris (LE-3).
 - **Chaque écran** qu'une tranche ajoute se mène au clavier, focus visible, avec ses libellés, au vocabulaire du
   glossaire, sert à 200 % (§ 50 · 7), et ses feuilles passent I17 et I18 (`encre_statique.rs`).
+- **Les critères livrés.** Chaque PR qui livre un critère de la SFD en entier l'inscrit au tableau du § 70 · 4.1, et
+  un test le nomme (`cap06_7_…`) et en calcule l'exemple ; `verif-faits.mjs` refuse un critère inscrit sans test qui
+  le nomme (décision 21, question 3). La porte ne voit pas un critère livré que la PR n'inscrit pas : la revue de
+  chaque PR compare le tableau aux critères que la tranche dit livrer.
 
 ---
 
