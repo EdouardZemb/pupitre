@@ -45,7 +45,7 @@ I17, I18, I28 à I31), 7 et 8 ; M-0001 ; au registre, AM-3, AM-4 et LE-10 ; le p
 5. **L'exécution :** une tâche, un agent, une revue ; une ou plusieurs PR par tranche ; la session fusionne quand
    tout est vert (mode `session`), sauf aux étapes 👤.
 6. **Avant la `v0.3.0`, rien n'est installé entre-temps**, chaque tranche laisse l'installateur NSIS en artefact, et
-   l'étiquette est à la maîtrise d'ouvrage. Ce plan le lit ainsi (décision 21, question 1) : aucune installation
+   l'étiquette est à la maîtrise d'ouvrage. Ce plan le lit ainsi (décision 21, question 1, tranchée) : aucune installation
    pour un usage réel, aucune donnée réelle. AM-3, I31 et le § 70 · 7 demandent pourtant l'application installée : 👤
    la maîtrise d'ouvrage installe des essais, sur des fonds d'essai, sous `app.pupitre.etabli` à la fin de la
    tranche 3, où seule une installation montre une fenêtre blanche due à la CSP, et en revue finale ; puis celui de
@@ -151,19 +151,20 @@ I17, I18, I28 à I31), 7 et 8 ; M-0001 ; au registre, AM-3, AM-4 et LE-10 ; le p
     `commandes`, que les droits recopient et qu'I31 compare. La tranche 2 corrige (a) au § 40 · 3 et (c) au
     § 41 · 6 ; (b) se lève par le report écrit du point (4) d'AM-4 ; la tranche 3 corrige (f), la tranche 5 (d) et
     (e).
-21. **Les questions à la maîtrise d'ouvrage**, chacune avec son défaut, *à trancher à la relecture* :
-    1. La lecture du choix 6 (décision 6). Défaut : aucune installation pour un usage réel ; les essais installés
+21. **Les questions à la maîtrise d'ouvrage**, tranchées à la relecture de la PR de ce plan, le 2026-11-09, chacune
+    selon son défaut :
+    1. La lecture du choix 6 (décision 6) : aucune installation pour un usage réel ; les essais installés
        des tranches 3 et 8 ont lieu, sur des fonds d'essai.
     2. La recherche par nom d'origine, que CAP-06 ne prévoit pas, quand CAP-03 dit ce nom souvent la seule clé d'une
-       prise importée. Défaut : rien au lot 1, une piste, sauf si une PR de conception amende CAP-06 avant la
-       tranche 4.
-    3. La porte due de la décision 20. Défaut : chaque critère que le lot livre a un test qui le nomme
+       prise importée : rien au lot 1, une piste dans `docs/pistes.md`, que la PR de ce plan écrit, sauf si une PR de
+       conception amende CAP-06 avant la tranche 4.
+    3. La porte due de la décision 20 : chaque critère que le lot livre a un test qui le nomme
        (`cap_06_7_…`) et en calcule l'exemple (LE-6) ; `verif-faits.mjs` refuse un critère de la liste des critères
        livrés, écrite au § 70 · 4, sans test qui le nomme ; une PR à part, avant la tranche 1. Aucune porte ne lit
        le sens de deux phrases : pour le reste, le passage croisé d'AM-2 demeure.
-    4. Le moyen de voir « le même journal du fonds » au contrôle d'installation du § 70 · 7. Défaut : la vue du
+    4. Le moyen de voir « le même journal du fonds » au contrôle d'installation du § 70 · 7 : la vue du
        fonds montre, à un geste, la liste en lecture seule des messages du journal, avec leurs heures (`—` pour la
-       genèse), en tranche 4 ; sinon, le nombre de ses opérations et le dernier message.
+       genèse), en tranche 4.
 
 ---
 
@@ -335,8 +336,7 @@ l'assemblage, `getrandom` et I30 ; (c) la boîte, la CSP, les droits et I31. **D
   ni résultats, ni leur nombre.
 - La vue du fonds, sans morceaux ni albums : le bandeau, avec la recherche et « Sans nœud · aucune archive » ; la
   boîte ; la page d'un fonds vide (noter) ; un résultat ouvre l'idée ; `/` porte le focus dans la recherche
-  (CAP-07 ; § 50 · 2 et 3.1). *À trancher* (décision 21, question 4) : le journal du fonds en lecture seule, à un
-  geste.
+  (CAP-07 ; § 50 · 2 et 3.1). Le journal du fonds en lecture seule, à un geste (décision 21, question 4).
 
 **Elle dépend des** tranches 2 et 3. **Critères de sortie :** CAP-06 · 7 à 10 et la part « requêtes » de CAP-02 · 5
 (CAP-06 · 8), I09, I13 et I01, dans `verifier` ; la paire de fichiers dans `windows` ; `mutants` sans survivant,
@@ -560,9 +560,8 @@ test, dans la tranche qui possède le code.
 1. **Ce plan.** L'issue « Lot : INC-1, lot 1 · le fonds sur l'établi » s'ouvre sous la milestone « INC-1 · carnet et
    fonds » ; la PR de ce plan l'ajoute dans `.claude/plans/lot1-le-fonds-sur-l-etabli.md`, dit « Refs #24 », porte
    la table de couverture et consigne les contradictions de la décision 20 (`/consigner`). 👤 La maîtrise d'ouvrage
-   la relit et répond aux quatre questions de la décision 21. Si elle retient la porte de la question 3, une PR à
-   part l'écrit avant la tranche 1, et la ligne du registre la nomme ; sinon, la ligne dit pourquoi aucune porte
-   mécanique n'est possible, et la prévention reste celle d'AM-2.
+   la relit et tranche les questions de la décision 21. Elle retient la porte de la question 3 : une PR à part
+   l'écrit avant la tranche 1, et la ligne LE-11 du registre la nomme.
 2. **Chaque tranche, dans l'ordre.** `git fetch`, puis un worktree dans `pupitre.worktrees/<sujet>`. Le plan de
    tranche s'écrit par `superpowers:writing-plans` après deux passages : ce que la tranche livre, croisé avec ce que
    le lot ne contient pas (AM-2) ; chaque règle chiffrée recopiée, calculée sur ses exemples (LE-6). Une session
