@@ -153,6 +153,50 @@ Un critère qui ne peut pas l'être est marqué `[à l'œil]` et dit pourquoi. L
 vérifiable d'un tel critère est automatisée ; seule la partie physique reste à l'œil, et
 aucune ne se cache derrière l'autre.
 
+### 4.1 Les critères livrés
+
+Un critère est livré quand le code le tient en entier et qu'un test le prouve. Chaque critère
+livré a au moins un test Rust qui le **nomme** et qui **en calcule l'exemple** : il rejoue le
+cas même que le critère écrit, et une règle que son exemple dément y casse un test, au lieu de
+passer en silence ([LE-6](registre.md)). Le nom du test suit la forme des tests d'INC-0 : le
+code de la fonction en minuscules, son numéro collé, puis celui du critère ;
+`mic12_1_do_majeur` nomme le critère 1 de
+[MIC-12](20-sfd/22-micro-motif-et-phrase.md#mic-12--parcourir-la-table-de-la-tonalité). Le
+test porte `#[test]`, ou un autre attribut de test, sans `#[ignore]`, même sous `cfg_attr` :
+un test propre à un système se garde par `#[cfg(…)]`. La porte vérifie le nom et les
+attributs ; la revue de la PR vérifie que le test calcule bien l'exemple, et qu'il tourne
+dans un job de la CI.
+
+La PR qui livre un critère en entier l'inscrit dans le tableau ci-dessous, une ligne par
+fonction, par numéros et par plages (« 1, 4, 7 à 10 ») ; « Livrés par » dit l'incrément, et
+le lot s'il y en a un. Un critère qui arrive par parts a un test nommé pour chaque part, et ne
+s'inscrit qu'avec la dernière : REN-04 · 1 a déjà le sien, mais la grille qu'il suppose
+n'arrive qu'en INC-2. La partie vérifiable d'un critère `[à l'œil]` a son test comme les
+autres ; ce qui ne peut pas tourner en CI, un geste à l'œil ou une mesure sur l'appareil de
+référence, se vérifie au [§ 7](#7-les-contrôles-à-lœil-sur-lappareil).
+
+Les numéros des critères sont stables ([SFD, « Identifiants »](20-sfd/README.md#identifiants)) :
+un nouveau critère prend le numéro qui suit le dernier, et un critère retiré garde le sien, son
+texte barré. Une renumérotation, la porte ne la voit pas : la revue d'une PR qui touche des
+critères compare leurs numéros à ceux de `main`.
+
+Le job `documentation` le vérifie, par `verif-faits.mjs`. Il refuse des critères numérotés avec
+un trou ou un doublon, ou une fonction de la SFD dont aucun critère ne se lit ; un critère
+inscrit que la SFD n'a pas, qu'elle a retiré, ou qu'aucun test qui tourne ne nomme ; une
+fonction Rust nommée d'après un critère que la SFD n'a pas ou qu'elle a retiré, ou nommée
+`mic_12_1_…`. Il ne voit pas un critère livré que la PR n'inscrit pas : la revue le voit.
+
+| Fonction | Critères | Livrés par |
+|---|---|---|
+| [MIC-12](20-sfd/22-micro-motif-et-phrase.md#mic-12--parcourir-la-table-de-la-tonalité) | 1 à 4, 9 | INC-0 |
+| [MIC-13](20-sfd/22-micro-motif-et-phrase.md#mic-13--lire-la-palette-dun-accord) | 1 à 3, 5 | INC-0 |
+| [REN-04](20-sfd/28-rendus-encre-impression.md#ren-04--diagrammes-de-manche) | 2 | INC-0 |
+| [REN-08](20-sfd/28-rendus-encre-impression.md#ren-08--diagrammes-de-clavier) | 1 | INC-0 |
+
+Les critères d'INC-0 y sont entrés avec la porte, le 2026-11-09, chacun relu contre son test.
+D'autres tests d'INC-0 nomment un critère dont ils ne tiennent qu'une part
+([pistes](pistes.md)).
+
 ---
 
 ## 5. Le banc d'évaluation des analyseurs
@@ -296,6 +340,10 @@ comparé à sa source ([CONVENTIONS](../CONVENTIONS.md#portes-de-ci)). C'est la 
 
 **Après H07** (2026-11-05) : I14 a son test, dans `stockage` (`tests/captations.rs`,
 `tests/h07.rs`) ; le job `verifier` refuse aussi un `Cargo.lock` en retard sur les `Cargo.toml`.
+
+**Avant le lot 1 d'INC-1** (2026-11-09) : le job `documentation` refuse aussi un critère
+inscrit au [§ 4.1](#41-les-critères-livrés) qu'aucun test ne nomme. C'est la porte due au motif « Une
+spec qui se contredit », relevé trois fois (AM-2, LE-6, [LE-11](registre.md)).
 
 La cinquième famille de garde-fous ([M-0001](modele/decisions/M-0001-ecosysteme-des-applications-personnelles.md)),
 le test d'isolation des chemins de données, n'est pas due en INC-0, qui n'a aucun chemin de

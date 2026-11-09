@@ -33,9 +33,11 @@ jobs:
         run: bash scripts/verif-confidentialite.sh
 
   # Les vérifications de la documentation : chaque lien interne mène quelque part, chaque
-  # diagramme se rend, chaque fait recopié dit la même chose que sa source. Les deux premières
-  # après des diagrammes cassés pendant la refonte d'octobre 2026, la troisième après trois
-  # comptes périmés (AM-1, LE-8, LE-9). Voir CONVENTIONS.md.
+  # diagramme se rend, chaque fait recopié dit la même chose que sa source, et chaque critère
+  # inscrit au § 70 · 4.1 a un test qui le nomme. Les deux premières après des diagrammes
+  # cassés pendant la refonte d'octobre 2026, la troisième après trois comptes périmés (AM-1,
+  # LE-8, LE-9), la dernière après trois constats d'une spec qui se contredit (AM-2, LE-6,
+  # LE-11). Voir CONVENTIONS.md.
   documentation:
     runs-on: ubuntu-latest
     permissions:

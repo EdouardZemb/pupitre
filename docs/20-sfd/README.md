@@ -49,7 +49,11 @@ flowchart TB
 ### Identifiants
 
 Chaque fonction porte un identifiant **stable** `MODULE-nn`, jamais renuméroté. Une
-fonction retirée garde son numéro, barré, avec la raison.
+fonction retirée garde son numéro, barré, avec la raison. Ses critères d'acceptation, de
+même : un nouveau critère prend le numéro qui suit le dernier, et un critère retiré garde le
+sien, son texte barré, avec la raison (`7. ~~texte~~ Retiré : raison.`). Un test nommé
+d'après un critère vise son numéro
+([§ 70 · 4.1](../70-qualite-et-verification.md#41-les-critères-livrés)).
 
 ### Rubriques
 
