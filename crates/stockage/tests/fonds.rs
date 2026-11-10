@@ -7,7 +7,10 @@ mod commun;
 use std::fs;
 
 use automerge::{Automerge, AutomergeError, Change, ObjId, ROOT, ReadDoc, ScalarValue, Value};
-use commun::{HEURE, MESSAGE_DU_GESTE, NAISSANCE, dossier_du_fonds, objet, ouvrir_le_fonds};
+use commun::{
+    HEURE, MESSAGE_DU_GESTE, NAISSANCE, dossier_des_ajouts, dossier_du_fonds, faire_naitre, objet,
+    ouvrir, ouvrir_le_fonds,
+};
 use noyau::donnees::fonds::{
     ETIQUETTES, GENESE, IDEES, IDENTIFIANT, LIGNEE, MESSAGE_DE_LA_GENESE, MESSAGE_DE_LA_NAISSANCE,
     PROPRIETAIRE, TEXTE,
@@ -172,4 +175,63 @@ fn le_fonds_ne_nait_qu_une_fois() {
         ["ajouts", "complet.automerge"],
         "la seconde naissance a laissé un fichier"
     );
+}
+
+#[test]
+fn un_second_fonds_est_refuse() {
+    let chemin = commun::dossier_jetable("fonds-second").join("donnees");
+    let racine = ouvrir(&chemin);
+    let a = faire_naitre(&racine);
+
+    match racine.fonds() {
+        Err(Erreur::FondsDejaOuvert) => {}
+        Err(autre) => panic!("attendu FondsDejaOuvert, rendu {autre:?}"),
+        Ok(_) => panic!("un second Document du fonds s'est ouvert"),
+    }
+    let seconde = racine.faire_naitre_le_fonds(&NAISSANCE, MESSAGE_DU_GESTE, HEURE, |tx| {
+        commun::noter(tx, "idee-2", "Un couplet plus calme")
+    });
+    match seconde {
+        Err(Erreur::FondsDejaOuvert) => {}
+        Err(autre) => panic!("attendu FondsDejaOuvert, rendu {autre:?}"),
+        Ok(_) => panic!("un second Document du fonds est né"),
+    }
+
+    drop(a);
+    assert!(
+        racine.fonds().expect("rouvrir le fonds").is_some(),
+        "le fonds ne se rouvre pas une fois le premier Document lâché"
+    );
+}
+
+#[test]
+fn une_ouverture_qui_echoue_rend_la_garde() {
+    let chemin = commun::dossier_jetable("fonds-garde-rendue").join("donnees");
+    let racine = ouvrir(&chemin);
+    drop(faire_naitre(&racine));
+    let ajouts = dossier_des_ajouts(&chemin);
+    let de_cote = ajouts.with_file_name("ajouts-de-cote");
+    fs::rename(&ajouts, &de_cote).expect("mettre ajouts/ de côté");
+    fs::write(&ajouts, b"un fichier a la place de ajouts/").expect("poser un fichier");
+
+    match racine.fonds() {
+        Err(Erreur::Disque { .. }) => {}
+        Err(autre) => panic!("attendu Disque, rendu {autre:?}"),
+        Ok(_) => panic!("le fonds s'est ouvert sans son dossier ajouts/"),
+    }
+
+    fs::remove_file(&ajouts).expect("ôter le fichier posé à la place de ajouts/");
+    fs::rename(&de_cote, &ajouts).expect("rendre ajouts/");
+    assert!(
+        racine.fonds().expect("rouvrir le fonds").is_some(),
+        "l'ouverture en échec n'a pas rendu la garde"
+    );
+
+    // Une racine des données neuve : `Ok(None)` rend la garde aussi.
+    let neuve = ouvrir(&commun::dossier_jetable("fonds-garde-neuve").join("donnees"));
+    assert!(
+        neuve.fonds().expect("chercher le fonds").is_none(),
+        "une racine des données neuve a un fonds"
+    );
+    drop(faire_naitre(&neuve));
 }
