@@ -1,6 +1,6 @@
 //! La compaction (§ 31 · 2.2) : elle fond les fichiers d'ajout dans un fichier complet neuf, le
-//! relit, puis retire les seuls fichiers d'ajout conformes à leur empreinte et absorbés. Elle a
-//! lieu à l'ouverture, puis dès que les ajouts pèsent plus que le fichier complet.
+//! relit, puis retire les seuls fichiers d'ajout lisibles et absorbés. Elle a lieu à
+//! l'ouverture, puis dès que les ajouts pèsent plus que le fichier complet.
 //!
 //! Le fonds naît d'une idée au texte long, qui ne sert qu'à la naissance : les écritures des
 //! tests sont courtes, et leurs fichiers d'ajout pèsent bien moins que le fichier complet.

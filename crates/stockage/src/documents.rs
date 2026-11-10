@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 
 use automerge::transaction::{CommitOptions, Transactable, Transaction};
 use automerge::{ActorId, Automerge, AutomergeError, Change, ChangeHash, ROOT, ReadDoc};
+use noyau::donnees::acces::Acces;
 use noyau::donnees::compaction::{self, Lu};
 use noyau::donnees::fonds::{GENESE, IDENTIFIANT, LIGNEE, MESSAGE_DE_LA_NAISSANCE, PROPRIETAIRE};
 use synchro::{Copie, Echange};
@@ -161,14 +162,15 @@ impl Document<'_> {
     }
 
     /// § 31 · 2.2 : les octets de `save()`, relus en mémoire par `Automerge::load`, puis écrits
-    /// dans un fichier complet neuf, à côté puis renommé, et relus du disque ; puis les fichiers
-    /// d'ajout que désigne `a_retirer` sont retirés. Un document à relire : `ARelire`, et rien
-    /// ne s'écrit.
+    /// dans un fichier complet neuf par `ecrire_a_cote`, qui relit son voisin du disque avant de
+    /// le renommer ; puis les fichiers d'ajout que désigne `a_retirer` sont retirés. Un document
+    /// à relire : `ARelire`, et rien ne s'écrit.
     ///
     /// Les octets de `save()` qui ne se lisent pas, ou ne mènent pas aux mêmes heads, ne
     /// s'écrivent pas : `CompactionInfidele`, et l'ancien fichier complet garde l'histoire qu'il
-    /// porte seul (« elle ne retire jamais d'histoire »). Écrit, le fichier complet relu du
-    /// disque doit rendre ces mêmes octets ; sinon, rien n'est retiré, et `CompactionInfidele`.
+    /// porte seul (« elle ne retire jamais d'histoire »). Un voisin relu du disque qui ne rend
+    /// pas ces mêmes octets ne prend pas la place : l'erreur du disque se rend, l'ancien fichier
+    /// complet reste en place, et rien n'est retiré.
     pub fn compacter(&mut self) -> Result<(), Erreur> {
         if self.a_relire {
             return Err(Erreur::ARelire);
@@ -182,10 +184,9 @@ impl Document<'_> {
             _ => return Err(Erreur::CompactionInfidele),
         };
         let complet = self.dossier.join("complet.automerge");
+        // Renommé, le fichier complet a rendu, relu du disque, les octets relus plus haut : il
+        // mène aux mêmes heads.
         ecrire_a_cote(&complet, &octets).map_err(|echec| disque_d_un_echec(&complet, echec))?;
-        // Relu du disque, il rend les octets relus plus haut, et mène donc aux mêmes heads ; le
-        // disque en rend d'autres, et rien n'est retiré.
-        let meme_point = fs::read(&complet).map_err(|erreur| disque(&complet, erreur))? == octets;
 
         let ajouts = self.dossier.join("ajouts");
         let mut lus = Vec::new();
@@ -197,16 +198,13 @@ impl Document<'_> {
                     .unwrap_or_default()
                     .to_string_lossy()
                     .into_owned(),
-                conforme: est_conforme(&chemin, &octets),
+                lisible: est_conforme(&chemin, &octets),
                 absorbe: est_absorbe(&relu, &octets),
             });
         }
-        for nom in compaction::a_retirer(meme_point, &lus) {
+        for nom in compaction::a_retirer(&lus) {
             let chemin = ajouts.join(nom);
             fs::remove_file(&chemin).map_err(|erreur| disque(&chemin, erreur))?;
-        }
-        if !meme_point {
-            return Err(Erreur::CompactionInfidele);
         }
         Ok(())
     }
@@ -232,7 +230,11 @@ impl Document<'_> {
         for chemin in &ajouts {
             octets_des_ajouts += poids(chemin)?;
         }
+        // Un document à relire n'écrit pas jusqu'ici : celui-ci écrit, et rien ne tient encore
+        // une compaction due.
         Ok(compaction::apres_une_ecriture(
+            Acces::Entier,
+            false,
             octets_du_complet,
             octets_des_ajouts,
             ajouts.len(),
@@ -261,7 +263,8 @@ pub(crate) fn rouvrir_le_fonds(racine: &RacineDesDonnees) -> Result<Option<Docum
         automerge,
         a_relire: false,
     };
-    if compaction::a_l_ouverture(ajouts, false) {
+    // Chaque fichier lu, le document s'ouvre entier.
+    if compaction::a_l_ouverture(Acces::Entier, ajouts, false) {
         document.compacter()?;
     }
     Ok(Some(document))
