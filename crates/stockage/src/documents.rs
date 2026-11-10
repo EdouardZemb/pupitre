@@ -112,6 +112,27 @@ impl Document<'_> {
     /// la pesée des fichiers ou à la compaction, se tait. Toute autre erreur de la compaction,
     /// `CompactionInfidele`, se rend, l'écriture faite : le format fait défaut, et la retenter
     /// n'y changerait rien.
+    ///
+    /// Aucun message ne se prépare pendant une écriture : `ecrire` tient le document emprunté en
+    /// écriture jusqu'à son retour, et le geste ne peut pas l'emprunter pour l'échange. Le premier
+    /// exemple ne compile pas ; le second, qui prépare le message après l'écriture, compile.
+    ///
+    // § 31 · 10, test 8 : une synchronisation lancée pendant l'écriture ne voit pas l'opération en cours
+    /// ```compile_fail,E0502
+    /// fn pendant(document: &mut stockage::Document<'_>, echange: &mut synchro::Echange) {
+    ///     let _ = document.ecrire("Idée notée", 0, |_tx| {
+    ///         let _ = document.prochain_message(echange);
+    ///         Ok(())
+    ///     });
+    /// }
+    /// ```
+    ///
+    /// ```
+    /// fn apres(document: &mut stockage::Document<'_>, echange: &mut synchro::Echange) {
+    ///     let _ = document.ecrire("Idée notée", 0, |_tx| Ok(()));
+    ///     let _ = document.prochain_message(echange);
+    /// }
+    /// ```
     pub fn ecrire(
         &mut self,
         message: &str,

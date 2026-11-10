@@ -1,7 +1,7 @@
 //! Les fichiers d'ajout (§ 31 · 2.1) : chaque écriture du fonds ajoute un fichier, nommé par
 //! l'empreinte de son contenu, que l'ouverture relit après le fichier complet. Un fichier d'ajout
-//! altéré ou manquant fait refuser l'ouverture, et une écriture qui échoue laisse le document à
-//! relire.
+//! altéré ou manquant fait refuser l'ouverture, et une écriture refusée relit le document du
+//! disque.
 //!
 //! Le fonds naît d'une idée au texte long, qui ne sert qu'à la naissance : les écritures des
 //! tests sont courtes, et leurs fichiers d'ajout pèsent bien moins que le fichier complet.
@@ -12,9 +12,12 @@ use std::fs;
 
 use automerge::{Automerge, AutomergeError, ReadDoc};
 use commun::{
-    HEURE, dossier_des_ajouts, dossier_du_fonds, faire_naitre, lire_le_complet, ouvrir_le_fonds,
+    HEURE, MESSAGE_DU_GESTE, NAISSANCE, dossier_des_ajouts, dossier_du_fonds, faire_naitre,
+    lire_le_complet, ouvrir, ouvrir_le_fonds, porte_l_idee,
 };
-use stockage::{Erreur, RacineDesDonnees, empreinte};
+use stockage::pannes::{Etape, couper};
+use stockage::{Avertissement, Erreur, LectureSeule, RacineDesDonnees, empreinte};
+use synchro::Echange;
 
 #[test]
 fn chaque_ecriture_ajoute_un_fichier_nomme_par_son_empreinte() {
@@ -145,7 +148,7 @@ fn un_geste_refuse_n_ecrit_rien_et_le_document_reste_ouvert() {
     match refus {
         Err(Erreur::Automerge(_)) => {}
         Err(autre) => panic!("attendu le refus du geste, rendu {autre:?}"),
-        Ok(()) => panic!("un geste refusé s'est écrit"),
+        Ok(_) => panic!("un geste refusé s'est écrit"),
     }
     let ajouts = dossier_des_ajouts(racine.chemin());
     assert_eq!(
@@ -308,48 +311,295 @@ fn un_ajout_altere_se_nomme_et_rien_ne_bouge() {
     );
 }
 
+// § 31 · 10, test 8 : relire du disque après une opération refusée, puis une opération
 #[test]
-fn une_ecriture_qui_echoue_laisse_le_document_a_relire() {
-    let d = commun::dossier_jetable("ajouts-a-relire");
-    let chemin = d.join("donnees");
-    let racine = RacineDesDonnees::ouvrir(&chemin).expect("ouvrir la racine des données");
+fn une_ecriture_refusee_relit_le_document_du_disque() {
+    let chemin = commun::dossier_jetable("ajouts-relu-du-disque").join("donnees");
+    let racine = ouvrir(&chemin);
     let mut fonds = faire_naitre(&racine);
-    fonds
-        .ecrire("Étiquette posée", HEURE + 1, |tx| {
-            commun::etiqueter(tx, "idee-1", "refrain")
-        })
-        .expect("la première écriture");
-    let avant = fonds.automerge().get_heads();
-    // `ajouts/` mis de côté, et un fichier à sa place : aucun fichier d'ajout ne s'y écrit.
+    let heads_avant = fonds.automerge().get_heads();
+    let acteur_avant = fonds.automerge().get_actor().clone();
     let ajouts = dossier_des_ajouts(&chemin);
-    let de_cote = d.join("ajouts-mis-de-cote");
-    fs::rename(&ajouts, &de_cote).expect("mettre ajouts/ de côté");
-    fs::write(&ajouts, b"").expect("poser un fichier à la place de ajouts/");
+    let ajouts_avant = commun::entrees(&ajouts);
 
-    let refus = fonds.ecrire("Idée notée", HEURE + 2, |tx| {
-        commun::noter(tx, "idee-2", "Un pont en mineur")
-    });
+    let refus = {
+        let _panne = couper(Etape::Renommage, 1);
+        commun::ecrire(&mut fonds, |tx| {
+            commun::noter(tx, "idee-2", "Un pont en mineur")
+        })
+    };
+
     match refus {
         Err(Erreur::Disque { .. }) => {}
         Err(autre) => panic!("attendu Disque, rendu {autre:?}"),
-        Ok(()) => panic!("le fichier d'ajout s'est écrit sans ajouts/"),
+        Ok(rendu) => panic!("un renommage refusé a laissé l'écriture faite : {rendu:?}"),
     }
-    let suivante = fonds.ecrire("Étiquette posée", HEURE + 3, |tx| {
-        commun::etiqueter(tx, "idee-1", "couplet")
-    });
-    match suivante {
-        Err(Erreur::ARelire) => {}
-        Err(autre) => panic!("attendu ARelire, rendu {autre:?}"),
-        Ok(()) => panic!("un document à relire a écrit"),
-    }
-    drop(fonds);
-
-    fs::remove_file(&ajouts).expect("ôter le fichier posé à la place de ajouts/");
-    fs::rename(&de_cote, &ajouts).expect("rendre ajouts/");
-    let fonds = ouvrir_le_fonds(&racine);
+    assert_eq!(
+        fonds.lecture_seule(),
+        None,
+        "la relecture du disque a mis le document en lecture seule"
+    );
     assert_eq!(
         fonds.automerge().get_heads(),
-        avant,
-        "le fonds rouvert n'a pas les heads d'avant l'écriture refusée"
+        heads_avant,
+        "relu du disque, le document n'a pas les heads d'avant l'écriture refusée"
+    );
+    assert_ne!(
+        fonds.automerge().get_actor(),
+        &acteur_avant,
+        "la relecture du disque n'a pas tiré un acteur neuf"
+    );
+    assert_eq!(
+        commun::entrees(&ajouts),
+        ajouts_avant,
+        "l'écriture refusée a laissé un fichier dans ajouts/"
+    );
+    match racine.fonds() {
+        Err(Erreur::FondsDejaOuvert) => {}
+        Err(autre) => panic!("attendu FondsDejaOuvert, rendu {autre:?}"),
+        Ok(_) => panic!("la relecture du disque a rendu la garde du fonds"),
+    }
+
+    match commun::ecrire(&mut fonds, |tx| {
+        commun::noter(tx, "idee-3", "Une coda en suspens")
+    }) {
+        Ok(None) => {}
+        autre => panic!("attendu l'écriture faite, rendu {autre:?}"),
+    }
+    let nouveaux = commun::nouveaux(&ajouts_avant, &commun::entrees(&ajouts));
+    assert_eq!(
+        nouveaux.len(),
+        1,
+        "une écriture, un fichier d'ajout : {nouveaux:?}"
+    );
+    let ajout = fs::read(ajouts.join(&nouveaux[0])).expect("lire le fichier d'ajout");
+    assert!(
+        ajout == fonds.automerge().save_after(&heads_avant),
+        "le fichier d'ajout n'est pas save_after des heads d'avant l'écriture refusée"
+    );
+    assert_eq!(
+        fonds.automerge().get_changes(&heads_avant).len(),
+        1,
+        "la mémoire porte encore l'écriture refusée"
+    );
+}
+
+// § 31 · 10, test 8 : interrompre à chaque étape, puis rouvrir
+#[test]
+fn une_ecriture_coupee_a_chaque_etape() {
+    // Avant la fin du renommage : refusée, sans voisin qui reste, et le fonds rouvert a les heads
+    // d'avant.
+    for (i, etape) in [
+        Etape::VoisinEcrit,
+        Etape::SyncAll,
+        Etape::Relecture,
+        Etape::Renommage,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let chemin = commun::dossier_jetable(&format!("ajouts-coupee-{i}")).join("donnees");
+        let racine = ouvrir(&chemin);
+        let mut fonds = faire_naitre(&racine);
+        let avant = fonds.automerge().get_heads();
+
+        let rendu = {
+            let _panne = couper(etape, 1);
+            commun::ecrire(&mut fonds, |tx| {
+                commun::noter(tx, "idee-2", "Un pont en mineur")
+            })
+        };
+
+        assert!(
+            matches!(rendu, Err(Erreur::Disque { .. })),
+            "{etape:?} : rendu {rendu:?}"
+        );
+        let restes = commun::entrees(&dossier_des_ajouts(&chemin));
+        assert!(
+            restes.iter().all(|nom| !nom.ends_with(".partiel")),
+            "{etape:?} : un .partiel reste dans ajouts/ : {restes:?}"
+        );
+        drop(fonds);
+        let fonds = ouvrir_le_fonds(&racine);
+        assert_eq!(
+            fonds.automerge().get_heads(),
+            avant,
+            "{etape:?} : le fonds rouvert n'a pas les heads d'avant l'écriture refusée"
+        );
+    }
+
+    // Après le renommage : faite, avec un avertissement ; le fichier d'ajout est en place, et le
+    // fonds rouvert porte l'idée.
+    let chemin = commun::dossier_jetable("ajouts-coupee-rendre-durable").join("donnees");
+    let racine = ouvrir(&chemin);
+    let mut fonds = faire_naitre(&racine);
+    let ajouts = dossier_des_ajouts(&chemin);
+
+    let rendu = {
+        let _panne = couper(Etape::RendreDurable, 1);
+        commun::ecrire(&mut fonds, |tx| {
+            commun::noter(tx, "idee-2", "Un pont en mineur")
+        })
+    };
+
+    match rendu {
+        Ok(Some(Avertissement::NonDurable { chemin: ajout, .. })) => {
+            assert_eq!(
+                ajout.parent(),
+                Some(ajouts.as_path()),
+                "RendreDurable : l'avertissement ne nomme pas un fichier d'ajout : {}",
+                ajout.display()
+            );
+            assert!(
+                ajout.is_file(),
+                "RendreDurable : le fichier d'ajout n'est pas en place"
+            );
+        }
+        autre => panic!("RendreDurable : attendu NonDurable, rendu {autre:?}"),
+    }
+    drop(fonds);
+    let fonds = ouvrir_le_fonds(&racine);
+    assert!(
+        porte_l_idee(fonds.automerge(), "idee-2"),
+        "RendreDurable : le fonds rouvert ne porte pas l'idée écrite"
+    );
+}
+
+#[test]
+fn une_relecture_qui_echoue_met_le_document_en_lecture_seule() {
+    let chemin = commun::dossier_jetable("ajouts-relecture-manquee").join("donnees");
+    let racine = ouvrir(&chemin);
+    let mut fonds = faire_naitre(&racine);
+    let heads_avant = fonds.automerge().get_heads();
+
+    // La première relecture est celle du voisin, la seconde celle du fichier complet, quand le
+    // document se relit du disque.
+    let refus = {
+        let _renommage = couper(Etape::Renommage, 1);
+        let _relecture = couper(Etape::Relecture, 2);
+        commun::ecrire(&mut fonds, |tx| {
+            commun::noter(tx, "idee-2", "Un pont en mineur")
+        })
+    };
+
+    match refus {
+        Err(Erreur::Disque { .. }) => {}
+        Err(autre) => panic!("attendu Disque, rendu {autre:?}"),
+        Ok(rendu) => panic!("un renommage refusé a laissé l'écriture faite : {rendu:?}"),
+    }
+    let complet = dossier_du_fonds(&chemin).join("complet.automerge");
+    assert_eq!(
+        fonds.lecture_seule(),
+        Some(&LectureSeule::RelectureManquee { chemin: complet }),
+        "la relecture manquée ne met pas le document en lecture seule sur le fichier complet"
+    );
+    assert!(
+        !porte_l_idee(fonds.automerge(), "idee-2"),
+        "la mémoire montre l'écriture refusée"
+    );
+    assert_eq!(
+        fonds.automerge().get_heads(),
+        heads_avant,
+        "la mémoire n'a pas les heads d'avant l'écriture refusée"
+    );
+
+    match commun::ecrire(&mut fonds, |tx| {
+        commun::noter(tx, "idee-3", "Une coda en suspens")
+    }) {
+        Err(Erreur::LectureSeule(LectureSeule::RelectureManquee { .. })) => {}
+        autre => panic!("attendu LectureSeule à l'écriture, rendu {autre:?}"),
+    }
+    match fonds.compacter() {
+        Err(Erreur::LectureSeule(LectureSeule::RelectureManquee { .. })) => {}
+        autre => panic!("attendu LectureSeule à la compaction, rendu {autre:?}"),
+    }
+    let copie = fonds.copie().expect("la copie du fonds");
+    let mut echange = Echange::ouvrir(&copie, &copie).expect("ouvrir l'échange");
+    assert_eq!(
+        fonds.prochain_message(&mut echange),
+        None,
+        "un document en lecture seule a envoyé un message"
+    );
+    let mut de_l_autre =
+        Echange::ouvrir(&copie, &copie).expect("ouvrir l'échange de l'autre copie");
+    let message = de_l_autre
+        .prochain_message(fonds.automerge())
+        .expect("le message de l'autre copie");
+    match fonds.recevoir(&mut echange, &message) {
+        Err(Erreur::LectureSeule(_)) => {}
+        autre => panic!("attendu LectureSeule à la réception, rendu {autre:?}"),
+    }
+    racine
+        .captations()
+        .verser(&commun::octets(3, 100))
+        .expect("une captation se verse toujours");
+    drop(fonds);
+
+    let fonds = ouvrir_le_fonds(&racine);
+    assert_eq!(
+        fonds.lecture_seule(),
+        None,
+        "rouvert sans panne, le fonds est en lecture seule"
+    );
+    assert!(
+        !porte_l_idee(fonds.automerge(), "idee-2"),
+        "le fonds rouvert porte l'écriture refusée"
+    );
+}
+
+// § 31 · 10, test 8 : une opération dite faite ne manque pas
+#[test]
+fn un_rendre_durable_refuse_apres_le_renommage_laisse_l_operation_faite() {
+    let chemin = commun::dossier_jetable("ajouts-non-durable").join("donnees");
+    let racine = ouvrir(&chemin);
+    let mut fonds = faire_naitre(&racine);
+    let ajouts = dossier_des_ajouts(&chemin);
+
+    let rendu = {
+        let _panne = couper(Etape::RendreDurable, 1);
+        commun::ecrire(&mut fonds, |tx| {
+            commun::noter(tx, "idee-2", "Un pont en mineur")
+        })
+    };
+
+    match rendu {
+        Ok(Some(Avertissement::NonDurable { chemin: ajout, .. })) => assert_eq!(
+            ajout.parent(),
+            Some(ajouts.as_path()),
+            "l'avertissement ne nomme pas un fichier d'ajout : {}",
+            ajout.display()
+        ),
+        autre => panic!("attendu NonDurable, rendu {autre:?}"),
+    }
+    drop(fonds);
+    let fonds = ouvrir_le_fonds(&racine);
+    assert!(
+        porte_l_idee(fonds.automerge(), "idee-2"),
+        "le fonds rouvert ne porte pas l'opération dite faite"
+    );
+    drop(fonds);
+
+    // La naissance : le fichier complet en place, son renommage non rendu durable.
+    let neuve = ouvrir(&commun::dossier_jetable("ajouts-naissance-non-durable").join("donnees"));
+    let nee = {
+        let _panne = couper(Etape::RendreDurable, 1);
+        neuve.faire_naitre_le_fonds(&NAISSANCE, MESSAGE_DU_GESTE, HEURE, |tx| {
+            commun::noter(tx, "idee-1", "Un refrain qui monte")
+        })
+    };
+
+    let document = nee.expect("la naissance est faite, avec un avertissement");
+    let complet = dossier_du_fonds(neuve.chemin()).join("complet.automerge");
+    match document.avertissements() {
+        [Avertissement::NonDurable { chemin, .. }] => assert_eq!(
+            chemin, &complet,
+            "l'avertissement de la naissance ne nomme pas le fichier complet"
+        ),
+        autres => panic!("attendu un seul NonDurable, rendu {autres:?}"),
+    }
+    drop(document);
+    assert!(
+        neuve.fonds().expect("rouvrir le fonds").is_some(),
+        "le fonds né sans renommage durable ne se rouvre pas"
     );
 }

@@ -15,6 +15,7 @@ use noyau::donnees::fonds::{
     ETIQUETTES, GENESE, IDEES, IDENTIFIANT, LIGNEE, MESSAGE_DE_LA_GENESE, MESSAGE_DE_LA_NAISSANCE,
     PROPRIETAIRE, TEXTE,
 };
+use stockage::pannes::{Etape, couper};
 use stockage::{Erreur, RacineDesDonnees};
 
 /// La valeur simple que porte la clé `cle` de `objet`.
@@ -234,4 +235,45 @@ fn une_ouverture_qui_echoue_rend_la_garde() {
         "une racine des données neuve a un fonds"
     );
     drop(faire_naitre(&neuve));
+}
+
+#[test]
+fn une_naissance_refusee_avant_le_renommage_laisse_pupitre_neuf() {
+    let racine = ouvrir(&commun::dossier_jetable("fonds-naissance-refusee").join("donnees"));
+
+    // Le premier renommage de la naissance est celui du fichier complet.
+    let refus = {
+        let _panne = couper(Etape::Renommage, 1);
+        racine.faire_naitre_le_fonds(&NAISSANCE, MESSAGE_DU_GESTE, HEURE, |tx| {
+            commun::noter(tx, "idee-1", "Un refrain qui monte")
+        })
+    };
+
+    match refus {
+        Err(Erreur::Disque { .. }) => {}
+        Err(autre) => panic!("attendu Disque, rendu {autre:?}"),
+        Ok(_) => panic!("le fonds est né sans que son fichier complet soit renommé"),
+    }
+    let dossier = dossier_du_fonds(racine.chemin());
+    assert_eq!(
+        commun::entrees(&dossier),
+        ["ajouts"],
+        "documents/fonds/ ne porte pas que ajouts/"
+    );
+    assert_eq!(
+        commun::entrees(&dossier.join("ajouts")),
+        Vec::<String>::new(),
+        "ajouts/ n'est pas vide"
+    );
+    match racine.fonds() {
+        Ok(None) => {}
+        Ok(Some(_)) => panic!("une naissance refusée a fait naître le fonds"),
+        Err(autre) => panic!("attendu aucun fonds, la garde rendue ; rendu {autre:?}"),
+    }
+
+    racine
+        .faire_naitre_le_fonds(&NAISSANCE, MESSAGE_DU_GESTE, HEURE, |tx| {
+            commun::noter(tx, "idee-1", "Un refrain qui monte")
+        })
+        .expect("la seconde naissance, sans panne");
 }

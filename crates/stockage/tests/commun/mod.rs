@@ -2,9 +2,10 @@
 //! des tests, le dossier jetable de chaque test, ce que contient un dossier et l'empreinte de
 //! chacun de ses fichiers, des octets engendrés au lieu d'un fichier, un texte long, la copie
 //! d'un arbre de fichiers, l'ouverture de la racine des données et du fonds, la naissance du
-//! fonds et ses deux copies, l'écriture des tests, les chemins du fonds et des captations, la
-//! réunion de deux copies, la relecture du dossier du fonds, l'objet à clés que porte une clé,
-//! et les gestes de test sur le fonds.
+//! fonds et ses deux copies, l'écriture des tests, les chemins du fonds et des captations, les
+//! échanges de deux copies et leur réunion, la relecture du dossier du fonds, l'objet à clés que
+//! porte une clé, l'idée que porte le fonds, les noms nouveaux d'un dossier, et les gestes de
+//! test sur le fonds.
 
 // Chaque fichier de test n'emploie qu'une partie des aides.
 #![allow(dead_code)]
@@ -15,9 +16,9 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use automerge::transaction::{Transactable, Transaction};
-use automerge::{Automerge, AutomergeError, ObjId, ObjType, ROOT, ReadDoc, Value};
+use automerge::{Automerge, AutomergeError, ChangeHash, ObjId, ObjType, ROOT, ReadDoc, Value};
 use noyau::donnees::fonds::{ETIQUETTES, FORMAT, IDEE, IDEES, PRISES, TEXTE};
-use stockage::{Document, Erreur, Naissance, RacineDesDonnees, empreinte};
+use stockage::{Avertissement, Document, Erreur, Naissance, RacineDesDonnees, empreinte};
 use synchro::Echange;
 
 /// La naissance des tests : des identifiants écrits, jamais tirés.
@@ -186,14 +187,15 @@ pub fn deux_copies(nom: &str) -> (PathBuf, PathBuf) {
 
 /// Le chemin d'écriture des tests nouveaux du stockage : quand l'écriture changera de forme, il
 /// changera seul. Les tests d'H07 écrivent par `Document::ecrire`. Écrit
-/// `geste` dans `document`, sous le message `MESSAGE_DU_GESTE`, à l'heure `HEURE`.
+/// `geste` dans `document`, sous le message `MESSAGE_DU_GESTE`, à l'heure `HEURE`, et rend ce
+/// que rend l'écriture : faite (`None`), faite avec un avertissement, ou refusée.
 // L'erreur est celle de `Document::ecrire`, que l'aide rend telle quelle. Clippy épargne la
 // méthode, exportée par le stockage, mais pas l'aide, qui ne l'est pas.
 #[allow(clippy::result_large_err)]
 pub fn ecrire(
     document: &mut Document<'_>,
     geste: impl FnOnce(&mut Transaction<'_>) -> Result<(), AutomergeError>,
-) -> Result<(), Erreur> {
+) -> Result<Option<Avertissement>, Erreur> {
     document.ecrire(MESSAGE_DU_GESTE, HEURE, geste)
 }
 
@@ -226,23 +228,50 @@ pub fn rangee(racine_des_donnees: &Path, e: &str) -> PathBuf {
     racine_des_donnees.join("captations").join(&e[..2]).join(e)
 }
 
+/// Les échanges de deux copies, vus de chacune : celui d'`a` avec `b`, puis celui de `b` avec `a`.
+pub fn ouvrir_les_echanges(a: &Document<'_>, b: &Document<'_>) -> (Echange, Echange) {
+    let copie_a = a.copie().expect("la copie d'A");
+    let copie_b = b.copie().expect("la copie de B");
+    let ea = Echange::ouvrir(&copie_a, &copie_b).expect("ouvrir l'échange d'A");
+    let eb = Echange::ouvrir(&copie_b, &copie_a).expect("ouvrir l'échange de B");
+    (ea, eb)
+}
+
 /// Réunit deux copies sans réseau : chacune envoie tant qu'elle a à dire, en octets, comme le
 /// fera le transport du lot 3. Rend le nombre de messages ; au-delà de mille, la réunion ne
 /// s'achève pas, et c'est un échec.
 pub fn reunir(a: &mut Document<'_>, b: &mut Document<'_>) -> usize {
-    let mut ea = Echange::ouvrir(&a.copie().unwrap(), &b.copie().unwrap()).unwrap();
-    let mut eb = Echange::ouvrir(&b.copie().unwrap(), &a.copie().unwrap()).unwrap();
+    let (mut ea, mut eb) = ouvrir_les_echanges(a, b);
+    reunir_en_suivant_a(a, &mut ea, b, &mut eb, |_, _, rendu| {
+        rendu.expect("A reçoit le message de B");
+    })
+}
+
+/// La réunion de `reunir`, sur les échanges `ea` d'`a` et `eb` de `b`, qui suit chaque réception
+/// d'`a` : `recue` la reçoit, avec `a` après la réception, ses heads d'avant et ce que la
+/// réception a rendu, et la réunion continue quoi qu'elle ait rendu. Chaque réception de `b` doit
+/// réussir. Rend le nombre de messages ; au-delà de mille, la réunion ne s'achève pas, et c'est
+/// un échec.
+pub fn reunir_en_suivant_a(
+    a: &mut Document<'_>,
+    ea: &mut Echange,
+    b: &mut Document<'_>,
+    eb: &mut Echange,
+    mut recue: impl FnMut(&Document<'_>, &[ChangeHash], Result<Option<Avertissement>, Erreur>),
+) -> usize {
     let mut n = 0;
     loop {
-        let de_a = a.prochain_message(&mut ea);
+        let de_a = a.prochain_message(ea);
         if let Some(m) = &de_a {
-            b.recevoir(&mut eb, m).unwrap();
+            b.recevoir(eb, m).expect("B reçoit le message d'A");
             n += 1;
         }
-        let de_b = b.prochain_message(&mut eb);
+        let de_b = b.prochain_message(eb);
         if let Some(m) = &de_b {
-            a.recevoir(&mut ea, m).unwrap();
+            let heads_d_avant = a.automerge().get_heads();
+            let rendu = a.recevoir(ea, m);
             n += 1;
+            recue(a, &heads_d_avant, rendu);
         }
         if de_a.is_none() && de_b.is_none() {
             return n;
@@ -282,6 +311,22 @@ pub fn objet(doc: &Automerge, parent: &ObjId, cle: &str) -> ObjId {
         Some((Value::Object(ObjType::Map), objet)) => objet,
         autre => panic!("{cle} ne porte pas un objet à clés : {autre:?}"),
     }
+}
+
+/// Les idées de `doc` portent l'idée `idee`.
+pub fn porte_l_idee(doc: &Automerge, idee: &str) -> bool {
+    doc.get(objet(doc, &ROOT, IDEES), idee)
+        .expect("lire les idées")
+        .is_some()
+}
+
+/// Les noms de `apres` qui ne sont pas dans `avant`, dans l'ordre : ce qu'un dossier a gagné.
+pub fn nouveaux(avant: &[String], apres: &[String]) -> Vec<String> {
+    apres
+        .iter()
+        .filter(|nom| !avant.contains(nom))
+        .cloned()
+        .collect()
 }
 
 // Les gestes de test, qu'appellent les fermetures `geste` : les opérations nommées arrivent au

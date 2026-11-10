@@ -11,11 +11,12 @@ use std::fs;
 
 use automerge::{Automerge, Change};
 use commun::{
-    HEURE, MESSAGE_DU_GESTE, dossier_des_ajouts, dossier_du_fonds, faire_naitre, lire_le_complet,
-    ouvrir_le_fonds, poids,
+    HEURE, MESSAGE_DU_GESTE, NAISSANCE, dossier_des_ajouts, dossier_du_fonds, faire_naitre,
+    lire_le_complet, ouvrir, ouvrir_le_fonds, poids, porte_l_idee, texte_long,
 };
 use noyau::donnees::fonds::{GENESE, MESSAGE_DE_LA_GENESE, MESSAGE_DE_LA_NAISSANCE};
-use stockage::{Erreur, RacineDesDonnees};
+use stockage::pannes::{Etape, couper};
+use stockage::{Avertissement, Erreur, RacineDesDonnees};
 
 #[test]
 fn rouvrir_compacte_les_ajouts() {
@@ -228,5 +229,63 @@ fn la_compaction_garde_un_ajout_altere() {
         }
         Err(autre) => panic!("attendu AjoutAltere, rendu {autre:?}"),
         Ok(_) => panic!("le fonds s'est ouvert sur un fichier d'ajout altéré"),
+    }
+}
+
+#[test]
+fn une_compaction_qui_echoue_apres_une_ecriture_ne_la_defait_pas() {
+    let chemin = commun::dossier_jetable("compaction-apres-une-ecriture").join("donnees");
+    let racine = ouvrir(&chemin);
+    let mut fonds = racine
+        .faire_naitre_le_fonds(&NAISSANCE, MESSAGE_DU_GESTE, HEURE, |tx| {
+            commun::noter(tx, "idee-1", "Un refrain qui monte")
+        })
+        .expect("faire naître le fonds");
+    let ajouts = dossier_des_ajouts(&chemin);
+
+    let rendu = {
+        let _panne = couper(Etape::Save, 1);
+        commun::ecrire(&mut fonds, |tx| commun::noter(tx, "idee-2", &texte_long()))
+    };
+
+    assert!(
+        matches!(
+            rendu,
+            Ok(Some(Avertissement::Compaction(Erreur::CompactionInfidele)))
+        ),
+        "attendu l'écriture faite, avec la compaction infidèle en avertissement ; rendu {rendu:?}"
+    );
+    let noms = commun::entrees(&ajouts);
+    assert_eq!(
+        noms.len(),
+        1,
+        "l'écriture n'a pas laissé son seul fichier d'ajout : {noms:?}"
+    );
+    let du_complet = poids(&dossier_du_fonds(&chemin).join("complet.automerge"));
+    let de_l_ajout = poids(&ajouts.join(&noms[0]));
+    assert!(
+        de_l_ajout > du_complet,
+        "le fichier d'ajout pèse {de_l_ajout} octets, le fichier complet {du_complet} : rien ne \
+         demandait de compacter"
+    );
+
+    let suivante = commun::ecrire(&mut fonds, |tx| commun::etiqueter(tx, "idee-1", "refrain"));
+    assert!(
+        matches!(suivante, Ok(None)),
+        "attendu l'écriture suivante faite ; rendu {suivante:?}"
+    );
+    assert_eq!(
+        commun::entrees(&ajouts),
+        Vec::<String>::new(),
+        "la compaction retentée a laissé un fichier d'ajout"
+    );
+    drop(fonds);
+
+    let fonds = ouvrir_le_fonds(&racine);
+    for idee in ["idee-1", "idee-2"] {
+        assert!(
+            porte_l_idee(fonds.automerge(), idee),
+            "le fonds rouvert ne porte pas {idee}"
+        );
     }
 }
