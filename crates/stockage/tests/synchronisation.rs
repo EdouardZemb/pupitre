@@ -11,46 +11,13 @@
 
 mod commun;
 
-use std::fs;
-use std::path::Path;
-
-use automerge::ChangeHash;
 use commun::{
     HEURE, NAISSANCE, deux_copies, dossier_des_ajouts, dossier_du_fonds, faire_naitre, ouvrir,
     ouvrir_le_fonds, porte_l_idee,
 };
 use stockage::pannes::{Etape, couper};
-use stockage::{Avertissement, Document, Erreur, RacineDesDonnees, empreinte};
+use stockage::{Avertissement, Erreur, RacineDesDonnees};
 use synchro::{Copie, Echange};
-
-/// Le fichier d'ajout qu'une réception d'`a` a écrit dans `ajouts`, que la réception a fait
-/// passer des noms `avant` aux noms `apres` : un seul fichier de plus, nommé par l'empreinte de son
-/// contenu, qui vaut `save_after` des heads `heads_d_avant` d'`a`, celles d'avant la réception.
-fn constater_l_ajout_recu(
-    a: &Document<'_>,
-    heads_d_avant: &[ChangeHash],
-    ajouts: &Path,
-    avant: &[String],
-    apres: &[String],
-) {
-    assert_eq!(
-        apres.len(),
-        avant.len() + 1,
-        "la réception n'a pas ajouté un seul fichier : {avant:?}, puis {apres:?}"
-    );
-    let nouveaux = commun::nouveaux(avant, apres);
-    assert_eq!(nouveaux.len(), 1, "un seul fichier nouveau : {nouveaux:?}");
-    let contenu = fs::read(ajouts.join(&nouveaux[0])).expect("lire le fichier d'ajout reçu");
-    assert_eq!(
-        nouveaux[0],
-        format!("{}.automerge", empreinte(&contenu)),
-        "le nom du fichier d'ajout reçu n'est pas l'empreinte de son contenu"
-    );
-    assert!(
-        contenu == a.automerge().save_after(heads_d_avant),
-        "le fichier d'ajout reçu n'est pas save_after des heads d'avant la réception"
-    );
-}
 
 #[test]
 fn la_copie_se_lit_a_la_racine_du_document() {
@@ -97,7 +64,10 @@ fn ce_qui_est_recu_se_relit_du_disque() {
         &mut b,
         &mut eb,
         |a, heads_d_avant, rendu| {
-            rendu.expect("A reçoit le message de B");
+            assert!(
+                matches!(rendu, Ok(None)),
+                "A reçoit le message de B, sans avertissement : rendu {rendu:?}"
+            );
             recues += 1;
             assert_eq!(
                 commun::relire_le_dossier_du_fonds(&chemin_a).get_heads(),
@@ -107,7 +77,13 @@ fn ce_qui_est_recu_se_relit_du_disque() {
             let ajouts = commun::entrees(&ajouts_a);
             if !heads_changees && a.automerge().get_heads() != heads_d_avant {
                 heads_changees = true;
-                constater_l_ajout_recu(a, heads_d_avant, &ajouts_a, &ajouts_d_avant, &ajouts);
+                commun::constater_un_ajout(
+                    a.automerge(),
+                    heads_d_avant,
+                    &ajouts_a,
+                    &ajouts_d_avant,
+                    &ajouts,
+                );
             }
             ajouts_d_avant = ajouts;
         },
@@ -208,8 +184,8 @@ fn une_reception_refusee_en_chemin_ecrit_ce_qui_a_change() {
                                 heads_d_avant,
                                 "la réception refusée n'a pas changé les heads d'A"
                             );
-                            constater_l_ajout_recu(
-                                a,
+                            commun::constater_un_ajout(
+                                a.automerge(),
                                 heads_d_avant,
                                 &ajouts_a,
                                 &ajouts_d_avant,
@@ -335,8 +311,8 @@ fn une_reception_refusee_relit_le_document_et_l_echange_reprend() {
                             refusees > 0,
                             "une réception a changé les heads d'A avant celle que le disque refuse"
                         );
-                        constater_l_ajout_recu(
-                            a,
+                        commun::constater_un_ajout(
+                            a.automerge(),
                             heads_d_avant,
                             &ajouts_a,
                             &ajouts_d_avant,

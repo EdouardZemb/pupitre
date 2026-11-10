@@ -295,7 +295,7 @@ impl Document<'_> {
     /// La compaction qui suit une écriture faite, quand `apres_une_ecriture` la dit. Une pesée
     /// des fichiers qui échoue la rend due, comme une compaction qui échoue.
     fn compacter_apres_une_ecriture(&mut self) -> Result<(), Erreur> {
-        match self.a_compacter_apres_une_ecriture() {
+        match self.faut_il_compacter() {
             Ok(true) => self.compacter(),
             Ok(false) => Ok(()),
             Err(erreur) => {
@@ -303,6 +303,25 @@ impl Document<'_> {
                 Err(erreur)
             }
         }
+    }
+
+    /// Ce que dit `apres_une_ecriture` de l'accès du document, de sa compaction due et des
+    /// fichiers sur le disque : le poids du fichier complet, le poids et le nombre des fichiers
+    /// d'ajout.
+    fn faut_il_compacter(&self) -> Result<bool, Erreur> {
+        let octets_du_complet = poids(&self.dossier.join("complet.automerge"))?;
+        let ajouts = fichiers_d_ajout(&self.dossier.join("ajouts"))?;
+        let mut octets_des_ajouts = 0;
+        for chemin in &ajouts {
+            octets_des_ajouts += poids(chemin)?;
+        }
+        Ok(compaction::apres_une_ecriture(
+            self.acces(),
+            self.compaction_due,
+            octets_du_complet,
+            octets_des_ajouts,
+            ajouts.len(),
+        ))
     }
 
     /// § 31 · 2.1 : après une écriture refusée, la mémoire se relit du disque
@@ -342,7 +361,7 @@ impl Document<'_> {
     /// `Erreur::LectureSeule`, avec sa raison, quand l'accès du document ne permet pas `permis`.
     fn exiger(&self, permis: impl FnOnce(Acces) -> bool) -> Result<(), Erreur> {
         match &self.lecture_seule {
-            Some(raison) if !permis(raison.acces()) => Err(Erreur::LectureSeule(raison.clone())),
+            Some(raison) if !permis(self.acces()) => Err(Erreur::LectureSeule(raison.clone())),
             _ => Ok(()),
         }
     }
@@ -357,25 +376,6 @@ impl Document<'_> {
         valeur
             .into_string()
             .map_err(|_| Erreur::ChampAbsent { champ })
-    }
-
-    /// Ce que dit `apres_une_ecriture` de l'accès du document, de sa compaction due et des
-    /// fichiers sur le disque : le poids du fichier complet, le poids et le nombre des fichiers
-    /// d'ajout.
-    fn a_compacter_apres_une_ecriture(&self) -> Result<bool, Erreur> {
-        let octets_du_complet = poids(&self.dossier.join("complet.automerge"))?;
-        let ajouts = fichiers_d_ajout(&self.dossier.join("ajouts"))?;
-        let mut octets_des_ajouts = 0;
-        for chemin in &ajouts {
-            octets_des_ajouts += poids(chemin)?;
-        }
-        Ok(compaction::apres_une_ecriture(
-            self.acces(),
-            self.compaction_due,
-            octets_du_complet,
-            octets_des_ajouts,
-            ajouts.len(),
-        ))
     }
 }
 

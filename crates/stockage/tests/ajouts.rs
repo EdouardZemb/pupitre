@@ -250,20 +250,7 @@ fn chaque_ouverture_tire_un_acteur_neuf() {
         "l'écriture d'avant et celle d'après la réouverture ont le même acteur"
     );
 
-    let nouveaux: Vec<String> = commun::entrees(&ajouts)
-        .into_iter()
-        .filter(|nom| !deja.contains(nom))
-        .collect();
-    assert_eq!(
-        nouveaux.len(),
-        1,
-        "une écriture, un fichier d'ajout : {nouveaux:?}"
-    );
-    let ajout = fs::read(ajouts.join(&nouveaux[0])).expect("lire le fichier d'ajout");
-    assert!(
-        ajout == doc.save_after(&avant),
-        "le fichier d'ajout n'est pas save_after des heads d'avant l'écriture"
-    );
+    let ajout = commun::constater_un_ajout(doc, &avant, &ajouts, &deja, &commun::entrees(&ajouts));
     let complet = lire_le_complet(&chemin);
     assert!(
         4 * ajout.len() < complet.len(),
@@ -344,6 +331,8 @@ fn une_ecriture_refusee_relit_le_document_du_disque() {
         heads_avant,
         "relu du disque, le document n'a pas les heads d'avant l'écriture refusée"
     );
+    // La mémoire relue a un autre acteur qu'avant : `Automerge::load` en tire un, et
+    // `documents.rs` en tire un explicitement aussi.
     assert_ne!(
         fonds.automerge().get_actor(),
         &acteur_avant,
@@ -366,16 +355,12 @@ fn une_ecriture_refusee_relit_le_document_du_disque() {
         Ok(None) => {}
         autre => panic!("attendu l'écriture faite, rendu {autre:?}"),
     }
-    let nouveaux = commun::nouveaux(&ajouts_avant, &commun::entrees(&ajouts));
-    assert_eq!(
-        nouveaux.len(),
-        1,
-        "une écriture, un fichier d'ajout : {nouveaux:?}"
-    );
-    let ajout = fs::read(ajouts.join(&nouveaux[0])).expect("lire le fichier d'ajout");
-    assert!(
-        ajout == fonds.automerge().save_after(&heads_avant),
-        "le fichier d'ajout n'est pas save_after des heads d'avant l'écriture refusée"
+    commun::constater_un_ajout(
+        fonds.automerge(),
+        &heads_avant,
+        &ajouts,
+        &ajouts_avant,
+        &commun::entrees(&ajouts),
     );
     assert_eq!(
         fonds.automerge().get_changes(&heads_avant).len(),

@@ -34,7 +34,9 @@ pub enum Etape {
     Retrait,
     /// Après une réception qui a changé les heads du document, avant d'écrire ce qu'elle a
     /// apporté : en échec, la réception est refusée (`synchro::Erreur::Automerge`), ce qu'elle a
-    /// apporté écrit.
+    /// apporté écrit. L'étape ne passe, et une panne `Reception` armée ne compte ce passage, que
+    /// si les heads ont changé, y compris sur une réception que `synchro` a déjà refusée : une
+    /// panne qui tombe sur celle-ci ne change pas son issue, qui reste le refus de `synchro`.
     Reception,
 }
 

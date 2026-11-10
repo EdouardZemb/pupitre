@@ -4,8 +4,8 @@
 //! d'un arbre de fichiers, l'ouverture de la racine des données et du fonds, la naissance du
 //! fonds et ses deux copies, l'écriture des tests, les chemins du fonds et des captations, les
 //! échanges de deux copies et leur réunion, la relecture du dossier du fonds, l'objet à clés que
-//! porte une clé, l'idée que porte le fonds, les noms nouveaux d'un dossier, et les gestes de
-//! test sur le fonds.
+//! porte une clé, l'idée que porte le fonds, les noms nouveaux d'un dossier, le fichier d'ajout
+//! qu'une écriture ou une réception ajoute, et les gestes de test sur le fonds.
 
 // Chaque fichier de test n'emploie qu'une partie des aides.
 #![allow(dead_code)]
@@ -327,6 +327,37 @@ pub fn nouveaux(avant: &[String], apres: &[String]) -> Vec<String> {
         .filter(|nom| !avant.contains(nom))
         .cloned()
         .collect()
+}
+
+/// Le fichier d'ajout qu'une écriture ou une réception de `doc` a écrit dans `ajouts`, qu'elle a
+/// fait passer des noms `avant` aux noms `apres` : un seul fichier de plus, nommé par l'empreinte
+/// de son contenu, qui vaut `save_after` des heads `heads_d_avant` de `doc`, celles d'avant
+/// l'écriture ou la réception. Rend son contenu.
+pub fn constater_un_ajout(
+    doc: &Automerge,
+    heads_d_avant: &[ChangeHash],
+    ajouts: &Path,
+    avant: &[String],
+    apres: &[String],
+) -> Vec<u8> {
+    assert_eq!(
+        apres.len(),
+        avant.len() + 1,
+        "pas un seul fichier d'ajout de plus : {avant:?}, puis {apres:?}"
+    );
+    let noms = nouveaux(avant, apres);
+    assert_eq!(noms.len(), 1, "un seul fichier nouveau : {noms:?}");
+    let contenu = fs::read(ajouts.join(&noms[0])).expect("lire le fichier d'ajout");
+    assert_eq!(
+        noms[0],
+        format!("{}.automerge", empreinte(&contenu)),
+        "le nom du fichier d'ajout n'est pas l'empreinte de son contenu"
+    );
+    assert!(
+        contenu == doc.save_after(heads_d_avant),
+        "le fichier d'ajout n'est pas save_after des heads d'avant"
+    );
+    contenu
 }
 
 // Les gestes de test, qu'appellent les fermetures `geste` : les opérations nommées arrivent au
