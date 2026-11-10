@@ -14,7 +14,9 @@ set -uo pipefail
 # projet ; scripts/modele/confidentialite.py cite les motifs de secrets pour les chercher).
 EXCLUS='^(scripts/verif-confidentialite\.sh|\.gitignore)$|^(\.githooks|scripts/modele|docs/modele|\.github/modele|\.claude/skills/consigner)/|^\.github/workflows/modele-[^/]*\.yml$'
 
-fichiers=$(git ls-files | grep -Ev "$EXCLUS" || true)
+# Les fichiers suivis et balayes, separes par NUL : avec -z, git ne met jamais un nom entre
+# guillemets, et xargs -0 ne coupe ni sur l'espace ni sur l'apostrophe. Aucun nom n'echappe.
+suivis() { git ls-files -z | grep -zEv "$EXCLUS" || true; }
 echec=0
 
 signale() {
@@ -24,40 +26,41 @@ signale() {
 }
 
 # 1. Adresses e-mail. Une seule exception : noreply@github.com.
-trouve=$(printf '%s\n' "$fichiers" | xargs -r grep -nIE \
+trouve=$(suivis | xargs -0r grep -nIE \
   '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' 2>/dev/null \
   | grep -v 'noreply@github\.com' || true)
 [ -n "$trouve" ] && signale "adresse e-mail" "$trouve"
 
 # 2. Memoire d'assistant exportee.
-trouve=$(printf '%s\n' "$fichiers" | xargs -r grep -nIE \
+trouve=$(suivis | xargs -0r grep -nIE \
   '\.claude/memory|memory_read|memory_list|\[stated\]' 2>/dev/null || true)
 [ -n "$trouve" ] && signale "export de memoire d'assistant" "$trouve"
 
 # 3. Secrets.
-trouve=$(printf '%s\n' "$fichiers" | xargs -r grep -nIE \
+trouve=$(suivis | xargs -0r grep -nIE \
   'BEGIN [A-Z ]*PRIVATE KEY|gh[pousr]_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|sk-[A-Za-z0-9]{20,}' \
   2>/dev/null || true)
 [ -n "$trouve" ] && signale "secret ou jeton" "$trouve"
 
 # 4. Fichiers de matiere musicale versionnes par erreur.
-trouve=$(git -c core.quotePath=false ls-files \
-  | grep -iE '\.(mp3|m4a|wav|aif|aiff|flac|ogg|mid|midi|musicxml|mxl)$' || true)
+trouve=$(git ls-files -z \
+  | grep -ziE '\.(mp3|m4a|wav|aif|aiff|flac|ogg|mid|midi|musicxml|mxl)$' | tr '\0' '\n' || true)
 [ -n "$trouve" ] && signale "fichier audio, MIDI ou partition versionne" "$trouve"
 
 # 5. Chemins absolus d'une machine personnelle : ils deviennent faux des que la
 #    machine change, et ils disent a qui elle appartient.
-trouve=$(printf '%s\n' "$fichiers" | xargs -r grep -nIE \
+trouve=$(suivis | xargs -0r grep -nIE \
   'C:\\+Users\\+[A-Za-z0-9]|/home/[a-z0-9]+/|/Users/[a-z0-9]+/' 2>/dev/null || true)
 [ -n "$trouve" ] && signale "chemin absolu d'une machine personnelle" "$trouve"
 
 # 6. Un document ou une archive d'un fonds versionnes : un fonds ne se versionne jamais
 #    (§ 40 · 9). Aucun dossier n'est exempte : la PR qui suivrait un document de test
 #    ajouterait l'exemption, et le dirait.
-trouve=$(git -c core.quotePath=false ls-files | grep -E '\.automerge$|(^|/)pupitre-archive-[^/]*/' || true)
+trouve=$(git ls-files -z \
+  | grep -ziE '\.automerge$|(^|/)pupitre-archive-[^/]*/' | tr '\0' '\n' || true)
 [ -n "$trouve" ] && signale "document ou archive d'un fonds versionne" "$trouve"
 
 if [ "$echec" -eq 0 ]; then
-  echo "OK — aucun motif interdit dans $(printf '%s\n' "$fichiers" | wc -l) fichiers suivis."
+  echo "OK — aucun motif interdit dans $(suivis | tr -cd '\0' | wc -c) fichiers suivis."
 fi
 exit "$echec"

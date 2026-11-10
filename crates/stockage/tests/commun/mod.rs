@@ -27,7 +27,8 @@ pub const NAISSANCE: Naissance<'static> = Naissance {
     proprietaire: "proprietaire-1",
 };
 
-/// L'heure de chaque modification des tests : une entrée, jamais l'horloge.
+/// L'heure de la naissance et de chaque écriture par `ecrire` ; les autres écritures des tests
+/// viennent après (`HEURE + n`). Une entrée, jamais l'horloge.
 pub const HEURE: i64 = 1_700_000_000;
 
 /// Le message du premier geste, noter une idée, et de chaque écriture par `ecrire`.
@@ -183,7 +184,8 @@ pub fn deux_copies(nom: &str) -> (PathBuf, PathBuf) {
     (a, b)
 }
 
-/// Le seul chemin d'écriture des tests de la tranche : la tranche 2 le changera seul. Écrit
+/// Le chemin d'écriture des tests nouveaux du stockage : quand l'écriture changera de forme, il
+/// changera seul. Les tests d'H07 écrivent par `Document::ecrire`. Écrit
 /// `geste` dans `document`, sous le message `MESSAGE_DU_GESTE`, à l'heure `HEURE`.
 // L'erreur est celle de `Document::ecrire`, que l'aide rend telle quelle. Clippy épargne la
 // méthode, exportée par le stockage, mais pas l'aide, qui ne l'est pas.
