@@ -41,6 +41,8 @@ pub enum Erreur {
     CaptationAlteree { empreinte: String },
     /// Aucune captation ne porte le nom `empreinte`.
     CaptationAbsente { empreinte: String },
+    /// Un `Document` du fonds vit déjà dans ce processus : un seul à la fois (AM-4 (1)).
+    FondsDejaOuvert,
     /// Le fonds est déjà né : il ne naît qu'une fois (§ 31 · 2.3).
     FondsDejaNe,
     /// La genèse, rangée en octets dans le noyau, ne se lit pas comme une modification, ou ne

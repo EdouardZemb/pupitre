@@ -31,10 +31,6 @@ pub struct Naissance<'a> {
 /// Un document ouvert, dans une racine des données dont ce processus tient le verrou : il ne
 /// survit pas à la racine des données.
 #[derive(Debug)]
-#[expect(
-    dead_code,
-    reason = "la racine des données ne se lit pas encore : elle tient le document dans sa vie"
-)]
 pub struct Document<'r> {
     racine: &'r RacineDesDonnees,
     /// Le dossier du document : `documents/fonds/`.
@@ -43,6 +39,14 @@ pub struct Document<'r> {
     /// Une écriture a échoué : le document refuse d'écrire, d'envoyer, de recevoir et de se
     /// compacter jusqu'à sa réouverture.
     a_relire: bool,
+}
+
+impl Drop for Document<'_> {
+    /// Un `Document` du fonds vit tant que la garde de la racine des données est prise : il la
+    /// rend à sa fin.
+    fn drop(&mut self) {
+        self.racine.rendre_la_garde();
+    }
 }
 
 impl Document<'_> {
@@ -247,6 +251,7 @@ impl Document<'_> {
 /// fait échouer l'ouverture. L'essai ne lit pas le voisin du fichier complet : le lot 1 le
 /// fond.
 pub(crate) fn rouvrir_le_fonds(racine: &RacineDesDonnees) -> Result<Option<Document<'_>>, Erreur> {
+    let garde = racine.prendre_la_garde()?;
     let dossier = dossier_du_fonds(racine);
     let complet = dossier.join("complet.automerge");
     let octets = match fs::read(&complet) {
@@ -257,6 +262,8 @@ pub(crate) fn rouvrir_le_fonds(racine: &RacineDesDonnees) -> Result<Option<Docum
     let mut automerge = Automerge::load(&octets).map_err(Erreur::Automerge)?;
     let ajouts = lire_les_ajouts(&mut automerge, &dossier.join("ajouts"))?;
     automerge.set_actor(ActorId::random());
+    // Le document né rend la garde à sa fin, même si la compaction qui suit échoue.
+    garde.passer_au_document();
     let mut document = Document {
         racine,
         dossier,
@@ -340,6 +347,7 @@ pub(crate) fn faire_naitre_le_fonds<'r>(
     heure: i64,
     geste: impl FnOnce(&mut Transaction<'_>) -> Result<(), AutomergeError>,
 ) -> Result<Document<'r>, Erreur> {
+    let garde = racine.prendre_la_garde()?;
     let dossier = dossier_du_fonds(racine);
     let complet = dossier.join("complet.automerge");
     if complet
@@ -360,6 +368,7 @@ pub(crate) fn faire_naitre_le_fonds<'r>(
         .map_err(|erreur| disque(&racine.chemin().join("documents"), erreur))?;
     ecrire_a_cote(&complet, &automerge.save())
         .map_err(|echec| disque_d_un_echec(&complet, echec))?;
+    garde.passer_au_document();
     Ok(Document {
         racine,
         dossier,
