@@ -51,6 +51,12 @@ trouve=$(printf '%s\n' "$fichiers" | xargs -r grep -nIE \
   'C:\\+Users\\+[A-Za-z0-9]|/home/[a-z0-9]+/|/Users/[a-z0-9]+/' 2>/dev/null || true)
 [ -n "$trouve" ] && signale "chemin absolu d'une machine personnelle" "$trouve"
 
+# 6. Un document ou une archive d'un fonds versionnes : un fonds ne se versionne jamais
+#    (§ 40 · 9). Aucun dossier n'est exempte : la PR qui suivrait un document de test
+#    ajouterait l'exemption, et le dirait.
+trouve=$(git ls-files | grep -E '\.automerge$|(^|/)pupitre-archive-[^/]*/' || true)
+[ -n "$trouve" ] && signale "document ou archive d'un fonds versionne" "$trouve"
+
 if [ "$echec" -eq 0 ]; then
   echo "OK — aucun motif interdit dans $(printf '%s\n' "$fichiers" | wc -l) fichiers suivis."
 fi

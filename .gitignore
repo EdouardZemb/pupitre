@@ -28,6 +28,10 @@ CLAUDE.local.md
 *.musicxml
 *.mxl
 
+# Documents et archives d'un fonds : un fonds ne se versionne jamais (§ 40 · 9).
+*.automerge
+pupitre-archive-*/
+
 # Paroles et matiere d'album (ne doivent pas etre ici du tout)
 paroles/
 lyrics/
