@@ -41,7 +41,7 @@ trouve=$(printf '%s\n' "$fichiers" | xargs -r grep -nIE \
 [ -n "$trouve" ] && signale "secret ou jeton" "$trouve"
 
 # 4. Fichiers de matiere musicale versionnes par erreur.
-trouve=$(git ls-files \
+trouve=$(git -c core.quotePath=false ls-files \
   | grep -iE '\.(mp3|m4a|wav|aif|aiff|flac|ogg|mid|midi|musicxml|mxl)$' || true)
 [ -n "$trouve" ] && signale "fichier audio, MIDI ou partition versionne" "$trouve"
 
@@ -54,7 +54,7 @@ trouve=$(printf '%s\n' "$fichiers" | xargs -r grep -nIE \
 # 6. Un document ou une archive d'un fonds versionnes : un fonds ne se versionne jamais
 #    (§ 40 · 9). Aucun dossier n'est exempte : la PR qui suivrait un document de test
 #    ajouterait l'exemption, et le dirait.
-trouve=$(git ls-files | grep -E '\.automerge$|(^|/)pupitre-archive-[^/]*/' || true)
+trouve=$(git -c core.quotePath=false ls-files | grep -E '\.automerge$|(^|/)pupitre-archive-[^/]*/' || true)
 [ -n "$trouve" ] && signale "document ou archive d'un fonds versionne" "$trouve"
 
 if [ "$echec" -eq 0 ]; then
