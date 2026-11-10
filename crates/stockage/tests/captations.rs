@@ -3,16 +3,10 @@
 mod commun;
 
 use std::fs;
-use std::path::PathBuf;
 
 use commun::entrees;
 use stockage::fichier::voisin;
 use stockage::{Erreur, RacineDesDonnees, empreinte};
-
-/// Le chemin où se range la captation `e` : `captations/<deux premiers caractères>/<e>`.
-fn rangee(racine: &RacineDesDonnees, e: &str) -> PathBuf {
-    racine.chemin().join("captations").join(&e[..2]).join(e)
-}
 
 #[test]
 fn l_empreinte_est_le_sha_256_en_hexadecimal() {
@@ -41,7 +35,7 @@ fn une_captation_se_range_sous_son_empreinte() {
 
         assert_eq!(e, empreinte(&octets), "verser rend l'empreinte des octets");
         assert_eq!(
-            fs::read(rangee(&racine, &e)).expect("lire la captation rangée"),
+            fs::read(commun::rangee(racine.chemin(), &e)).expect("lire la captation rangée"),
             octets
         );
         assert_eq!(captations.relire(&e).expect("relire la captation"), octets);
@@ -84,7 +78,7 @@ fn verser_deux_fois_ne_fait_qu_un_objet() {
     let dossier = racine.chemin().join("captations");
     let octets = commun::octets(2, 2048);
     let e = captations.verser(&octets).expect("le premier versement");
-    let objet = rangee(&racine, &e);
+    let objet = commun::rangee(racine.chemin(), &e);
     let mut droits = fs::metadata(&objet)
         .expect("lire les droits de l'objet")
         .permissions();
@@ -124,7 +118,7 @@ fn une_captation_alteree_ou_absente_se_nomme() {
     let e = captations
         .verser(&commun::octets(4, 1000))
         .expect("verser la captation à altérer");
-    let alteree = rangee(&racine, &e);
+    let alteree = commun::rangee(racine.chemin(), &e);
     let mut octets = fs::read(&alteree).expect("lire la captation à altérer");
     octets[500] ^= 0x01;
     fs::write(&alteree, &octets).expect("altérer la captation");

@@ -1,7 +1,10 @@
-//! Les aides des tests du stockage : le dossier jetable de chaque test, ce que contient un
-//! dossier et l'empreinte de chacun de ses fichiers, des octets engendrés au lieu d'un fichier,
-//! un texte long, la copie d'un arbre de fichiers, les gestes de test sur le fonds, la réunion
-//! de deux copies, et la relecture du dossier du fonds.
+//! Les aides des tests du stockage, écrites une seule fois : la naissance, l'heure et le message
+//! des tests, le dossier jetable de chaque test, ce que contient un dossier et l'empreinte de
+//! chacun de ses fichiers, des octets engendrés au lieu d'un fichier, un texte long, la copie
+//! d'un arbre de fichiers, l'ouverture de la racine des données et du fonds, la naissance du
+//! fonds et ses deux copies, l'écriture des tests, les chemins du fonds et des captations, la
+//! réunion de deux copies, la relecture du dossier du fonds, l'objet à clés que porte une clé,
+//! et les gestes de test sur le fonds.
 
 // Chaque fichier de test n'emploie qu'une partie des aides.
 #![allow(dead_code)]
@@ -14,8 +17,22 @@ use std::path::{Path, PathBuf};
 use automerge::transaction::{Transactable, Transaction};
 use automerge::{Automerge, AutomergeError, ObjId, ObjType, ROOT, ReadDoc, Value};
 use noyau::donnees::fonds::{ETIQUETTES, FORMAT, IDEE, IDEES, PRISES, TEXTE};
-use stockage::{Document, empreinte};
+use stockage::{Document, Erreur, Naissance, RacineDesDonnees, empreinte};
 use synchro::Echange;
+
+/// La naissance des tests : des identifiants écrits, jamais tirés.
+pub const NAISSANCE: Naissance<'static> = Naissance {
+    identifiant: "fonds-1",
+    lignee: "lignee-1",
+    proprietaire: "proprietaire-1",
+};
+
+/// L'heure de la naissance et de chaque écriture par `ecrire` ; les autres écritures des tests
+/// viennent après (`HEURE + n`). Une entrée, jamais l'horloge.
+pub const HEURE: i64 = 1_700_000_000;
+
+/// Le message du premier geste, noter une idée, et de chaque écriture par `ecrire`.
+pub const MESSAGE_DU_GESTE: &str = "Idée notée";
 
 /// Le dossier jetable du test `nom`, dans le dossier temporaire du système, jamais dans le
 /// dossier de l'application (I30) : `pupitre-stockage-<nom>-<processus>`. Ce qu'un passage
@@ -126,6 +143,89 @@ pub fn copier_l_arbre(de: &Path, vers: &Path) {
     }
 }
 
+/// La racine des données de `chemin`, ouverte.
+pub fn ouvrir(chemin: &Path) -> RacineDesDonnees {
+    RacineDesDonnees::ouvrir(chemin).unwrap_or_else(|erreur| {
+        panic!(
+            "ouvrir la racine des données {} : {erreur:?}",
+            chemin.display()
+        )
+    })
+}
+
+/// Le fonds de `racine`, rouvert.
+pub fn ouvrir_le_fonds(racine: &RacineDesDonnees) -> Document<'_> {
+    racine
+        .fonds()
+        .expect("rouvrir le fonds")
+        .expect("le fonds est né")
+}
+
+/// Le fonds né d'une idée au texte long : `idee-1`, `texte_long()`, `MESSAGE_DU_GESTE`, `HEURE`.
+pub fn faire_naitre(racine: &RacineDesDonnees) -> Document<'_> {
+    racine
+        .faire_naitre_le_fonds(&NAISSANCE, MESSAGE_DU_GESTE, HEURE, |tx| {
+            noter(tx, "idee-1", &texte_long())
+        })
+        .expect("faire naître le fonds")
+}
+
+/// Le fonds né (`faire_naitre`) dans `<dossier jetable>/a`, fermé, puis copié dans `<…>/b` : A, B.
+/// Rend les chemins des deux racines des données, A puis B.
+pub fn deux_copies(nom: &str) -> (PathBuf, PathBuf) {
+    let d = dossier_jetable(nom);
+    let a = d.join("a");
+    let b = d.join("b");
+    {
+        let racine = RacineDesDonnees::ouvrir(&a).expect("ouvrir la racine des données d'A");
+        faire_naitre(&racine);
+    }
+    copier_l_arbre(&a, &b);
+    (a, b)
+}
+
+/// Le chemin d'écriture des tests nouveaux du stockage : quand l'écriture changera de forme, il
+/// changera seul. Les tests d'H07 écrivent par `Document::ecrire`. Écrit
+/// `geste` dans `document`, sous le message `MESSAGE_DU_GESTE`, à l'heure `HEURE`.
+// L'erreur est celle de `Document::ecrire`, que l'aide rend telle quelle. Clippy épargne la
+// méthode, exportée par le stockage, mais pas l'aide, qui ne l'est pas.
+#[allow(clippy::result_large_err)]
+pub fn ecrire(
+    document: &mut Document<'_>,
+    geste: impl FnOnce(&mut Transaction<'_>) -> Result<(), AutomergeError>,
+) -> Result<(), Erreur> {
+    document.ecrire(MESSAGE_DU_GESTE, HEURE, geste)
+}
+
+/// `documents/fonds/`, dans la racine des données `racine_des_donnees`.
+pub fn dossier_du_fonds(racine_des_donnees: &Path) -> PathBuf {
+    racine_des_donnees.join("documents").join("fonds")
+}
+
+/// `documents/fonds/ajouts/`, dans la racine des données `racine_des_donnees`.
+pub fn dossier_des_ajouts(racine_des_donnees: &Path) -> PathBuf {
+    dossier_du_fonds(racine_des_donnees).join("ajouts")
+}
+
+/// Le fichier complet du fonds de la racine des données `racine_des_donnees`, relu du disque.
+pub fn lire_le_complet(racine_des_donnees: &Path) -> Vec<u8> {
+    fs::read(dossier_du_fonds(racine_des_donnees).join("complet.automerge"))
+        .expect("lire le fichier complet")
+}
+
+/// Le poids de `chemin` sur le disque, en octets.
+pub fn poids(chemin: &Path) -> u64 {
+    fs::metadata(chemin)
+        .unwrap_or_else(|e| panic!("lire {} : {e}", chemin.display()))
+        .len()
+}
+
+/// Le chemin où se range la captation `e` dans la racine des données `racine_des_donnees` :
+/// `captations/<deux premiers caractères>/<e>`.
+pub fn rangee(racine_des_donnees: &Path, e: &str) -> PathBuf {
+    racine_des_donnees.join("captations").join(&e[..2]).join(e)
+}
+
 /// Réunit deux copies sans réseau : chacune envoie tant qu'elle a à dire, en octets, comme le
 /// fera le transport du lot 3. Rend le nombre de messages ; au-delà de mille, la réunion ne
 /// s'achève pas, et c'est un échec.
@@ -155,7 +255,7 @@ pub fn reunir(a: &mut Document<'_>, b: &mut Document<'_>) -> usize {
 /// `complet.automerge`, puis `load_incremental` de chaque `ajouts/*.automerge`. Les noms en
 /// `.partiel`, de `documents/fonds/` comme de `ajouts/`, sont ignorés, comme `fonds()` le fait.
 pub fn relire_le_dossier_du_fonds(racine_des_donnees: &Path) -> Automerge {
-    let dossier = racine_des_donnees.join("documents").join("fonds");
+    let dossier = dossier_du_fonds(racine_des_donnees);
     let complet = dossier.join("complet.automerge");
     let octets = fs::read(&complet).unwrap_or_else(|e| panic!("lire {} : {e}", complet.display()));
     let mut relu =
@@ -176,13 +276,21 @@ pub fn relire_le_dossier_du_fonds(racine_des_donnees: &Path) -> Automerge {
     relu
 }
 
+/// L'objet à clés (`ObjType::Map`) que porte `cle` sous `parent` ; sinon, panique.
+pub fn objet(doc: &Automerge, parent: &ObjId, cle: &str) -> ObjId {
+    match doc.get(parent, cle).expect("lire le document") {
+        Some((Value::Object(ObjType::Map), objet)) => objet,
+        autre => panic!("{cle} ne porte pas un objet à clés : {autre:?}"),
+    }
+}
+
 // Les gestes de test, qu'appellent les fermetures `geste` : les opérations nommées arrivent au
 // lot 1. Une idée ou un conteneur absent rend `AutomergeError::NotAnObject`.
 
 /// Crée l'idée `idee` sous les idées, avec son texte et son objet des étiquettes, vide, dans la
 /// même modification : les conteneurs d'un objet naissent avec lui (§ 31 · 2.4).
 pub fn noter(tx: &mut Transaction<'_>, idee: &str, texte: &str) -> Result<(), AutomergeError> {
-    let idees = objet(tx, &ROOT, IDEES)?;
+    let idees = conteneur(tx, &ROOT, IDEES)?;
     let nee = tx.put_object(&idees, idee, ObjType::Map)?;
     tx.put(&nee, TEXTE, texte)?;
     tx.put_object(&nee, ETIQUETTES, ObjType::Map)?;
@@ -205,7 +313,7 @@ pub fn etiqueter(
     idee: &str,
     etiquette: &str,
 ) -> Result<(), AutomergeError> {
-    let etiquettes = objet(tx, &l_idee(tx, idee)?, ETIQUETTES)?;
+    let etiquettes = conteneur(tx, &l_idee(tx, idee)?, ETIQUETTES)?;
     tx.put(&etiquettes, etiquette, true)
 }
 
@@ -215,7 +323,7 @@ pub fn oter_l_etiquette(
     idee: &str,
     etiquette: &str,
 ) -> Result<(), AutomergeError> {
-    let etiquettes = objet(tx, &l_idee(tx, idee)?, ETIQUETTES)?;
+    let etiquettes = conteneur(tx, &l_idee(tx, idee)?, ETIQUETTES)?;
     if tx.get(&etiquettes, etiquette)?.is_none() {
         return Ok(());
     }
@@ -230,7 +338,7 @@ pub fn poser_une_prise(
     idee: &str,
     format: &str,
 ) -> Result<(), AutomergeError> {
-    let prises = objet(tx, &ROOT, PRISES)?;
+    let prises = conteneur(tx, &ROOT, PRISES)?;
     let prise = tx.put_object(&prises, empreinte, ObjType::Map)?;
     tx.put(&prise, IDEE, idee)?;
     tx.put(&prise, FORMAT, format)
@@ -238,13 +346,13 @@ pub fn poser_une_prise(
 
 /// L'objet de l'idée `idee`, sous les idées.
 fn l_idee(tx: &Transaction<'_>, idee: &str) -> Result<ObjId, AutomergeError> {
-    let idees = objet(tx, &ROOT, IDEES)?;
-    objet(tx, &idees, idee)
+    let idees = conteneur(tx, &ROOT, IDEES)?;
+    conteneur(tx, &idees, idee)
 }
 
 /// L'objet que porte la clé `cle` de `parent` ; une clé absente, ou qui porte une valeur
 /// simple, rend `AutomergeError::NotAnObject`.
-fn objet(tx: &Transaction<'_>, parent: &ObjId, cle: &str) -> Result<ObjId, AutomergeError> {
+fn conteneur(tx: &Transaction<'_>, parent: &ObjId, cle: &str) -> Result<ObjId, AutomergeError> {
     match tx.get(parent, cle)? {
         Some((Value::Object(_), objet)) => Ok(objet),
         _ => Err(AutomergeError::NotAnObject),
