@@ -219,8 +219,6 @@ fn chaque_ouverture_tire_un_acteur_neuf() {
             commun::etiqueter(tx, "idee-1", "refrain")
         })
         .expect("écrire avant de rouvrir");
-    let ajouts = dossier_des_ajouts(&chemin);
-    let deja = commun::entrees(&ajouts);
     drop(fonds);
     drop(racine);
 
@@ -232,6 +230,9 @@ fn chaque_ouverture_tire_un_acteur_neuf() {
         1,
         "le fonds rouvert a une seule tête : {avant:?}"
     );
+    // Rouvert, le fonds s'est compacté : `ajouts/` se relit juste avant l'écriture.
+    let ajouts = dossier_des_ajouts(&chemin);
+    let ajouts_avant = commun::entrees(&ajouts);
     fonds
         .ecrire("Étiquette posée", HEURE + 2, |tx| {
             commun::etiqueter(tx, "idee-1", "couplet")
@@ -250,7 +251,13 @@ fn chaque_ouverture_tire_un_acteur_neuf() {
         "l'écriture d'avant et celle d'après la réouverture ont le même acteur"
     );
 
-    let ajout = commun::constater_un_ajout(doc, &avant, &ajouts, &deja, &commun::entrees(&ajouts));
+    let ajout = commun::constater_un_ajout(
+        doc,
+        &avant,
+        &ajouts,
+        &ajouts_avant,
+        &commun::entrees(&ajouts),
+    );
     let complet = lire_le_complet(&chemin);
     assert!(
         4 * ajout.len() < complet.len(),
