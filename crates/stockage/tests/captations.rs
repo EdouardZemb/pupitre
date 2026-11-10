@@ -3,9 +3,11 @@
 mod commun;
 
 use std::fs;
+use std::path::Path;
 
 use commun::entrees;
 use stockage::fichier::voisin;
+use stockage::pannes::{self, Etape};
 use stockage::{Erreur, RacineDesDonnees, empreinte};
 
 #[test]
@@ -165,4 +167,96 @@ fn une_captation_alteree_ou_absente_se_nomme() {
         provisoire.is_file(),
         "un nom provisoire n'est jamais retiré d'office"
     );
+}
+
+// § 31 · 10, test 4 : couper l'écriture à chaque étape
+#[test]
+fn verser_coupe_a_chaque_etape_ne_laisse_aucune_captation_alteree() {
+    let octets = commun::octets(7, 500);
+    let e = empreinte(&octets);
+
+    // Avant la fin du renommage : rien n'est rangé, aucun nom provisoire ne reste, et la
+    // captation se verse ensuite, sans panne.
+    for (i, etape) in [
+        Etape::VoisinEcrit,
+        Etape::SyncAll,
+        Etape::Relecture,
+        Etape::Renommage,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let d = commun::dossier_jetable(&format!("captation-coupee-{i}"));
+        let racine =
+            RacineDesDonnees::ouvrir(&d.join("donnees")).expect("ouvrir la racine des données");
+        let captations = racine.captations();
+        let dossier = racine.chemin().join("captations");
+        let panne = pannes::couper(etape, 1);
+
+        let rendu = captations.verser(&octets);
+
+        assert!(
+            matches!(rendu, Err(Erreur::Disque { .. })),
+            "{etape:?} : rendu {rendu:?}"
+        );
+        let trahies = captations.verifier().expect("vérifier les captations");
+        assert!(trahies.is_empty(), "{etape:?} : {trahies:?}");
+        assert!(
+            !commun::rangee(racine.chemin(), &e).exists(),
+            "{etape:?} : la captation est rangée"
+        );
+        assert!(
+            fichiers_a_meme(&dossier).is_empty(),
+            "{etape:?} : un nom provisoire reste dans captations/"
+        );
+
+        drop(panne);
+        assert_eq!(
+            captations.verser(&octets).expect("verser sans panne"),
+            e,
+            "{etape:?}"
+        );
+        assert_eq!(
+            captations.relire(&e).expect("relire la captation"),
+            octets,
+            "{etape:?}"
+        );
+    }
+
+    // Après le renommage : le refus se rend, mais la captation est rangée, intacte.
+    let d = commun::dossier_jetable("captation-coupee-rendre-durable");
+    let racine =
+        RacineDesDonnees::ouvrir(&d.join("donnees")).expect("ouvrir la racine des données");
+    let captations = racine.captations();
+    let dossier = racine.chemin().join("captations");
+    let panne = pannes::couper(Etape::RendreDurable, 1);
+
+    let rendu = captations.verser(&octets);
+
+    assert!(
+        matches!(rendu, Err(Erreur::Disque { .. })),
+        "RendreDurable : rendu {rendu:?}"
+    );
+    drop(panne);
+    assert_eq!(
+        fs::read(commun::rangee(racine.chemin(), &e)).expect("lire la captation rangée"),
+        octets,
+        "la captation rangée a changé"
+    );
+    assert_eq!(captations.relire(&e).expect("relire la captation"), octets);
+    let trahies = captations.verifier().expect("vérifier les captations");
+    assert!(trahies.is_empty(), "{trahies:?}");
+    assert!(
+        fichiers_a_meme(&dossier).is_empty(),
+        "un nom provisoire reste dans captations/"
+    );
+}
+
+/// Les noms des fichiers posés à même `dossier`, sans ses sous-dossiers : dans `captations/`, ceux
+/// des noms provisoires.
+fn fichiers_a_meme(dossier: &Path) -> Vec<String> {
+    entrees(dossier)
+        .into_iter()
+        .filter(|nom| dossier.join(nom).is_file())
+        .collect()
 }
