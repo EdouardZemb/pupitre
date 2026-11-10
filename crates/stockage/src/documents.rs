@@ -15,7 +15,7 @@ use noyau::donnees::compaction::{self, Lu};
 use noyau::donnees::fonds::{GENESE, IDENTIFIANT, LIGNEE, MESSAGE_DE_LA_NAISSANCE, PROPRIETAIRE};
 use synchro::{Copie, Echange};
 
-use crate::fichier::ecrire_a_cote;
+use crate::fichier::{Echec, ecrire_a_cote};
 use crate::{Erreur, RacineDesDonnees, disque, empreinte};
 
 /// Ce que la naissance du fonds écrit sur la genèse (§ 31 · 2.3) : son identifiant, sa lignée
@@ -138,12 +138,12 @@ impl Document<'_> {
             .dossier
             .join("ajouts")
             .join(format!("{}.automerge", empreinte(&octets)));
-        if let Err(erreur) = ecrire_a_cote(&chemin, &octets) {
+        if let Err(echec) = ecrire_a_cote(&chemin, &octets) {
             // Ce qui s'écrit, écrit ou reçu, est en mémoire, et son fichier peut être en place :
             // l'erreur peut venir après le renommage, quand il ne devient pas durable. Le
             // document ne sait plus ce que porte le disque.
             self.a_relire = true;
-            return Err(disque(&chemin, erreur));
+            return Err(disque_d_un_echec(&chemin, echec));
         }
         // L'écriture est faite : ni une compaction qui échoue, ni la pesée des fichiers qui la
         // précède, ne la défont.
@@ -182,7 +182,7 @@ impl Document<'_> {
             _ => return Err(Erreur::CompactionInfidele),
         };
         let complet = self.dossier.join("complet.automerge");
-        ecrire_a_cote(&complet, &octets).map_err(|erreur| disque(&complet, erreur))?;
+        ecrire_a_cote(&complet, &octets).map_err(|echec| disque_d_un_echec(&complet, echec))?;
         // Relu du disque, il rend les octets relus plus haut, et mène donc aux mêmes heads ; le
         // disque en rend d'autres, et rien n'est retiré.
         let meme_point = fs::read(&complet).map_err(|erreur| disque(&complet, erreur))? == octets;
@@ -355,13 +355,22 @@ pub(crate) fn faire_naitre_le_fonds<'r>(
     #[cfg(not(windows))]
     crate::fichier::rendre_durable(&dossier)
         .map_err(|erreur| disque(&racine.chemin().join("documents"), erreur))?;
-    ecrire_a_cote(&complet, &automerge.save()).map_err(|erreur| disque(&complet, erreur))?;
+    ecrire_a_cote(&complet, &automerge.save())
+        .map_err(|echec| disque_d_un_echec(&complet, echec))?;
     Ok(Document {
         racine,
         dossier,
         automerge,
         a_relire: false,
     })
+}
+
+/// Le refus du disque sur `chemin` d'une écriture à côté : refusée ou non durable, elle rend
+/// encore [`Erreur::Disque`].
+fn disque_d_un_echec(chemin: &Path, echec: Echec) -> Erreur {
+    match echec {
+        Echec::Refusee(erreur) | Echec::NonDurable(erreur) => disque(chemin, erreur),
+    }
 }
 
 /// `documents/fonds/`, dans la racine des données.

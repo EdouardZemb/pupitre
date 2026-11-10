@@ -11,5 +11,11 @@ noyau = { path = "../noyau" }
 sha2 = { version = "0.11.1", default-features = false }
 synchro = { path = "../synchro" }
 
+# `pannes` injecte une panne à chaque étape d'une écriture : ses tests seuls la demandent, par
+# leur dépendance sur le stockage même.
+[features]
+pannes = []
+
 [dev-dependencies]
 proptest = "1.12.0"
+stockage = { path = ".", features = ["pannes"] }

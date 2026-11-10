@@ -2,10 +2,17 @@
 //! verrou, puis les adaptateurs `Documents` et `Captations` sur fichiers, au format de
 //! l'ADR-023 (§ 31 · 2.1). Il ne devine aucun chemin : il reçoit celui de la racine des
 //! données (I30).
+//!
+//! La fonction `pannes`, que seuls ses tests demandent, rend public le module `pannes`, qui
+//! injecte une panne à chaque étape d'une écriture ; sans elle, ses points laissent tout passer.
 
 mod captations;
 mod documents;
 pub mod fichier;
+#[cfg(feature = "pannes")]
+pub mod pannes;
+#[cfg(not(feature = "pannes"))]
+mod pannes;
 mod racine_des_donnees;
 
 use std::fmt::Write;
