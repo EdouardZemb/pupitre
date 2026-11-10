@@ -7,7 +7,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use crate::fichier::{
-    ecrire_et_synchroniser, lire, rendre_durable_apres_le_renommage, renommer, voisin,
+    ecrire_et_synchroniser, lire, rendre_durable_apres_le_renommage, renommer, retirer, voisin,
 };
 use crate::{Erreur, RacineDesDonnees, disque};
 
@@ -49,7 +49,7 @@ impl Captations<'_> {
         if let Err(refus) = self.ranger(&provisoire, &rangee, octets, &e) {
             // Le nom provisoire peut ne pas être né : son retrait peut alors échouer, et le
             // refus rendu reste celui du rangement.
-            let _ = fs::remove_file(&provisoire);
+            let _ = retirer(&provisoire);
             return Err(refus);
         }
         rendre_durable_apres_le_renommage(&rangee).map_err(|erreur| disque(&rangee, erreur))?;

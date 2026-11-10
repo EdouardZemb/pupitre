@@ -63,7 +63,7 @@ fn un_renommage_refuse_retire_le_voisin() {
     let rendu = ecrire_a_cote(&chemin, &commun::octets(5, 256));
 
     assert!(
-        rendu.is_err(),
+        matches!(rendu, Err(Echec::Refusee(_))),
         "un fichier ne prend pas la place d'un dossier : rendu {rendu:?}"
     );
     assert!(chemin.is_dir(), "le dossier a disparu");

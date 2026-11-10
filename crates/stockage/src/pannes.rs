@@ -46,9 +46,10 @@ pub fn couper(etape: Etape, rang: usize) -> Panne {
     armer(Sorte::Coupure(etape), rang)
 }
 
-/// La `rang`-ième lecture de `fichier::lire` (dès 1) dans ce fil depuis cet appel réussit, mais
-/// rend ses octets altérés : le premier inversé (`!`), ou un octet ajouté si rien n'est lu. Une
-/// fois.
+/// La `rang`-ième lecture réussie de `fichier::lire` (dès 1) dans ce fil depuis cet appel réussit,
+/// mais rend ses octets altérés : le premier inversé (`!`), ou un octet ajouté si rien n'est lu.
+/// Une fois. Une lecture qui échoue, coupée par une panne `Relecture` ou refusée par le disque,
+/// ne compte pas.
 #[cfg(feature = "pannes")]
 pub fn alterer_la_relecture(rang: usize) -> Panne {
     armer(Sorte::Alteration, rang)

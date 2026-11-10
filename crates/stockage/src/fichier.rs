@@ -4,7 +4,8 @@
 //! cahier des tables : un fichier qui existait reste entier jusqu'au dernier moment.
 //!
 //! Chaque étape d'une écriture a sa fonction, qui passe par le point d'injection d'une panne
-//! juste avant son geste sur le disque : les écritures du stockage passent toutes par elles.
+//! juste avant son geste sur le disque : les écritures à côté (`ecrire_a_cote`) et les
+//! versements des captations passent par elles.
 
 use std::fs::{self, File};
 use std::io::{self, Write};
