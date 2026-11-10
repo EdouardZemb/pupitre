@@ -8,55 +8,14 @@
 mod commun;
 
 use std::fs;
-use std::path::{Path, PathBuf};
 
 use automerge::{Automerge, Change};
-use noyau::donnees::fonds::{GENESE, MESSAGE_DE_LA_GENESE, MESSAGE_DE_LA_NAISSANCE};
-use stockage::{Document, Erreur, Naissance, RacineDesDonnees};
-
-/// La naissance des tests : des identifiants écrits, jamais tirés.
-const NAISSANCE: Naissance<'static> = Naissance {
-    identifiant: "fonds-1",
-    lignee: "lignee-1",
-    proprietaire: "proprietaire-1",
+use commun::{
+    HEURE, MESSAGE_DU_GESTE, dossier_des_ajouts, dossier_du_fonds, faire_naitre, lire_le_complet,
+    ouvrir_le_fonds, poids,
 };
-
-/// Le message du premier geste, noter une idée.
-const MESSAGE_DU_GESTE: &str = "Idée notée";
-
-/// L'heure de la naissance ; chaque écriture vient un peu après. Une entrée, jamais l'horloge.
-const HEURE: i64 = 1_700_000_000;
-
-/// Fait naître le fonds de `racine` d'une idée, `idee-1`, au texte long.
-fn faire_naitre(racine: &RacineDesDonnees) -> Document<'_> {
-    racine
-        .faire_naitre_le_fonds(&NAISSANCE, MESSAGE_DU_GESTE, HEURE, |tx| {
-            commun::noter(tx, "idee-1", &commun::texte_long())
-        })
-        .expect("faire naître le fonds")
-}
-
-/// `documents/fonds/`, dans la racine des données `racine`.
-fn dossier_du_fonds(racine: &Path) -> PathBuf {
-    racine.join("documents").join("fonds")
-}
-
-/// `documents/fonds/ajouts/`, dans la racine des données `racine`.
-fn dossier_des_ajouts(racine: &Path) -> PathBuf {
-    dossier_du_fonds(racine).join("ajouts")
-}
-
-/// Le fichier complet du fonds de la racine des données `racine`, relu du disque.
-fn lire_le_complet(racine: &Path) -> Vec<u8> {
-    fs::read(dossier_du_fonds(racine).join("complet.automerge")).expect("lire le fichier complet")
-}
-
-/// Le poids de `chemin` sur le disque, en octets.
-fn poids(chemin: &Path) -> u64 {
-    fs::metadata(chemin)
-        .unwrap_or_else(|e| panic!("lire {} : {e}", chemin.display()))
-        .len()
-}
+use noyau::donnees::fonds::{GENESE, MESSAGE_DE_LA_GENESE, MESSAGE_DE_LA_NAISSANCE};
+use stockage::{Erreur, RacineDesDonnees};
 
 #[test]
 fn rouvrir_compacte_les_ajouts() {
@@ -81,10 +40,7 @@ fn rouvrir_compacte_les_ajouts() {
     drop(racine);
 
     let racine = RacineDesDonnees::ouvrir(&chemin).expect("rouvrir la racine des données");
-    let fonds = racine
-        .fonds()
-        .expect("rouvrir le fonds")
-        .expect("le fonds est né");
+    let fonds = ouvrir_le_fonds(&racine);
 
     assert_eq!(
         commun::entrees(&ajouts),
@@ -148,10 +104,7 @@ fn les_ajouts_ne_pesent_jamais_plus_que_le_complet() {
     drop(racine);
 
     let racine = RacineDesDonnees::ouvrir(&chemin).expect("rouvrir la racine des données");
-    let fonds = racine
-        .fonds()
-        .expect("rouvrir le fonds")
-        .expect("le fonds est né");
+    let fonds = ouvrir_le_fonds(&racine);
     assert_eq!(
         fonds.automerge().get_changes(&[]).len(),
         123,

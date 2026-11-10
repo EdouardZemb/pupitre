@@ -6,35 +6,13 @@ mod commun;
 
 use std::fs;
 
-use automerge::{
-    Automerge, AutomergeError, Change, ObjId, ObjType, ROOT, ReadDoc, ScalarValue, Value,
-};
+use automerge::{Automerge, AutomergeError, Change, ObjId, ROOT, ReadDoc, ScalarValue, Value};
+use commun::{HEURE, MESSAGE_DU_GESTE, NAISSANCE, dossier_du_fonds, objet, ouvrir_le_fonds};
 use noyau::donnees::fonds::{
     ETIQUETTES, GENESE, IDEES, IDENTIFIANT, LIGNEE, MESSAGE_DE_LA_GENESE, MESSAGE_DE_LA_NAISSANCE,
     PROPRIETAIRE, TEXTE,
 };
-use stockage::{Erreur, Naissance, RacineDesDonnees};
-
-/// La naissance des tests : des identifiants écrits, jamais tirés.
-const NAISSANCE: Naissance<'static> = Naissance {
-    identifiant: "fonds-1",
-    lignee: "lignee-1",
-    proprietaire: "proprietaire-1",
-};
-
-/// Le message du premier geste, noter une idée.
-const MESSAGE_DU_GESTE: &str = "Idée notée";
-
-/// L'heure de la naissance et du premier geste : une entrée, jamais l'horloge.
-const HEURE: i64 = 1_700_000_000;
-
-/// L'objet à clés que porte la clé `cle` de `parent`.
-fn objet(doc: &Automerge, parent: &ObjId, cle: &str) -> ObjId {
-    match doc.get(parent, cle).expect("lire le document") {
-        Some((Value::Object(ObjType::Map), objet)) => objet,
-        autre => panic!("{cle} ne porte pas un objet à clés : {autre:?}"),
-    }
-}
+use stockage::{Erreur, RacineDesDonnees};
 
 /// La valeur simple que porte la clé `cle` de `objet`.
 fn valeur(doc: &Automerge, objet: &ObjId, cle: &str) -> ScalarValue {
@@ -72,7 +50,7 @@ fn naitre_ecrit_un_seul_fichier_complet() {
     // La racine des données fermée, puis rouverte, comme au lancement suivant.
     drop(racine);
 
-    let dossier = chemin.join("documents").join("fonds");
+    let dossier = dossier_du_fonds(&chemin);
     assert_eq!(
         commun::entrees(&chemin.join("documents")),
         ["fonds"],
@@ -90,10 +68,7 @@ fn naitre_ecrit_un_seul_fichier_complet() {
     );
 
     let racine = RacineDesDonnees::ouvrir(&chemin).expect("rouvrir la racine des données");
-    let fonds = racine
-        .fonds()
-        .expect("rouvrir le fonds")
-        .expect("le fonds est né");
+    let fonds = ouvrir_le_fonds(&racine);
     let doc = fonds.automerge();
 
     let modifications = doc.get_changes(&[]);
@@ -178,7 +153,7 @@ fn le_fonds_ne_nait_qu_une_fois() {
             commun::noter(tx, "idee-1", "Un refrain qui monte")
         })
         .expect("la première naissance");
-    let dossier = racine.chemin().join("documents").join("fonds");
+    let dossier = dossier_du_fonds(racine.chemin());
     let avant = fs::read(dossier.join("complet.automerge")).expect("lire le fichier complet");
 
     let seconde = racine.faire_naitre_le_fonds(&NAISSANCE, MESSAGE_DU_GESTE, HEURE, |tx| {

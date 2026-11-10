@@ -9,44 +9,12 @@
 mod commun;
 
 use std::fs;
-use std::path::{Path, PathBuf};
 
 use automerge::{Automerge, AutomergeError, ReadDoc};
-use stockage::{Document, Erreur, Naissance, RacineDesDonnees, empreinte};
-
-/// La naissance des tests : des identifiants écrits, jamais tirés.
-const NAISSANCE: Naissance<'static> = Naissance {
-    identifiant: "fonds-1",
-    lignee: "lignee-1",
-    proprietaire: "proprietaire-1",
+use commun::{
+    HEURE, dossier_des_ajouts, dossier_du_fonds, faire_naitre, lire_le_complet, ouvrir_le_fonds,
 };
-
-/// L'heure de la naissance ; chaque écriture vient un peu après. Une entrée, jamais l'horloge.
-const HEURE: i64 = 1_700_000_000;
-
-/// Fait naître le fonds de `racine` d'une idée, `idee-1`, au texte long.
-fn faire_naitre(racine: &RacineDesDonnees) -> Document<'_> {
-    racine
-        .faire_naitre_le_fonds(&NAISSANCE, "Idée notée", HEURE, |tx| {
-            commun::noter(tx, "idee-1", &commun::texte_long())
-        })
-        .expect("faire naître le fonds")
-}
-
-/// `documents/fonds/`, dans la racine des données `racine`.
-fn dossier_du_fonds(racine: &Path) -> PathBuf {
-    racine.join("documents").join("fonds")
-}
-
-/// `documents/fonds/ajouts/`, dans la racine des données `racine`.
-fn dossier_des_ajouts(racine: &Path) -> PathBuf {
-    dossier_du_fonds(racine).join("ajouts")
-}
-
-/// Le fichier complet du fonds de la racine des données `racine`, relu du disque.
-fn lire_le_complet(racine: &Path) -> Vec<u8> {
-    fs::read(dossier_du_fonds(racine).join("complet.automerge")).expect("lire le fichier complet")
-}
+use stockage::{Erreur, RacineDesDonnees, empreinte};
 
 #[test]
 fn chaque_ecriture_ajoute_un_fichier_nomme_par_son_empreinte() {
@@ -125,10 +93,7 @@ fn rouvrir_relit_le_complet_puis_les_ajouts() {
     drop(racine);
 
     let racine = RacineDesDonnees::ouvrir(&chemin).expect("rouvrir la racine des données");
-    let fonds = racine
-        .fonds()
-        .expect("rouvrir le fonds")
-        .expect("le fonds est né");
+    let fonds = ouvrir_le_fonds(&racine);
 
     assert_eq!(fonds.automerge().get_heads(), heads);
     assert_eq!(fonds.automerge().hydrate(None), valeur);
@@ -257,10 +222,7 @@ fn chaque_ouverture_tire_un_acteur_neuf() {
     drop(racine);
 
     let racine = RacineDesDonnees::ouvrir(&chemin).expect("rouvrir la racine des données");
-    let mut fonds = racine
-        .fonds()
-        .expect("rouvrir le fonds")
-        .expect("le fonds est né");
+    let mut fonds = ouvrir_le_fonds(&racine);
     let avant = fonds.automerge().get_heads();
     assert_eq!(
         avant.len(),
@@ -384,10 +346,7 @@ fn une_ecriture_qui_echoue_laisse_le_document_a_relire() {
 
     fs::remove_file(&ajouts).expect("ôter le fichier posé à la place de ajouts/");
     fs::rename(&de_cote, &ajouts).expect("rendre ajouts/");
-    let fonds = racine
-        .fonds()
-        .expect("rouvrir le fonds")
-        .expect("le fonds est né");
+    let fonds = ouvrir_le_fonds(&racine);
     assert_eq!(
         fonds.automerge().get_heads(),
         avant,

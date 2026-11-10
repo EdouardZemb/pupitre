@@ -161,12 +161,21 @@ mod tests {
         assert_eq!(nom_propose(&date), "cahier-des-tables-2026-11-01.pdf");
     }
 
-    /// Un dossier à soi dans le dossier temporaire, vide.
-    fn dossier(nom: &str) -> PathBuf {
-        let d = std::env::temp_dir().join(format!("etabli-{nom}-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&d);
-        std::fs::create_dir_all(&d).expect("le dossier temporaire se crée");
-        d
+    /// Le dossier jetable du test `nom`, dans le dossier temporaire du système, jamais dans le
+    /// dossier de l'application (I30) : `pupitre-etabli-<nom>-<processus>`. Ce qu'un passage
+    /// précédent y a laissé est effacé, puis le dossier est recréé, vide. C'est le seul endroit
+    /// des tests d'`etabli` qui devine un chemin.
+    fn dossier_jetable(nom: &str) -> PathBuf {
+        let dossier =
+            std::env::temp_dir().join(format!("pupitre-etabli-{nom}-{}", std::process::id()));
+        match std::fs::remove_dir_all(&dossier) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => panic!("effacer {} : {e}", dossier.display()),
+        }
+        std::fs::create_dir_all(&dossier)
+            .unwrap_or_else(|e| panic!("créer {} : {e}", dossier.display()));
+        dossier
     }
 
     /// Les noms de ce que contient un dossier, dans l'ordre.
@@ -195,7 +204,7 @@ mod tests {
 
     #[test]
     fn le_cahier_s_ecrit_et_l_export_rend_le_nom_du_fichier() {
-        let d = dossier("ecrit");
+        let d = dossier_jetable("ecrit");
         let chemin = d.join(NOM);
         let r = ecrire_le_cahier(Some(&chemin), || Ok(b"%PDF-1.7".to_vec()));
         assert_eq!(r, Ok(Some(NOM.to_string())));
@@ -209,7 +218,7 @@ mod tests {
 
     #[test]
     fn le_cahier_s_ecrit_d_abord_a_cote_puis_prend_la_place_du_cahier_choisi() {
-        let d = dossier("remplace");
+        let d = dossier_jetable("remplace");
         let chemin = d.join(NOM);
         std::fs::write(&chemin, b"ancien").expect("l'ancien cahier s'écrit");
         let r = ecrire_le_cahier(Some(&chemin), || {
@@ -231,7 +240,7 @@ mod tests {
     fn un_dossier_ou_l_on_ne_peut_ecrire_se_dit_avant_que_le_cahier_ne_s_engendre() {
         // Vigilance 5 : dans un dossier qui n'existe pas, le fichier ne s'écrit pas, et le dire
         // n'attend pas les secondes du cahier.
-        let d = dossier("refus");
+        let d = dossier_jetable("refus");
         let chemin = d.join("absent").join(NOM);
         let r = ecrire_le_cahier(Some(&chemin), || panic!("rien ne s'engendre"));
         let e = r.expect_err("l'écriture échoue");
@@ -242,7 +251,7 @@ mod tests {
 
     #[test]
     fn un_cahier_qui_ne_s_engendre_pas_laisse_l_ancien_intact_et_rien_de_temporaire() {
-        let d = dossier("engendre");
+        let d = dossier_jetable("engendre");
         let chemin = d.join("cahier.pdf");
         std::fs::write(&chemin, b"ancien").expect("l'ancien cahier s'écrit");
         let r = ecrire_le_cahier(Some(&chemin), || {
@@ -264,7 +273,7 @@ mod tests {
     fn un_remplacement_qui_echoue_se_dit_et_ne_laisse_rien_de_temporaire() {
         // Le nom choisi est celui d'un dossier : le cahier, écrit à côté, ne peut en prendre la
         // place, et ce que le dossier contient ne bouge pas.
-        let d = dossier("place-prise");
+        let d = dossier_jetable("place-prise");
         let chemin = d.join("cahier.pdf");
         std::fs::create_dir(&chemin).expect("le dossier se crée");
         std::fs::write(chemin.join("garde"), b"ancien").expect("son fichier s'écrit");

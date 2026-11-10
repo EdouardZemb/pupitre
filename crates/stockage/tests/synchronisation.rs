@@ -11,59 +11,15 @@
 mod commun;
 
 use std::fs;
-use std::path::{Path, PathBuf};
 
-use stockage::{Document, Erreur, Naissance, RacineDesDonnees, empreinte};
-use synchro::{Copie, Echange};
-
-/// La naissance des tests : des identifiants écrits, jamais tirés.
-const NAISSANCE: Naissance<'static> = Naissance {
-    identifiant: "fonds-1",
-    lignee: "lignee-1",
-    proprietaire: "proprietaire-1",
+use commun::{
+    HEURE, NAISSANCE, deux_copies, dossier_des_ajouts, dossier_du_fonds, ouvrir_le_fonds,
 };
-
-/// L'heure de la naissance ; chaque écriture vient un peu après. Une entrée, jamais l'horloge.
-const HEURE: i64 = 1_700_000_000;
+use stockage::{Erreur, RacineDesDonnees, empreinte};
+use synchro::{Copie, Echange};
 
 /// Le message de l'écriture que le test fait refuser.
 const MESSAGE_REFUSE: &str = "Texte changé";
-
-/// Fait naître le fonds dans la racine des données `<dossier jetable>/a`, la ferme, puis la copie
-/// dans `<dossier jetable>/b`. Rend les chemins des deux racines des données, A puis B.
-fn deux_copies(nom: &str) -> (PathBuf, PathBuf) {
-    let d = commun::dossier_jetable(nom);
-    let a = d.join("a");
-    let b = d.join("b");
-    {
-        let racine = RacineDesDonnees::ouvrir(&a).expect("ouvrir la racine des données d'A");
-        racine
-            .faire_naitre_le_fonds(&NAISSANCE, "Idée notée", HEURE, |tx| {
-                commun::noter(tx, "idee-1", &commun::texte_long())
-            })
-            .expect("faire naître le fonds");
-    }
-    commun::copier_l_arbre(&a, &b);
-    (a, b)
-}
-
-/// Le fonds de `racine`, rouvert.
-fn ouvrir_le_fonds(racine: &RacineDesDonnees) -> Document<'_> {
-    racine
-        .fonds()
-        .expect("rouvrir le fonds")
-        .expect("le fonds est né")
-}
-
-/// `documents/fonds/`, dans la racine des données `racine`.
-fn dossier_du_fonds(racine: &Path) -> PathBuf {
-    racine.join("documents").join("fonds")
-}
-
-/// `documents/fonds/ajouts/`, dans la racine des données `racine`.
-fn dossier_des_ajouts(racine: &Path) -> PathBuf {
-    dossier_du_fonds(racine).join("ajouts")
-}
 
 #[test]
 fn la_copie_se_lit_a_la_racine_du_document() {

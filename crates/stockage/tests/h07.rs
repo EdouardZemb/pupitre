@@ -12,23 +12,14 @@ mod commun;
 
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use automerge::{Automerge, ChangeHash, ObjId, ObjType, ROOT, ReadDoc, Value, hydrate};
+use automerge::{Automerge, ChangeHash, ObjId, ROOT, ReadDoc, hydrate};
+use commun::{HEURE, NAISSANCE, objet, ouvrir, ouvrir_le_fonds, rangee};
 use noyau::donnees::fonds::{ETIQUETTES, IDEES, PRISES, TEXTE};
 use proptest::prelude::*;
-use stockage::{Document, Erreur, Naissance, RacineDesDonnees};
+use stockage::{Document, Erreur};
 use synchro::Copie;
-
-/// La naissance des tests : des identifiants écrits, jamais tirés.
-const NAISSANCE: Naissance<'static> = Naissance {
-    identifiant: "fonds-1",
-    lignee: "lignee-1",
-    proprietaire: "proprietaire-1",
-};
-
-/// L'heure de la naissance ; chaque écriture vient un peu après. Une entrée, jamais l'horloge.
-const HEURE: i64 = 1_700_000_000;
 
 /// Le format des prises des tests, dont les captations sont des octets engendrés.
 const FORMAT_DES_PRISES: &str = "wav";
@@ -131,32 +122,6 @@ fn idee_notee(replique: &str, rang: usize) -> String {
     format!("{replique}-{}", rang + 1)
 }
 
-/// La racine des données de `chemin`, ouverte.
-fn ouvrir(chemin: &Path) -> RacineDesDonnees {
-    RacineDesDonnees::ouvrir(chemin).unwrap_or_else(|erreur| {
-        panic!(
-            "ouvrir la racine des données {} : {erreur:?}",
-            chemin.display()
-        )
-    })
-}
-
-/// Le fonds de `racine`, rouvert.
-fn ouvrir_le_fonds(racine: &RacineDesDonnees) -> Document<'_> {
-    racine
-        .fonds()
-        .expect("rouvrir le fonds")
-        .expect("le fonds est né")
-}
-
-/// L'objet à clés que porte la clé `cle` de `parent`.
-fn objet(doc: &Automerge, parent: &ObjId, cle: &str) -> ObjId {
-    match doc.get(parent, cle).expect("lire le document") {
-        Some((Value::Object(ObjType::Map), objet)) => objet,
-        autre => panic!("{cle} ne porte pas un objet à clés : {autre:?}"),
-    }
-}
-
 /// Les clés de l'objet à clés `objet`, dans l'ordre d'Automerge.
 fn cles(doc: &Automerge, objet: &ObjId) -> Vec<String> {
     doc.keys(objet).collect()
@@ -255,12 +220,6 @@ fn une_copie_restauree(nom: &str) -> (PathBuf, Releve) {
     drop(racine);
     commun::copier_l_arbre(&chemin_a, &chemin_de_la_copie);
     (chemin_de_la_copie, releve)
-}
-
-/// Le chemin où se range la captation `e` dans la racine des données `racine` :
-/// `captations/<deux premiers caractères>/<e>`.
-fn rangee(racine: &Path, e: &str) -> PathBuf {
-    racine.join("captations").join(&e[..2]).join(e)
 }
 
 #[test]
