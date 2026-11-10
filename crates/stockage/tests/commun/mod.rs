@@ -185,6 +185,9 @@ pub fn deux_copies(nom: &str) -> (PathBuf, PathBuf) {
 
 /// Le seul chemin d'écriture des tests de la tranche : la tranche 2 le changera seul. Écrit
 /// `geste` dans `document`, sous le message `MESSAGE_DU_GESTE`, à l'heure `HEURE`.
+// L'erreur est celle de `Document::ecrire`, que l'aide rend telle quelle. Clippy épargne la
+// méthode, exportée par le stockage, mais pas l'aide, qui ne l'est pas.
+#[allow(clippy::result_large_err)]
 pub fn ecrire(
     document: &mut Document<'_>,
     geste: impl FnOnce(&mut Transaction<'_>) -> Result<(), AutomergeError>,
