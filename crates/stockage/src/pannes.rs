@@ -1,7 +1,8 @@
 //! Le point d'injection d'une panne, à chaque étape d'une écriture (§ 31 · 2.1).
 //!
-//! Chaque étape d'une écriture passe par `point` juste avant son geste sur le disque, et chaque
-//! lecture de `fichier::lire` rend ses octets par `relue`. Sans la fonction `pannes`, le point
+//! Chaque étape d'une écriture passe par `point` juste avant son geste sur le disque, sauf `Save`
+//! et `Reception`, qui y passent juste après leur geste en mémoire, et chaque lecture de
+//! `fichier::lire` rend ses octets par `relue`. Sans la fonction `pannes`, le point
 //! laisse tout passer et la relecture rend les octets tels quels : la configuration livrée n'a
 //! rien d'autre. Sous la fonction, que seuls les tests du stockage demandent, une panne s'arme
 //! par `couper` ou `alterer_la_relecture`, dans le fil du test, et se désarme à sa chute.
@@ -15,6 +16,10 @@ use std::marker::PhantomData;
 /// Une étape d'une écriture, où une panne peut s'injecter.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Etape {
+    /// Après le `save()` d'une compaction, avant de relire ses octets en mémoire
+    /// (`Automerge::load`) : en échec, comme des octets qui ne se relisent pas, la compaction est
+    /// infidèle, et rien ne s'écrit.
+    Save,
     /// Après la création du voisin, avant d'y écrire ses octets (`write_all`).
     VoisinEcrit,
     /// Avant la synchronisation du voisin (`sync_all`).
@@ -27,6 +32,10 @@ pub enum Etape {
     RendreDurable,
     /// Avant le retrait d'un fichier (`fs::remove_file`).
     Retrait,
+    /// Après une réception qui a changé les heads du document, avant d'écrire ce qu'elle a
+    /// apporté : en échec, la réception est refusée (`synchro::Erreur::Automerge`), ce qu'elle a
+    /// apporté écrit.
+    Reception,
 }
 
 /// La panne armée : elle se désarme à sa chute.

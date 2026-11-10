@@ -123,7 +123,10 @@ impl RacineDesDonnees {
     /// § 31 · 2.3 : `GENESE`, la naissance (`MESSAGE_DE_LA_NAISSANCE`, qui écrit `IDENTIFIANT`,
     /// `LIGNEE` et `PROPRIETAIRE`), puis le premier geste, avec son message ; les trois en un
     /// seul fichier, `documents/fonds/complet.automerge`, écrit à côté puis renommé, et
-    /// `documents/fonds/ajouts/` créé. Le geste refusé, rien ne s'écrit.
+    /// `documents/fonds/ajouts/` créé. Le geste refusé, rien ne s'écrit. Le fichier complet
+    /// refusé avant la fin de son renommage rend [`Erreur::Disque`], et seul `ajouts/` reste,
+    /// vide ; en place, mais son renommage non rendu durable, le fonds naît, avec cet
+    /// avertissement ([`Document::avertissements`]).
     ///
     /// Un fonds déjà né rend [`Erreur::FondsDejaNe`], sans que le geste soit fait. Un `Document`
     /// du fonds déjà vivant rend [`Erreur::FondsDejaOuvert`], avant toute lecture.

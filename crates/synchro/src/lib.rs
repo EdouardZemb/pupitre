@@ -50,4 +50,13 @@ impl Echange {
         doc.receive_sync_message(&mut self.etat, message)
             .map_err(Erreur::Automerge)
     }
+
+    /// § 31 · 2.1 : la copie locale a perdu ce qu'elle avait reçu (une réception refusée, puis la
+    /// relecture du disque). Son prochain message demande à l'autre copie d'oublier ce qu'elle
+    /// croit avoir envoyé (`State::needs_reset`, champ public d'automerge 0.12.0 : le drapeau
+    /// `SYNC_RESET`, ou des heads vides devant une copie qui ne le connaît pas), et l'autre copie
+    /// le renvoie.
+    pub fn reprendre(&mut self) {
+        self.etat.needs_reset = true;
+    }
 }
