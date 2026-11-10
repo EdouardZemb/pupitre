@@ -233,6 +233,10 @@ fn chaque_ouverture_tire_un_acteur_neuf() {
     // Rouvert, le fonds s'est compacté : `ajouts/` se relit juste avant l'écriture.
     let ajouts = dossier_des_ajouts(&chemin);
     let ajouts_avant = commun::entrees(&ajouts);
+    assert!(
+        ajouts_avant.is_empty(),
+        "la réouverture compacte : ajouts/ est vide, aucun fichier parasite : {ajouts_avant:?}"
+    );
     fonds
         .ecrire("Étiquette posée", HEURE + 2, |tx| {
             commun::etiqueter(tx, "idee-1", "couplet")
