@@ -33,7 +33,9 @@ pub use racine_des_donnees::RacineDesDonnees;
 pub enum Erreur {
     /// `TryLockError::WouldBlock` : un autre processus tient la racine des données.
     RacineDesDonneesTenue,
-    /// Le disque a refusé une lecture, une écriture ou une création sur `chemin`.
+    /// Le disque a refusé un geste sur `chemin` (lecture, écriture, création, renommage, retrait,
+    /// ou le renommage rendu durable), ou, relu, il ne rend pas les octets écrits
+    /// (`io::ErrorKind::InvalidData`).
     Disque {
         chemin: PathBuf,
         erreur: std::io::Error,
@@ -67,8 +69,8 @@ pub enum Erreur {
     Synchro(synchro::Erreur),
 }
 
-/// Pourquoi un document est en lecture seule (§ 31 · 2.1) : il montre ce qui se lit, n'écrit ni ne
-/// se compacte, n'envoie ni ne reçoit.
+/// Pourquoi un document est en lecture seule (§ 31 · 2.1) : il montre ce qui se lit, n'écrit
+/// d'opération ni ne se compacte, n'envoie ni ne reçoit.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LectureSeule {
     /// La relecture du disque, après une écriture refusée, a échoué sur `chemin` : le document

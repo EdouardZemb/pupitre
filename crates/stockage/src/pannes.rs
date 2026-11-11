@@ -24,7 +24,9 @@ pub enum Etape {
     VoisinEcrit,
     /// Avant la synchronisation du voisin (`sync_all`).
     SyncAll,
-    /// Avant la lecture d'un fichier (`fs::read`), dont la relecture du voisin.
+    /// Avant chaque lecture de `fichier::lire` (`fs::read`) : la relecture d'un voisin ou du nom
+    /// provisoire d'une captation, et chaque fichier que lisent l'ouverture, la relecture du
+    /// disque et la compaction. `Captations::relire` et `Captations::verifier` n'y passent pas.
     Relecture,
     /// Avant le renommage du voisin (`fs::rename`).
     Renommage,
@@ -33,10 +35,11 @@ pub enum Etape {
     /// Avant le retrait d'un fichier (`fs::remove_file`).
     Retrait,
     /// Après une réception qui a changé les heads du document, avant d'écrire ce qu'elle a
-    /// apporté : en échec, la réception est refusée (`synchro::Erreur::Automerge`), ce qu'elle a
-    /// apporté écrit. L'étape ne passe, et une panne `Reception` armée ne compte ce passage, que
-    /// si les heads ont changé, y compris sur une réception que `synchro` a déjà refusée : une
-    /// panne qui tombe sur celle-ci ne change pas son issue, qui reste le refus de `synchro`.
+    /// apporté : en échec, c'est une réception refusée en chemin (`synchro::Erreur::Automerge`),
+    /// ce qu'elle a apporté écrit. L'étape ne passe, et une panne `Reception` armée ne compte ce
+    /// passage, que si les heads ont changé, y compris sur une réception que `synchro` a déjà
+    /// refusée en chemin : une panne qui tombe sur celle-ci ne change pas son issue, qui reste le
+    /// refus de `synchro`.
     Reception,
 }
 

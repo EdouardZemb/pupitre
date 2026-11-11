@@ -216,16 +216,18 @@ de tête (§ 2.4) : le [glossaire](80-glossaire.md#les-données) les distingue.
   par-dessus celui qu'elle fond : le numéro d'un processus se réemploie d'un lancement à
   l'autre, et un nom déjà pris reçoit un suffixe (`<nom>.<processus>-2.partiel`, `-3`…).
   Tout autre `.partiel` de `documents/` est retiré. Le nom provisoire d'une captation suit le § 6.1 : il n'est jamais retiré d'office.
-  Une opération refusée retire son voisin avant de dire son refus, comme l'export du cahier.
-  Un voisin qui ne se retire pas se vide : vide, il ne se lit pas, et ne prend pas la place
-  au démarrage. Seule cette double panne, un voisin qui ne se retire ni ne se vide, peut faire
-  paraître une opération refusée à la relance.
+  Une opération refusée ôte son voisin avant de dire son refus : elle le vide, rend ce vide
+  durable (`sync_all`, sous chaque système), puis le retire ; l'export du cahier, lui, retire
+  le sien sans le vider. Un retrait qui échoue, ou qu'une coupure perd, laisse ainsi un voisin
+  vide : vide, il ne se lit pas, et ne prend pas la place au démarrage. Seule une double
+  panne, un voisin dont le vide n'a pu être rendu durable et dont le retrait échoue ou se
+  perd, peut faire paraître une opération refusée à la relance.
 - **Une opération nommée n'est faite qu'une fois son fichier d'ajout renommé**, ou, à la
   naissance d'un document, son premier fichier complet (§ 2.3), et la commande ne répond
   qu'alors ([ADR-022](adr/adr-022-documents-cote-natif.md)). Son écriture a trois issues :
   faite ; faite, avec un avertissement, quand son renommage n'a pas été rendu durable, ou que
   la compaction qui la suit échoue (§ 2.2), ce qui ne la défait pas ; ou refusée, quand elle
-  échoue avant la fin du renommage. Refusée, l'opération retire son voisin, le refus se dit,
+  échoue avant la fin du renommage. Refusée, l'opération ôte son voisin, le refus se dit,
   et le document se relit du disque, avec un acteur neuf : la mémoire ne garde jamais une
   écriture que le disque n'a pas. Une relecture du disque qui échoue met le document en
   lecture seule, sur sa mémoire d'avant l'opération refusée. Le premier fichier complet et une
@@ -240,8 +242,8 @@ de tête (§ 2.4) : le [glossaire](80-glossaire.md#les-données) les distingue.
   naissance d'un document, son premier fichier complet. De même, ce que la synchronisation
   reçoit ne l'est qu'une fois écrit, en un fichier d'ajout (`save_after` des *heads* d'avant
   la réception), avant que l'échange ne continue, avec les trois issues d'une opération ; un
-  message qui n'apporte rien n'écrit rien. Une réception refusée relance en outre l'échange,
-  pour que l'autre copie renvoie ce que la relecture a ôté.
+  message qui n'apporte rien n'écrit rien. Une réception dont l'écriture est refusée relance
+  en outre l'échange, pour que l'autre copie renvoie ce que la relecture a ôté.
 - **Le message d'une opération nommée** est celui de sa modification Automerge, qui porte
   aussi son heure : le journal se lit dans l'historique (§ 3).
 - **Chaque ouverture d'un document tire un acteur neuf.** Un acteur, au sens d'Automerge, est

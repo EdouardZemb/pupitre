@@ -51,7 +51,7 @@ pub struct Document<'r> {
     /// compacte le document. Une compaction qui réussit la baisse.
     compaction_due: bool,
     /// Les avertissements de la naissance ou de l'ouverture, et ceux que des réceptions refusées
-    /// n'ont pu rendre.
+    /// en chemin n'ont pu rendre.
     avertissements: Vec<Avertissement>,
 }
 
@@ -74,8 +74,8 @@ impl Document<'_> {
         self.lecture_seule.as_ref()
     }
 
-    /// Les avertissements de la naissance ou de l'ouverture, et celui qu'une réception refusée n'a
-    /// pu rendre, son refus se rendant à sa place.
+    /// Les avertissements de la naissance ou de l'ouverture, et celui qu'une réception refusée en
+    /// chemin n'a pu rendre, son refus se rendant à sa place.
     pub fn avertissements(&self) -> &[Avertissement] {
         &self.avertissements
     }
@@ -107,12 +107,13 @@ impl Document<'_> {
     /// les issues de [`Document::ecrire`] : faite, faite avec un avertissement, ou refusée. Rien
     /// de neuf, rien d'écrit.
     ///
-    /// Refusée, l'écriture relit le document du disque, qui perd ce que l'échange croit reçu :
-    /// l'échange reprend (`Echange::reprendre`), pour que l'autre copie renvoie ce qu'elle a
-    /// envoyé, et `Erreur::Disque` se rend. Une réception que l'échange refuse rend
-    /// `Erreur::Synchro`, ce qu'elle a apporté écrit ; l'avertissement de cette écriture, s'il en
-    /// vient un, rejoint [`Document::avertissements`]. Un document en lecture seule que son accès
-    /// prive d'échange : `Erreur::LectureSeule`, et le message ne s'applique pas.
+    /// Une réception dont l'écriture est refusée relit le document du disque, qui perd ce que
+    /// l'échange croit reçu : l'échange reprend (`Echange::reprendre`), pour que l'autre copie
+    /// renvoie ce qu'elle a envoyé, et `Erreur::Disque` se rend. Une réception refusée en chemin,
+    /// que l'échange refuse, rend `Erreur::Synchro`, ce qu'elle a apporté écrit ; l'avertissement
+    /// de cette écriture, s'il en vient un, rejoint [`Document::avertissements`]. Un document en
+    /// lecture seule que son accès prive d'échange : `Erreur::LectureSeule`, et le message ne
+    /// s'applique pas.
     pub fn recevoir(
         &mut self,
         echange: &mut Echange,
@@ -163,8 +164,9 @@ impl Document<'_> {
     ///   compaction qui suit, quand `apres_une_ecriture` la dit (§ 31 · 2.2), échoue, la pesée
     ///   des fichiers comprise (`Avertissement::Compaction`) : rien n'est perdu, et elle se
     ///   retente à l'écriture suivante, qui retire ce qu'elle n'a pas retiré ;
-    /// - refusée, avant la fin du renommage : le voisin est retiré, le document se relit du
-    ///   disque, avec un acteur neuf, et `Erreur::Disque` se rend. Une relecture qui échoue met le
+    /// - refusée, avant la fin du renommage : le voisin est ôté, vidé puis retiré
+    ///   ([`fichier::ecrire_a_cote`]), le document se relit du disque, avec un acteur neuf, et
+    ///   `Erreur::Disque` se rend. Une relecture qui échoue met le
     ///   document en lecture seule (`LectureSeule::RelectureManquee`), sur sa mémoire d'avant
     ///   l'écriture refusée.
     ///
@@ -272,7 +274,7 @@ impl Document<'_> {
             .join("ajouts")
             .join(format!("{}.automerge", empreinte(&octets)));
         match ecrire_a_cote(&chemin, &octets) {
-            // Le voisin est retiré : la mémoire porte ce que le disque n'a pas, et se relit.
+            // Le voisin est ôté : la mémoire porte ce que le disque n'a pas, et se relit.
             Err(Echec::Refusee(erreur)) => {
                 self.relire_du_disque(avant);
                 Err(disque(&chemin, erreur))
