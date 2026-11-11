@@ -161,8 +161,8 @@ impl Document<'_> {
     /// - faite, avec un avertissement : le fichier d'ajout est renommé, mais son renommage n'est
     ///   pas rendu durable (`Avertissement::NonDurable`), et la compaction est due ; ou la
     ///   compaction qui suit, quand `apres_une_ecriture` la dit (§ 31 · 2.2), échoue, la pesée
-    ///   des fichiers comprise (`Avertissement::Compaction`) : rien n'est retiré, et elle se
-    ///   retente à l'écriture suivante ;
+    ///   des fichiers comprise (`Avertissement::Compaction`) : rien n'est perdu, et elle se
+    ///   retente à l'écriture suivante, qui retire ce qu'elle n'a pas retiré ;
     /// - refusée, avant la fin du renommage : le voisin est retiré, le document se relit du
     ///   disque, avec un acteur neuf, et `Erreur::Disque` se rend. Une relecture qui échoue met le
     ///   document en lecture seule (`LectureSeule::RelectureManquee`), sur sa mémoire d'avant
@@ -383,8 +383,9 @@ impl Document<'_> {
 /// Le fonds de `racine`, rouvert s'il est né (`lire_le_dossier`), avec un acteur neuf, en
 /// lecture seule si un fichier ne se lit pas, puis compacté quand `a_l_ouverture` le dit ;
 /// sinon `None`. Une compaction qui échoue n'empêche pas d'ouvrir : son erreur vient en
-/// avertissement (`Avertissement::Compaction`), les fichiers restent en place, et la compaction
-/// est due. L'essai ne lit pas le voisin du fichier complet : le lot 1 le fond.
+/// avertissement (`Avertissement::Compaction`), rien n'est perdu, et la compaction est due :
+/// l'écriture suivante retire ce qu'elle n'a pas retiré. L'essai ne lit pas le voisin du fichier
+/// complet : le lot 1 le fond.
 pub(crate) fn rouvrir_le_fonds(racine: &RacineDesDonnees) -> Result<Option<Document<'_>>, Erreur> {
     let garde = racine.prendre_la_garde()?;
     let dossier = dossier_du_fonds(racine);
@@ -437,12 +438,16 @@ fn lire_le_dossier(dossier: &Path) -> Result<(Automerge, Option<LectureSeule>, u
     Ok((automerge, raison, fichiers.len()))
 }
 
-/// Le fichier complet `complet`, lu par `fichier::lire`, puis `Automerge::load`. Refusé, il se
-/// relit sans ce qui ne se lit pas (`load_with_options`, `OnPartialLoad::Ignore`), ou, refusé
-/// encore, laisse un document neuf ; la raison est alors `CompletIllisible`.
+/// Le fichier complet `complet`, lu par `fichier::lire`, puis `Automerge::load`. Vide, ou
+/// refusé, il se relit sans ce qui ne se lit pas (`load_with_options`, `OnPartialLoad::Ignore`),
+/// ou, refusé encore, laisse un document neuf ; la raison est alors `CompletIllisible`. Un
+/// fichier complet vide, qu'Automerge lit comme un document neuf, sans genèse, n'est jamais
+/// entier : les écritures naîtraient sans elle.
 fn lire_le_complet(complet: &Path) -> Result<(Automerge, Option<LectureSeule>), Erreur> {
     let octets = fichier::lire(complet).map_err(|erreur| disque(complet, erreur))?;
-    if let Ok(automerge) = Automerge::load(&octets) {
+    if !octets.is_empty()
+        && let Ok(automerge) = Automerge::load(&octets)
+    {
         return Ok((automerge, None));
     }
     let ce_qui_se_lit = Automerge::load_with_options(
@@ -497,22 +502,25 @@ fn lire_les_ajouts<'f>(
     Ok(lus)
 }
 
-/// Tout lu, `automerge` a une modification qui attend ses dépendances (`get_missing_deps`) :
-/// `DependancesManquantes`, sur le premier fichier chargé de `charges`, dans l'ordre des noms,
-/// qui en attend une que le document lu n'a pas (`attend_ce_qui_manque`) ; à défaut, sur le
-/// fichier complet `complet`, dont une modification attend alors. Le fichier qui manque ne se
-/// nomme pas, celui qui l'attend, si. Rien n'attend : `None`.
+/// Tout lu, il manque au document lu `automerge` des modifications qu'une autre attend
+/// (`get_missing_deps(&[])`, qui suit les modifications en attente jusqu'à celles que le
+/// document n'a pas) : `DependancesManquantes`, sur le premier fichier chargé de `charges`, dans
+/// l'ordre des noms, qui attend l'une d'elles (`attend_l_une_de`) ; à défaut, sur le fichier
+/// complet `complet`, dont une modification attend alors. Le fichier qui manque ne se nomme pas,
+/// celui qui l'attend, si ; un fichier qui n'attend qu'un fichier présent, lui-même en attente,
+/// ne se nomme pas non plus. Rien ne manque : `None`.
 fn dependances_manquantes(
     automerge: &Automerge,
     charges: &[(&Path, Vec<u8>)],
     complet: &Path,
 ) -> Option<LectureSeule> {
-    if automerge.get_missing_deps(&[]).is_empty() {
+    let manquantes = automerge.get_missing_deps(&[]);
+    if manquantes.is_empty() {
         return None;
     }
     let chemin = charges
         .iter()
-        .find(|(_, octets)| attend_ce_qui_manque(automerge, octets))
+        .find(|(_, octets)| attend_l_une_de(&manquantes, octets))
         .map_or(complet, |(chemin, _)| *chemin);
     Some(LectureSeule::DependancesManquantes {
         chemin: chemin.to_path_buf(),
@@ -520,15 +528,15 @@ fn dependances_manquantes(
 }
 
 /// Le fichier d'ajout de contenu `octets`, seul dans un document neuf (`load_incremental`),
-/// attend des modifications (`get_missing_deps(&[])`) dont l'une manque au document lu `lu`
-/// (`get_change_by_hash` rend `None`).
-fn attend_ce_qui_manque(lu: &Automerge, octets: &[u8]) -> bool {
+/// attend des modifications (`get_missing_deps(&[])`) dont l'une est dans `manquantes`, celles
+/// qui manquent au document lu.
+fn attend_l_une_de(manquantes: &[ChangeHash], octets: &[u8]) -> bool {
     let mut seul = Automerge::new();
     seul.load_incremental(octets).is_ok()
         && seul
             .get_missing_deps(&[])
             .iter()
-            .any(|attendue| lu.get_change_by_hash(attendue).is_none())
+            .any(|attendue| manquantes.contains(attendue))
 }
 
 /// Le fichier que nomme `erreur`, s'il en nomme un.

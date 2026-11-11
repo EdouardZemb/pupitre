@@ -432,6 +432,12 @@ fn une_compaction_coupee_a_chaque_etape_ne_perd_rien() {
             None,
             "{etape:?} : le fonds rouvert est en lecture seule"
         );
+        // La compaction de l'ouverture, sans panne, réussit : aucun avertissement.
+        assert!(
+            rouvert.avertissements().is_empty(),
+            "{etape:?} : le fonds rouvert a des avertissements : {:?}",
+            rouvert.avertissements()
+        );
         assert_eq!(
             doc.get_heads(),
             memoire.get_heads(),

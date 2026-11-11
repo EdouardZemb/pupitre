@@ -2,7 +2,8 @@
 //! des tests, le dossier jetable de chaque test, ce que contient un dossier et l'empreinte de
 //! chacun de ses fichiers, des octets engendrés au lieu d'un fichier, un texte long, la copie
 //! d'un arbre de fichiers, l'ouverture de la racine des données et du fonds, la naissance du
-//! fonds et ses deux copies, l'écriture des tests, les chemins du fonds et des captations, les
+//! fonds et ses deux copies, un fonds bâti sans racine des données, l'écriture des tests, les
+//! chemins du fonds et des captations, les
 //! échanges de deux copies et leur réunion, la relecture du dossier du fonds, l'objet à clés que
 //! porte une clé, l'idée que porte le fonds, les noms nouveaux d'un dossier, le fichier d'ajout
 //! qu'une écriture ou une réception ajoute, l'octet du milieu d'un fichier changé, ce que refuse un
@@ -16,9 +17,13 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use automerge::transaction::{Transactable, Transaction};
-use automerge::{Automerge, AutomergeError, ChangeHash, ObjId, ObjType, ROOT, ReadDoc, Value};
-use noyau::donnees::fonds::{ETIQUETTES, FORMAT, IDEE, IDEES, PRISES, TEXTE};
+use automerge::transaction::{CommitOptions, Transactable, Transaction};
+use automerge::{
+    ActorId, Automerge, AutomergeError, Change, ChangeHash, ObjId, ObjType, ROOT, ReadDoc, Value,
+};
+use noyau::donnees::fonds::{
+    ETIQUETTES, FORMAT, GENESE, IDEE, IDEES, MESSAGE_DE_LA_NAISSANCE, PRISES, TEXTE,
+};
 use stockage::{
     Avertissement, Document, Erreur, LectureSeule, Naissance, RacineDesDonnees, empreinte,
 };
@@ -186,6 +191,27 @@ pub fn deux_copies(nom: &str) -> (PathBuf, PathBuf) {
     }
     copier_l_arbre(&a, &b);
     (a, b)
+}
+
+/// Un fonds que le test bâtit en mémoire, sans racine des données : la genèse, puis une naissance
+/// qui écrit chaque couple (clé, chaîne) de `champs` à la racine du document, sous
+/// `MESSAGE_DE_LA_NAISSANCE`, à l'heure `HEURE`, par l'acteur `acteur`.
+pub fn batir_un_fonds(acteur: ActorId, champs: &[(&str, &str)]) -> Automerge {
+    let mut bati = Automerge::new();
+    bati.set_actor(acteur);
+    bati.apply_changes([Change::try_from(GENESE).expect("lire la genèse")])
+        .expect("appliquer la genèse");
+    let mut tx = bati.transaction();
+    for &(cle, valeur) in champs {
+        tx.put(ROOT, cle, valeur)
+            .expect("écrire un champ de la naissance");
+    }
+    tx.commit_with(
+        CommitOptions::default()
+            .with_message(MESSAGE_DE_LA_NAISSANCE)
+            .with_time(HEURE),
+    );
+    bati
 }
 
 /// Le chemin d'écriture des tests nouveaux du stockage : quand l'écriture changera de forme, il

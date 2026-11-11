@@ -6,8 +6,9 @@ mod commun;
 
 use std::fs;
 
-use automerge::transaction::{CommitOptions, Transactable};
-use automerge::{Automerge, AutomergeError, Change, ObjId, ROOT, ReadDoc, ScalarValue, Value};
+use automerge::{
+    ActorId, Automerge, AutomergeError, Change, ObjId, ROOT, ReadDoc, ScalarValue, Value,
+};
 use commun::{
     HEURE, MESSAGE_DU_GESTE, NAISSANCE, dossier_des_ajouts, dossier_du_fonds, faire_naitre, objet,
     ouvrir, ouvrir_le_fonds,
@@ -284,18 +285,12 @@ fn une_copie_sans_lignee_rend_champ_absent() {
     let chemin = commun::dossier_jetable("fonds-sans-lignee").join("donnees");
     let racine = ouvrir(&chemin);
     // Un fonds que le test bâtit : la genèse, puis l'identifiant et le propriétaire, sans lignée.
-    let mut bati = Automerge::new();
-    bati.apply_changes([Change::try_from(GENESE).expect("lire la genèse")])
-        .expect("appliquer la genèse");
-    let mut tx = bati.transaction();
-    tx.put(ROOT, IDENTIFIANT, NAISSANCE.identifiant)
-        .expect("écrire l'identifiant");
-    tx.put(ROOT, PROPRIETAIRE, NAISSANCE.proprietaire)
-        .expect("écrire le propriétaire");
-    tx.commit_with(
-        CommitOptions::default()
-            .with_message(MESSAGE_DE_LA_NAISSANCE)
-            .with_time(HEURE),
+    let bati = commun::batir_un_fonds(
+        ActorId::random(),
+        &[
+            (IDENTIFIANT, NAISSANCE.identifiant),
+            (PROPRIETAIRE, NAISSANCE.proprietaire),
+        ],
     );
     let dossier = dossier_du_fonds(&chemin);
     fs::create_dir_all(dossier.join("ajouts")).expect("créer ajouts/");

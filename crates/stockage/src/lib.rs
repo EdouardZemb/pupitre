@@ -80,13 +80,14 @@ pub enum LectureSeule {
     /// Un fichier d'ajout dont le contenu donne l'empreinte de son nom, mais que
     /// `load_incremental` refuse (par exemple `DuplicateSeqNumber`) ; il n'est pas chargé.
     AjoutIllisible { chemin: PathBuf },
-    /// `Automerge::load` refuse le fichier complet `chemin` : le document montre ce qui s'en lit
-    /// (`OnPartialLoad::Ignore`), ou rien s'il ne s'en lit rien, puis les fichiers d'ajout.
+    /// Le fichier complet `chemin` est vide, ou `Automerge::load` le refuse : le document montre
+    /// ce qui s'en lit (`OnPartialLoad::Ignore`), ou rien s'il ne s'en lit rien, puis les
+    /// fichiers d'ajout.
     CompletIllisible { chemin: PathBuf },
     /// Tout lu, une modification attend ses dépendances (`get_missing_deps`) : un fichier
     /// d'ajout manque. `chemin` est le premier fichier d'ajout, dans l'ordre des noms, qui attend
-    /// une modification que le document lu n'a pas, ou, à défaut, le fichier complet : le fichier
-    /// qui manque ne se nomme pas, celui qui l'attend, si.
+    /// une modification qui manque au document lu, ni chargée ni en attente, ou, à défaut, le
+    /// fichier complet : le fichier qui manque ne se nomme pas, celui qui l'attend, si.
     DependancesManquantes { chemin: PathBuf },
 }
 
@@ -104,13 +105,16 @@ impl LectureSeule {
     }
 }
 
-/// Ce qui a échoué après qu'une écriture est faite, sans la défaire (§ 31 · 2.1).
+/// Ce qui a échoué après qu'une écriture est faite, sans la défaire (§ 31 · 2.1) ; ou à
+/// l'ouverture, ou à la naissance, sans l'empêcher.
 #[derive(Debug)]
 pub enum Avertissement {
     /// Le fichier `chemin` est en place, mais son renommage n'a pas été rendu durable.
     NonDurable { chemin: PathBuf, erreur: io::Error },
-    /// La compaction a échoué (`Disque` ou `CompactionInfidele`) : rien n'est retiré, et elle se
-    /// retente à l'écriture suivante.
+    /// La compaction a échoué (`Disque` ou `CompactionInfidele`) : rien n'est perdu, et elle se
+    /// retente à l'écriture suivante, qui retire les fichiers d'ajout qu'elle n'a pas retirés.
+    /// Coupée en chemin, elle a pu remplacer le fichier complet sans le rendre durable, ou
+    /// retirer une part des fichiers d'ajout qu'il absorbe.
     Compaction(Erreur),
 }
 

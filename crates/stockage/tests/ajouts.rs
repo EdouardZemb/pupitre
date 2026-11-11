@@ -1,7 +1,7 @@
 //! Les fichiers d'ajout (§ 31 · 2.1) : chaque écriture du fonds ajoute un fichier, nommé par
 //! l'empreinte de son contenu, que l'ouverture relit après le fichier complet. Un fichier d'ajout
-//! altéré ou manquant ouvre le document en lecture seule, en se nommant, et une écriture refusée
-//! relit le document du disque.
+//! altéré, manquant ou qu'Automerge refuse, comme un fichier complet illisible, ouvre le document
+//! en lecture seule, en se nommant, et une écriture refusée relit le document du disque.
 //!
 //! Le fonds naît d'une idée au texte long, qui ne sert qu'à la naissance : les écritures des
 //! tests sont courtes, et leurs fichiers d'ajout pèsent bien moins que le fichier complet.
@@ -9,6 +9,7 @@
 mod commun;
 
 use std::fs;
+use std::path::Path;
 
 use automerge::transaction::CommitOptions;
 use automerge::{ActorId, Automerge, AutomergeError, LoadOptions, OnPartialLoad, ReadDoc};
@@ -17,8 +18,9 @@ use commun::{
     dossier_des_ajouts, dossier_du_fonds, faire_naitre, lire_le_complet, ouvrir, ouvrir_le_fonds,
     porte_l_idee,
 };
+use noyau::donnees::fonds::{IDENTIFIANT, LIGNEE, PROPRIETAIRE};
 use stockage::pannes::{Etape, couper};
-use stockage::{Avertissement, Erreur, LectureSeule, RacineDesDonnees, empreinte};
+use stockage::{Avertissement, Document, Erreur, LectureSeule, RacineDesDonnees, empreinte};
 use synchro::Echange;
 
 #[test]
@@ -416,54 +418,260 @@ fn un_ajout_qu_automerge_refuse_ouvre_en_lecture_seule() {
 
 #[test]
 fn un_complet_illisible_ouvre_en_lecture_seule_et_se_nomme() {
-    let chemin = commun::dossier_jetable("ajouts-complet-illisible").join("donnees");
-    let racine = ouvrir(&chemin);
-    let mut fonds = faire_naitre(&racine);
-    fonds
-        .ecrire("Idée notée", HEURE + 1, |tx| {
-            commun::noter(tx, "idee-2", "Un pont en mineur")
-        })
-        .expect("écrire");
-    drop(fonds);
-    let dossier = dossier_du_fonds(&chemin);
-    let complet = dossier.join("complet.automerge");
-    let altere = alterer_l_octet_du_milieu(&complet);
-    // Ce qui se lit, calculé à part : ce que `load_with_options` relit des octets altérés, ou un
-    // document neuf s'il les refuse, puis chaque fichier d'ajout.
-    let mut lisible = Automerge::load_with_options(
-        &altere,
-        LoadOptions::new().on_partial_load(OnPartialLoad::Ignore),
-    )
-    .unwrap_or_else(|_| Automerge::new());
-    let ajouts = dossier_des_ajouts(&chemin);
-    let noms = commun::entrees(&ajouts);
-    assert_eq!(noms.len(), 1, "une écriture, un fichier d'ajout : {noms:?}");
-    for nom in &noms {
-        let octets = fs::read(ajouts.join(nom)).expect("lire le fichier d'ajout");
-        // Un fichier d'ajout qu'Automerge refuse ne se charge pas.
-        let _ = lisible.load_incremental(&octets);
+    // Trois fichiers complets illisibles : un octet changé au milieu, que la somme de contrôle de
+    // son tronçon refuse ; vide, qu'Automerge lirait comme un document neuf, sans genèse ; entier,
+    // mais suivi d'octets en trop, que seul `OnPartialLoad::Ignore` relit.
+    for alteration in ["octet-du-milieu", "vide", "octets-en-trop"] {
+        let chemin = commun::dossier_jetable(&format!("ajouts-complet-illisible-{alteration}"))
+            .join("donnees");
+        let racine = ouvrir(&chemin);
+        let mut fonds = faire_naitre(&racine);
+        fonds
+            .ecrire("Idée notée", HEURE + 1, |tx| {
+                commun::noter(tx, "idee-2", "Un pont en mineur")
+            })
+            .expect("écrire");
+        let heads_ecrites = fonds.automerge().get_heads();
+        let valeur_ecrite = fonds.automerge().hydrate(None);
+        drop(fonds);
+        let dossier = dossier_du_fonds(&chemin);
+        let complet = dossier.join("complet.automerge");
+        let altere = match alteration {
+            "octet-du-milieu" => alterer_l_octet_du_milieu(&complet),
+            "vide" => {
+                fs::write(&complet, b"").expect("vider le fichier complet");
+                Vec::new()
+            }
+            _ => {
+                let mut octets = lire_le_complet(&chemin);
+                octets.extend_from_slice(b"des octets en trop");
+                fs::write(&complet, &octets).expect("allonger le fichier complet");
+                octets
+            }
+        };
+        // Ce qui se lit, calculé à part : ce que `load_with_options` relit des octets altérés, ou
+        // un document neuf s'il les refuse, puis chaque fichier d'ajout.
+        let mut lisible = Automerge::load_with_options(
+            &altere,
+            LoadOptions::new().on_partial_load(OnPartialLoad::Ignore),
+        )
+        .unwrap_or_else(|_| Automerge::new());
+        let ajouts = dossier_des_ajouts(&chemin);
+        let noms = commun::entrees(&ajouts);
+        assert_eq!(
+            noms.len(),
+            1,
+            "{alteration} : une écriture, un fichier d'ajout : {noms:?}"
+        );
+        for nom in &noms {
+            let octets = fs::read(ajouts.join(nom)).expect("lire le fichier d'ajout");
+            // Un fichier d'ajout qu'Automerge refuse ne se charge pas.
+            let _ = lisible.load_incremental(&octets);
+        }
+        let avant = commun::empreintes(&dossier);
+
+        let mut fonds = ouvrir_le_fonds(&racine);
+
+        let raison = LectureSeule::CompletIllisible { chemin: complet };
+        assert_eq!(
+            fonds.lecture_seule(),
+            Some(&raison),
+            "{alteration} : le fonds ne nomme pas le fichier complet illisible"
+        );
+        assert_eq!(
+            fonds.automerge().get_heads(),
+            lisible.get_heads(),
+            "{alteration} : la mémoire ne mène pas aux heads de ce qui se lit"
+        );
+        assert_eq!(
+            fonds.automerge().hydrate(None),
+            lisible.hydrate(None),
+            "{alteration} : la mémoire ne montre pas ce qui se lit"
+        );
+        match alteration {
+            "vide" => assert!(
+                fonds.automerge().get_heads().is_empty(),
+                "vide : la mémoire n'est pas un document neuf : {:?}",
+                fonds.automerge().get_heads()
+            ),
+            "octets-en-trop" => {
+                assert_eq!(
+                    fonds.automerge().get_heads(),
+                    heads_ecrites,
+                    "octets-en-trop : la mémoire ne porte pas le fichier complet, puis le fichier \
+                     d'ajout"
+                );
+                assert_eq!(
+                    fonds.automerge().hydrate(None),
+                    valeur_ecrite,
+                    "octets-en-trop : la mémoire ne montre pas ce qu'avait écrit le fonds"
+                );
+            }
+            _ => {}
+        }
+        constater_la_lecture_seule(&mut fonds, &raison, &dossier, &avant);
     }
+}
+
+#[test]
+fn une_chaine_d_ajouts_nomme_celui_qui_attend_le_manquant() {
+    // La variante retenue est la première où un fichier d'ajout venu après le deuxième passe
+    // avant lui dans l'ordre des noms : il attend une modification présente, mais en attente,
+    // et ne doit pas se nommer à la place du deuxième, qui attend celle qui manque.
+    let (variante, complet, contenus, noms) = (0..16)
+        .find_map(|variante| {
+            let (complet, contenus) = une_chaine_d_ajouts(variante);
+            let noms: Vec<String> = contenus
+                .iter()
+                .map(|contenu| format!("{}.automerge", empreinte(contenu)))
+                .collect();
+            let premisse = noms[2..].iter().any(|nom| nom < &noms[1]);
+            premisse.then_some((variante, complet, contenus, noms))
+        })
+        .expect(
+            "aucune variante ne range un fichier d'ajout venu après le deuxième avant lui : en \
+             ajouter",
+        );
+    let chemin = commun::dossier_jetable("ajouts-chaine").join("donnees");
+    let racine = ouvrir(&chemin);
+    let dossier = dossier_du_fonds(&chemin);
+    let ajouts = dossier.join("ajouts");
+    fs::create_dir_all(&ajouts).expect("créer ajouts/");
+    fs::write(dossier.join("complet.automerge"), &complet).expect("écrire le fichier complet");
+    for (nom, contenu) in noms.iter().zip(&contenus) {
+        fs::write(ajouts.join(nom), contenu).expect("écrire un fichier d'ajout");
+    }
+    // Le fichier d'ajout de la première écriture manque : la deuxième l'attend, et chacune des
+    // suivantes attend la précédente, présente.
+    fs::remove_file(ajouts.join(&noms[0])).expect("retirer le premier fichier d'ajout");
     let avant = commun::empreintes(&dossier);
 
     let mut fonds = ouvrir_le_fonds(&racine);
 
-    let raison = LectureSeule::CompletIllisible { chemin: complet };
+    let raison = LectureSeule::DependancesManquantes {
+        chemin: ajouts.join(&noms[1]),
+    };
     assert_eq!(
         fonds.lecture_seule(),
         Some(&raison),
-        "le fonds ne nomme pas le fichier complet illisible"
-    );
-    assert_eq!(
-        fonds.automerge().get_heads(),
-        lisible.get_heads(),
-        "la mémoire ne mène pas aux heads de ce qui se lit"
-    );
-    assert_eq!(
-        fonds.automerge().hydrate(None),
-        lisible.hydrate(None),
-        "la mémoire ne montre pas ce qui se lit"
+        "variante {variante} : le fonds ne nomme pas le fichier d'ajout qui attend celui qui \
+         manque, dans {noms:?}"
     );
     constater_la_lecture_seule(&mut fonds, &raison, &dossier, &avant);
+}
+
+#[test]
+fn un_ajout_altere_l_emporte_sur_une_dependance_manquante() {
+    let chemin = commun::dossier_jetable("ajouts-altere-et-manquant").join("donnees");
+    let racine = ouvrir(&chemin);
+    let mut fonds = faire_naitre(&racine);
+    let ajouts = dossier_des_ajouts(&chemin);
+    let noms = noter_des_idees(&mut fonds, &ajouts, &["idee-2", "idee-3", "idee-4"]);
+    drop(fonds);
+    // La deuxième écriture attend la première, dont le fichier d'ajout manque ; le fichier
+    // d'ajout de la troisième est altéré.
+    fs::remove_file(ajouts.join(&noms[0])).expect("retirer le premier fichier d'ajout");
+    let altere = ajouts.join(&noms[2]);
+    alterer_l_octet_du_milieu(&altere);
+    let dossier = dossier_du_fonds(&chemin);
+    let avant = commun::empreintes(&dossier);
+
+    let mut fonds = ouvrir_le_fonds(&racine);
+
+    // Les fichiers d'ajout passent avant les dépendances.
+    let raison = LectureSeule::AjoutAltere { chemin: altere };
+    assert_eq!(
+        fonds.lecture_seule(),
+        Some(&raison),
+        "le fichier d'ajout altéré ne l'emporte pas sur la dépendance manquante"
+    );
+    constater_la_lecture_seule(&mut fonds, &raison, &dossier, &avant);
+}
+
+#[test]
+fn de_deux_ajouts_alteres_le_premier_par_son_nom_se_nomme() {
+    let chemin = commun::dossier_jetable("ajouts-deux-alteres").join("donnees");
+    let racine = ouvrir(&chemin);
+    let mut fonds = faire_naitre(&racine);
+    let ajouts = dossier_des_ajouts(&chemin);
+    let noms = noter_des_idees(&mut fonds, &ajouts, &["idee-2", "idee-3"]);
+    drop(fonds);
+    for nom in &noms {
+        alterer_l_octet_du_milieu(&ajouts.join(nom));
+    }
+    let premier = noms.iter().min().expect("deux fichiers d'ajout");
+    let dossier = dossier_du_fonds(&chemin);
+    let avant = commun::empreintes(&dossier);
+
+    let mut fonds = ouvrir_le_fonds(&racine);
+
+    let raison = LectureSeule::AjoutAltere {
+        chemin: ajouts.join(premier),
+    };
+    assert_eq!(
+        fonds.lecture_seule(),
+        Some(&raison),
+        "le fonds ne nomme pas le premier des deux fichiers d'ajout altérés, dans l'ordre des \
+         noms : {noms:?}"
+    );
+    constater_la_lecture_seule(&mut fonds, &raison, &dossier, &avant);
+}
+
+/// Écrit dans `fonds` une idée courte pour chaque nom de `idees`, et rend le nom du fichier
+/// d'ajout de chaque écriture, dans leur ordre : chacune en laisse un seul de plus dans
+/// `ajouts`.
+fn noter_des_idees(fonds: &mut Document<'_>, ajouts: &Path, idees: &[&str]) -> Vec<String> {
+    let mut noms = Vec::new();
+    for (rang, idee) in (1_i64..).zip(idees) {
+        let avant = commun::entrees(ajouts);
+        fonds
+            .ecrire("Idée notée", HEURE + rang, |tx| {
+                commun::noter(tx, idee, "Une phrase courte")
+            })
+            .unwrap_or_else(|e| panic!("l'écriture {rang} : {e:?}"));
+        let nouveau = commun::nouveaux(&avant, &commun::entrees(ajouts));
+        assert_eq!(
+            nouveau.len(),
+            1,
+            "l'écriture {rang} n'a pas laissé un seul fichier d'ajout de plus : {nouveau:?}"
+        );
+        noms.extend(nouveau);
+    }
+    noms
+}
+
+/// Les octets d'une chaîne de quatre écritures, chacune attendant la précédente, sur un fonds
+/// que le test bâtit : le fichier complet de la naissance, puis le fichier d'ajout de chaque
+/// écriture, dans leur ordre. Un seul acteur, fixe, des heures fixes, et des textes que
+/// `variante` fait différer : les mêmes octets à chaque passage.
+fn une_chaine_d_ajouts(variante: usize) -> (Vec<u8>, Vec<Vec<u8>>) {
+    let mut doc = commun::batir_un_fonds(
+        ActorId::from(b"acteur-de-la-chaine".as_slice()),
+        &[
+            (IDENTIFIANT, NAISSANCE.identifiant),
+            (LIGNEE, NAISSANCE.lignee),
+            (PROPRIETAIRE, NAISSANCE.proprietaire),
+        ],
+    );
+    let complet = doc.save();
+    let mut contenus = Vec::new();
+    for rang in 1..=4_i64 {
+        let avant = doc.get_heads();
+        let mut tx = doc.transaction();
+        commun::noter(
+            &mut tx,
+            &format!("idee-{}", rang + 1),
+            &format!("Variante {variante}, phrase {rang}"),
+        )
+        .expect("noter l'idée");
+        tx.commit_with(
+            CommitOptions::default()
+                .with_message(MESSAGE_DU_GESTE)
+                .with_time(HEURE + rang),
+        );
+        contenus.push(doc.save_after(&avant));
+    }
+    (complet, contenus)
 }
 
 // § 31 · 10, test 8 : relire du disque après une opération refusée, puis une opération
