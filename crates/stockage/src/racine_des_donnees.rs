@@ -101,14 +101,20 @@ impl RacineDesDonnees {
     }
 
     /// Le fonds, rouvert s'il est né (son `complet.automerge` existe) ; sinon `None`. Le fichier
-    /// complet se lit, puis chaque fichier d'ajout (`load_incremental`) ; chaque ouverture tire
-    /// un acteur neuf (`set_actor(ActorId::random())`) ; puis le fonds se compacte quand
-    /// `a_l_ouverture` le dit, c'est-à-dire dès qu'il a un fichier d'ajout.
+    /// complet se lit, puis chaque fichier d'ajout, dans l'ordre des noms (`load_incremental`) ;
+    /// chaque ouverture tire un acteur neuf (`set_actor(ActorId::random())`) ; puis le fonds se
+    /// compacte quand `a_l_ouverture` le dit, c'est-à-dire dès qu'il a un fichier d'ajout, s'il
+    /// écrit.
     ///
-    /// Un fichier d'ajout dont le contenu ne donne pas l'empreinte de son nom rend
-    /// [`Erreur::AjoutAltere`] ; une modification qui attend encore ses dépendances, tout lu,
-    /// [`Erreur::DependancesManquantes`] ; un fichier qu'Automerge ne lit pas,
-    /// [`Erreur::Automerge`]. Une compaction qui échoue fait échouer l'ouverture, avec son erreur.
+    /// Un fichier illisible ouvre le fonds en lecture seule ([`Document::lecture_seule`]), en se
+    /// nommant : le fonds montre ce qui se lit, n'écrit ni ne se compacte, n'envoie ni ne reçoit.
+    /// C'est un fichier complet qu'`Automerge::load` refuse (`CompletIllisible`) ; un fichier
+    /// d'ajout dont le contenu ne donne pas l'empreinte de son nom (`AjoutAltere`), ou que
+    /// `load_incremental` refuse (`AjoutIllisible`) ; tout lu, une modification qui attend encore
+    /// ses dépendances (`DependancesManquantes`). La première raison trouvée l'emporte, dans cet
+    /// ordre. Un refus du disque à la lecture rend [`Erreur::Disque`]. Une compaction qui échoue
+    /// n'empêche pas d'ouvrir : son erreur vient en avertissement ([`Document::avertissements`]),
+    /// les fichiers restent en place, et l'écriture suivante la retente.
     ///
     /// Un seul [`Document`] du fonds doit vivre à la fois : chacun se compacte de sa seule
     /// mémoire, et deux `Document` qui écrivent puis se compactent perdent les écritures de l'un.

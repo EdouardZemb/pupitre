@@ -46,23 +46,17 @@ pub enum Erreur {
     FondsDejaOuvert,
     /// Le fonds est déjà né : il ne naît qu'une fois (§ 31 · 2.3).
     FondsDejaNe,
-    /// Automerge a refusé : le geste, une écriture du document, la lecture de son fichier
-    /// complet ou d'un fichier d'ajout, ou celle de sa racine.
+    /// Automerge a refusé : le geste, une écriture du document, ou la lecture de sa racine.
     Automerge(AutomergeError),
-    /// Le contenu du fichier d'ajout `chemin` ne donne pas l'empreinte que porte son nom : le
-    /// document ne s'ouvre pas, et rien n'est retiré ni réécrit.
-    AjoutAltere { chemin: PathBuf },
-    /// Ses fichiers lus, le document a une modification qui attend ses dépendances
-    /// (`get_missing_deps`) : un fichier d'ajout manque, et le document ne s'ouvre pas.
-    DependancesManquantes,
     /// Le document est en lecture seule, pour cette raison : il refuse ce que son accès ne
     /// permet pas (§ 31 · 2.1).
     LectureSeule(LectureSeule),
     /// Le fichier complet de la compaction, relu, ne mène pas aux heads du document en mémoire :
     /// aucun fichier d'ajout n'est retiré (§ 31 · 2.2). Relu avant d'être écrit, il ne se lit pas
-    /// ou mène ailleurs, et il ne s'écrit pas ; ou, écrit, le disque n'en rend pas les octets.
-    /// Après une écriture ou une réception, elle vient en avertissement
-    /// ([`Avertissement::Compaction`]), ce qui est écrit ou reçu écrit.
+    /// ou mène ailleurs, et il ne s'écrit pas. Seul [`Document::compacter`], appelé seul, la
+    /// rend : après une écriture ou une réception, elle vient en avertissement
+    /// ([`Avertissement::Compaction`]), ce qui est écrit ou reçu écrit ; à l'ouverture aussi, et
+    /// le document s'ouvre.
     CompactionInfidele,
     /// La racine du document ne porte pas de chaîne sous `champ` : la copie ne se situe pas
     /// (§ 31 · 2.5).
@@ -80,14 +74,32 @@ pub enum LectureSeule {
     /// La relecture du disque, après une écriture refusée, a échoué sur `chemin` : le document
     /// montre sa mémoire d'avant l'écriture refusée.
     RelectureManquee { chemin: PathBuf },
+    /// Le contenu du fichier d'ajout `chemin` ne donne pas l'empreinte que porte son nom : il
+    /// n'est pas chargé, et rien n'est retiré ni réécrit.
+    AjoutAltere { chemin: PathBuf },
+    /// Un fichier d'ajout dont le contenu donne l'empreinte de son nom, mais que
+    /// `load_incremental` refuse (par exemple `DuplicateSeqNumber`) ; il n'est pas chargé.
+    AjoutIllisible { chemin: PathBuf },
+    /// `Automerge::load` refuse le fichier complet `chemin` : le document montre ce qui s'en lit
+    /// (`OnPartialLoad::Ignore`), ou rien s'il ne s'en lit rien, puis les fichiers d'ajout.
+    CompletIllisible { chemin: PathBuf },
+    /// Tout lu, une modification attend ses dépendances (`get_missing_deps`) : un fichier
+    /// d'ajout manque. `chemin` est le premier fichier d'ajout, dans l'ordre des noms, qui attend
+    /// une modification que le document lu n'a pas, ou, à défaut, le fichier complet : le fichier
+    /// qui manque ne se nomme pas, celui qui l'attend, si.
+    DependancesManquantes { chemin: PathBuf },
 }
 
 impl LectureSeule {
-    /// Ce que permet un document en lecture seule pour cette raison : une relecture manquée le
-    /// laisse illisible, sans écriture ni échange.
+    /// Ce que permet un document en lecture seule pour cette raison : un fichier illisible, ou
+    /// une relecture manquée, le laisse illisible, sans écriture ni échange.
     pub fn acces(&self) -> Acces {
         match self {
-            LectureSeule::RelectureManquee { .. } => Acces::Illisible,
+            LectureSeule::RelectureManquee { .. }
+            | LectureSeule::AjoutAltere { .. }
+            | LectureSeule::AjoutIllisible { .. }
+            | LectureSeule::CompletIllisible { .. }
+            | LectureSeule::DependancesManquantes { .. } => Acces::Illisible,
         }
     }
 }

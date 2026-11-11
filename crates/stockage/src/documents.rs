@@ -7,14 +7,18 @@
 //! Une écriture est faite ; faite, avec un avertissement, quand son renommage n'est pas rendu
 //! durable ou que la compaction qui la suit échoue ; ou refusée, avant la fin de son renommage,
 //! et le document se relit alors du disque. Une relecture du disque qui échoue met le document
-//! en lecture seule.
+//! en lecture seule, comme un fichier illisible à l'ouverture ; une compaction d'ouverture qui
+//! échoue vient en avertissement, et le document s'ouvre.
 
 use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use automerge::transaction::{CommitOptions, Transactable, Transaction};
-use automerge::{ActorId, Automerge, AutomergeError, Change, ChangeHash, ROOT, ReadDoc};
+use automerge::{
+    ActorId, Automerge, AutomergeError, Change, ChangeHash, LoadOptions, OnPartialLoad, ROOT,
+    ReadDoc,
+};
 use noyau::donnees::acces::Acces;
 use noyau::donnees::compaction::{self, Lu};
 use noyau::donnees::fonds::{GENESE, IDENTIFIANT, LIGNEE, MESSAGE_DE_LA_NAISSANCE, PROPRIETAIRE};
@@ -206,15 +210,19 @@ impl Document<'_> {
 
     /// § 31 · 2.2 : les octets de `save()`, relus en mémoire par `Automerge::load`, puis écrits
     /// dans un fichier complet neuf par `ecrire_a_cote`, qui relit son voisin du disque avant de
-    /// le renommer ; puis les fichiers d'ajout que désigne `a_retirer` sont retirés. Un document
-    /// en lecture seule ne se compacte pas : `Erreur::LectureSeule`, et rien ne s'écrit.
+    /// le renommer ; puis chaque fichier d'ajout se lit par `fichier::lire`, et ceux que désigne
+    /// `a_retirer` sont retirés par `fichier::retirer`. Un document en lecture seule ne se
+    /// compacte pas : `Erreur::LectureSeule`, et rien ne s'écrit.
     ///
     /// Les octets de `save()` qui ne se lisent pas, ou ne mènent pas aux mêmes heads, ne
     /// s'écrivent pas : `CompactionInfidele`, et l'ancien fichier complet garde l'histoire qu'il
     /// porte seul (« elle ne retire jamais d'histoire »). Un voisin relu du disque qui ne rend
-    /// pas ces mêmes octets ne prend pas la place : l'erreur du disque se rend, l'ancien fichier
-    /// complet reste en place, et rien n'est retiré. Une compaction qui échoue est due :
-    /// l'écriture suivante la retente ; une compaction qui réussit ne l'est plus.
+    /// pas ces mêmes octets ne prend pas la place : `Erreur::Disque` se rend
+    /// (`io::ErrorKind::InvalidData`), l'ancien fichier complet reste en place, et rien n'est
+    /// retiré. Un fichier d'ajout est lisible quand son contenu donne l'empreinte de son nom et
+    /// que `load_incremental` le charge, dans le fichier complet relu ; absorbé, quand il n'y
+    /// ajoute rien. Une compaction qui échoue est due : l'écriture suivante la retente ; une
+    /// compaction qui réussit ne l'est plus.
     pub fn compacter(&mut self) -> Result<(), Erreur> {
         self.exiger(Acces::ecrit)?;
         let compaction = self.fondre_les_ajouts();
@@ -237,27 +245,19 @@ impl Document<'_> {
             _ => return Err(Erreur::CompactionInfidele),
         };
         let complet = self.dossier.join("complet.automerge");
-        // Renommé, le fichier complet a rendu, relu du disque, les octets relus plus haut : il
-        // mène aux mêmes heads.
+        // Avant son renommage, le voisin a rendu, relu du disque, les octets relus plus haut :
+        // le fichier complet en place mène aux mêmes heads.
         ecrire_a_cote(&complet, &octets).map_err(|echec| disque_d_un_echec(&complet, echec))?;
 
         let ajouts = self.dossier.join("ajouts");
         let mut lus = Vec::new();
         for chemin in fichiers_d_ajout(&ajouts)? {
-            let octets = fs::read(&chemin).map_err(|erreur| disque(&chemin, erreur))?;
-            lus.push(Lu {
-                nom: chemin
-                    .file_name()
-                    .unwrap_or_default()
-                    .to_string_lossy()
-                    .into_owned(),
-                lisible: est_conforme(&chemin, &octets),
-                absorbe: est_absorbe(&relu, &octets),
-            });
+            let octets = fichier::lire(&chemin).map_err(|erreur| disque(&chemin, erreur))?;
+            lus.push(lu_contre(&relu, &chemin, &octets));
         }
         for nom in compaction::a_retirer(&lus) {
             let chemin = ajouts.join(nom);
-            fs::remove_file(&chemin).map_err(|erreur| disque(&chemin, erreur))?;
+            fichier::retirer(&chemin).map_err(|erreur| disque(&chemin, erreur))?;
         }
         Ok(())
     }
@@ -325,10 +325,11 @@ impl Document<'_> {
     }
 
     /// § 31 · 2.1 : après une écriture refusée, la mémoire se relit du disque
-    /// (`lire_le_dossier`), sans toucher à la garde, et tire un acteur neuf. Une relecture qui
-    /// échoue laisse la mémoire d'avant l'écriture refusée (`fork_at` des heads `avant`), en
-    /// lecture seule `RelectureManquee`, sur le fichier qu'elle n'a pu lire, ou sur le dossier du
-    /// document si son erreur n'en nomme aucun.
+    /// (`lire_le_dossier`), sans toucher à la garde, et tire un acteur neuf ; une raison de
+    /// lecture seule que la relecture trouve devient celle du document, sur ce qui se lit. Une
+    /// relecture qui échoue laisse la mémoire d'avant l'écriture refusée (`fork_at` des heads
+    /// `avant`), en lecture seule `RelectureManquee`, sur le fichier qu'elle n'a pu lire, ou sur
+    /// le dossier du document si son erreur n'en nomme aucun.
     fn relire_du_disque(&mut self, avant: &[ChangeHash]) {
         match lire_le_dossier(&self.dossier) {
             Ok((mut automerge, lecture_seule, _)) => {
@@ -379,9 +380,11 @@ impl Document<'_> {
     }
 }
 
-/// Le fonds de `racine`, rouvert s'il est né (`lire_le_dossier`), avec un acteur neuf, puis
-/// compacté quand `a_l_ouverture` le dit ; sinon `None`. Une compaction qui échoue fait échouer
-/// l'ouverture. L'essai ne lit pas le voisin du fichier complet : le lot 1 le fond.
+/// Le fonds de `racine`, rouvert s'il est né (`lire_le_dossier`), avec un acteur neuf, en
+/// lecture seule si un fichier ne se lit pas, puis compacté quand `a_l_ouverture` le dit ;
+/// sinon `None`. Une compaction qui échoue n'empêche pas d'ouvrir : son erreur vient en
+/// avertissement (`Avertissement::Compaction`), les fichiers restent en place, et la compaction
+/// est due. L'essai ne lit pas le voisin du fichier complet : le lot 1 le fond.
 pub(crate) fn rouvrir_le_fonds(racine: &RacineDesDonnees) -> Result<Option<Document<'_>>, Erreur> {
     let garde = racine.prendre_la_garde()?;
     let dossier = dossier_du_fonds(racine);
@@ -404,62 +407,140 @@ pub(crate) fn rouvrir_le_fonds(racine: &RacineDesDonnees) -> Result<Option<Docum
         compaction_due: false,
         avertissements: Vec::new(),
     };
-    if compaction::a_l_ouverture(document.acces(), ajouts, false) {
-        document.compacter()?;
+    if compaction::a_l_ouverture(document.acces(), ajouts, false)
+        && let Err(erreur) = document.compacter()
+    {
+        // `compacter` a rendu la compaction due : l'écriture suivante la retente.
+        document
+            .avertissements
+            .push(Avertissement::Compaction(erreur));
     }
     Ok(Some(document))
 }
 
 /// Lit le dossier `dossier` d'un document, sans compaction ni démarrage : son fichier complet
-/// (`Automerge::load`), puis ses fichiers d'ajout (`lire_les_ajouts`), chacun par
-/// `fichier::lire`. Elle ne construit aucun `Document` et ne touche pas à la garde : l'ouverture
-/// et la relecture du disque l'appellent. Rend la mémoire lue, la première raison de lecture
-/// seule qu'elle trouve, et le nombre de fichiers d'ajout lus ; un fichier qui ne se lit pas
-/// fait échouer la lecture, et elle ne trouve donc aucune raison.
+/// (`lire_le_complet`), puis ses fichiers d'ajout, dans l'ordre des noms (`lire_les_ajouts`),
+/// chacun par `fichier::lire` ; tout lu, elle cherche les dépendances manquantes
+/// (`dependances_manquantes`). Elle ne construit aucun `Document` et ne touche pas à la garde :
+/// l'ouverture et la relecture du disque l'appellent. Rend la mémoire lue, ce qui se lit, la
+/// première raison de lecture seule qu'elle trouve, dans cet ordre : le fichier complet, puis
+/// les fichiers d'ajout, puis les dépendances ; et le nombre de fichiers d'ajout. Un refus du
+/// disque à la lecture rend `Erreur::Disque`.
 fn lire_le_dossier(dossier: &Path) -> Result<(Automerge, Option<LectureSeule>, usize), Erreur> {
     let complet = dossier.join("complet.automerge");
-    let octets = fichier::lire(&complet).map_err(|erreur| disque(&complet, erreur))?;
-    let mut automerge = Automerge::load(&octets).map_err(Erreur::Automerge)?;
-    let ajouts = lire_les_ajouts(&mut automerge, &dossier.join("ajouts"))?;
-    Ok((automerge, None, ajouts))
+    let (mut automerge, du_complet) = lire_le_complet(&complet)?;
+    let fichiers = fichiers_d_ajout(&dossier.join("ajouts"))?;
+    let ajouts = lire_les_ajouts(&mut automerge, &fichiers)?;
+    let raison = du_complet
+        .or(ajouts.raison)
+        .or_else(|| dependances_manquantes(&automerge, &ajouts.charges, &complet));
+    Ok((automerge, raison, fichiers.len()))
 }
 
-/// Lit chaque fichier d'ajout de `ajouts` par `fichier::lire`, dans l'ordre que donne le
-/// dossier : son contenu doit donner l'empreinte de son nom, sinon [`Erreur::AjoutAltere`], puis
-/// il s'ajoute au document (`load_incremental`). Tout lu, aucune modification n'attend ses
-/// dépendances, sinon [`Erreur::DependancesManquantes`]. Rien n'est retiré ni réécrit. Rend le
-/// nombre de fichiers d'ajout lus.
-fn lire_les_ajouts(automerge: &mut Automerge, ajouts: &Path) -> Result<usize, Erreur> {
-    let fichiers = fichiers_d_ajout(ajouts)?;
-    for chemin in &fichiers {
+/// Le fichier complet `complet`, lu par `fichier::lire`, puis `Automerge::load`. Refusé, il se
+/// relit sans ce qui ne se lit pas (`load_with_options`, `OnPartialLoad::Ignore`), ou, refusé
+/// encore, laisse un document neuf ; la raison est alors `CompletIllisible`.
+fn lire_le_complet(complet: &Path) -> Result<(Automerge, Option<LectureSeule>), Erreur> {
+    let octets = fichier::lire(complet).map_err(|erreur| disque(complet, erreur))?;
+    if let Ok(automerge) = Automerge::load(&octets) {
+        return Ok((automerge, None));
+    }
+    let ce_qui_se_lit = Automerge::load_with_options(
+        &octets,
+        LoadOptions::new().on_partial_load(OnPartialLoad::Ignore),
+    )
+    .unwrap_or_else(|_| Automerge::new());
+    let raison = LectureSeule::CompletIllisible {
+        chemin: complet.to_path_buf(),
+    };
+    Ok((ce_qui_se_lit, Some(raison)))
+}
+
+/// Ce que `lire_les_ajouts` rend : les fichiers d'ajout chargés, avec leur contenu, dans l'ordre
+/// des noms, et la raison de lecture seule du premier qui ne l'est pas.
+struct AjoutsLus<'f> {
+    charges: Vec<(&'f Path, Vec<u8>)>,
+    raison: Option<LectureSeule>,
+}
+
+/// Lit les fichiers d'ajout `fichiers`, triés par nom, chacun par `fichier::lire`, et charge
+/// (`load_incremental`) ceux qui se lisent. Un fichier dont le contenu ne donne pas l'empreinte
+/// de son nom n'est pas chargé, et donne `AjoutAltere` ; un fichier qui la donne, mais que
+/// `load_incremental` refuse, ne l'est pas non plus, et donne `AjoutIllisible`. Le premier, dans
+/// l'ordre des noms, l'emporte. Rien n'est retiré ni réécrit.
+fn lire_les_ajouts<'f>(
+    automerge: &mut Automerge,
+    fichiers: &'f [PathBuf],
+) -> Result<AjoutsLus<'f>, Erreur> {
+    let mut lus = AjoutsLus {
+        charges: Vec::new(),
+        raison: None,
+    };
+    for chemin in fichiers {
         let octets = fichier::lire(chemin).map_err(|erreur| disque(chemin, erreur))?;
         // `load_incremental` s'arrête sans erreur au premier tronçon altéré : seule l'empreinte
         // du nom dit qu'un fichier d'ajout a changé.
-        if !est_conforme(chemin, &octets) {
-            return Err(Erreur::AjoutAltere {
+        let refus = if !est_conforme(chemin, &octets) {
+            Some(LectureSeule::AjoutAltere {
                 chemin: chemin.clone(),
-            });
-        }
-        automerge
-            .load_incremental(&octets)
-            .map_err(Erreur::Automerge)?;
+            })
+        } else if automerge.load_incremental(&octets).is_err() {
+            Some(LectureSeule::AjoutIllisible {
+                chemin: chemin.clone(),
+            })
+        } else {
+            lus.charges.push((chemin.as_path(), octets));
+            None
+        };
+        lus.raison = lus.raison.or(refus);
     }
-    if !automerge.get_missing_deps(&[]).is_empty() {
-        return Err(Erreur::DependancesManquantes);
+    Ok(lus)
+}
+
+/// Tout lu, `automerge` a une modification qui attend ses dépendances (`get_missing_deps`) :
+/// `DependancesManquantes`, sur le premier fichier chargé de `charges`, dans l'ordre des noms,
+/// qui en attend une que le document lu n'a pas (`attend_ce_qui_manque`) ; à défaut, sur le
+/// fichier complet `complet`, dont une modification attend alors. Le fichier qui manque ne se
+/// nomme pas, celui qui l'attend, si. Rien n'attend : `None`.
+fn dependances_manquantes(
+    automerge: &Automerge,
+    charges: &[(&Path, Vec<u8>)],
+    complet: &Path,
+) -> Option<LectureSeule> {
+    if automerge.get_missing_deps(&[]).is_empty() {
+        return None;
     }
-    Ok(fichiers.len())
+    let chemin = charges
+        .iter()
+        .find(|(_, octets)| attend_ce_qui_manque(automerge, octets))
+        .map_or(complet, |(chemin, _)| *chemin);
+    Some(LectureSeule::DependancesManquantes {
+        chemin: chemin.to_path_buf(),
+    })
+}
+
+/// Le fichier d'ajout de contenu `octets`, seul dans un document neuf (`load_incremental`),
+/// attend des modifications (`get_missing_deps(&[])`) dont l'une manque au document lu `lu`
+/// (`get_change_by_hash` rend `None`).
+fn attend_ce_qui_manque(lu: &Automerge, octets: &[u8]) -> bool {
+    let mut seul = Automerge::new();
+    seul.load_incremental(octets).is_ok()
+        && seul
+            .get_missing_deps(&[])
+            .iter()
+            .any(|attendue| lu.get_change_by_hash(attendue).is_none())
 }
 
 /// Le fichier que nomme `erreur`, s'il en nomme un.
 fn fichier_nomme(erreur: &Erreur) -> Option<&Path> {
     match erreur {
-        Erreur::Disque { chemin, .. } | Erreur::AjoutAltere { chemin } => Some(chemin.as_path()),
+        Erreur::Disque { chemin, .. } => Some(chemin.as_path()),
         _ => None,
     }
 }
 
-/// Les fichiers d'ajout de `ajouts`, `<empreinte>.automerge`, dans l'ordre que donne le
-/// dossier. Un autre nom, un `.partiel` par exemple, n'en est pas un : il est laissé tel quel.
+/// Les fichiers d'ajout de `ajouts`, `<empreinte>.automerge`, triés par nom. Un autre nom, un
+/// `.partiel` par exemple, n'en est pas un : il est laissé tel quel.
 fn fichiers_d_ajout(ajouts: &Path) -> Result<Vec<PathBuf>, Erreur> {
     let mut fichiers = Vec::new();
     for entree in fs::read_dir(ajouts).map_err(|erreur| disque(ajouts, erreur))? {
@@ -468,6 +549,7 @@ fn fichiers_d_ajout(ajouts: &Path) -> Result<Vec<PathBuf>, Erreur> {
             fichiers.push(chemin);
         }
     }
+    fichiers.sort();
     Ok(fichiers)
 }
 
@@ -476,14 +558,25 @@ fn est_conforme(chemin: &Path, octets: &[u8]) -> bool {
     chemin.file_stem() == Some(OsStr::new(&empreinte(octets)))
 }
 
-/// Le fichier d'ajout de contenu `octets` est absorbé par le fichier complet relu `relu` :
-/// chargé (`load_incremental`) dans un `fork()` de `relu`, il en laisse les heads inchangées,
-/// et aucune modification n'y attend ses dépendances.
-fn est_absorbe(relu: &Automerge, octets: &[u8]) -> bool {
+/// Ce que la compaction lit du fichier d'ajout `chemin`, de contenu `octets`, contre le fichier
+/// complet relu `relu`, dans un `fork()` de `relu` où `load_incremental` le charge : lisible,
+/// son contenu donne l'empreinte de son nom (`est_conforme`), et il s'est chargé sans erreur ;
+/// absorbé, chargé, il laisse les heads de `relu` inchangées, et aucune modification n'y attend
+/// ses dépendances.
+fn lu_contre(relu: &Automerge, chemin: &Path, octets: &[u8]) -> Lu {
     let mut avec_l_ajout = relu.fork();
-    avec_l_ajout.load_incremental(octets).is_ok()
-        && avec_l_ajout.get_heads() == relu.get_heads()
-        && avec_l_ajout.get_missing_deps(&[]).is_empty()
+    let charge = avec_l_ajout.load_incremental(octets).is_ok();
+    Lu {
+        nom: chemin
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned(),
+        lisible: charge && est_conforme(chemin, octets),
+        absorbe: charge
+            && avec_l_ajout.get_heads() == relu.get_heads()
+            && avec_l_ajout.get_missing_deps(&[]).is_empty(),
+    }
 }
 
 /// Le poids de `chemin` sur le disque, en octets.

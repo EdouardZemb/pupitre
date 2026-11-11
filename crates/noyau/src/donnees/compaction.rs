@@ -31,7 +31,8 @@ pub fn apres_une_ecriture(
 pub struct Lu {
     /// Le nom du fichier, tel que l'adaptateur le retirera.
     pub nom: String,
-    /// Lisible : son contenu donne l'empreinte de son nom.
+    /// Lisible : un fichier d'ajout dont le contenu donne l'empreinte de son nom et que
+    /// `load_incremental` charge.
     pub lisible: bool,
     /// Chacune de ses modifications est dans le fichier complet relu.
     pub absorbe: bool,
