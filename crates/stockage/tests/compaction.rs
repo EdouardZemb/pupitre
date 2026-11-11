@@ -15,7 +15,8 @@ use std::path::Path;
 use automerge::{Automerge, Change};
 use commun::{
     HEURE, MESSAGE_DU_GESTE, NAISSANCE, dossier_des_ajouts, dossier_du_fonds, faire_naitre,
-    lire_le_complet, ouvrir, ouvrir_le_fonds, poids, porte_l_idee, texte_long,
+    lire_le_complet, ouvrir, ouvrir_le_fonds, ouvrir_le_fonds_tel_quel, poids, porte_l_idee,
+    texte_long,
 };
 use noyau::donnees::fonds::{GENESE, MESSAGE_DE_LA_GENESE, MESSAGE_DE_LA_NAISSANCE};
 use stockage::pannes::{Etape, alterer_la_relecture, couper};
@@ -227,7 +228,7 @@ fn la_compaction_garde_un_ajout_altere() {
     let dossier = dossier_du_fonds(racine.chemin());
     let avant = commun::empreintes(&dossier);
 
-    let mut fonds = ouvrir_le_fonds(&racine);
+    let mut fonds = ouvrir_le_fonds_tel_quel(&racine);
 
     let raison = LectureSeule::AjoutAltere {
         chemin: altere.clone(),
@@ -411,7 +412,16 @@ fn une_compaction_coupee_a_chaque_etape_ne_perd_rien() {
         );
         // Avant la fin du renommage, le fichier complet est celui d'avant ; après, il porte déjà
         // toute la mémoire.
-        if !matches!(etape, Etape::RendreDurable | Etape::Retrait) {
+        if matches!(etape, Etape::RendreDurable | Etape::Retrait) {
+            let seul = Automerge::load(&lire_le_complet(&chemin)).unwrap_or_else(|e| {
+                panic!("{etape:?} : lire le fichier complet de la compaction coupée : {e}")
+            });
+            assert_eq!(
+                seul.get_heads(),
+                memoire.get_heads(),
+                "{etape:?} : le fichier complet en place ne mène pas aux heads de la mémoire"
+            );
+        } else {
             assert!(
                 lire_le_complet(&chemin) == complet_avant,
                 "{etape:?} : le fichier complet n'est plus celui d'avant"
@@ -508,13 +518,13 @@ fn une_compaction_d_ouverture_refusee_par_le_disque_ouvre_avec_un_avertissement(
 fn ecritures_courtes(fonds: &mut Document<'_>, ajouts: &Path, n: i64) {
     for rang in 1..=n {
         let rendu = match rang {
-            1 => fonds.ecrire("Étiquette posée", HEURE + rang, |tx| {
+            1 => commun::ecrire_a(fonds, "Étiquette posée", HEURE + rang, |tx| {
                 commun::etiqueter(tx, "idee-1", "refrain")
             }),
-            2 => fonds.ecrire("Idée notée", HEURE + rang, |tx| {
+            2 => commun::ecrire_a(fonds, "Idée notée", HEURE + rang, |tx| {
                 commun::noter(tx, "idee-2", "Un pont en mineur")
             }),
-            _ => fonds.ecrire("Texte changé", HEURE + rang, |tx| {
+            _ => commun::ecrire_a(fonds, "Texte changé", HEURE + rang, |tx| {
                 commun::changer_le_texte(tx, "idee-2", "Un pont plus court")
             }),
         };

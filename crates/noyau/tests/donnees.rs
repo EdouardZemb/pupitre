@@ -48,21 +48,51 @@ fn l_acces_dit_ce_que_permet_un_document() {
 
 #[test]
 fn compacter_a_l_ouverture() {
-    assert!(!a_l_ouverture(Acces::Entier, 0, false));
-    assert!(a_l_ouverture(Acces::Entier, 1, false));
-    assert!(a_l_ouverture(Acces::Entier, 0, true));
-    assert!(!a_l_ouverture(Acces::Illisible, 3, false));
-    assert!(!a_l_ouverture(Acces::Illisible, 0, true));
+    assert!(
+        !a_l_ouverture(Acces::Entier, 0, false),
+        "ni ajout ni voisin : rien à fondre"
+    );
+    assert!(a_l_ouverture(Acces::Entier, 1, false), "un fichier d'ajout");
+    assert!(
+        a_l_ouverture(Acces::Entier, 0, true),
+        "le voisin entier du fichier complet"
+    );
+    assert!(
+        !a_l_ouverture(Acces::Illisible, 3, false),
+        "illisible, des fichiers d'ajout : pas de compaction"
+    );
+    assert!(
+        !a_l_ouverture(Acces::Illisible, 0, true),
+        "illisible, le voisin entier du fichier complet : pas de compaction"
+    );
 }
 
 #[test]
 fn compacter_apres_une_ecriture() {
-    assert!(!apres_une_ecriture(Acces::Entier, false, 100, 100, 1)); // l'égalité ne suffit pas
-    assert!(apres_une_ecriture(Acces::Entier, false, 100, 101, 1));
-    assert!(!apres_une_ecriture(Acces::Entier, false, 10_000, 10, 100));
-    assert!(apres_une_ecriture(Acces::Entier, false, 10_000, 10, 101));
-    assert!(apres_une_ecriture(Acces::Entier, true, 10_000, 10, 1)); // compaction due
-    assert!(!apres_une_ecriture(Acces::Illisible, true, 100, 101, 101));
+    assert!(
+        !apres_une_ecriture(Acces::Entier, false, 100, 100, 1),
+        "des ajouts aussi lourds que le fichier complet : l'égalité ne suffit pas"
+    );
+    assert!(
+        apres_une_ecriture(Acces::Entier, false, 100, 101, 1),
+        "des ajouts plus lourds que le fichier complet"
+    );
+    assert!(
+        !apres_une_ecriture(Acces::Entier, false, 10_000, 10, 100),
+        "cent ajouts ne passent pas la centaine"
+    );
+    assert!(
+        apres_une_ecriture(Acces::Entier, false, 10_000, 10, 101),
+        "cent un ajouts passent la centaine"
+    );
+    assert!(
+        apres_une_ecriture(Acces::Entier, true, 10_000, 10, 1),
+        "une compaction due, sans rien d'autre qui la demande"
+    );
+    assert!(
+        !apres_une_ecriture(Acces::Illisible, true, 100, 101, 101),
+        "illisible, tout la demande : pas de compaction"
+    );
 }
 
 #[test]

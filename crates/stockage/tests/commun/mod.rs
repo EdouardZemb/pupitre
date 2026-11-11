@@ -1,9 +1,10 @@
 //! Les aides des tests du stockage, écrites une seule fois : la naissance, l'heure et le message
 //! des tests, le dossier jetable de chaque test, ce que contient un dossier et l'empreinte de
 //! chacun de ses fichiers, des octets engendrés au lieu d'un fichier, un texte long, la copie d'un
-//! arbre de fichiers, l'ouverture de la racine des données et du fonds, la naissance du fonds et
-//! ses deux copies, un fonds bâti sans racine des données, l'écriture des tests, les chemins du
-//! fonds et des captations, les échanges de deux copies et leur réunion, la relecture du dossier du
+//! arbre de fichiers, l'ouverture de la racine des données et du fonds, entier ou tel qu'il
+//! s'ouvre, la naissance du fonds et ses deux copies, un fonds bâti sans racine des données,
+//! l'écriture des tests, avec ou sans son message et son heure, les chemins du fonds et des
+//! captations, les échanges de deux copies et leur réunion, la relecture du dossier du
 //! fonds, l'objet à clés que porte une clé, l'idée que porte le fonds, les noms nouveaux d'un
 //! dossier, le fichier d'ajout qu'une écriture ou une réception ajoute, l'octet du milieu d'un
 //! fichier changé, ce que refuse un document en lecture seule, et les gestes de test sur le fonds.
@@ -161,8 +162,26 @@ pub fn ouvrir(chemin: &Path) -> RacineDesDonnees {
     })
 }
 
-/// Le fonds de `racine`, rouvert.
+/// Le fonds de `racine`, rouvert entier : ni en lecture seule, ni avec un avertissement. Un test
+/// qui attend l'un ou l'autre l'ouvre par `ouvrir_le_fonds_tel_quel`.
 pub fn ouvrir_le_fonds(racine: &RacineDesDonnees) -> Document<'_> {
+    let fonds = ouvrir_le_fonds_tel_quel(racine);
+    assert_eq!(
+        fonds.lecture_seule(),
+        None,
+        "le fonds rouvert est en lecture seule"
+    );
+    assert!(
+        fonds.avertissements().is_empty(),
+        "le fonds rouvert a des avertissements : {:?}",
+        fonds.avertissements()
+    );
+    fonds
+}
+
+/// Le fonds de `racine`, rouvert tel qu'il s'ouvre : en lecture seule, ou avec des
+/// avertissements, s'il en a.
+pub fn ouvrir_le_fonds_tel_quel(racine: &RacineDesDonnees) -> Document<'_> {
     racine
         .fonds()
         .expect("rouvrir le fonds")
@@ -170,12 +189,19 @@ pub fn ouvrir_le_fonds(racine: &RacineDesDonnees) -> Document<'_> {
 }
 
 /// Le fonds né d'une idée au texte long : `idee-1`, `texte_long()`, `MESSAGE_DU_GESTE`, `HEURE`.
+/// Il naît sans avertissement.
 pub fn faire_naitre(racine: &RacineDesDonnees) -> Document<'_> {
-    racine
+    let fonds = racine
         .faire_naitre_le_fonds(&NAISSANCE, MESSAGE_DU_GESTE, HEURE, |tx| {
             noter(tx, "idee-1", &texte_long())
         })
-        .expect("faire naître le fonds")
+        .expect("faire naître le fonds");
+    assert!(
+        fonds.avertissements().is_empty(),
+        "le fonds est né avec des avertissements : {:?}",
+        fonds.avertissements()
+    );
+    fonds
 }
 
 /// Le fonds né (`faire_naitre`) dans `<dossier jetable>/a`, fermé, puis copié dans `<…>/b` : A, B.
@@ -213,10 +239,11 @@ pub fn batir_un_fonds(acteur: ActorId, champs: &[(&str, &str)]) -> Automerge {
     bati
 }
 
-/// Le chemin d'écriture des tests nouveaux du stockage : quand l'écriture changera de forme, il
-/// changera seul. Les tests d'H07 écrivent par `Document::ecrire`. Écrit
-/// `geste` dans `document`, sous le message `MESSAGE_DU_GESTE`, à l'heure `HEURE`, et rend ce
-/// que rend l'écriture : faite (`None`), faite avec un avertissement, ou refusée.
+/// Le chemin d'écriture des tests nouveaux du stockage, avec `ecrire_a` qu'il appelle : quand
+/// l'écriture changera de forme, il changera seul. Les tests d'H07 écrivent par
+/// `Document::ecrire`. Écrit `geste` dans `document`, sous le message `MESSAGE_DU_GESTE`, à
+/// l'heure `HEURE`, et rend ce que rend l'écriture : faite (`None`), faite avec un
+/// avertissement, ou refusée.
 // L'erreur est celle de `Document::ecrire`, que l'aide rend telle quelle. Clippy épargne la
 // méthode, exportée par le stockage, mais pas l'aide, qui ne l'est pas.
 #[allow(clippy::result_large_err)]
@@ -224,7 +251,20 @@ pub fn ecrire(
     document: &mut Document<'_>,
     geste: impl FnOnce(&mut Transaction<'_>) -> Result<(), AutomergeError>,
 ) -> Result<Option<Avertissement>, Erreur> {
-    document.ecrire(MESSAGE_DU_GESTE, HEURE, geste)
+    ecrire_a(document, MESSAGE_DU_GESTE, HEURE, geste)
+}
+
+/// L'écriture d'`ecrire`, sous le message `message`, à l'heure `heure` : le chemin d'écriture
+/// des tests nouveaux qui donnent à chaque écriture son message et son heure.
+// L'erreur est rendue telle quelle, comme par `ecrire`.
+#[allow(clippy::result_large_err)]
+pub fn ecrire_a(
+    document: &mut Document<'_>,
+    message: &str,
+    heure: i64,
+    geste: impl FnOnce(&mut Transaction<'_>) -> Result<(), AutomergeError>,
+) -> Result<Option<Avertissement>, Erreur> {
+    document.ecrire(message, heure, geste)
 }
 
 /// `documents/fonds/`, dans la racine des données `racine_des_donnees`.
@@ -266,20 +306,25 @@ pub fn ouvrir_les_echanges(a: &Document<'_>, b: &Document<'_>) -> (Echange, Echa
 }
 
 /// Réunit deux copies sans réseau : chacune envoie tant qu'elle a à dire, en octets, comme le
-/// fera le transport du lot 3. Rend le nombre de messages ; au-delà de mille, la réunion ne
-/// s'achève pas, et c'est un échec.
+/// fera le transport du lot 3. Chaque réception, d'`a` comme de `b`, est faite sans
+/// avertissement : aucune panne n'y est armée. Rend le nombre de messages ; au-delà de mille, la
+/// réunion ne s'achève pas, et c'est un échec.
 pub fn reunir(a: &mut Document<'_>, b: &mut Document<'_>) -> usize {
     let (mut ea, mut eb) = ouvrir_les_echanges(a, b);
     reunir_en_suivant_a(a, &mut ea, b, &mut eb, |_, _, rendu| {
-        rendu.expect("A reçoit le message de B");
+        assert!(
+            matches!(rendu, Ok(None)),
+            "A reçoit le message de B, sans avertissement : rendu {rendu:?}"
+        );
     })
 }
 
 /// La réunion de `reunir`, sur les échanges `ea` d'`a` et `eb` de `b`, qui suit chaque réception
 /// d'`a` : `recue` la reçoit, avec `a` après la réception, ses heads d'avant et ce que la
 /// réception a rendu, et la réunion continue quoi qu'elle ait rendu. Chaque réception de `b` doit
-/// réussir. Rend le nombre de messages ; au-delà de mille, la réunion ne s'achève pas, et c'est
-/// un échec.
+/// être faite sans avertissement : un test qui arme une panne la fait tomber sur une réception
+/// d'`a`, `b` n'ayant alors rien de neuf à recevoir. Rend le nombre de messages ; au-delà de
+/// mille, la réunion ne s'achève pas, et c'est un échec.
 pub fn reunir_en_suivant_a(
     a: &mut Document<'_>,
     ea: &mut Echange,
@@ -291,7 +336,11 @@ pub fn reunir_en_suivant_a(
     loop {
         let de_a = a.prochain_message(ea);
         if let Some(m) = &de_a {
-            b.recevoir(eb, m).expect("B reçoit le message d'A");
+            let rendu = b.recevoir(eb, m);
+            assert!(
+                matches!(rendu, Ok(None)),
+                "B reçoit le message d'A, sans avertissement : rendu {rendu:?}"
+            );
             n += 1;
         }
         let de_b = b.prochain_message(eb);
@@ -400,7 +449,8 @@ pub fn alterer_l_octet_du_milieu(chemin: &Path) -> Vec<u8> {
 /// Ce que refuse `document`, en lecture seule pour la raison `raison` (§ 31 · 2.1) : `ecrire` et
 /// `compacter` rendent `Erreur::LectureSeule(raison)`, `prochain_message` rend `None`, et
 /// `recevoir` rend `Erreur::LectureSeule(_)`. Ces quatre appels faits, chaque fichier sous
-/// `dossier`, le dossier du fonds, a encore son empreinte d'`avant`, prise avant l'ouverture.
+/// `dossier`, le dossier du fonds, a encore son empreinte d'`avant`, prise avant l'ouverture, ou
+/// dès que le document est en lecture seule.
 /// L'échange s'ouvre sur la copie de `NAISSANCE`, qu'un document illisible peut ne plus porter.
 pub fn constater_la_lecture_seule(
     document: &mut Document<'_>,

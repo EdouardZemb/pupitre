@@ -18,7 +18,7 @@ use automerge::{Automerge, ChangeHash, ObjId, ROOT, ReadDoc, hydrate};
 use commun::{HEURE, NAISSANCE, objet, ouvrir, ouvrir_le_fonds, rangee};
 use noyau::donnees::fonds::{ETIQUETTES, IDEES, PRISES, TEXTE};
 use proptest::prelude::*;
-use stockage::{Document, Erreur};
+use stockage::{Avertissement, Document, Erreur};
 use synchro::Copie;
 
 /// Le format des prises des tests, dont les captations sont des octets engendrés.
@@ -87,7 +87,8 @@ fn un_geste() -> impl Strategy<Value = Geste> {
     ]
 }
 
-/// Joue l'écriture `ecriture`, le geste de rang `rang` de la réplique `replique`, sur son fonds.
+/// Joue l'écriture `ecriture`, le geste de rang `rang` de la réplique `replique`, sur son fonds :
+/// elle est faite, sans avertissement.
 fn jouer(fonds: &mut Document<'_>, replique: &str, rang: usize, ecriture: &Ecriture) {
     let heure = HEURE + 1 + i64::try_from(rang).expect("un rang de geste tient dans un i64");
     let fait = match *ecriture {
@@ -109,12 +110,31 @@ fn jouer(fonds: &mut Document<'_>, replique: &str, rang: usize, ecriture: &Ecrit
             })
         }
     };
-    if let Err(erreur) = fait {
-        panic!(
-            "le geste {} de la réplique {replique} est refusé : {erreur:?}",
+    match fait {
+        Ok(None) => {}
+        autre => panic!(
+            "le geste {} de la réplique {replique} n'est pas fait sans avertissement : {autre:?}",
             rang + 1
-        );
+        ),
     }
+}
+
+/// L'écriture `quoi` est faite, sans avertissement : aucune panne ne s'arme dans l'essai, et un
+/// avertissement y est un verdict à instruire, comme un refus.
+fn faite(rendu: Result<Option<Avertissement>, Erreur>, quoi: &str) {
+    assert!(
+        matches!(rendu, Ok(None)),
+        "{quoi} : attendu l'écriture faite, sans avertissement ; rendu {rendu:?}"
+    );
+}
+
+/// Le fonds `fonds`, né de la réplique `nom`, est né sans avertissement.
+fn nee_sans_avertissement(fonds: &Document<'_>, nom: &str) {
+    assert!(
+        fonds.avertissements().is_empty(),
+        "{nom} est née avec des avertissements : {:?}",
+        fonds.avertissements()
+    );
 }
 
 /// L'idée que note le geste de rang `rang` de la réplique `replique` : `<réplique>-<rang + 1>`.
@@ -195,6 +215,7 @@ fn une_copie_restauree(nom: &str) -> (PathBuf, Releve) {
             commun::noter(tx, "idee-1", "un riff de guitare en boucle")
         })
         .expect("faire naître le fonds d'A");
+    nee_sans_avertissement(&a, "A");
     let mut captations = Vec::new();
     for (heure, (graine, longueur)) in (HEURE + 1..).zip([(3, 0), (4, 1), (5, 70_000)]) {
         let octets = commun::octets(graine, longueur);
@@ -202,10 +223,12 @@ fn une_copie_restauree(nom: &str) -> (PathBuf, Releve) {
             .captations()
             .verser(&octets)
             .expect("verser une captation dans A");
-        a.ecrire("Prise posée", heure, |tx| {
-            commun::poser_une_prise(tx, &e, "idee-1", FORMAT_DES_PRISES)
-        })
-        .expect("poser une prise dans A");
+        faite(
+            a.ecrire("Prise posée", heure, |tx| {
+                commun::poser_une_prise(tx, &e, "idee-1", FORMAT_DES_PRISES)
+            }),
+            "poser une prise dans A",
+        );
         captations.push((e, octets));
     }
     let releve = Releve {
@@ -236,18 +259,23 @@ fn deux_repliques_modifiees_hors_ligne_convergent() {
             commun::noter(tx, "idee-1", "une ligne de basse qui descend")
         })
         .expect("faire naître le fonds d'A");
-    a.ecrire("Idée notée", HEURE + 1, |tx| {
-        commun::noter(tx, "idee-2", "un refrain en question")
-    })
-    .expect("noter idee-2 dans A");
+    nee_sans_avertissement(&a, "A");
+    faite(
+        a.ecrire("Idée notée", HEURE + 1, |tx| {
+            commun::noter(tx, "idee-2", "un refrain en question")
+        }),
+        "noter idee-2 dans A",
+    );
     let e_a = racine_a
         .captations()
         .verser(&captation_d_a)
         .expect("verser la captation d'A");
-    a.ecrire("Prise posée", HEURE + 2, |tx| {
-        commun::poser_une_prise(tx, &e_a, "idee-2", FORMAT_DES_PRISES)
-    })
-    .expect("poser la prise d'A");
+    faite(
+        a.ecrire("Prise posée", HEURE + 2, |tx| {
+            commun::poser_une_prise(tx, &e_a, "idee-2", FORMAT_DES_PRISES)
+        }),
+        "poser la prise d'A",
+    );
     // A fermée, document et racine des données : sous Windows, le verrou qu'elle tient peut
     // refuser la lecture du fichier `verrou`, que la copie emporte.
     drop(a);
@@ -257,18 +285,24 @@ fn deux_repliques_modifiees_hors_ligne_convergent() {
     // Hors ligne, A de son côté, puis elle se rouvre.
     let racine_a = ouvrir(&chemin_a);
     let mut a = ouvrir_le_fonds(&racine_a);
-    a.ecrire("Texte changé", HEURE + 3, |tx| {
-        commun::changer_le_texte(tx, "idee-1", "une ligne de basse qui monte")
-    })
-    .expect("changer le texte d'idee-1 dans A");
-    a.ecrire("Étiquette posée", HEURE + 4, |tx| {
-        commun::etiqueter(tx, "idee-2", "refrain")
-    })
-    .expect("étiqueter idee-2 dans A");
-    a.ecrire("Idée notée", HEURE + 5, |tx| {
-        commun::noter(tx, "idee-3", "un pont plus calme")
-    })
-    .expect("noter idee-3 dans A");
+    faite(
+        a.ecrire("Texte changé", HEURE + 3, |tx| {
+            commun::changer_le_texte(tx, "idee-1", "une ligne de basse qui monte")
+        }),
+        "changer le texte d'idee-1 dans A",
+    );
+    faite(
+        a.ecrire("Étiquette posée", HEURE + 4, |tx| {
+            commun::etiqueter(tx, "idee-2", "refrain")
+        }),
+        "étiqueter idee-2 dans A",
+    );
+    faite(
+        a.ecrire("Idée notée", HEURE + 5, |tx| {
+            commun::noter(tx, "idee-3", "un pont plus calme")
+        }),
+        "noter idee-3 dans A",
+    );
     drop(a);
     drop(racine_a);
     let racine_a = ouvrir(&chemin_a);
@@ -277,26 +311,34 @@ fn deux_repliques_modifiees_hors_ligne_convergent() {
     // Hors ligne, B de son côté, puis elle se rouvre.
     let racine_b = ouvrir(&chemin_b);
     let mut b = ouvrir_le_fonds(&racine_b);
-    b.ecrire("Texte changé", HEURE + 3, |tx| {
-        commun::changer_le_texte(tx, "idee-1", "une ligne de basse en arpèges")
-    })
-    .expect("changer le texte d'idee-1 dans B");
-    b.ecrire("Étiquette posée", HEURE + 4, |tx| {
-        commun::etiqueter(tx, "idee-1", "basse")
-    })
-    .expect("étiqueter idee-1 dans B");
-    b.ecrire("Idée notée", HEURE + 5, |tx| {
-        commun::noter(tx, "idee-4", "une fin en suspens")
-    })
-    .expect("noter idee-4 dans B");
+    faite(
+        b.ecrire("Texte changé", HEURE + 3, |tx| {
+            commun::changer_le_texte(tx, "idee-1", "une ligne de basse en arpèges")
+        }),
+        "changer le texte d'idee-1 dans B",
+    );
+    faite(
+        b.ecrire("Étiquette posée", HEURE + 4, |tx| {
+            commun::etiqueter(tx, "idee-1", "basse")
+        }),
+        "étiqueter idee-1 dans B",
+    );
+    faite(
+        b.ecrire("Idée notée", HEURE + 5, |tx| {
+            commun::noter(tx, "idee-4", "une fin en suspens")
+        }),
+        "noter idee-4 dans B",
+    );
     let e_b = racine_b
         .captations()
         .verser(&captation_de_b)
         .expect("verser la captation de B");
-    b.ecrire("Prise posée", HEURE + 6, |tx| {
-        commun::poser_une_prise(tx, &e_b, "idee-4", FORMAT_DES_PRISES)
-    })
-    .expect("poser la prise de B");
+    faite(
+        b.ecrire("Prise posée", HEURE + 6, |tx| {
+            commun::poser_une_prise(tx, &e_b, "idee-4", FORMAT_DES_PRISES)
+        }),
+        "poser la prise de B",
+    );
     drop(b);
     drop(racine_b);
     let racine_b = ouvrir(&chemin_b);
@@ -380,12 +422,13 @@ proptest! {
         let chemin_b = d.join("b");
         {
             let racine = ouvrir(&chemin_a);
-            racine
+            let a = racine
                 .faire_naitre_le_fonds(&NAISSANCE, "Idées notées", HEURE, |tx| {
                     commun::noter(tx, IDEES_COMMUNES[0], "un motif de trois notes")?;
                     commun::noter(tx, IDEES_COMMUNES[1], "une grille en boucle")
                 })
                 .expect("faire naître le fonds d'A");
+            nee_sans_avertissement(&a, "A");
         }
         commun::copier_l_arbre(&chemin_a, &chemin_b);
 
@@ -549,11 +592,12 @@ fn une_copie_restauree_relit_chaque_captation_contre_son_empreinte() {
         releve.valeur,
         "le fonds de la copie n'a pas la valeur d'A"
     );
-    fonds
-        .ecrire("Étiquette posée", HEURE + 10, |tx| {
+    faite(
+        fonds.ecrire("Étiquette posée", HEURE + 10, |tx| {
             commun::etiqueter(tx, "idee-1", "riff")
-        })
-        .expect("écrire dans la copie restaurée");
+        }),
+        "écrire dans la copie restaurée",
+    );
     assert_eq!(
         fonds
             .copie()

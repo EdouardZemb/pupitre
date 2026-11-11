@@ -184,7 +184,7 @@ fn le_fonds_ne_nait_qu_une_fois() {
 fn un_second_fonds_est_refuse() {
     let chemin = commun::dossier_jetable("fonds-second").join("donnees");
     let racine = ouvrir(&chemin);
-    let a = faire_naitre(&racine);
+    let mut a = faire_naitre(&racine);
 
     match racine.fonds() {
         Err(Erreur::FondsDejaOuvert) => {}
@@ -200,10 +200,26 @@ fn un_second_fonds_est_refuse() {
         Ok(_) => panic!("un second Document du fonds est né"),
     }
 
-    drop(a);
+    // Les deux refus laissent la garde au premier : il écrit encore, et un troisième est encore
+    // refusé tant qu'il vit.
+    let rendu = commun::ecrire(&mut a, |tx| {
+        commun::noter(tx, "idee-3", "Une coda en suspens")
+    });
     assert!(
-        racine.fonds().expect("rouvrir le fonds").is_some(),
-        "le fonds ne se rouvre pas une fois le premier Document lâché"
+        matches!(rendu, Ok(None)),
+        "le premier Document n'écrit plus après les refus : rendu {rendu:?}"
+    );
+    match racine.fonds() {
+        Err(Erreur::FondsDejaOuvert) => {}
+        Err(autre) => panic!("attendu FondsDejaOuvert au troisième, rendu {autre:?}"),
+        Ok(_) => panic!("un troisième Document du fonds s'est ouvert, le premier vivant"),
+    }
+
+    drop(a);
+    let rouvert = ouvrir_le_fonds(&racine);
+    assert!(
+        commun::porte_l_idee(rouvert.automerge(), "idee-3"),
+        "le fonds rouvert, le premier Document lâché, ne porte pas ce qu'il a écrit"
     );
 }
 

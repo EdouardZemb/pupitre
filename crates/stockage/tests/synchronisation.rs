@@ -167,6 +167,7 @@ fn une_reception_refusee_en_chemin_ecrit_ce_qui_a_change() {
         let mut ajouts_d_avant = commun::entrees(&ajouts_a);
         let mut refusees = 0;
 
+        // B n'a rien de neuf à recevoir : la panne tombe sur une réception d'A.
         {
             let _panne = couper(Etape::Reception, 1);
             commun::reunir_en_suivant_a(
@@ -182,7 +183,7 @@ fn une_reception_refusee_en_chemin_ecrit_ce_qui_a_change() {
                             assert_ne!(
                                 a.automerge().get_heads(),
                                 heads_d_avant,
-                                "la réception refusée n'a pas changé les heads d'A"
+                                "la réception refusée en chemin n'a pas changé les heads d'A"
                             );
                             commun::constater_un_ajout(
                                 a.automerge(),
@@ -232,6 +233,7 @@ fn une_reception_refusee_en_chemin_ecrit_ce_qui_a_change() {
     let (mut ea, mut eb) = commun::ouvrir_les_echanges(&a, &b);
     let mut refusees = 0;
 
+    // B n'a rien de neuf à recevoir : les pannes tombent sur une réception d'A.
     {
         let _reception = couper(Etape::Reception, 1);
         let _rendre_durable = couper(Etape::RendreDurable, 1);
@@ -270,7 +272,7 @@ fn une_reception_refusee_en_chemin_ecrit_ce_qui_a_change() {
 }
 
 #[test]
-fn une_reception_refusee_relit_le_document_et_l_echange_reprend() {
+fn une_reception_dont_l_ecriture_est_refusee_relit_le_document_et_l_echange_reprend() {
     let (chemin_a, chemin_b) = deux_copies("synchronisation-reception-refusee");
     let racine_a = ouvrir(&chemin_a);
     let racine_b = ouvrir(&chemin_b);
@@ -287,7 +289,8 @@ fn une_reception_refusee_relit_le_document_et_l_echange_reprend() {
     let mut ecrites_apres_le_refus = 0;
 
     // Les mêmes échanges, jusqu'à ce que ni l'une ni l'autre n'ait rien à dire : B renvoie ce
-    // qu'elle croyait envoyé.
+    // qu'elle croyait envoyé. B n'a rien de neuf à recevoir : la panne tombe sur une réception
+    // d'A.
     {
         let _panne = couper(Etape::Renommage, 1);
         commun::reunir_en_suivant_a(
@@ -303,7 +306,8 @@ fn une_reception_refusee_relit_le_document_et_l_echange_reprend() {
                         refusees += 1;
                         assert!(
                             !heads_changees,
-                            "après la réception refusée, A n'a pas les heads d'avant"
+                            "après la réception dont l'écriture est refusée, A n'a pas les heads \
+                             d'avant"
                         );
                     }
                     Ok(_) if heads_changees => {

@@ -129,7 +129,8 @@ fn un_voisin_qui_ne_se_retire_pas_se_vide() {
 
     assert!(matches!(rendu, Err(Echec::Refusee(_))), "rendu {rendu:?}");
     assert_eq!(fs::read(&chemin).unwrap(), b"avant");
-    // Le voisin, nommé en clair et non par `voisin()`, que la tâche 10 change.
+    // Le voisin, nommé en clair et non par `voisin()`, dont le nom pourra prendre un suffixe
+    // quand il est déjà pris (§ 31 · 2.1).
     let partiel =
         chemin.with_file_name(format!("complet.automerge.{}.partiel", std::process::id()));
     assert!(partiel.is_file(), "le voisin qui ne se retire pas reste");
