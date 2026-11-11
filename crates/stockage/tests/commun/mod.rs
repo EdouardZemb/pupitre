@@ -1,13 +1,12 @@
 //! Les aides des tests du stockage, écrites une seule fois : la naissance, l'heure et le message
 //! des tests, le dossier jetable de chaque test, ce que contient un dossier et l'empreinte de
-//! chacun de ses fichiers, des octets engendrés au lieu d'un fichier, un texte long, la copie
-//! d'un arbre de fichiers, l'ouverture de la racine des données et du fonds, la naissance du
-//! fonds et ses deux copies, un fonds bâti sans racine des données, l'écriture des tests, les
-//! chemins du fonds et des captations, les
-//! échanges de deux copies et leur réunion, la relecture du dossier du fonds, l'objet à clés que
-//! porte une clé, l'idée que porte le fonds, les noms nouveaux d'un dossier, le fichier d'ajout
-//! qu'une écriture ou une réception ajoute, l'octet du milieu d'un fichier changé, ce que refuse un
-//! document en lecture seule, et les gestes de test sur le fonds.
+//! chacun de ses fichiers, des octets engendrés au lieu d'un fichier, un texte long, la copie d'un
+//! arbre de fichiers, l'ouverture de la racine des données et du fonds, la naissance du fonds et
+//! ses deux copies, un fonds bâti sans racine des données, l'écriture des tests, les chemins du
+//! fonds et des captations, les échanges de deux copies et leur réunion, la relecture du dossier du
+//! fonds, l'objet à clés que porte une clé, l'idée que porte le fonds, les noms nouveaux d'un
+//! dossier, le fichier d'ajout qu'une écriture ou une réception ajoute, l'octet du milieu d'un
+//! fichier changé, ce que refuse un document en lecture seule, et les gestes de test sur le fonds.
 
 // Chaque fichier de test n'emploie qu'une partie des aides.
 #![allow(dead_code)]
