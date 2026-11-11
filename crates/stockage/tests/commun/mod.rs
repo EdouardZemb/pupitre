@@ -5,7 +5,8 @@
 //! fonds et ses deux copies, l'écriture des tests, les chemins du fonds et des captations, les
 //! échanges de deux copies et leur réunion, la relecture du dossier du fonds, l'objet à clés que
 //! porte une clé, l'idée que porte le fonds, les noms nouveaux d'un dossier, le fichier d'ajout
-//! qu'une écriture ou une réception ajoute, et les gestes de test sur le fonds.
+//! qu'une écriture ou une réception ajoute, l'octet du milieu d'un fichier changé, ce que refuse un
+//! document en lecture seule, et les gestes de test sur le fonds.
 
 // Chaque fichier de test n'emploie qu'une partie des aides.
 #![allow(dead_code)]
@@ -18,8 +19,10 @@ use std::path::{Path, PathBuf};
 use automerge::transaction::{Transactable, Transaction};
 use automerge::{Automerge, AutomergeError, ChangeHash, ObjId, ObjType, ROOT, ReadDoc, Value};
 use noyau::donnees::fonds::{ETIQUETTES, FORMAT, IDEE, IDEES, PRISES, TEXTE};
-use stockage::{Avertissement, Document, Erreur, Naissance, RacineDesDonnees, empreinte};
-use synchro::Echange;
+use stockage::{
+    Avertissement, Document, Erreur, LectureSeule, Naissance, RacineDesDonnees, empreinte,
+};
+use synchro::{Copie, Echange};
 
 /// La naissance des tests : des identifiants écrits, jamais tirés.
 pub const NAISSANCE: Naissance<'static> = Naissance {
@@ -358,6 +361,67 @@ pub fn constater_un_ajout(
         "le fichier d'ajout n'est pas save_after des heads d'avant"
     );
     contenu
+}
+
+/// Change l'octet du milieu du fichier `chemin` (`^ 0xFF`), puis rend les octets altérés.
+pub fn alterer_l_octet_du_milieu(chemin: &Path) -> Vec<u8> {
+    let mut octets = fs::read(chemin).unwrap_or_else(|e| panic!("lire {} : {e}", chemin.display()));
+    let milieu = octets.len() / 2;
+    octets[milieu] ^= 0xFF;
+    fs::write(chemin, &octets).unwrap_or_else(|e| panic!("altérer {} : {e}", chemin.display()));
+    octets
+}
+
+/// Ce que refuse `document`, en lecture seule pour la raison `raison` (§ 31 · 2.1) : `ecrire` et
+/// `compacter` rendent `Erreur::LectureSeule(raison)`, `prochain_message` rend `None`, et
+/// `recevoir` rend `Erreur::LectureSeule(_)`. Ces quatre appels faits, chaque fichier sous
+/// `dossier`, le dossier du fonds, a encore son empreinte d'`avant`, prise avant l'ouverture.
+/// L'échange s'ouvre sur la copie de `NAISSANCE`, qu'un document illisible peut ne plus porter.
+pub fn constater_la_lecture_seule(
+    document: &mut Document<'_>,
+    raison: &LectureSeule,
+    dossier: &Path,
+    avant: &BTreeMap<PathBuf, String>,
+) {
+    match ecrire(document, |tx| noter(tx, "idee-9", "Une phrase refusée")) {
+        Err(Erreur::LectureSeule(rendue)) => assert_eq!(
+            &rendue, raison,
+            "l'écriture ne rend pas la raison de la lecture seule"
+        ),
+        autre => panic!("attendu LectureSeule à l'écriture, rendu {autre:?}"),
+    }
+    match document.compacter() {
+        Err(Erreur::LectureSeule(rendue)) => assert_eq!(
+            &rendue, raison,
+            "la compaction ne rend pas la raison de la lecture seule"
+        ),
+        autre => panic!("attendu LectureSeule à la compaction, rendu {autre:?}"),
+    }
+    let copie = Copie {
+        proprietaire: NAISSANCE.proprietaire.to_owned(),
+        document: NAISSANCE.identifiant.to_owned(),
+        lignee: NAISSANCE.lignee.to_owned(),
+    };
+    let mut echange = Echange::ouvrir(&copie, &copie).expect("ouvrir l'échange");
+    assert_eq!(
+        document.prochain_message(&mut echange),
+        None,
+        "un document en lecture seule a envoyé un message"
+    );
+    let mut de_l_autre =
+        Echange::ouvrir(&copie, &copie).expect("ouvrir l'échange de l'autre copie");
+    let message = de_l_autre
+        .prochain_message(document.automerge())
+        .expect("le message de l'autre copie");
+    match document.recevoir(&mut echange, &message) {
+        Err(Erreur::LectureSeule(_)) => {}
+        autre => panic!("attendu LectureSeule à la réception, rendu {autre:?}"),
+    }
+    assert_eq!(
+        empreintes(dossier),
+        *avant,
+        "un fichier du fonds a changé depuis l'ouverture en lecture seule"
+    );
 }
 
 // Les gestes de test, qu'appellent les fermetures `geste` : les opérations nommées arrivent au

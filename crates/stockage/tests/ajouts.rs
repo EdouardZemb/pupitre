@@ -1,7 +1,7 @@
 //! Les fichiers d'ajout (§ 31 · 2.1) : chaque écriture du fonds ajoute un fichier, nommé par
 //! l'empreinte de son contenu, que l'ouverture relit après le fichier complet. Un fichier d'ajout
-//! altéré ou manquant fait refuser l'ouverture, et une écriture refusée relit le document du
-//! disque.
+//! altéré ou manquant ouvre le document en lecture seule, en se nommant, et une écriture refusée
+//! relit le document du disque.
 //!
 //! Le fonds naît d'une idée au texte long, qui ne sert qu'à la naissance : les écritures des
 //! tests sont courtes, et leurs fichiers d'ajout pèsent bien moins que le fichier complet.
@@ -10,10 +10,12 @@ mod commun;
 
 use std::fs;
 
-use automerge::{Automerge, AutomergeError, ReadDoc};
+use automerge::transaction::CommitOptions;
+use automerge::{ActorId, Automerge, AutomergeError, LoadOptions, OnPartialLoad, ReadDoc};
 use commun::{
-    HEURE, MESSAGE_DU_GESTE, NAISSANCE, dossier_des_ajouts, dossier_du_fonds, faire_naitre,
-    lire_le_complet, ouvrir, ouvrir_le_fonds, porte_l_idee,
+    HEURE, MESSAGE_DU_GESTE, NAISSANCE, alterer_l_octet_du_milieu, constater_la_lecture_seule,
+    dossier_des_ajouts, dossier_du_fonds, faire_naitre, lire_le_complet, ouvrir, ouvrir_le_fonds,
+    porte_l_idee,
 };
 use stockage::pannes::{Etape, couper};
 use stockage::{Avertissement, Erreur, LectureSeule, RacineDesDonnees, empreinte};
@@ -176,12 +178,13 @@ fn un_geste_refuse_n_ecrit_rien_et_le_document_reste_ouvert() {
 }
 
 #[test]
-fn un_ajout_manquant_rend_dependances_manquantes() {
-    let d = commun::dossier_jetable("ajouts-manquant");
-    let racine =
-        RacineDesDonnees::ouvrir(&d.join("donnees")).expect("ouvrir la racine des données");
+fn un_ajout_manquant_ouvre_en_lecture_seule() {
+    let chemin = commun::dossier_jetable("ajouts-manquant").join("donnees");
+    let racine = ouvrir(&chemin);
     let mut fonds = faire_naitre(&racine);
-    let ajouts = dossier_des_ajouts(racine.chemin());
+    let heads_de_la_naissance = fonds.automerge().get_heads();
+    let valeur_de_la_naissance = fonds.automerge().hydrate(None);
+    let ajouts = dossier_des_ajouts(&chemin);
     fonds
         .ecrire("Étiquette posée", HEURE + 1, |tx| {
             commun::etiqueter(tx, "idee-1", "refrain")
@@ -198,15 +201,44 @@ fn un_ajout_manquant_rend_dependances_manquantes() {
             commun::noter(tx, "idee-2", "Un pont en mineur")
         })
         .expect("la seconde écriture");
+    let second = commun::nouveaux(&premier, &commun::entrees(&ajouts));
+    assert_eq!(
+        second.len(),
+        1,
+        "la seconde écriture n'a pas laissé un seul fichier d'ajout de plus : {second:?}"
+    );
     drop(fonds);
     // La seconde modification dépend de la première, dont le fichier d'ajout manque.
     fs::remove_file(ajouts.join(&premier[0])).expect("retirer le premier fichier d'ajout");
+    let dossier = dossier_du_fonds(&chemin);
+    let avant = commun::empreintes(&dossier);
 
-    match racine.fonds() {
-        Err(Erreur::DependancesManquantes) => {}
-        Err(autre) => panic!("attendu DependancesManquantes, rendu {autre:?}"),
-        Ok(_) => panic!("le fonds s'est ouvert sans le fichier d'ajout de sa première écriture"),
-    }
+    let mut fonds = ouvrir_le_fonds(&racine);
+
+    // Le fichier qui manque ne se nomme pas : celui qui l'attend, si.
+    let raison = LectureSeule::DependancesManquantes {
+        chemin: ajouts.join(&second[0]),
+    };
+    assert_eq!(
+        fonds.lecture_seule(),
+        Some(&raison),
+        "le fonds ne nomme pas le fichier d'ajout qui attend la modification manquante"
+    );
+    assert_eq!(
+        fonds.automerge().get_heads(),
+        heads_de_la_naissance,
+        "la mémoire ne mène pas aux heads de la naissance"
+    );
+    assert_eq!(
+        fonds.automerge().hydrate(None),
+        valeur_de_la_naissance,
+        "la mémoire ne porte pas la naissance seule, sans l'étiquette ni l'idée écrites"
+    );
+    assert!(
+        !porte_l_idee(fonds.automerge(), "idee-2"),
+        "la mémoire porte l'idée dont la modification attend ses dépendances"
+    );
+    constater_la_lecture_seule(&mut fonds, &raison, &dossier, &avant);
 }
 
 #[test]
@@ -272,41 +304,166 @@ fn chaque_ouverture_tire_un_acteur_neuf() {
 }
 
 #[test]
-fn un_ajout_altere_se_nomme_et_rien_ne_bouge() {
-    let d = commun::dossier_jetable("ajouts-altere");
-    let racine =
-        RacineDesDonnees::ouvrir(&d.join("donnees")).expect("ouvrir la racine des données");
+fn un_ajout_altere_ouvre_en_lecture_seule_et_se_nomme() {
+    let chemin = commun::dossier_jetable("ajouts-altere").join("donnees");
+    let racine = ouvrir(&chemin);
+    let mut fonds = faire_naitre(&racine);
+    let ajouts = dossier_des_ajouts(&chemin);
+    fonds
+        .ecrire("Idée notée", HEURE + 1, |tx| {
+            commun::noter(tx, "idee-2", "Un pont en mineur")
+        })
+        .expect("la première écriture");
+    let premier = commun::entrees(&ajouts);
+    assert_eq!(
+        premier.len(),
+        1,
+        "une écriture, un fichier d'ajout : {premier:?}"
+    );
+    fonds
+        .ecrire("Idée notée", HEURE + 2, |tx| {
+            commun::noter(tx, "idee-3", "Une coda en suspens")
+        })
+        .expect("la seconde écriture");
+    let second = commun::nouveaux(&premier, &commun::entrees(&ajouts));
+    assert_eq!(
+        second.len(),
+        1,
+        "la seconde écriture n'a pas laissé un seul fichier d'ajout de plus : {second:?}"
+    );
+    drop(fonds);
+    // Un octet changé, au milieu du fichier d'ajout de la seconde écriture.
+    let altere = ajouts.join(&second[0]);
+    alterer_l_octet_du_milieu(&altere);
+    let dossier = dossier_du_fonds(&chemin);
+    let avant = commun::empreintes(&dossier);
+
+    let mut fonds = ouvrir_le_fonds(&racine);
+
+    let raison = LectureSeule::AjoutAltere { chemin: altere };
+    assert_eq!(
+        fonds.lecture_seule(),
+        Some(&raison),
+        "le fonds ne nomme pas le fichier d'ajout altéré"
+    );
+    assert!(
+        porte_l_idee(fonds.automerge(), "idee-2"),
+        "l'idée de la première écriture ne se lit pas"
+    );
+    assert!(
+        !porte_l_idee(fonds.automerge(), "idee-3"),
+        "l'idée du fichier d'ajout altéré se lit"
+    );
+    constater_la_lecture_seule(&mut fonds, &raison, &dossier, &avant);
+}
+
+#[test]
+fn un_ajout_qu_automerge_refuse_ouvre_en_lecture_seule() {
+    let chemin = commun::dossier_jetable("ajouts-refuse-par-automerge").join("donnees");
+    let racine = ouvrir(&chemin);
+    drop(faire_naitre(&racine));
+    let complet = Automerge::load(&lire_le_complet(&chemin)).expect("lire le fichier complet");
+    let h = complet.get_heads();
+    let ajouts = dossier_des_ajouts(&chemin);
+    // Deux modifications du même acteur au même rang, chacune dans son fichier d'ajout, nommé
+    // par l'empreinte de son contenu : l'une se charge, l'autre plus.
+    let mut ecrits = Vec::new();
+    for (idee, texte) in [
+        ("idee-2", "Un pont en mineur"),
+        ("idee-3", "Une coda en suspens"),
+    ] {
+        let mut double = complet.fork();
+        double.set_actor(ActorId::from(b"acteur-en-double".as_slice()));
+        let mut tx = double.transaction();
+        commun::noter(&mut tx, idee, texte).expect("noter l'idée");
+        tx.commit_with(
+            CommitOptions::default()
+                .with_message(MESSAGE_DU_GESTE)
+                .with_time(HEURE + 1),
+        );
+        let octets = double.save_after(&h);
+        let nom = format!("{}.automerge", empreinte(&octets));
+        fs::write(ajouts.join(&nom), &octets).expect("écrire le fichier d'ajout");
+        ecrits.push((nom, idee));
+    }
+    ecrits.sort();
+    let dossier = dossier_du_fonds(&chemin);
+    let avant = commun::empreintes(&dossier);
+
+    let mut fonds = ouvrir_le_fonds(&racine);
+
+    let (premier, idee_du_premier) = &ecrits[0];
+    let (second, idee_du_second) = &ecrits[1];
+    let raison = LectureSeule::AjoutIllisible {
+        chemin: ajouts.join(second),
+    };
+    assert_eq!(
+        fonds.lecture_seule(),
+        Some(&raison),
+        "le fonds ne nomme pas le second fichier d'ajout, dans l'ordre des noms ({premier} puis \
+         {second})"
+    );
+    assert!(
+        porte_l_idee(fonds.automerge(), idee_du_premier),
+        "l'idée du premier fichier d'ajout ne se lit pas"
+    );
+    assert!(
+        !porte_l_idee(fonds.automerge(), idee_du_second),
+        "l'idée du fichier d'ajout qu'Automerge refuse se lit"
+    );
+    constater_la_lecture_seule(&mut fonds, &raison, &dossier, &avant);
+}
+
+#[test]
+fn un_complet_illisible_ouvre_en_lecture_seule_et_se_nomme() {
+    let chemin = commun::dossier_jetable("ajouts-complet-illisible").join("donnees");
+    let racine = ouvrir(&chemin);
     let mut fonds = faire_naitre(&racine);
     fonds
-        .ecrire("Étiquette posée", HEURE + 1, |tx| {
-            commun::etiqueter(tx, "idee-1", "refrain")
+        .ecrire("Idée notée", HEURE + 1, |tx| {
+            commun::noter(tx, "idee-2", "Un pont en mineur")
         })
         .expect("écrire");
     drop(fonds);
-    let ajouts = dossier_des_ajouts(racine.chemin());
+    let dossier = dossier_du_fonds(&chemin);
+    let complet = dossier.join("complet.automerge");
+    let altere = alterer_l_octet_du_milieu(&complet);
+    // Ce qui se lit, calculé à part : ce que `load_with_options` relit des octets altérés, ou un
+    // document neuf s'il les refuse, puis chaque fichier d'ajout.
+    let mut lisible = Automerge::load_with_options(
+        &altere,
+        LoadOptions::new().on_partial_load(OnPartialLoad::Ignore),
+    )
+    .unwrap_or_else(|_| Automerge::new());
+    let ajouts = dossier_des_ajouts(&chemin);
     let noms = commun::entrees(&ajouts);
     assert_eq!(noms.len(), 1, "une écriture, un fichier d'ajout : {noms:?}");
-    // Un octet changé, au milieu du fichier d'ajout.
-    let altere = ajouts.join(&noms[0]);
-    let mut octets = fs::read(&altere).expect("lire le fichier d'ajout");
-    let milieu = octets.len() / 2;
-    octets[milieu] ^= 0xFF;
-    fs::write(&altere, &octets).expect("altérer le fichier d'ajout");
-    let dossier = dossier_du_fonds(racine.chemin());
+    for nom in &noms {
+        let octets = fs::read(ajouts.join(nom)).expect("lire le fichier d'ajout");
+        // Un fichier d'ajout qu'Automerge refuse ne se charge pas.
+        let _ = lisible.load_incremental(&octets);
+    }
     let avant = commun::empreintes(&dossier);
 
-    match racine.fonds() {
-        Err(Erreur::AjoutAltere { chemin }) => {
-            assert_eq!(chemin, altere, "l'erreur ne nomme pas le fichier altéré");
-        }
-        Err(autre) => panic!("attendu AjoutAltere, rendu {autre:?}"),
-        Ok(_) => panic!("le fonds s'est ouvert sur un fichier d'ajout altéré"),
-    }
+    let mut fonds = ouvrir_le_fonds(&racine);
+
+    let raison = LectureSeule::CompletIllisible { chemin: complet };
     assert_eq!(
-        commun::empreintes(&dossier),
-        avant,
-        "l'ouverture a touché un fichier du fonds"
+        fonds.lecture_seule(),
+        Some(&raison),
+        "le fonds ne nomme pas le fichier complet illisible"
     );
+    assert_eq!(
+        fonds.automerge().get_heads(),
+        lisible.get_heads(),
+        "la mémoire ne mène pas aux heads de ce qui se lit"
+    );
+    assert_eq!(
+        fonds.automerge().hydrate(None),
+        lisible.hydrate(None),
+        "la mémoire ne montre pas ce qui se lit"
+    );
+    constater_la_lecture_seule(&mut fonds, &raison, &dossier, &avant);
 }
 
 // § 31 · 10, test 8 : relire du disque après une opération refusée, puis une opération

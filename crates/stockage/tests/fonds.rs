@@ -1,11 +1,12 @@
 //! Le fonds naît, et se rouvre (§ 31 · 2.3) : la genèse, la naissance et le premier geste
 //! s'écrivent ensemble, en un seul fichier complet ; un geste refusé ne laisse rien, et le fonds
-//! ne naît qu'une fois.
+//! ne naît qu'une fois. Rouvert sans sa lignée, il ne situe pas sa copie (§ 31 · 2.5).
 
 mod commun;
 
 use std::fs;
 
+use automerge::transaction::{CommitOptions, Transactable};
 use automerge::{Automerge, AutomergeError, Change, ObjId, ROOT, ReadDoc, ScalarValue, Value};
 use commun::{
     HEURE, MESSAGE_DU_GESTE, NAISSANCE, dossier_des_ajouts, dossier_du_fonds, faire_naitre, objet,
@@ -276,4 +277,34 @@ fn une_naissance_refusee_avant_le_renommage_laisse_pupitre_neuf() {
             commun::noter(tx, "idee-1", "Un refrain qui monte")
         })
         .expect("la seconde naissance, sans panne");
+}
+
+#[test]
+fn une_copie_sans_lignee_rend_champ_absent() {
+    let chemin = commun::dossier_jetable("fonds-sans-lignee").join("donnees");
+    let racine = ouvrir(&chemin);
+    // Un fonds que le test bâtit : la genèse, puis l'identifiant et le propriétaire, sans lignée.
+    let mut bati = Automerge::new();
+    bati.apply_changes([Change::try_from(GENESE).expect("lire la genèse")])
+        .expect("appliquer la genèse");
+    let mut tx = bati.transaction();
+    tx.put(ROOT, IDENTIFIANT, NAISSANCE.identifiant)
+        .expect("écrire l'identifiant");
+    tx.put(ROOT, PROPRIETAIRE, NAISSANCE.proprietaire)
+        .expect("écrire le propriétaire");
+    tx.commit_with(
+        CommitOptions::default()
+            .with_message(MESSAGE_DE_LA_NAISSANCE)
+            .with_time(HEURE),
+    );
+    let dossier = dossier_du_fonds(&chemin);
+    fs::create_dir_all(dossier.join("ajouts")).expect("créer ajouts/");
+    fs::write(dossier.join("complet.automerge"), bati.save()).expect("écrire le fichier complet");
+
+    let fonds = ouvrir_le_fonds(&racine);
+
+    match fonds.copie() {
+        Err(Erreur::ChampAbsent { champ: "lignee" }) => {}
+        autre => panic!("attendu ChampAbsent sur la lignée, rendu {autre:?}"),
+    }
 }
