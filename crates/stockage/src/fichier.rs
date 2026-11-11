@@ -16,7 +16,8 @@ use crate::pannes::{self, Etape};
 /// Pourquoi une écriture à côté n'est pas faite, ou pas tout à fait.
 #[derive(Debug)]
 pub enum Echec {
-    /// Avant la fin du renommage : `chemin` garde ce qu'il portait, et le voisin est retiré.
+    /// Avant la fin du renommage : `chemin` garde ce qu'il portait, et le voisin est ôté, vidé
+    /// puis retiré.
     Refusee(io::Error),
     /// Après le renommage : le fichier est en place, mais `rendre_durable` a échoué.
     NonDurable(io::Error),
@@ -33,18 +34,19 @@ pub fn voisin(chemin: &Path) -> PathBuf {
 /// (`std::fs::rename`, qui remplace au besoin), puis rend le renommage durable.
 ///
 /// Un échec avant ou pendant le renommage rend [`Echec::Refusee`] : `chemin` garde ce qu'il
-/// portait, et le voisin est retiré ; un voisin relu qui ne rend pas `octets` ne prend pas la
-/// place, et l'erreur est alors `io::ErrorKind::InvalidData`. Un voisin qui ne se retire pas se
-/// tronque à zéro octet : vide, il ne se lit pas. Un échec de [`rendre_durable`] arrive après le
-/// renommage, et rend [`Echec::NonDurable`] : le fichier est déjà en place sous `chemin`, avec
-/// ses nouveaux octets, et il n'y a plus de voisin à retirer.
+/// portait, et le voisin est ôté ; un voisin relu qui ne rend pas `octets` ne prend pas la
+/// place, et l'erreur est alors `io::ErrorKind::InvalidData`. Ôter le voisin, c'est le vider
+/// (zéro octet), rendre ce vide durable (`sync_all`), puis le retirer : un retrait qui échoue, ou
+/// qu'une coupure perd, laisse un voisin vide, et vide, il ne se lit pas. Un échec de
+/// [`rendre_durable`] arrive après le renommage, et rend [`Echec::NonDurable`] : le fichier est
+/// déjà en place sous `chemin`, avec ses nouveaux octets, et il n'y a plus de voisin à ôter.
 pub fn ecrire_a_cote(chemin: &Path, octets: &[u8]) -> Result<(), Echec> {
     let voisin = voisin(chemin);
     if let Err(erreur) = ecrire_relire_puis_renommer(&voisin, chemin, octets) {
         oter(&voisin);
         return Err(Echec::Refusee(erreur));
     }
-    // Renommé, le voisin n'est plus : il n'y a rien à retirer si le renommage ne devient pas
+    // Renommé, le voisin n'est plus : il n'y a rien à ôter si le renommage ne devient pas
     // durable.
     rendre_durable_apres_le_renommage(chemin).map_err(Echec::NonDurable)
 }
@@ -60,17 +62,27 @@ fn ecrire_relire_puis_renommer(voisin: &Path, chemin: &Path, octets: &[u8]) -> i
     renommer(voisin, chemin)
 }
 
-/// Retire le voisin d'une écriture refusée ; s'il ne se retire pas, le tronque à zéro octet. Les
-/// erreurs sont tues : celle que rend l'écriture reste la sienne.
+/// Ôte le voisin d'une écriture refusée, dans cet ordre : il se vide (ouvert sans création,
+/// tronqué à zéro octet), ce vide est rendu durable (`sync_all`), le voisin se ferme, puis il se
+/// retire (`retirer`). Une coupure qui perd le retrait le laisse donc vide, sous les deux
+/// systèmes : seul un voisin dont le vide n'a pu être rendu durable, et qui ne se retire pas, ou
+/// dont une coupure perd le retrait, peut revenir avec ses octets. Les erreurs sont tues : celle
+/// que rend l'écriture reste la sienne ; un voisin qui ne se vide pas se retire quand même.
 fn oter(voisin: &Path) {
-    match retirer(voisin) {
-        Ok(()) => {}
-        // Le voisin n'est pas né : il n'y a rien à vider, et rien à créer.
-        Err(erreur) if erreur.kind() == io::ErrorKind::NotFound => {}
-        Err(_) => {
-            let _ = File::create(voisin);
+    match fs::OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .open(voisin)
+    {
+        // Fermé à la fin du bras, avant le retrait.
+        Ok(fichier) => {
+            let _ = fichier.sync_all();
         }
+        // Le voisin n'est pas né : il n'y a rien à vider, ni à retirer.
+        Err(erreur) if erreur.kind() == io::ErrorKind::NotFound => return,
+        Err(_) => {}
     }
+    let _ = retirer(voisin);
 }
 
 /// Écrit `octets` dans `chemin`, le synchronise (`sync_all`), puis le ferme. Les points :
