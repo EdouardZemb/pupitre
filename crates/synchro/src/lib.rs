@@ -46,7 +46,11 @@ impl Echange {
     /// `generate_sync_message`, `changes` remplacé par `ChunkList::empty()` et `heads` par celles
     /// de l'autre copie (`State::their_heads`, champ public d'automerge 0.12.0, vide tant qu'elle
     /// n'a rien dit). Sans ces heads, l'autre copie redemanderait sans fin ce qu'elle voit
-    /// annoncé, et l'échange ne finirait pas.
+    /// annoncé, et l'échange ne finirait pas ; vides, elles la font répondre par son document
+    /// entier. `generate_sync_message` compte comme envoyé (`State::sent_hashes`) ce que le
+    /// message aurait porté : un échange qui a préparé un tel message ne revient pas à
+    /// `prochain_message`, il se rouvre, sinon les modifications de la copie, comptées comme
+    /// envoyées, ne partiraient jamais.
     pub fn prochain_message_sans_modification(&mut self, doc: &Automerge) -> Option<Vec<u8>> {
         let mut message = doc.generate_sync_message(&mut self.etat)?;
         message.changes = ChunkList::empty();
@@ -67,7 +71,8 @@ impl Echange {
     /// est refusée, puis la relecture du disque). Son prochain message demande à l'autre copie
     /// d'oublier ce qu'elle croit avoir envoyé (`State::needs_reset`, champ public d'automerge
     /// 0.12.0 : le drapeau `SYNC_RESET`, ou des heads vides devant une copie qui ne le connaît
-    /// pas), et l'autre copie le renvoie.
+    /// pas, que `prochain_message_sans_modification` remplace par celles de l'autre copie, ne
+    /// gardant que le drapeau), et l'autre copie le renvoie.
     pub fn reprendre(&mut self) {
         self.etat.needs_reset = true;
     }

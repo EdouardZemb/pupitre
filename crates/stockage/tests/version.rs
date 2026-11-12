@@ -1,9 +1,9 @@
 //! La version de schéma et les migrations (§ 31 · 2.4) : un fonds plus ancien migre à son
 //! ouverture, et la migration s'écrit en un fichier d'ajout, avec son message ; deux répliques
 //! qui migrent chacune de son côté écrivent la même modification ; un fonds de version de schéma
-//! plus récente se lit sans écrire, même relu du disque, et reçoit sans rien transmettre ; une
-//! version de schéma illisible ouvre le fonds en lecture seule ; un fonds illisible ne migre pas ;
-//! une migration que le disque refuse n'ouvre pas le fonds.
+//! plus récente se lit sans écrire, même relu du disque, et reçoit, sans transmettre aucune
+//! modification ; une version de schéma illisible ouvre le fonds en lecture seule ; un fonds
+//! illisible ne migre pas ; une migration que le disque refuse n'ouvre pas le fonds.
 //!
 //! La migration de test est engendrée à l'exécution depuis la genèse (`migration_de_test`), et
 //! entre dans la table le temps du test, par `fonds_selon` ; `fonds()` ouvre selon la table de
@@ -489,7 +489,7 @@ fn une_copie_plus_recente_recoit_sans_rien_transmettre() {
     // A, migrée par une application qui connaît la version de schéma 2, se rouvre par `fonds()`,
     // qui ne connaît que la version 1 ; B, qui ne connaît que la version 1, note idee-2. Réunie
     // avec B, A reçoit idee-2 et l'écrit en fichiers d'ajout, sans se compacter ; B ne reçoit
-    // rien d'A, pas même la migration.
+    // aucune modification d'A, pas même la migration.
     let (chemin_a, chemin_b) = deux_copies("version-recoit-sans-transmettre");
     let m = migration_de_test();
     let racine_a = ouvrir(&chemin_a);

@@ -9,10 +9,10 @@
 //! prend sa place, ou se lit où il est ; le voisin lisible du fichier complet se lit, puis la
 //! compaction le fond ; tout autre se retire. Lu entier, le fonds lit sa version de schéma
 //! (§ 31 · 2.4) : plus ancienne que celle que connaît l'application, il migre, et la migration
-//! s'écrit en un fichier d'ajout ; plus récente, il se lit sans écrire, et reçoit sans rien
-//! transmettre ; absente ou illisible, il s'ouvre en lecture seule. Après sa compaction
-//! d'ouverture, chaque nom provisoire de `captations/` dont le contenu donne une empreinte que le
-//! fonds nomme prend ce nom (§ 31 · 6.1).
+//! s'écrit en un fichier d'ajout ; plus récente, il se lit sans écrire, et reçoit, sans
+//! transmettre aucune modification ; absente ou illisible, il s'ouvre en lecture seule. Après sa
+//! compaction d'ouverture, chaque nom provisoire de `captations/` dont le contenu donne une
+//! empreinte que le fonds nomme prend ce nom (§ 31 · 6.1).
 //!
 //! Une écriture est faite ; faite, avec un avertissement, quand son renommage n'est pas rendu
 //! durable ou que la compaction qui la suit échoue ; ou refusée, avant la fin de son renommage,
