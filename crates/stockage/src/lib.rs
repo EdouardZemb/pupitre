@@ -102,9 +102,10 @@ pub enum LectureSeule {
     /// Le document, qui se lit entier, porte une version de schéma plus récente que celle que
     /// connaît l'application (§ 31 · 2.4), dès son ouverture ou depuis qu'il l'a reçue : il se
     /// lit sans écrire, reçoit, et n'envoie que des messages sans aucune modification ; ce qu'il
-    /// reçoit s'écrit en fichiers d'ajout, sans compaction. `version` : la version de schéma
-    /// qu'il porte, plus récente que celle que connaît l'application, relue à chaque réception
-    /// qui change ses heads.
+    /// reçoit s'écrit en fichiers d'ajout, sans compaction. Il ne redevient entier qu'à sa
+    /// réouverture, même s'il reçoit la version de schéma connue. `version` : la version de
+    /// schéma qu'il porte, plus récente que celle que connaît l'application, relue à chaque
+    /// réception qui change ses heads, tant qu'elle reste plus récente.
     VersionPlusRecente { version: u64 },
     /// Le document, qui se lit entier, porte une version de schéma absente, nulle, ou qui n'est
     /// pas un entier non signé (§ 31 · 2.4) : il se lit, sans écrire ni échanger.

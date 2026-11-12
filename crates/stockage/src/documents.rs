@@ -149,8 +149,11 @@ impl Document<'_> {
     /// récente, relit sa version de schéma à chaque réception qui change ses heads, avant que ce
     /// qu'il a reçu ne s'écrive : plus récente que la version de schéma connue, il est en lecture
     /// seule (`VersionPlusRecente`, qui dit la version de schéma relue), et ne se compacte pas ;
-    /// illisible, il passe en lecture seule (`VersionIllisible`), sans échange. Une relecture du
-    /// disque, si l'écriture est refusée, relit la version de schéma du disque.
+    /// illisible, il passe en lecture seule (`VersionIllisible`), sans échange. Devant la version
+    /// de schéma connue, ou une plus ancienne, son accès ne change pas : un document plus récent
+    /// le reste, et ne redevient entier qu'à sa réouverture ; son échange n'envoie, jusque-là,
+    /// aucune modification. Une relecture du disque, si l'écriture est refusée, relit la version
+    /// de schéma du disque.
     pub fn recevoir(
         &mut self,
         echange: &mut Echange,
@@ -172,12 +175,15 @@ impl Document<'_> {
         // avant que l'écriture de ce qui est reçu ne décide de compacter, chez un document entier
         // comme chez un document plus récent. Un document devenu plus récent ne se compacte pas,
         // et ce qu'il a reçu s'écrit quand même ; une version de schéma illisible le prive
-        // d'échange.
+        // d'échange. Seule une raison remplace celle d'un document plus récent : il le reste
+        // devant la version de schéma connue, ou une plus ancienne, jusqu'à sa réouverture, son
+        // échange ne passant pas, en chemin, à `Echange::prochain_message`.
         if matches!(
             self.lecture_seule,
             None | Some(LectureSeule::VersionPlusRecente { .. })
-        ) {
-            self.lecture_seule = self.raison_de_la_memoire();
+        ) && let Some(raison) = self.raison_de_la_memoire()
+        {
+            self.lecture_seule = Some(raison);
         }
         // Une réception refusée en chemin peut avoir appliqué une part du message : ce que porte
         // la mémoire s'écrit.
