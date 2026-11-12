@@ -4,7 +4,7 @@
 
 use noyau::donnees::acces::Acces;
 use noyau::donnees::compaction::{Lu, a_l_ouverture, a_retirer, apres_une_ecriture};
-use noyau::donnees::copie::{Copie, Difference, comparer};
+use noyau::donnees::copie::{Copie, Difference, Rapport, comparer, rapport_des_lignees};
 use noyau::donnees::fonds::MIGRATIONS;
 use noyau::donnees::version::{
     Lecture, Migration, a_appliquer, connue, lecture, message_de_la_migration,
@@ -188,5 +188,39 @@ fn comparer_rend_la_premiere_difference() {
     assert_eq!(
         comparer(&locale, &copie(PROPRIETAIRE, AUTRE_DOCUMENT, AUTRE_LIGNEE)),
         Err(Difference::AutreDocument)
+    );
+}
+
+#[test]
+fn la_lignee_qui_l_emporte() {
+    use Rapport::*;
+    assert_eq!(rapport_des_lignees("lignee-1", &[], "lignee-1", &[]), Meme);
+    assert_eq!(
+        rapport_des_lignees("lignee-1", &["lignee-0"], "lignee-1", &[]),
+        Meme
+    );
+    assert_eq!(
+        rapport_des_lignees("lignee-1", &[], "lignee-2", &["lignee-1"]),
+        LocaleRemplacee
+    );
+    assert_eq!(
+        rapport_des_lignees("lignee-2", &["lignee-1"], "lignee-1", &[]),
+        DistanteRemplacee
+    );
+    assert_eq!(
+        rapport_des_lignees("lignee-1", &[], "lignee-2", &[]),
+        Etrangeres
+    );
+    assert_eq!(
+        rapport_des_lignees("lignee-1", &[], "lignee-3", &["lignee-2"]),
+        Etrangeres
+    );
+    assert_eq!(
+        rapport_des_lignees("lignee-1", &[], "lignee-3", &["lignee-2", "lignee-1"]),
+        LocaleRemplacee
+    );
+    assert_eq!(
+        rapport_des_lignees("lignee-1", &["lignee-2"], "lignee-2", &["lignee-1"]),
+        Etrangeres
     );
 }
