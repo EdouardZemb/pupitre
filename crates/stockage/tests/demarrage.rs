@@ -3,7 +3,10 @@
 //! l'empreinte prend sa place, ou se lit où il est, avec un avertissement ; le voisin lisible du
 //! fichier complet se lit, puis la compaction d'ouverture le fond ; tout autre se retire. Un
 //! voisin lisible du fichier complet fait exister le fonds, que la naissance ne refait pas. Un
-//! fichier étranger reste tel quel, et rien ne se touche sans le verrou.
+//! fichier étranger reste tel quel, et rien ne se touche sans le verrou. Le fonds ouvert, chaque
+//! nom provisoire de `captations/` dont le contenu entier donne une empreinte que le fonds nomme,
+//! tel qu'il se lit, prend ce nom (§ 31 · 6.1) ; un nom provisoire qui ne le peut pas reste, avec
+//! un avertissement.
 //!
 //! Le fonds naît d'une idée au texte long, qui ne sert qu'à la naissance : les écritures des
 //! tests sont courtes, et leurs fichiers d'ajout pèsent bien moins que le fichier complet.
@@ -17,11 +20,14 @@ use automerge::transaction::CommitOptions;
 use automerge::{ActorId, Automerge};
 use commun::{
     HEURE, MESSAGE_DU_GESTE, NAISSANCE, dossier_des_ajouts, dossier_du_fonds, empreintes, entrees,
-    faire_naitre, faite, lire_le_complet, ouvrir, ouvrir_le_fonds, porte_l_idee,
-    relire_le_dossier_du_fonds,
+    faire_naitre, faite, lire_le_complet, octets, ouvrir, ouvrir_le_fonds, porte_l_idee,
+    relire_le_dossier_du_fonds, texte_long,
 };
 use stockage::pannes::{Etape, couper};
 use stockage::{Avertissement, Document, Erreur, LectureSeule, RacineDesDonnees, empreinte};
+
+/// Le format des prises des tests du rangement, dont les captations sont des octets engendrés.
+const FORMAT_DES_PRISES: &str = "wav";
 
 /// Les idées que notent les trois écritures des tests du voisin du fichier complet, avec leur
 /// texte.
@@ -105,6 +111,50 @@ fn une_idee_de_plus(naissance: &Automerge, acteur: ActorId, idee: &str, texte: &
 fn porte_les_trois_idees(doc: &Automerge, quoi: &str) {
     for (idee, _) in TROIS_IDEES {
         assert!(porte_l_idee(doc, idee), "{quoi} ne porte pas {idee}");
+    }
+}
+
+/// Le fonds de `racine` né, au premier geste, de l'idée `idee-1` au texte long et d'une prise de
+/// cette idée par empreinte de `prises` : il naît sans avertissement. Le texte long fait peser le
+/// fichier complet plus que le fichier d'ajout d'une écriture qui pose une prise : aucune
+/// compaction ne suit une telle écriture.
+fn naitre_avec_les_prises<'r>(racine: &'r RacineDesDonnees, prises: &[&str]) -> Document<'r> {
+    let fonds = racine
+        .faire_naitre_le_fonds(&NAISSANCE, MESSAGE_DU_GESTE, HEURE, |tx| {
+            commun::noter(tx, "idee-1", &texte_long())?;
+            for e in prises {
+                commun::poser_une_prise(tx, e, "idee-1", FORMAT_DES_PRISES)?;
+            }
+            Ok(())
+        })
+        .expect("faire naître le fonds");
+    assert!(
+        fonds.avertissements().is_empty(),
+        "le fonds est né avec des avertissements : {:?}",
+        fonds.avertissements()
+    );
+    fonds
+}
+
+/// Dépose dans `captations/` de la racine des données `chemin` le nom provisoire
+/// `<nom>.4242.partiel`, de contenu `contenu`, comme un versement dont le renommage s'est perdu
+/// après la réponse. Rend son chemin.
+fn deposer_un_nom_provisoire(chemin: &Path, nom: &str, contenu: &[u8]) -> PathBuf {
+    let provisoire = chemin
+        .join("captations")
+        .join(format!("{nom}.4242.partiel"));
+    fs::write(&provisoire, contenu)
+        .unwrap_or_else(|e| panic!("déposer {} : {e}", provisoire.display()));
+    provisoire
+}
+
+/// La captation `e` n'est pas rangée dans `racine` : `relire` rend `CaptationAbsente`. `quoi` dit
+/// quand.
+#[track_caller]
+fn pas_rangee(racine: &RacineDesDonnees, e: &str, quoi: &str) {
+    match racine.captations().relire(e) {
+        Err(Erreur::CaptationAbsente { .. }) => {}
+        autre => panic!("{quoi} : attendu la captation absente, rendu {autre:?}"),
     }
 }
 
@@ -747,4 +797,247 @@ fn un_voisin_du_complet_qu_automerge_refuse_ouvre_en_lecture_seule() {
         avant,
         "un fichier du fonds a changé depuis l'ouverture en lecture seule"
     );
+}
+
+// P2 : un `ajouts/` qui ne peut être recréé refuse l'écriture, et la mémoire se relit du disque.
+#[test]
+fn une_ecriture_qui_ne_peut_recreer_ajouts_est_refusee() {
+    let chemin = commun::dossier_jetable("demarrage-ajouts-non-recree").join("donnees");
+    let racine = ouvrir(&chemin);
+    drop(faire_naitre(&racine));
+    let mut fonds = ouvrir_le_fonds(&racine);
+    let dossier = dossier_du_fonds(&chemin);
+    // Le dossier du document ôté, le fonds ouvert : `create_dir` d'`ajouts/` échoue sans son
+    // parent.
+    fs::remove_dir_all(&dossier).expect("ôter le dossier du document");
+
+    let refus = commun::ecrire(&mut fonds, |tx| {
+        commun::noter(tx, "idee-2", "Un pont en mineur")
+    });
+
+    match refus {
+        Err(Erreur::Disque { chemin: refuse, .. }) => assert_eq!(
+            refuse,
+            dossier_des_ajouts(&chemin),
+            "le refus ne nomme pas ajouts/"
+        ),
+        autre => panic!("attendu l'écriture refusée par le disque ; rendu {autre:?}"),
+    }
+    // Relue d'un dossier absent, la mémoire est un document neuf, sans genèse : en lecture seule,
+    // sur le fichier complet absent.
+    assert_eq!(
+        fonds.lecture_seule(),
+        Some(&LectureSeule::CompletIllisible {
+            chemin: dossier.join("complet.automerge")
+        }),
+        "la relecture d'un dossier absent ne met pas le fonds en lecture seule sur le fichier complet"
+    );
+    assert!(
+        fonds.automerge().get_heads().is_empty(),
+        "la mémoire relue d'un dossier absent porte des modifications"
+    );
+    assert!(
+        !dossier.exists(),
+        "l'écriture refusée a recréé le dossier du document"
+    );
+}
+
+// § 31 · 10, test 4 : renommage perdu après la réponse, la captation nommée par un document prend son nom au démarrage
+#[test]
+fn une_captation_nommee_prend_son_nom_au_demarrage() {
+    let chemin = commun::dossier_jetable("demarrage-nom-provisoire-range").join("donnees");
+    let racine = ouvrir(&chemin);
+    let du_contenu = octets(5, 300);
+    let e = empreinte(&du_contenu);
+    let entier = octets(9, 300);
+    let e2 = empreinte(&entier);
+    drop(naitre_avec_les_prises(&racine, &[&e, &e2]));
+    let captations = chemin.join("captations");
+    assert!(
+        !captations.join(&e[..2]).exists(),
+        "le sous-dossier de la captation existe avant le démarrage"
+    );
+    let provisoire = deposer_un_nom_provisoire(&chemin, &e, &du_contenu);
+    let non_nomme = octets(8, 100);
+    let e8 = empreinte(&non_nomme);
+    let restants = [
+        deposer_un_nom_provisoire(&chemin, &e8, &non_nomme),
+        // Un versement coupé : la moitié des octets de `e2`, sous son nom provisoire.
+        deposer_un_nom_provisoire(&chemin, &e2, &entier[..entier.len() / 2]),
+    ];
+    let restants_avant: Vec<Vec<u8>> = restants
+        .iter()
+        .map(|restant| fs::read(restant).expect("lire un nom provisoire déposé"))
+        .collect();
+
+    let fonds = ouvrir_le_fonds(&racine);
+
+    assert_eq!(
+        racine
+            .captations()
+            .relire(&e)
+            .expect("relire la captation nommée"),
+        du_contenu,
+        "la captation nommée n'a pas pris son nom"
+    );
+    assert!(
+        !provisoire.exists(),
+        "le nom provisoire de la captation nommée reste"
+    );
+    for (restant, avant) in restants.iter().zip(&restants_avant) {
+        assert!(
+            fs::read(restant).unwrap_or_else(|e| panic!("relire {} : {e}", restant.display()))
+                == *avant,
+            "{} n'est plus là, octet pour octet",
+            restant.display()
+        );
+    }
+    pas_rangee(&racine, &e2, "le versement coupé de e2");
+    pas_rangee(&racine, &e8, "le contenu non nommé");
+    assert_eq!(
+        racine
+            .captations()
+            .verifier()
+            .expect("vérifier les captations"),
+        Vec::<PathBuf>::new(),
+        "une captation rangée trahit son nom"
+    );
+    drop(fonds);
+}
+
+#[test]
+fn un_nom_provisoire_qui_ne_se_range_pas_avertit() {
+    let d = commun::dossier_jetable("demarrage-nom-provisoire-restant");
+    let du_contenu = octets(5, 300);
+    let e = empreinte(&du_contenu);
+
+    // Le renommage refusé : le fonds n'a ni voisin ni fichier d'ajout, et le premier renommage de
+    // l'ouverture est celui du rangement. La lecture refusée : le fichier complet se lit d'abord,
+    // puis le nom provisoire.
+    for (sorte, panne, rang) in [
+        ("renommage", Etape::Renommage, 1),
+        ("relecture", Etape::Relecture, 2),
+    ] {
+        let chemin = d.join(sorte);
+        let racine = ouvrir(&chemin);
+        drop(naitre_avec_les_prises(&racine, &[&e]));
+        let provisoire = deposer_un_nom_provisoire(&chemin, &e, &du_contenu);
+
+        let ouvert = {
+            let _panne = couper(panne, rang);
+            racine.fonds()
+        };
+
+        let fonds = ouvert
+            .unwrap_or_else(|erreur| {
+                panic!("{sorte} refusé : un nom provisoire resté empêche d'ouvrir ; {erreur:?}")
+            })
+            .expect("le fonds est né");
+        assert_eq!(
+            fonds.lecture_seule(),
+            None,
+            "{sorte} refusé : le fonds ouvert est en lecture seule"
+        );
+        match fonds.avertissements() {
+            [Avertissement::NomProvisoireRestant { chemin: reste, .. }] => assert_eq!(
+                reste, &provisoire,
+                "{sorte} refusé : l'avertissement ne nomme pas le nom provisoire"
+            ),
+            autres => {
+                panic!("{sorte} refusé : attendu un seul NomProvisoireRestant, rendu {autres:?}")
+            }
+        }
+        assert!(
+            fs::read(&provisoire).expect("relire le nom provisoire resté") == du_contenu,
+            "{sorte} refusé : le nom provisoire n'est plus là, octet pour octet"
+        );
+        pas_rangee(&racine, &e, &format!("{sorte} refusé"));
+        drop(fonds);
+
+        let fonds = ouvrir_le_fonds(&racine);
+        assert_eq!(
+            racine
+                .captations()
+                .relire(&e)
+                .expect("relire la captation rangée"),
+            du_contenu,
+            "{sorte} refusé, puis rouvert sans panne : la captation n'a pas pris son nom"
+        );
+        assert!(
+            !provisoire.exists(),
+            "{sorte} refusé, puis rouvert sans panne : le nom provisoire reste"
+        );
+        drop(fonds);
+    }
+}
+
+// Décision 12 du plan maître : en lecture seule, ce que le fonds nomme est ce qui se lit.
+#[test]
+fn en_lecture_seule_seul_ce_qui_se_lit_nomme() {
+    let chemin = commun::dossier_jetable("demarrage-nom-provisoire-lecture-seule").join("donnees");
+    let racine = ouvrir(&chemin);
+    let du_contenu = octets(5, 300);
+    let e = empreinte(&du_contenu);
+    let de_e9 = octets(9, 300);
+    let e9 = empreinte(&de_e9);
+    let mut fonds = naitre_avec_les_prises(&racine, &[&e]);
+    faite(
+        commun::ecrire(&mut fonds, |tx| {
+            commun::poser_une_prise(tx, &e9, "idee-1", FORMAT_DES_PRISES)
+        }),
+        "poser la prise de e9",
+    );
+    drop(fonds);
+    let ajouts = dossier_des_ajouts(&chemin);
+    let noms = entrees(&ajouts);
+    assert_eq!(
+        noms.len(),
+        1,
+        "ajouts/ n'a pas le seul fichier d'ajout de la prise de e9 : {noms:?}"
+    );
+    let ajout = ajouts.join(&noms[0]);
+    assert!(
+        ajout.is_file(),
+        "le fichier d'ajout de la prise de e9 n'existe pas"
+    );
+    commun::alterer_l_octet_du_milieu(&ajout);
+    let provisoire = deposer_un_nom_provisoire(&chemin, &e, &du_contenu);
+    let provisoire_de_e9 = deposer_un_nom_provisoire(&chemin, &e9, &de_e9);
+
+    let fonds = commun::ouvrir_le_fonds_tel_quel(&racine);
+
+    assert_eq!(
+        fonds.lecture_seule(),
+        Some(&LectureSeule::AjoutAltere {
+            chemin: ajout.clone()
+        }),
+        "le fonds ne nomme pas le fichier d'ajout altéré"
+    );
+    assert!(
+        fonds.avertissements().is_empty(),
+        "le fonds ouvert a des avertissements : {:?}",
+        fonds.avertissements()
+    );
+    assert_eq!(
+        racine
+            .captations()
+            .relire(&e)
+            .expect("relire la captation que nomme ce qui se lit"),
+        du_contenu,
+        "la captation que nomme ce qui se lit n'a pas pris son nom"
+    );
+    assert!(
+        !provisoire.exists(),
+        "le nom provisoire de la captation que nomme ce qui se lit reste"
+    );
+    assert!(
+        fs::read(&provisoire_de_e9).expect("relire le nom provisoire de e9") == de_e9,
+        "le nom provisoire de e9 n'est plus là, octet pour octet"
+    );
+    pas_rangee(
+        &racine,
+        &e9,
+        "e9, nommée par le seul fichier qui ne se lit pas",
+    );
+    drop(fonds);
 }
