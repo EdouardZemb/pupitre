@@ -236,7 +236,7 @@ fn une_ouverture_qui_echoue_rend_la_garde() {
     match racine.fonds() {
         Err(Erreur::Disque { .. }) => {}
         Err(autre) => panic!("attendu Disque, rendu {autre:?}"),
-        Ok(_) => panic!("le fonds s'est ouvert sans son dossier ajouts/"),
+        Ok(_) => panic!("le fonds s'est ouvert, un fichier à la place de son dossier ajouts/"),
     }
 
     fs::remove_file(&ajouts).expect("ôter le fichier posé à la place de ajouts/");

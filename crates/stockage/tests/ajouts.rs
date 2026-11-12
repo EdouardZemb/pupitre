@@ -928,6 +928,40 @@ fn une_relecture_qui_echoue_met_le_document_en_lecture_seule() {
 }
 
 #[test]
+fn une_relecture_sans_fichier_complet_met_le_document_en_lecture_seule() {
+    // Le fichier complet ôté pendant que le document est ouvert : la relecture du disque, sans
+    // fichier complet ni voisin qui le remplace, ne lit qu'un document sans genèse, jamais entier.
+    let chemin = commun::dossier_jetable("ajouts-relecture-sans-complet").join("donnees");
+    let racine = ouvrir(&chemin);
+    let mut fonds = faire_naitre(&racine);
+    faite(
+        commun::ecrire(&mut fonds, |tx| {
+            commun::noter(tx, "idee-2", "Un pont en mineur")
+        }),
+        "la première écriture",
+    );
+    let complet = dossier_du_fonds(&chemin).join("complet.automerge");
+    fs::remove_file(&complet).expect("ôter le fichier complet");
+
+    let refus = {
+        let _panne = couper(Etape::Renommage, 1);
+        commun::ecrire(&mut fonds, |tx| {
+            commun::noter(tx, "idee-3", "Une coda en suspens")
+        })
+    };
+
+    assert!(
+        matches!(refus, Err(Erreur::Disque { .. })),
+        "attendu l'écriture refusée ; rendu {refus:?}"
+    );
+    assert_eq!(
+        fonds.lecture_seule(),
+        Some(&LectureSeule::CompletIllisible { chemin: complet }),
+        "relu sans fichier complet, le document n'est pas en lecture seule sur le fichier complet"
+    );
+}
+
+#[test]
 fn un_fichier_a_la_place_des_ajouts_refuse_l_ecriture_puis_la_relecture() {
     // Le refus vient du disque, sans panne : le voisin ne se crée pas dans `ajouts/`, devenu un
     // fichier, et la relecture du disque ne lit pas `ajouts/`.

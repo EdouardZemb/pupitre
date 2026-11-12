@@ -13,14 +13,15 @@ mod commun;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use automerge::Automerge;
+use automerge::transaction::CommitOptions;
+use automerge::{ActorId, Automerge};
 use commun::{
     HEURE, MESSAGE_DU_GESTE, NAISSANCE, dossier_des_ajouts, dossier_du_fonds, empreintes, entrees,
     faire_naitre, faite, lire_le_complet, ouvrir, ouvrir_le_fonds, porte_l_idee,
     relire_le_dossier_du_fonds,
 };
 use stockage::pannes::{Etape, couper};
-use stockage::{Avertissement, Document, Erreur, RacineDesDonnees, empreinte};
+use stockage::{Avertissement, Document, Erreur, LectureSeule, RacineDesDonnees, empreinte};
 
 /// Les idées que notent les trois écritures des tests du voisin du fichier complet, avec leur
 /// texte.
@@ -82,6 +83,21 @@ fn un_voisin_du_complet_laisse(racine: &RacineDesDonnees, nom_du_voisin: &str) -
         fs::remove_file(ajouts.join(nom)).expect("vider ajouts/");
     }
     voisin
+}
+
+/// `save()` d'une copie (`fork()`) du fonds `naissance`, où l'acteur `acteur` note l'idée `idee`,
+/// au texte `texte`, sous `MESSAGE_DU_GESTE`, à l'heure `HEURE + 1`.
+fn une_idee_de_plus(naissance: &Automerge, acteur: ActorId, idee: &str, texte: &str) -> Vec<u8> {
+    let mut copie = naissance.fork();
+    copie.set_actor(acteur);
+    let mut tx = copie.transaction();
+    commun::noter(&mut tx, idee, texte).expect("noter l'idée");
+    tx.commit_with(
+        CommitOptions::default()
+            .with_message(MESSAGE_DU_GESTE)
+            .with_time(HEURE + 1),
+    );
+    copie.save()
 }
 
 /// `doc` porte chacune des trois idées de `TROIS_IDEES` ; `quoi` dit ce qu'il est.
@@ -406,27 +422,30 @@ fn un_voisin_du_complet_vide_laisse_pupitre_neuf() {
 fn deux_voisins_du_complet_se_lisent_puis_se_fondent() {
     let chemin = commun::dossier_jetable("demarrage-deux-voisins-du-complet").join("donnees");
     let racine = ouvrir(&chemin);
-    let mut fonds = faire_naitre(&racine);
-    let naissance = lire_le_complet(&chemin);
-    noter(&mut fonds, "idee-2", "Un pont en mineur");
-    drop(fonds);
-    let avec_l_idee = relire_le_dossier_du_fonds(&chemin).save();
+    drop(faire_naitre(&racine));
+    let naissance = Automerge::load(&lire_le_complet(&chemin)).expect("lire le fichier complet");
     let dossier = dossier_du_fonds(&chemin);
     // Ni fichier complet, ni `ajouts/`, comme une copie qui ne garde pas un dossier vide :
     // l'ouverture lit un `ajouts/` absent comme vide, et ne le crée pas.
     fs::remove_file(dossier.join("complet.automerge")).expect("ôter le fichier complet");
-    fs::remove_dir_all(dossier.join("ajouts")).expect("ôter ajouts/");
+    fs::remove_dir(dossier.join("ajouts")).expect("ôter ajouts/, vide");
+    // Deux copies de la naissance, chacune avec une idée que l'autre n'a pas : chacun des deux
+    // voisins doit être lu.
     let premier = dossier.join("complet.automerge.4242.partiel");
     let second = dossier.join("complet.automerge.4242-2.partiel");
-    fs::write(&premier, naissance).expect("écrire le premier voisin");
-    fs::write(&second, avec_l_idee).expect("écrire le second voisin");
+    let du_premier = une_idee_de_plus(&naissance, ActorId::random(), "idee-3", "Une coda");
+    let du_second = une_idee_de_plus(&naissance, ActorId::random(), "idee-2", "Un pont");
+    fs::write(&premier, du_premier).expect("écrire le premier voisin");
+    fs::write(&second, du_second).expect("écrire le second voisin");
 
     let fonds = ouvrir_le_fonds(&racine);
 
-    assert!(
-        porte_l_idee(fonds.automerge(), "idee-2"),
-        "le fonds rouvert ne porte pas l'idée du second voisin"
-    );
+    for (idee, voisin) in [("idee-3", "premier"), ("idee-2", "second")] {
+        assert!(
+            porte_l_idee(fonds.automerge(), idee),
+            "le fonds rouvert ne porte pas l'idée du {voisin} voisin"
+        );
+    }
     assert!(!premier.exists(), "le premier voisin n'est pas retiré");
     assert!(!second.exists(), "le second voisin n'est pas retiré");
     assert_eq!(
@@ -516,4 +535,216 @@ fn le_demarrage_ne_touche_rien_sans_le_verrou() {
         "captations/ a changé sans le verrou"
     );
     drop(racine);
+}
+
+// P2 : l'ouverture ne crée pas `ajouts/` ; la première écriture le recrée.
+#[test]
+fn une_ecriture_recree_ajouts_s_il_manque() {
+    let chemin = commun::dossier_jetable("demarrage-ajouts-absent-ecriture").join("donnees");
+    let racine = ouvrir(&chemin);
+    drop(faire_naitre(&racine));
+    let ajouts = dossier_des_ajouts(&chemin);
+    fs::remove_dir(&ajouts).expect("ôter ajouts/, vide");
+    let mut fonds = ouvrir_le_fonds(&racine);
+    assert!(!ajouts.exists(), "l'ouverture a créé ajouts/");
+
+    noter(&mut fonds, "idee-2", "Un pont en mineur");
+
+    let noms = entrees(&ajouts);
+    assert_eq!(
+        noms.len(),
+        1,
+        "ajouts/ recréé n'a pas un seul fichier d'ajout : {noms:?}"
+    );
+    drop(fonds);
+    let fonds = ouvrir_le_fonds(&racine);
+    assert!(
+        porte_l_idee(fonds.automerge(), "idee-2"),
+        "rouvert, le fonds ne porte pas l'écriture faite sans ajouts/"
+    );
+}
+
+// P2 : de même pour ce que la synchronisation reçoit.
+#[test]
+fn une_reception_recree_ajouts_s_il_manque() {
+    let (chemin_a, chemin_b) = commun::deux_copies("demarrage-ajouts-absent-reception");
+    let ajouts_a = dossier_des_ajouts(&chemin_a);
+    fs::remove_dir(&ajouts_a).expect("ôter ajouts/ d'A, vide");
+    let racine_a = ouvrir(&chemin_a);
+    let racine_b = ouvrir(&chemin_b);
+    let mut a = ouvrir_le_fonds(&racine_a);
+    let mut b = ouvrir_le_fonds(&racine_b);
+    noter(&mut b, "idee-2", "Un pont en mineur");
+
+    // Chaque réception d'A est faite, sans avertissement.
+    commun::reunir(&mut a, &mut b);
+
+    assert!(
+        porte_l_idee(a.automerge(), "idee-2"),
+        "A ne porte pas l'idée reçue de B"
+    );
+    assert!(
+        !entrees(&ajouts_a).is_empty(),
+        "la réception n'a rien écrit dans ajouts/ d'A"
+    );
+    drop(a);
+    let a = ouvrir_le_fonds(&racine_a);
+    assert!(
+        porte_l_idee(a.automerge(), "idee-2"),
+        "rouvert, A ne porte pas l'idée reçue de B"
+    );
+}
+
+// Un fonds ouvert par son seul voisin du fichier complet, sa compaction d'ouverture en échec :
+// le fichier complet absent pèse 0 octet, et l'écriture suivante retente la compaction due.
+#[test]
+fn sans_fichier_complet_l_ecriture_suivante_retente_la_compaction() {
+    let chemin = commun::dossier_jetable("demarrage-compaction-sans-complet").join("donnees");
+    let racine = ouvrir(&chemin);
+    drop(faire_naitre(&racine));
+    let dossier = dossier_du_fonds(&chemin);
+    let complet = dossier.join("complet.automerge");
+    let voisin = dossier.join("complet.automerge.4242.partiel");
+    fs::rename(&complet, voisin).expect("renommer le fichier complet en son voisin");
+
+    // Le voisin se lit sans renommage : le premier renommage de l'ouverture est celui de sa
+    // compaction.
+    let ouvert = {
+        let _panne = couper(Etape::Renommage, 1);
+        racine.fonds()
+    };
+
+    let mut fonds = ouvert
+        .expect("une compaction d'ouverture qui échoue n'empêche pas d'ouvrir")
+        .expect("le fonds est né");
+    assert!(
+        matches!(
+            fonds.avertissements(),
+            [Avertissement::Compaction(Erreur::Disque { .. })]
+        ),
+        "attendu la compaction d'ouverture refusée en avertissement ; rendu {:?}",
+        fonds.avertissements()
+    );
+    assert!(
+        !complet.exists(),
+        "la compaction d'ouverture coupée a mis un fichier complet en place"
+    );
+
+    noter(&mut fonds, "idee-2", "Un pont en mineur");
+
+    assert_eq!(
+        entrees(&dossier),
+        ["ajouts", "complet.automerge"],
+        "la compaction retentée n'a pas mis le fichier complet à la place du voisin"
+    );
+    drop(fonds);
+    let fonds = ouvrir_le_fonds(&racine);
+    for idee in ["idee-1", "idee-2"] {
+        assert!(
+            porte_l_idee(fonds.automerge(), idee),
+            "rouvert, le fonds ne porte pas {idee}"
+        );
+    }
+}
+
+// La règle de sûreté du démarrage : un voisin du fichier complet que le disque refuse de lire
+// fait échouer l'ouverture et la naissance, la garde rendue, et Pupitre ne paraît jamais neuf.
+#[test]
+fn un_voisin_du_complet_que_le_disque_refuse_fait_echouer_l_ouverture() {
+    let chemin = commun::dossier_jetable("demarrage-voisin-refuse-par-le-disque").join("donnees");
+    let racine = ouvrir(&chemin);
+    drop(faire_naitre(&racine));
+    let dossier = dossier_du_fonds(&chemin);
+    let voisin = dossier.join("complet.automerge.4242.partiel");
+    fs::rename(dossier.join("complet.automerge"), &voisin)
+        .expect("renommer le fichier complet en son voisin");
+
+    // Sans fichier complet, la première lecture de l'ouverture est celle du démarrage, la seconde
+    // celle de `lire_le_dossier`.
+    for rang in [1, 2] {
+        let ouvert = {
+            let _panne = couper(Etape::Relecture, rang);
+            racine.fonds()
+        };
+        match ouvert {
+            Err(Erreur::Disque { chemin: refuse, .. }) => assert_eq!(
+                refuse, voisin,
+                "lecture {rang} refusée : l'erreur ne nomme pas le voisin"
+            ),
+            Err(autre) => panic!("lecture {rang} refusée : attendu Disque, rendu {autre:?}"),
+            Ok(None) => panic!("lecture {rang} refusée : Pupitre paraît neuf, prêt à renaître"),
+            Ok(Some(_)) => panic!("lecture {rang} refusée : le fonds s'est ouvert sans son voisin"),
+        }
+        assert!(
+            voisin.exists(),
+            "lecture {rang} refusée : le voisin n'est plus là"
+        );
+    }
+    let naissance = {
+        let _panne = couper(Etape::Relecture, 1);
+        racine.faire_naitre_le_fonds(&NAISSANCE, MESSAGE_DU_GESTE, HEURE, |tx| {
+            commun::noter(tx, "idee-2", "Un couplet plus calme")
+        })
+    };
+    assert!(
+        matches!(naissance, Err(Erreur::Disque { .. })),
+        "la lecture du voisin refusée, attendu Disque à la naissance ; rendu {naissance:?}"
+    );
+
+    // La garde rendue, le fonds s'ouvre sans panne, avec l'idée de sa naissance.
+    let fonds = ouvrir_le_fonds(&racine);
+    assert!(
+        porte_l_idee(fonds.automerge(), "idee-1"),
+        "sans panne, le fonds ouvert ne porte pas l'idée de sa naissance"
+    );
+}
+
+// Deux voisins lisibles du fichier complet, une modification du même acteur au même rang dans
+// chacun : le premier, dans l'ordre des noms, se charge ; Automerge refuse le second après lui.
+#[test]
+fn un_voisin_du_complet_qu_automerge_refuse_ouvre_en_lecture_seule() {
+    let chemin = commun::dossier_jetable("demarrage-voisin-refuse-par-automerge").join("donnees");
+    let racine = ouvrir(&chemin);
+    drop(faire_naitre(&racine));
+    let naissance = Automerge::load(&lire_le_complet(&chemin)).expect("lire le fichier complet");
+    let dossier = dossier_du_fonds(&chemin);
+    fs::remove_file(dossier.join("complet.automerge")).expect("ôter le fichier complet");
+    // `….4242-2.partiel` passe avant `….4242.partiel` dans l'ordre des noms.
+    let premier = dossier.join("complet.automerge.4242-2.partiel");
+    let second = dossier.join("complet.automerge.4242.partiel");
+    let en_double = || ActorId::from(b"acteur-en-double".as_slice());
+    let du_premier = une_idee_de_plus(&naissance, en_double(), "idee-2", "Un pont en mineur");
+    let du_second = une_idee_de_plus(&naissance, en_double(), "idee-3", "Une coda en suspens");
+    fs::write(premier, du_premier).expect("écrire le premier voisin");
+    fs::write(&second, du_second).expect("écrire le second voisin");
+    let avant = empreintes(&dossier);
+
+    let mut fonds = commun::ouvrir_le_fonds_tel_quel(&racine);
+
+    let raison = LectureSeule::CompletIllisible { chemin: second };
+    assert_eq!(
+        fonds.lecture_seule(),
+        Some(&raison),
+        "le fonds ne nomme pas le voisin qu'Automerge refuse"
+    );
+    assert!(
+        porte_l_idee(fonds.automerge(), "idee-2"),
+        "l'idée du premier voisin ne se lit pas"
+    );
+    commun::constater_la_lecture_seule(&mut fonds, &raison, &dossier, &avant);
+    drop(fonds);
+
+    let seconde = racine.faire_naitre_le_fonds(&NAISSANCE, MESSAGE_DU_GESTE, HEURE, |tx| {
+        commun::noter(tx, "idee-4", "Un couplet plus calme")
+    });
+    match seconde {
+        Err(Erreur::FondsDejaNe) => {}
+        Err(autre) => panic!("attendu FondsDejaNe, rendu {autre:?}"),
+        Ok(_) => panic!("le fonds est né une seconde fois, à côté de ses voisins lisibles"),
+    }
+    assert_eq!(
+        empreintes(&dossier),
+        avant,
+        "un fichier du fonds a changé depuis l'ouverture en lecture seule"
+    );
 }
