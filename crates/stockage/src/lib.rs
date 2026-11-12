@@ -145,7 +145,8 @@ pub enum Avertissement {
 }
 
 /// La teneur de `doc` (§ 31 · 2.6) : son arbre, lu sur la valeur que présente Automerge
-/// (`ReadDoc`, jamais `get_all`), puis écrit par le noyau, sans la lignée ni les lignées qu'elle remplace.
+/// (`ReadDoc`, jamais `get_all`), puis écrit par le noyau, sans la lignée ni les lignées qu'elle
+/// remplace.
 pub fn teneur(doc: &Automerge) -> Result<String, ErreurDeTeneur> {
     ecrire_la_teneur(&objet_a_cles(doc, &ROOT))
 }

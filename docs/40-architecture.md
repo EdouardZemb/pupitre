@@ -181,7 +181,8 @@ La crate `stockage` (`crates/stockage`) porte la racine des données et son verr
 adaptateurs `Documents` et `Captations` sur fichiers, au format de
 l'[ADR-023](adr/adr-023-stockage-des-documents.md) ; elle ne vit que côté natif, et dépend du
 noyau, de `synchro`, d'`automerge` et de `sha2`. Sa fonction de Cargo `pannes`, que seuls ses
-tests activent, coupe une écriture à l'étape voulue. La crate `synchro` (`crates/synchro`) porte
+tests activent, coupe une écriture à l'étape voulue, et ouvre le fonds selon la table de
+migrations qu'un test lui donne (`fonds_selon`). La crate `synchro` (`crates/synchro`) porte
 le cœur de la couche de synchronisation : comparer deux copies, porter le protocole
 d'Automerge, puis, au lot 3, lire les conflits et les relever, selon la règle du noyau
 ([§ 70 · 1](70-qualite-et-verification.md#1-la-stratégie)) ; elle n'a aucun transport, et

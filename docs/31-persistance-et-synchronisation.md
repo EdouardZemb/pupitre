@@ -409,8 +409,12 @@ structure. La genèse pose la version de schéma 1.
   un bandeau dit qu'il vient d'une version plus récente de Pupitre, et qu'il faut mettre à
   jour l'application pour y écrire. C'est l'impossibilité stricte que nomme l'ADR-006. Elle
   en reçoit encore les modifications par la synchronisation, et ne lui transmet aucune
-  modification. Une captation n'est jamais refusée pour autant : elle s'écrit, et l'idée qui
-  la reçoit naît après la mise à jour.
+  modification : ses messages partent sans modification. Ce qu'elle reçoit s'écrit en
+  fichiers d'ajout, sans compaction. Une captation n'est jamais refusée pour autant : elle
+  s'écrit, et l'idée qui la reçoit naît après la mise à jour.
+- **Une version de schéma illisible ouvre le document en lecture seule.** Une version de
+  schéma absente, nulle, ou qui n'est pas un entier non signé, ouvre le document en lecture
+  seule, sans échange, comme un fichier illisible (§ 2.1).
 - **Le nœud se met à jour le premier.** Son exportateur ne projette que les versions de
   schéma qu'il connaît ; devant une autre, il ne projette pas le document, et l'aller-retour
   du miroir échoue en le nommant (§ 8.4).
@@ -445,8 +449,10 @@ de l'archive complète (§ 9.1).
 - **Elle se lit sur la valeur que présente le document** : chaque objet à clés, ses clés
   rangées dans l'ordre de leurs octets ; chaque liste, dans son ordre ; chaque valeur simple, avec son
   type exact d'Automerge : `Str`, `Int`, `Uint`, `F64`, `Counter`, `Timestamp`, `Boolean`,
-  `Bytes` ou `Null`. Un `F64` s'écrit sous sa forme la plus courte qui se relit à
-  l'identique, `-0` distinct de `0`, et un NaN fait échouer l'écriture. Chaque objet s'écrit
+  `Bytes` ou `Null`. Un `F64` s'écrit en chiffres les plus courts qui se relisent à
+  l'identique, en notation fixe ou à exposant, la plus courte, la fixe à égalité (`0.1`,
+  `1e300`, `100`) ; `-0` distinct de `0` ; l'infini s'écrit `inf` et `-inf` ; un NaN fait
+  échouer l'écriture. Chaque objet s'écrit
   avec sa sorte : objet à clés (`Map` ou `Table` d'Automerge, une seule sorte), liste, texte
   `Text`, distinct
   d'une valeur `Str`. Un type inconnu (`Unknown`) fait échouer l'écriture de la teneur, qui
@@ -457,9 +463,13 @@ de l'archive complète (§ 9.1).
   cacherait un miroir qui change un caractère.
 - **Pour une clé en conflit**, elle prend la valeur que présente Automerge.
 - **Elle laisse l'histoire de côté** : les modifications, leurs acteurs, leurs heures, leurs
-  messages, la lignée et les lignées qu'elle remplace (§ 2.5).
+  messages, la lignée et les lignées qu'elle remplace (§ 2.5) : les clés `lignee` et
+  `lignees_remplacees` de la racine du document. La seconde est exclue avant même qu'un
+  document la porte : seule la naissance d'un document reconstruit la posera, au lot 4
+  d'INC-1.
 - **Elle s'écrit en un texte déterministe**, dont l'empreinte se compare. Cette écriture ne
-  change jamais : une archive d'il y a dix ans se compare encore.
+  change jamais : une archive d'il y a dix ans se compare encore. Sa forme exacte est celle
+  de `noyau::donnees::teneur`, que le test 11 fige (§ 10).
 
 Ce qu'elle ne voit pas : l'autre valeur d'un conflit, qu'Automerge ne garde à part que
 jusqu'à la prochaine écriture (§ 5). Un conflit relevé à la synchronisation s'écrit donc dans
@@ -943,7 +953,7 @@ pupitre-archive-AAAA-MM-JJ/               un dossier, écrit sous un nom proviso
 | 7 | **Rien d'engendré dans les documents** : chercher les champs interdits du [§ 30 · 13](30-modele-de-domaine.md#13-ce-que-le-modèle-interdit-de-stocker) | Un champ engendré est stocké |
 | 8 | **Écriture coupée** : interrompre une écriture à chaque étape (fichier voisin écrit, synchronisé, renommé), puis rouvrir le document ; renommage perdu après la réponse : le voisin entier reste ; renommage refusé : le voisin est retiré ; une synchronisation lancée pendant l'écriture ne voit pas l'opération en cours ; rouvrir un document, ou le relire du disque après une opération refusée, puis faire une opération : son fichier d'ajout ne porte que sa modification ; à la naissance du fonds, renommage du premier fichier complet perdu après la réponse, puis relancer | Une opération dite faite manque, une opération refusée paraît, ou un fichier voisin incomplet, ou celui d'une opération refusée, est lu comme une écriture ; ou un fichier d'ajout porte plus que son opération ; ou Pupitre s'y croit neuf |
 | 9 | **Compaction** : compacter en s'interrompant à chaque étape, puis rouvrir, et revenir avant chaque opération ; un fichier d'ajout altéré, puis compacter : il reste en place, et le document s'ouvre en lecture seule ; renommage du fichier complet perdu après la réponse, les fichiers d'ajout absorbés déjà retirés, puis rouvrir ; de même quand le voisin laissé porte le numéro du processus qui rouvre | La teneur ou l'historique change, ou un fichier d'ajout non absorbé est retiré, ou une modification absorbée manque au document rouvert |
-| 10 | **Version de schéma** : ouvrir un document de version de schéma N + 1 avec une application qui ne connaît que la version de schéma N ; migrer deux répliques chacune de son côté, puis les fusionner ; après la migration, deux répliques écrivent hors ligne, chacune de son côté, un élément différent de la donnée nouvelle d'un même objet ancien (deux clés `<objet>/<élément>`) | Une opération s'applique au document plus récent, son refus ne se nomme pas, une captation est refusée ; ou la migration paraît deux fois ; ou l'un des deux éléments sort de la vue |
+| 10 | **Version de schéma** : ouvrir un document de version de schéma N + 1 avec une application qui ne connaît que la version de schéma N ; la copie plus récente reçoit, et ne transmet aucune modification ; migrer deux répliques chacune de son côté, puis les fusionner ; après la migration, deux répliques écrivent hors ligne, chacune de son côté, un élément différent de la donnée nouvelle d'un même objet ancien (deux clés `<objet>/<élément>`) | Une opération s'applique au document plus récent, son refus ne se nomme pas, une captation est refusée, ou une modification part du document plus récent ; ou la migration paraît deux fois ; ou l'un des deux éléments sort de la vue |
 | 11 | **Genèse et teneur figées** : comparer les octets de chaque genèse, et la teneur d'un document témoin, à leurs empreintes de référence, écrites dans le test ; le test ne lit aucune étiquette, que la CI ne récupère pas. Avant l'étiquette qui les publie, une PR qui change la genèse ou l'écriture de la teneur y met les nouvelles. Dès elle, ces empreintes ne changent plus : une PR qui en change une est refusée, et le plan du lot 1 dit par quelle porte. Et deux documents qui ne diffèrent que par leur lignée ont la même teneur | L'une ou l'autre a changé ; ou deux documents qui ne diffèrent que par leur lignée ont des teneurs différentes |
 | 12 | **Lignée** : présenter à la synchronisation une copie et le même document reconstruit depuis le miroir | Les deux fusionnent, ou la copie remplacée n'est pas gardée à part, intacte, ou le document reconstruit n'a pas la teneur de la copie qu'il remplace |
 | 13 | **Fonds de mesure** : 2 000 idées, 200 octets de texte en moyenne, chaque texte écrit trois fois, trois étiquettes et un lien par idée, cinq opérations par idée ; 6 000 prises avec toutes leurs métadonnées ([§ 30 · 9.2](30-modele-de-domaine.md#92-prises-photos-et-analyses)), dont 100 prises en stems de douze stems, chaque stem avec son MIDI versé, soit 2 400 captations de plus, sans audio, et chaque nom d'origine de 80 octets en moyenne, chemin compris ; un acteur par ouverture, 3 000 en tout ; engendrées à l'exécution | Son fichier complet passe 4,5 Mo |
