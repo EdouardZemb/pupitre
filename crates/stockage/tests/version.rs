@@ -8,8 +8,9 @@
 //! fonds.
 //!
 //! La migration de test est engendrée à l'exécution depuis la genèse (`migration_de_test`), et
-//! entre dans la table le temps du test, par `fonds_selon` ; `fonds()` ouvre selon la table de
-//! l'application, vide, qui ne connaît que la version de schéma 1.
+//! entre dans les migrations le temps du test, par `fonds_selon` ; `fonds()` ouvre selon les
+//! migrations de l'application (`MIGRATIONS`), aucune encore, qui ne connaît que la version de
+//! schéma 1.
 
 mod commun;
 
@@ -20,39 +21,20 @@ use automerge::{
     ActorId, Automerge, AutomergeError, Change, ObjId, ROOT, ReadDoc, ScalarValue, Value,
 };
 use commun::{
-    CONTENEUR_DE_LA_MIGRATION, constater_la_lecture_seule, copier_l_arbre, deux_copies,
-    dossier_des_ajouts, dossier_du_fonds, dossier_jetable, ecrire, empreintes, entrees,
-    faire_naitre, faite, lire_le_complet, migration_de_test, migrations_de_test, noter, nouveaux,
-    objet, octets, ouvrir, ouvrir_le_fonds, ouvrir_le_fonds_tel_quel, ouvrir_les_echanges,
-    porte_l_idee, reunir, reunir_en_suivant_a,
+    CONTENEUR_DE_LA_MIGRATION, constater_la_lecture_seule, constater_le_refus_d_ecrire,
+    copier_l_arbre, deux_copies, dossier_des_ajouts, dossier_du_fonds, dossier_jetable, ecrire,
+    empreintes, entrees, faire_naitre, faite, lire_le_complet, migration_de_test,
+    migrations_de_test, noter, nouveaux, objet, octets, ouvrir, ouvrir_le_fonds,
+    ouvrir_le_fonds_selon, ouvrir_le_fonds_tel_quel, ouvrir_les_echanges, poids, porte_l_idee,
+    reunir, reunir_en_suivant_a, texte_long,
 };
 use noyau::donnees::fonds::{ACTEUR_DE_LA_GENESE, MIGRATIONS, VERSION_DE_SCHEMA};
-use noyau::donnees::version::{Migration, connue};
+use noyau::donnees::version::connue;
 use stockage::pannes::{Etape, couper};
-use stockage::{Avertissement, Document, Erreur, LectureSeule, RacineDesDonnees, empreinte};
+use stockage::{Avertissement, Erreur, LectureSeule, empreinte};
 
 /// Le message de la migration vers la version de schéma 2 (§ 31 · 2.4).
 const MESSAGE_DE_LA_MIGRATION: &str = "Fonds passé à la version de schéma 2";
-
-/// Le fonds de `racine`, ouvert selon la table `migrations` (`fonds_selon`) : entier, sans
-/// avertissement. Un test qui attend l'un ou l'autre ouvre par `fonds_selon` lui-même.
-fn ouvrir_selon<'r>(racine: &'r RacineDesDonnees, migrations: &[Migration<'_>]) -> Document<'r> {
-    let fonds = racine
-        .fonds_selon(migrations)
-        .expect("ouvrir le fonds selon la table")
-        .expect("le fonds est né");
-    assert_eq!(
-        fonds.lecture_seule(),
-        None,
-        "le fonds ouvert selon la table est en lecture seule"
-    );
-    assert!(
-        fonds.avertissements().is_empty(),
-        "le fonds ouvert selon la table a des avertissements : {:?}",
-        fonds.avertissements()
-    );
-    fonds
-}
 
 /// La valeur simple que porte la clé `cle` de `objet`.
 fn valeur(doc: &Automerge, objet: &ObjId, cle: &str) -> ScalarValue {
@@ -84,13 +66,13 @@ fn poser(tx: &mut Transaction<'_>, cle: &str, texte: &str) -> Result<(), Automer
 fn migrer_a_l_ouverture_ecrit_la_migration_avec_son_message() {
     let chemin = dossier_jetable("version-migrer").join("donnees");
     let m = migration_de_test();
-    let table = migrations_de_test(&m);
+    let migrations = migrations_de_test(&m);
     let racine = ouvrir(&chemin);
     let heads_de_la_naissance = faire_naitre(&racine).automerge().get_heads();
 
-    let fonds = ouvrir_selon(&racine, &table);
+    let fonds = ouvrir_le_fonds_selon(&racine, &migrations);
 
-    // Le fonds ouvert selon la table tient la garde, comme celui de `fonds()`.
+    // Le fonds ouvert selon les migrations tient la garde, comme celui de `fonds()`.
     assert!(
         matches!(racine.fonds(), Err(Erreur::FondsDejaOuvert)),
         "un second fonds s'ouvre pendant que vit celui de fonds_selon"
@@ -116,7 +98,7 @@ fn migrer_a_l_ouverture_ecrit_la_migration_avec_son_message() {
     let heads_migrees = doc.get_heads();
     drop(fonds);
 
-    let fonds = ouvrir_selon(&racine, &table);
+    let fonds = ouvrir_le_fonds_selon(&racine, &migrations);
     assert_eq!(
         fonds.automerge().get_heads(),
         heads_migrees,
@@ -126,16 +108,27 @@ fn migrer_a_l_ouverture_ecrit_la_migration_avec_son_message() {
         fonds.automerge().get_changes(&heads_migrees).is_empty(),
         "rouvert, le fonds a une modification de plus"
     );
+    // Cette réouverture a fondu le fichier d'ajout de la migration. Déjà migré et compacté, le
+    // fonds qui s'ouvre n'écrit plus rien : une migration rejouée laisserait un fichier d'ajout.
+    drop(fonds);
+    let dossier = dossier_du_fonds(&chemin);
+    let avant = empreintes(&dossier);
+    drop(ouvrir_le_fonds_selon(&racine, &migrations));
+    assert_eq!(
+        empreintes(&dossier),
+        avant,
+        "le fonds déjà migré a écrit à sa réouverture"
+    );
 }
 
-// § 31 · 10, test 10 : ouvrir un document de version de schéma N + 1 avec une application qui ne connaît que N
+// § 31 · 10, test 10 : ouvrir un document de version de schéma N + 1 avec une application qui ne connaît que la version de schéma N
 #[test]
 fn un_document_n_plus_1_se_lit_sans_ecrire() {
     let chemin = dossier_jetable("version-n-plus-1").join("donnees");
     let m = migration_de_test();
     let racine = ouvrir(&chemin);
     drop(faire_naitre(&racine));
-    drop(ouvrir_selon(&racine, &migrations_de_test(&m)));
+    drop(ouvrir_le_fonds_selon(&racine, &migrations_de_test(&m)));
     let dossier = dossier_du_fonds(&chemin);
     let avant = empreintes(&dossier);
 
@@ -143,20 +136,7 @@ fn un_document_n_plus_1_se_lit_sans_ecrire() {
 
     let raison = LectureSeule::VersionPlusRecente { version: 2 };
     assert_eq!(fonds.lecture_seule(), Some(&raison));
-    match ecrire(&mut fonds, |tx| noter(tx, "idee-2", "Une phrase refusée")) {
-        Err(Erreur::LectureSeule(rendue)) => assert_eq!(
-            rendue, raison,
-            "l'écriture ne rend pas la raison de la lecture seule"
-        ),
-        autre => panic!("attendu LectureSeule à l'écriture, rendu {autre:?}"),
-    }
-    match fonds.compacter() {
-        Err(Erreur::LectureSeule(rendue)) => assert_eq!(
-            rendue, raison,
-            "la compaction ne rend pas la raison de la lecture seule"
-        ),
-        autre => panic!("attendu LectureSeule à la compaction, rendu {autre:?}"),
-    }
+    constater_le_refus_d_ecrire(&mut fonds, &raison);
     racine
         .captations()
         .verser(&octets(4, 100))
@@ -173,7 +153,7 @@ fn un_document_n_plus_1_se_lit_sans_ecrire() {
 fn deux_migrations_separees_n_en_font_qu_une() {
     let (chemin_a, chemin_b) = deux_copies("version-deux-migrations");
     let m = migration_de_test();
-    let table = migrations_de_test(&m);
+    let migrations = migrations_de_test(&m);
     let racine_a = ouvrir(&chemin_a);
     let racine_b = ouvrir(&chemin_b);
     // Les deux répliques divergent avant de migrer : B note une idée qu'A n'a pas.
@@ -184,8 +164,8 @@ fn deux_migrations_separees_n_en_font_qu_une() {
             "B note idee-2",
         );
     }
-    let mut a = ouvrir_selon(&racine_a, &table);
-    let mut b = ouvrir_selon(&racine_b, &table);
+    let mut a = ouvrir_le_fonds_selon(&racine_a, &migrations);
+    let mut b = ouvrir_le_fonds_selon(&racine_b, &migrations);
     assert_ne!(
         a.automerge().get_heads(),
         b.automerge().get_heads(),
@@ -203,16 +183,16 @@ fn deux_migrations_separees_n_en_font_qu_une() {
     );
 }
 
-// § 31 · 10, test 10 : deux éléments différents de la donnée nouvelle d'un même objet ancien
+// § 31 · 10, test 10 : après la migration, deux répliques écrivent hors ligne, chacune de son côté, un élément différent de la donnée nouvelle d'un même objet ancien
 #[test]
 fn deux_elements_de_la_donnee_nouvelle_restent() {
     let (chemin_a, chemin_b) = deux_copies("version-deux-elements");
     let m = migration_de_test();
-    let table = migrations_de_test(&m);
+    let migrations = migrations_de_test(&m);
     let racine_a = ouvrir(&chemin_a);
     let racine_b = ouvrir(&chemin_b);
-    let mut a = ouvrir_selon(&racine_a, &table);
-    let mut b = ouvrir_selon(&racine_b, &table);
+    let mut a = ouvrir_le_fonds_selon(&racine_a, &migrations);
+    let mut b = ouvrir_le_fonds_selon(&racine_b, &migrations);
     // Des clés plates sous le conteneur de la migration : deux objets `idee-1` créés de deux
     // côtés se masqueraient.
     faite(
@@ -284,7 +264,7 @@ fn un_document_illisible_ne_migre_pas() {
 
     let fonds = racine
         .fonds_selon(&migrations_de_test(&m))
-        .expect("ouvrir le fonds selon la table")
+        .expect("ouvrir le fonds selon les migrations")
         .expect("le fonds est né");
 
     assert!(
@@ -311,7 +291,7 @@ fn un_document_illisible_ne_migre_pas() {
 fn une_migration_que_le_disque_refuse_n_ouvre_pas_le_fonds() {
     let d = dossier_jetable("version-migration-refusee");
     let m = migration_de_test();
-    let table = migrations_de_test(&m);
+    let migrations = migrations_de_test(&m);
 
     // Né, lâché, sans fichier d'ajout, voisin ni nom provisoire : le premier renommage de
     // l'ouverture est celui de la migration.
@@ -322,7 +302,7 @@ fn une_migration_que_le_disque_refuse_n_ouvre_pas_le_fonds() {
     let avant = empreintes(&dossier);
     {
         let _panne = couper(Etape::Renommage, 1);
-        match racine.fonds_selon(&table) {
+        match racine.fonds_selon(&migrations) {
             Err(Erreur::Disque { .. }) => {}
             autre => panic!("attendu Disque à la migration refusée, rendu {autre:?}"),
         }
@@ -333,7 +313,7 @@ fn une_migration_que_le_disque_refuse_n_ouvre_pas_le_fonds() {
         "la migration refusée a changé un fichier du fonds"
     );
     // La garde rendue, le fonds s'ouvre, et migre.
-    let fonds = ouvrir_selon(&racine, &table);
+    let fonds = ouvrir_le_fonds_selon(&racine, &migrations);
     assert_eq!(
         valeur(fonds.automerge(), &ROOT, VERSION_DE_SCHEMA),
         ScalarValue::Uint(2),
@@ -348,8 +328,8 @@ fn une_migration_que_le_disque_refuse_n_ouvre_pas_le_fonds() {
     drop(faire_naitre(&racine));
     let _panne = couper(Etape::RendreDurable, 1);
     let fonds = racine
-        .fonds_selon(&table)
-        .expect("ouvrir le fonds selon la table")
+        .fonds_selon(&migrations)
+        .expect("ouvrir le fonds selon les migrations")
         .expect("le fonds est né");
     assert_eq!(
         fonds.lecture_seule(),
@@ -374,7 +354,7 @@ fn une_migration_que_le_disque_refuse_n_ouvre_pas_le_fonds() {
     }
 }
 
-// § 31 · 10, test 10 : ouvrir un document de version de schéma N + 1 avec une application qui ne connaît que N
+// § 31 · 10, test 10 : une copie entière qui reçoit la version de schéma N + 1, ou la relit du disque, passe ou reste en lecture seule
 #[test]
 fn une_copie_plus_recente_relue_du_disque_reste_en_lecture_seule() {
     // Une copie plus récente dont l'écriture d'une réception est refusée se relit du disque : la
@@ -382,17 +362,17 @@ fn une_copie_plus_recente_relue_du_disque_reste_en_lecture_seule() {
     let d = dossier_jetable("version-relue");
     let (chemin_a, chemin_b) = (d.join("a"), d.join("b"));
     let m = migration_de_test();
-    let table = migrations_de_test(&m);
+    let migrations = migrations_de_test(&m);
     {
         let racine = ouvrir(&chemin_a);
         drop(faire_naitre(&racine));
-        drop(ouvrir_selon(&racine, &table));
+        drop(ouvrir_le_fonds_selon(&racine, &migrations));
     }
     copier_l_arbre(&chemin_a, &chemin_b);
     let racine_a = ouvrir(&chemin_a);
     let racine_b = ouvrir(&chemin_b);
-    // B connaît la version de schéma 2, et note idee-2 ; A ne connaît que la version 1.
-    let mut b = ouvrir_selon(&racine_b, &table);
+    // B connaît la version de schéma 2, et note idee-2 ; A ne connaît que la version de schéma 1.
+    let mut b = ouvrir_le_fonds_selon(&racine_b, &migrations);
     faite(
         ecrire(&mut b, |tx| noter(tx, "idee-2", "Un pont en mineur")),
         "B note idee-2",
@@ -425,27 +405,21 @@ fn une_copie_plus_recente_relue_du_disque_reste_en_lecture_seule() {
         porte_l_idee(a.automerge(), "idee-2"),
         "A ne porte pas l'idée reçue"
     );
-    match ecrire(&mut a, |tx| noter(tx, "idee-3", "Une phrase refusée")) {
-        Err(Erreur::LectureSeule(rendue)) => assert_eq!(
-            rendue, raison,
-            "l'écriture ne rend pas la raison de la lecture seule"
-        ),
-        autre => panic!("attendu LectureSeule à l'écriture, rendu {autre:?}"),
-    }
+    constater_le_refus_d_ecrire(&mut a, &raison);
 }
 
-// § 31 · 10, test 10 : ouvrir un document de version de schéma N + 1 avec une application qui ne connaît que N
+// § 31 · 10, test 10 : une copie entière qui reçoit la version de schéma N + 1, ou la relit du disque, passe ou reste en lecture seule
 #[test]
-fn une_copie_qui_recoit_une_version_plus_recente_passe_en_lecture_seule() {
+fn une_copie_qui_recoit_une_version_de_schema_plus_recente_passe_en_lecture_seule() {
     // A ne connaît que la version de schéma 1 ; B, migrée, lui envoie la migration. Reçue, elle
     // s'écrit, et A, d'une version de schéma plus récente que celle qu'elle connaît, se lit sans
     // écrire ni se compacter.
     let (chemin_a, chemin_b) = deux_copies("version-recue");
     let m = migration_de_test();
-    let table = migrations_de_test(&m);
+    let migrations = migrations_de_test(&m);
     let racine_a = ouvrir(&chemin_a);
     let racine_b = ouvrir(&chemin_b);
-    let mut b = ouvrir_selon(&racine_b, &table);
+    let mut b = ouvrir_le_fonds_selon(&racine_b, &migrations);
     let mut a = ouvrir_le_fonds(&racine_a);
     let ajouts_a = dossier_des_ajouts(&chemin_a);
     let avant = entrees(&ajouts_a);
@@ -463,20 +437,7 @@ fn une_copie_qui_recoit_une_version_plus_recente_passe_en_lecture_seule() {
         ScalarValue::Uint(2),
         "A n'a pas reçu la migration"
     );
-    match ecrire(&mut a, |tx| noter(tx, "idee-2", "Une phrase refusée")) {
-        Err(Erreur::LectureSeule(rendue)) => assert_eq!(
-            rendue, raison,
-            "l'écriture ne rend pas la raison de la lecture seule"
-        ),
-        autre => panic!("attendu LectureSeule à l'écriture, rendu {autre:?}"),
-    }
-    match a.compacter() {
-        Err(Erreur::LectureSeule(rendue)) => assert_eq!(
-            rendue, raison,
-            "la compaction ne rend pas la raison de la lecture seule"
-        ),
-        autre => panic!("attendu LectureSeule à la compaction, rendu {autre:?}"),
-    }
+    constater_le_refus_d_ecrire(&mut a, &raison);
     let ajoutes = nouveaux(&avant, &entrees(&ajouts_a));
     assert_eq!(
         ajoutes.len(),
@@ -487,30 +448,45 @@ fn une_copie_qui_recoit_une_version_plus_recente_passe_en_lecture_seule() {
 
 // § 31 · 10, test 10 : la copie plus récente reçoit, et ne transmet aucune modification
 #[test]
-fn une_copie_plus_recente_recoit_sans_rien_transmettre() {
+fn une_copie_plus_recente_recoit_sans_transmettre_aucune_modification() {
     // A, migrée par une application qui connaît la version de schéma 2, se rouvre par `fonds()`,
-    // qui ne connaît que la version 1 ; B, qui ne connaît que la version 1, note idee-2. Réunie
-    // avec B, A reçoit idee-2 et l'écrit en fichiers d'ajout, sans se compacter ; B ne reçoit
-    // aucune modification d'A, pas même la migration.
+    // qui ne connaît que la version de schéma 1 ; B, qui ne connaît que la version de schéma 1,
+    // note idee-2, d'un texte long. Réunie avec B, A reçoit idee-2 et l'écrit en fichiers
+    // d'ajout, sans se compacter ; B ne reçoit aucune modification d'A, pas même la migration.
     let (chemin_a, chemin_b) = deux_copies("version-recoit-sans-transmettre");
     let m = migration_de_test();
     let racine_a = ouvrir(&chemin_a);
     let racine_b = ouvrir(&chemin_b);
-    drop(ouvrir_selon(&racine_a, &migrations_de_test(&m)));
+    drop(ouvrir_le_fonds_selon(&racine_a, &migrations_de_test(&m)));
     let mut a = ouvrir_le_fonds_tel_quel(&racine_a);
     assert_eq!(
         a.lecture_seule(),
         Some(&LectureSeule::VersionPlusRecente { version: 2 })
     );
     let mut b = ouvrir_le_fonds(&racine_b);
+    let heads_de_b = b.automerge().get_heads();
     faite(
-        ecrire(&mut b, |tx| noter(tx, "idee-2", "Un pont en mineur")),
+        ecrire(&mut b, |tx| noter(tx, "idee-2", &texte_long())),
         "B note idee-2",
     );
     let ajouts_a = dossier_des_ajouts(&chemin_a);
-    // Le fichier d'ajout de la migration y est déjà.
     let avant = entrees(&ajouts_a);
+    assert_eq!(
+        avant.len(),
+        1,
+        "ajouts/ d'A ne porte pas le seul fichier d'ajout de la migration : {avant:?}"
+    );
     let complet_d_avant = lire_le_complet(&chemin_a);
+    // Ce qu'A recevra, la modification de B, pèse plus que son fichier complet : un document qui
+    // écrit se compacterait après l'avoir écrit.
+    let recue = b.automerge().save_after(&heads_de_b);
+    let du_complet = poids(&dossier_du_fonds(&chemin_a).join("complet.automerge"));
+    assert!(
+        recue.len() as u64 > du_complet,
+        "la modification de B pèse {} octets, le fichier complet d'A {du_complet} : rien ne \
+         demanderait de compacter",
+        recue.len()
+    );
 
     reunir(&mut a, &mut b);
 
@@ -522,19 +498,22 @@ fn une_copie_plus_recente_recoit_sans_rien_transmettre() {
         lire_le_complet(&chemin_a) == complet_d_avant,
         "le fichier complet d'A a changé pendant la réunion : A s'est compactée"
     );
-    let apres = entrees(&ajouts_a);
-    assert!(
-        apres.len() > avant.len(),
-        "ajouts/ d'A n'a aucun fichier de plus : {avant:?}, puis {apres:?}"
+    let ajoutes = nouveaux(&avant, &entrees(&ajouts_a));
+    assert_eq!(
+        ajoutes.len(),
+        1,
+        "la réception n'a pas écrit un seul fichier d'ajout : {ajoutes:?}"
     );
-    for nom in nouveaux(&avant, &apres) {
-        let contenu = fs::read(ajouts_a.join(&nom)).expect("lire le fichier d'ajout");
-        assert_eq!(
-            nom,
-            format!("{}.automerge", empreinte(&contenu)),
-            "le nom du fichier d'ajout n'est pas l'empreinte de son contenu"
-        );
-    }
+    let contenu = fs::read(ajouts_a.join(&ajoutes[0])).expect("lire le fichier d'ajout");
+    assert_eq!(
+        ajoutes[0],
+        format!("{}.automerge", empreinte(&contenu)),
+        "le nom du fichier d'ajout n'est pas l'empreinte de son contenu"
+    );
+    assert!(
+        contenu == recue,
+        "le fichier d'ajout d'A n'est pas la modification de B"
+    );
     drop(a);
     let a = ouvrir_le_fonds_tel_quel(&racine_a);
     assert!(
@@ -564,9 +543,9 @@ fn deux_copies_plus_recentes_se_reunissent_sans_rien_ecrire() {
     let migrations = migrations_de_test(&m);
     let racine_a = ouvrir(&chemin_a);
     let racine_b = ouvrir(&chemin_b);
-    drop(ouvrir_selon(&racine_a, &migrations));
+    drop(ouvrir_le_fonds_selon(&racine_a, &migrations));
     {
-        let mut b = ouvrir_selon(&racine_b, &migrations);
+        let mut b = ouvrir_le_fonds_selon(&racine_b, &migrations);
         faite(
             ecrire(&mut b, |tx| noter(tx, "idee-2", "Un pont en mineur")),
             "B note idee-2",
@@ -619,7 +598,7 @@ fn une_copie_plus_recente_qui_recoit_une_version_de_schema_illisible_n_echange_p
     let migrations = migrations_de_test(&m);
     let racine_a = ouvrir(&chemin_a);
     let racine_b = ouvrir(&chemin_b);
-    let mut b = ouvrir_selon(&racine_b, &migrations);
+    let mut b = ouvrir_le_fonds_selon(&racine_b, &migrations);
     let mut a = ouvrir_le_fonds(&racine_a);
     reunir(&mut a, &mut b);
     assert_eq!(
@@ -652,8 +631,8 @@ fn une_copie_plus_recente_qui_recoit_une_version_de_schema_illisible_n_echange_p
 
 #[test]
 fn le_fonds_nait_a_la_version_de_schema_connue() {
-    // La naissance ne migre pas : ce test devient rouge le jour où la table de l'application
-    // reçoit sa première migration.
+    // La naissance ne migre pas : ce test devient rouge le jour où les migrations de
+    // l'application (`MIGRATIONS`) reçoivent la première.
     let chemin = dossier_jetable("version-naissance").join("donnees");
     let racine = ouvrir(&chemin);
 

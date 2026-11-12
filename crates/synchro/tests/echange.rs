@@ -190,7 +190,7 @@ fn deux_copies_d_une_meme_lignee_convergent() {
 
 // § 31 · 10, test 10 : la copie plus récente reçoit, et ne transmet aucune modification
 #[test]
-fn une_copie_n_plus_1_recoit_sans_rien_transmettre() {
+fn une_copie_n_plus_1_recoit_sans_transmettre_aucune_modification() {
     // A, la copie plus récente, envoie ses messages sans aucune modification ; B, les siens par
     // le protocole. Chacune a une modification que l'autre n'a pas : A reçoit celle de B, et B
     // ne reçoit pas celle d'A.

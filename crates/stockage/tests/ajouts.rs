@@ -250,7 +250,7 @@ fn un_ajout_manquant_ouvre_en_lecture_seule() {
     constater_la_lecture_seule(&mut fonds, &raison, &dossier, &avant);
 }
 
-// § 31 · 10, test 8 : rouvrir un document, puis faire une opération ; son fichier d'ajout ne porte que sa modification
+// § 31 · 10, test 8 : rouvrir un document […], puis faire une opération : son fichier d'ajout ne porte que sa modification
 #[test]
 fn chaque_ouverture_tire_un_acteur_neuf() {
     let chemin = commun::dossier_jetable("ajouts-acteur-neuf").join("donnees");

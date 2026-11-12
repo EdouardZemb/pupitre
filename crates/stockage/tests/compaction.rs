@@ -465,7 +465,7 @@ fn une_compaction_coupee_a_chaque_etape_ne_perd_rien() {
             memoire.hydrate(None),
             "{etape:?} : le fonds rouvert n'a pas la valeur d'avant"
         );
-        // § 31 · 10, test 9 : la teneur ne change pas
+        // § 31 · 10, test 9, échoue si : la teneur ou l'historique change
         assert_eq!(
             teneur(doc).expect("la teneur du fonds rouvert"),
             teneur(&memoire).expect("la teneur de la mémoire d'avant"),

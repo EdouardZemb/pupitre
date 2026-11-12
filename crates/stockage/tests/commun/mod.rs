@@ -1,14 +1,15 @@
 //! Les aides des tests du stockage, écrites une seule fois : la naissance, l'heure et le message
 //! des tests, le dossier jetable de chaque test, ce que contient un dossier et l'empreinte de
 //! chacun de ses fichiers, des octets engendrés au lieu d'un fichier, un texte long, la copie d'un
-//! arbre de fichiers, l'ouverture de la racine des données et du fonds, entier ou tel qu'il
-//! s'ouvre, la naissance du fonds et ses deux copies, un fonds bâti sans racine des données, la
-//! migration de test et sa table, l'écriture des tests, avec ou sans son message et son heure,
-//! l'écriture faite sans avertissement, les chemins du fonds et des captations, les échanges de
-//! deux copies et leur réunion, la relecture du dossier du fonds, l'objet à clés que porte une
-//! clé, l'idée que porte le fonds, les noms nouveaux d'un dossier, le fichier d'ajout qu'une
-//! écriture ou une réception ajoute, l'octet du milieu d'un fichier changé, ce que refuse un
-//! document en lecture seule, et les gestes de test sur le fonds.
+//! arbre de fichiers, l'ouverture de la racine des données et du fonds, entier, selon des
+//! migrations ou tel qu'il s'ouvre, la naissance du fonds et ses deux copies, un fonds bâti sans
+//! racine des données, la migration de test et les migrations qui la portent, l'écriture des
+//! tests, avec ou sans son message et son heure, l'écriture faite sans avertissement, les chemins
+//! du fonds et des captations, les échanges de deux copies et leur réunion, la relecture du
+//! dossier du fonds, l'objet à clés que porte une clé, l'idée que porte le fonds, les noms
+//! nouveaux d'un dossier, le fichier d'ajout qu'une écriture ou une réception ajoute, l'octet du
+//! milieu d'un fichier changé, ce que refuse un document en lecture seule, l'écriture et la
+//! compaction d'abord, et les gestes de test sur le fonds.
 
 // Chaque fichier de test n'emploie qu'une partie des aides.
 #![allow(dead_code)]
@@ -168,7 +169,26 @@ pub fn ouvrir(chemin: &Path) -> RacineDesDonnees {
 /// Le fonds de `racine`, rouvert entier : ni en lecture seule, ni avec un avertissement. Un test
 /// qui attend l'un ou l'autre l'ouvre par `ouvrir_le_fonds_tel_quel`.
 pub fn ouvrir_le_fonds(racine: &RacineDesDonnees) -> Document<'_> {
-    let fonds = ouvrir_le_fonds_tel_quel(racine);
+    entier(ouvrir_le_fonds_tel_quel(racine))
+}
+
+/// Le fonds de `racine`, rouvert selon les migrations `migrations` (`fonds_selon`), au lieu de
+/// `MIGRATIONS`, entier comme par `ouvrir_le_fonds`. Un test qui attend la lecture seule ou un
+/// avertissement ouvre par `fonds_selon` lui-même.
+pub fn ouvrir_le_fonds_selon<'r>(
+    racine: &'r RacineDesDonnees,
+    migrations: &[Migration<'_>],
+) -> Document<'r> {
+    let fonds = racine
+        .fonds_selon(migrations)
+        .expect("rouvrir le fonds selon les migrations")
+        .expect("le fonds est né");
+    entier(fonds)
+}
+
+/// `fonds`, rouvert, s'il est entier : ni en lecture seule, ni avec un avertissement ; sinon,
+/// panique.
+fn entier(fonds: Document<'_>) -> Document<'_> {
     assert_eq!(
         fonds.lecture_seule(),
         None,
@@ -272,7 +292,7 @@ pub fn migration_de_test() -> Vec<u8> {
         .to_vec()
 }
 
-/// La table de test, d'une migration : `octets`, vers la version de schéma 2, apportée par la
+/// Les migrations de test, une seule : `octets`, vers la version de schéma 2, apportée par la
 /// version de Pupitre `0.0.0-essai`.
 pub fn migrations_de_test(octets: &[u8]) -> [Migration<'_>; 1] {
     [Migration {
@@ -501,18 +521,9 @@ pub fn alterer_l_octet_du_milieu(chemin: &Path) -> Vec<u8> {
     octets
 }
 
-/// Ce que refuse `document`, en lecture seule pour la raison `raison` (§ 31 · 2.1) : `ecrire` et
-/// `compacter` rendent `Erreur::LectureSeule(raison)`, `prochain_message` rend `None`, et
-/// `recevoir` rend `Erreur::LectureSeule(_)`. Ces quatre appels faits, chaque fichier sous
-/// `dossier`, le dossier du fonds, a encore son empreinte d'`avant`, prise avant l'ouverture, ou
-/// dès que le document est en lecture seule.
-/// L'échange s'ouvre sur la copie de `NAISSANCE`, qu'un document illisible peut ne plus porter.
-pub fn constater_la_lecture_seule(
-    document: &mut Document<'_>,
-    raison: &LectureSeule,
-    dossier: &Path,
-    avant: &BTreeMap<PathBuf, String>,
-) {
+/// Ce que refuse `document`, en lecture seule pour la raison `raison` (§ 31 · 2.1), qu'il écrive
+/// une opération ou se compacte : `ecrire` et `compacter` rendent `Erreur::LectureSeule(raison)`.
+pub fn constater_le_refus_d_ecrire(document: &mut Document<'_>, raison: &LectureSeule) {
     match ecrire(document, |tx| noter(tx, "idee-9", "Une phrase refusée")) {
         Err(Erreur::LectureSeule(rendue)) => assert_eq!(
             &rendue, raison,
@@ -527,6 +538,21 @@ pub fn constater_la_lecture_seule(
         ),
         autre => panic!("attendu LectureSeule à la compaction, rendu {autre:?}"),
     }
+}
+
+/// Ce que refuse `document`, en lecture seule pour la raison `raison` (§ 31 · 2.1) : `ecrire` et
+/// `compacter` rendent `Erreur::LectureSeule(raison)` (`constater_le_refus_d_ecrire`),
+/// `prochain_message` rend `None`, et `recevoir` rend `Erreur::LectureSeule(_)`. Ces quatre
+/// appels faits, chaque fichier sous `dossier`, le dossier du fonds, a encore son empreinte
+/// d'`avant`, prise avant l'ouverture, ou dès que le document est en lecture seule.
+/// L'échange s'ouvre sur la copie de `NAISSANCE`, qu'un document illisible peut ne plus porter.
+pub fn constater_la_lecture_seule(
+    document: &mut Document<'_>,
+    raison: &LectureSeule,
+    dossier: &Path,
+    avant: &BTreeMap<PathBuf, String>,
+) {
+    constater_le_refus_d_ecrire(document, raison);
     let copie = Copie {
         proprietaire: NAISSANCE.proprietaire.to_owned(),
         document: NAISSANCE.identifiant.to_owned(),
