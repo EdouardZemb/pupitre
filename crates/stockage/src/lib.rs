@@ -16,12 +16,14 @@ pub mod pannes;
 mod pannes;
 mod racine_des_donnees;
 
+use std::collections::BTreeMap;
 use std::fmt::Write;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use automerge::AutomergeError;
+use automerge::{Automerge, AutomergeError, ObjId, ObjType, ROOT, ReadDoc, ScalarValue, Value};
 use noyau::donnees::acces::Acces;
+use noyau::donnees::teneur::{ErreurDeTeneur, Valeur, ecrire_la_teneur};
 use sha2::{Digest, Sha256};
 
 pub use captations::Captations;
@@ -140,6 +142,57 @@ pub enum Avertissement {
     /// l'ouverture suivante le relit, puis le range si le fonds le nomme (§ 31 · 6.1). Un dossier
     /// `captations/` qui ne se liste pas se nomme de même, et rien ne s'y range.
     NomProvisoireRestant { chemin: PathBuf, erreur: io::Error },
+}
+
+/// La teneur de `doc` (§ 31 · 2.6) : son arbre, lu sur la valeur que présente Automerge
+/// (`ReadDoc`, jamais `get_all`), puis écrit par le noyau, sans la lignée.
+pub fn teneur(doc: &Automerge) -> Result<String, ErreurDeTeneur> {
+    ecrire_la_teneur(&objet_a_cles(doc, &ROOT))
+}
+
+/// Un objet `Map` ou `Table` : une seule sorte.
+fn objet_a_cles(doc: &Automerge, objet: &ObjId) -> BTreeMap<String, Valeur> {
+    doc.keys(objet)
+        .filter_map(|cle| {
+            let (valeur, id) = doc
+                .get(objet, cle.as_str())
+                .expect("lire une clé que le document vient de nommer")?;
+            Some((cle, valeur_de(doc, valeur, &id)))
+        })
+        .collect()
+}
+
+fn valeur_de(doc: &Automerge, valeur: Value<'_>, id: &ObjId) -> Valeur {
+    match valeur {
+        Value::Object(ObjType::Map | ObjType::Table) => Valeur::ObjetACles(objet_a_cles(doc, id)),
+        Value::Object(ObjType::List) => Valeur::Liste(
+            (0..doc.length(id))
+                .filter_map(|indice| {
+                    let (valeur, id) = doc
+                        .get(id, indice)
+                        .expect("lire un indice que le document vient de compter")?;
+                    Some(valeur_de(doc, valeur, &id))
+                })
+                .collect(),
+        ),
+        Value::Object(ObjType::Text) => {
+            Valeur::Texte(doc.text(id).expect("lire un objet texte du document"))
+        }
+        Value::Scalar(scalaire) => match scalaire.as_ref() {
+            ScalarValue::Str(texte) => Valeur::Str(texte.to_string()),
+            ScalarValue::Int(n) => Valeur::Int(*n),
+            ScalarValue::Uint(n) => Valeur::Uint(*n),
+            ScalarValue::F64(x) => Valeur::F64(*x),
+            ScalarValue::Counter(compteur) => Valeur::Counter(i64::from(compteur)),
+            ScalarValue::Timestamp(n) => Valeur::Timestamp(*n),
+            ScalarValue::Boolean(b) => Valeur::Boolean(*b),
+            ScalarValue::Bytes(octets) => Valeur::Bytes(octets.clone()),
+            ScalarValue::Null => Valeur::Null,
+            ScalarValue::Unknown { type_code, .. } => Valeur::Inconnu {
+                type_code: *type_code,
+            },
+        },
+    }
 }
 
 /// Le SHA-256 de `octets`, en 64 caractères hexadécimaux minuscules (`Sha256::digest`).

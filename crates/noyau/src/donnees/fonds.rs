@@ -16,6 +16,9 @@ pub const PRISES: &str = "prises";
 pub const IDENTIFIANT: &str = "identifiant";
 /// À la racine du document : la lignée (§ 31 · 2.5), une chaîne écrite à la naissance.
 pub const LIGNEE: &str = "lignee";
+/// À la racine du document : les lignées que remplace la lignée (§ 31 · 2.5), que seule la naissance
+/// d'un document reconstruit pose, au lot 4. La teneur l'exclut.
+pub const LIGNEES_REMPLACEES: &str = "lignees_remplacees";
 /// À la racine du document : l'identifiant de propriétaire, une chaîne écrite à la naissance.
 pub const PROPRIETAIRE: &str = "proprietaire";
 /// D'une idée : son texte, une chaîne.
