@@ -51,7 +51,19 @@ impl Echange {
     /// message aurait porté : un échange qui a préparé un tel message ne revient pas à
     /// `prochain_message`, il se rouvre, sinon les modifications de la copie, comptées comme
     /// envoyées, ne partiraient jamais.
+    ///
+    /// Quand l'autre copie a annoncé des heads vides : `None`, avant `generate_sync_message`.
+    /// Seule une copie qui envoie sans modification, avant d'avoir rien entendu, en annonce : un
+    /// fonds né porte toujours sa genèse, et une copie qui reprend l'échange après une réception
+    /// refusée (`reprendre`) a déjà reçu un message de l'autre copie, qui dit connaître le
+    /// drapeau `SYNC_RESET` : elle annonce ses heads, avec ce drapeau. Deux copies qui ne
+    /// transmettent aucune modification n'ont rien à se dire. Sans cet arrêt, chacune prendrait
+    /// les heads vides de l'autre pour une copie qui a tout perdu, lui répondrait par des heads
+    /// vides, et l'échange ne finirait pas.
     pub fn prochain_message_sans_modification(&mut self, doc: &Automerge) -> Option<Vec<u8>> {
+        if self.etat.their_heads.as_ref().is_some_and(Vec::is_empty) {
+            return None;
+        }
         let mut message = doc.generate_sync_message(&mut self.etat)?;
         message.changes = ChunkList::empty();
         message.heads = self.etat.their_heads.clone().unwrap_or_default();

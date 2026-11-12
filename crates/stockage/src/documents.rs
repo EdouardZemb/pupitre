@@ -145,11 +145,12 @@ impl Document<'_> {
     /// de cette écriture, s'il en vient un, rejoint [`Document::avertissements`]. Un document en
     /// lecture seule que son accès prive d'échange : `Erreur::LectureSeule`, et le message ne
     /// s'applique pas. Un document de version de schéma plus récente (§ 31 · 2.4) reçoit, et ce
-    /// qu'il reçoit s'écrit, sans compaction. Un document entier qui reçoit une version de schéma
-    /// plus récente que la version de schéma connue, ou illisible, passe en lecture seule
-    /// (`VersionPlusRecente`, `VersionIllisible`) avant que ce qu'il a reçu ne s'écrive : il ne
-    /// se compacte pas, et une relecture du disque, si l'écriture est refusée, relit la version
-    /// de schéma du disque.
+    /// qu'il reçoit s'écrit, sans compaction. Un document entier, ou de version de schéma plus
+    /// récente, relit sa version de schéma à chaque réception qui change ses heads, avant que ce
+    /// qu'il a reçu ne s'écrive : plus récente que la version de schéma connue, il est en lecture
+    /// seule (`VersionPlusRecente`, qui dit la version de schéma relue), et ne se compacte pas ;
+    /// illisible, il passe en lecture seule (`VersionIllisible`), sans échange. Une relecture du
+    /// disque, si l'écriture est refusée, relit la version de schéma du disque.
     pub fn recevoir(
         &mut self,
         echange: &mut Echange,
@@ -168,9 +169,14 @@ impl Document<'_> {
         }
         // § 31 · 2.4 : ce qui est reçu peut porter une version de schéma plus récente que la
         // version de schéma connue, ou illisible : la mémoire la lit comme la relecture du disque,
-        // avant que l'écriture de ce qui est reçu ne décide de compacter. Un document devenu plus
-        // récent ne se compacte pas, et ce qu'il a reçu s'écrit quand même.
-        if self.lecture_seule.is_none() {
+        // avant que l'écriture de ce qui est reçu ne décide de compacter, chez un document entier
+        // comme chez un document plus récent. Un document devenu plus récent ne se compacte pas,
+        // et ce qu'il a reçu s'écrit quand même ; une version de schéma illisible le prive
+        // d'échange.
+        if matches!(
+            self.lecture_seule,
+            None | Some(LectureSeule::VersionPlusRecente { .. })
+        ) {
             self.lecture_seule = self.raison_de_la_memoire();
         }
         // Une réception refusée en chemin peut avoir appliqué une part du message : ce que porte
@@ -423,8 +429,13 @@ impl Document<'_> {
     }
 
     /// La compaction qui suit une écriture faite, quand `apres_une_ecriture` la dit. Une pesée
-    /// des fichiers qui échoue la rend due, comme une compaction qui échoue.
+    /// des fichiers qui échoue la rend due, comme une compaction qui échoue. Un document qui
+    /// n'écrit pas ne se compacte jamais (`apres_une_ecriture`) : rien ne se pèse, et le disque
+    /// n'est pas lu.
     fn compacter_apres_une_ecriture(&mut self) -> Result<(), Erreur> {
+        if !self.acces().ecrit() {
+            return Ok(());
+        }
         match self.faut_il_compacter() {
             Ok(true) => self.compacter(),
             Ok(false) => Ok(()),
