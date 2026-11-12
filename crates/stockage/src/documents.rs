@@ -337,8 +337,11 @@ impl Document<'_> {
     /// fichier complet seul, ou une copie qui ne garde pas un dossier vide). Créé, hors de
     /// Windows, il ne survit à une coupure qu'une fois le dossier du document synchronisé
     /// (`fichier::rendre_durable`), comme à la naissance ; un dossier ne se synchronise pas sous
-    /// Windows. Présent, ou remplacé par un fichier, il est laissé tel quel : l'écriture à côté
-    /// refusera alors son voisin. Un refus du disque rend `Erreur::Disque`.
+    /// Windows. Si cette synchronisation échoue, `ajouts/`, vide, se retire (`fs::remove_dir`, son
+    /// refus tu) avant que le refus se rende : un `ajouts/` présent est ainsi un dossier dont la
+    /// création a été rendue durable, et l'écriture suivante le recrée, puis le synchronise.
+    /// Présent, ou remplacé par un fichier, il est laissé tel quel : l'écriture à côté refusera
+    /// alors son voisin. Un refus du disque rend `Erreur::Disque`.
     fn recreer_les_ajouts(&self) -> Result<(), Erreur> {
         let ajouts = self.dossier.join("ajouts");
         match fs::create_dir(&ajouts) {
@@ -346,7 +349,10 @@ impl Document<'_> {
             Err(erreur) => Err(disque(&ajouts, erreur)),
             Ok(()) => {
                 #[cfg(not(windows))]
-                fichier::rendre_durable(&ajouts).map_err(|erreur| disque(&self.dossier, erreur))?;
+                if let Err(erreur) = fichier::rendre_durable(&ajouts) {
+                    let _ = fs::remove_dir(&ajouts);
+                    return Err(disque(&self.dossier, erreur));
+                }
                 Ok(())
             }
         }

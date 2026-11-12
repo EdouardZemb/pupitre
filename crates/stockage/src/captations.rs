@@ -224,15 +224,21 @@ impl Captations<'_> {
     /// là, il est laissé tel quel. Né, hors de Windows, il ne survit à une coupure qu'une fois
     /// `captations/` synchronisé : `rendre_durable` synchronise le dossier de son chemin. Un
     /// dossier ne se synchronise pas sous Windows. Ce n'est pas le renommage rendu durable :
-    /// aucune panne ne s'y injecte. Un refus du disque rend son erreur, avec le dossier du geste
-    /// refusé : le sous-dossier, s'il ne se crée pas ; `captations/`, s'il ne se synchronise pas.
+    /// aucune panne ne s'y injecte. Si cette synchronisation échoue, le sous-dossier, vide, se
+    /// retire (`fs::remove_dir`, son refus tu) avant que le refus se rende : un sous-dossier
+    /// présent est ainsi un dossier dont la création a été rendue durable, et la tentative
+    /// suivante le recrée, puis le synchronise. Un refus du disque rend son erreur, avec le
+    /// dossier du geste refusé : le sous-dossier, s'il ne se crée pas ; `captations/`, s'il ne se
+    /// synchronise pas.
     fn creer_le_sous_dossier(&self, rangee: &Path) -> Result<(), (PathBuf, io::Error)> {
         let sous_dossier = rangee.parent().unwrap_or(rangee);
         match fs::create_dir(sous_dossier) {
             Ok(()) => {
                 #[cfg(not(windows))]
-                crate::fichier::rendre_durable(sous_dossier)
-                    .map_err(|erreur| (self.dossier(), erreur))?;
+                if let Err(erreur) = crate::fichier::rendre_durable(sous_dossier) {
+                    let _ = fs::remove_dir(sous_dossier);
+                    return Err((self.dossier(), erreur));
+                }
                 Ok(())
             }
             Err(erreur) if erreur.kind() == io::ErrorKind::AlreadyExists => Ok(()),
