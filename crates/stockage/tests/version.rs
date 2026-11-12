@@ -22,8 +22,8 @@ use commun::{
     ouvrir, ouvrir_le_fonds, ouvrir_le_fonds_tel_quel, ouvrir_les_echanges, porte_l_idee, reunir,
     reunir_en_suivant_a,
 };
-use noyau::donnees::fonds::{ACTEUR_DE_LA_GENESE, VERSION_DE_SCHEMA};
-use noyau::donnees::version::Migration;
+use noyau::donnees::fonds::{ACTEUR_DE_LA_GENESE, MIGRATIONS, VERSION_DE_SCHEMA};
+use noyau::donnees::version::{Migration, connue};
 use stockage::pannes::{Etape, couper};
 use stockage::{Avertissement, Document, Erreur, LectureSeule, RacineDesDonnees};
 
@@ -172,8 +172,21 @@ fn deux_migrations_separees_n_en_font_qu_une() {
     let table = migrations_de_test(&m);
     let racine_a = ouvrir(&chemin_a);
     let racine_b = ouvrir(&chemin_b);
+    // Les deux répliques divergent avant de migrer : B note une idée qu'A n'a pas.
+    {
+        let mut b = ouvrir_le_fonds(&racine_b);
+        faite(
+            ecrire(&mut b, |tx| noter(tx, "idee-2", "Un pont en mineur")),
+            "B note idee-2",
+        );
+    }
     let mut a = ouvrir_selon(&racine_a, &table);
     let mut b = ouvrir_selon(&racine_b, &table);
+    assert_ne!(
+        a.automerge().get_heads(),
+        b.automerge().get_heads(),
+        "les deux répliques n'ont pas divergé avant la réunion"
+    );
 
     reunir(&mut a, &mut b);
 
@@ -465,5 +478,22 @@ fn une_copie_qui_recoit_une_version_plus_recente_passe_en_lecture_seule() {
         ajoutes.len(),
         1,
         "la réception écrit un fichier d'ajout, que rien ne fond : {ajoutes:?}"
+    );
+}
+
+#[test]
+fn le_fonds_nait_a_la_version_de_schema_connue() {
+    // La naissance ne migre pas : ce test devient rouge le jour où la table de l'application
+    // reçoit sa première migration.
+    let chemin = dossier_jetable("version-naissance").join("donnees");
+    let racine = ouvrir(&chemin);
+
+    let fonds = faire_naitre(&racine);
+
+    assert_eq!(
+        valeur(fonds.automerge(), &ROOT, VERSION_DE_SCHEMA),
+        ScalarValue::Uint(connue(MIGRATIONS)),
+        "le fonds naît à la version de schéma de la genèse, qui n'est plus la version de schéma \
+         connue : MIGRATIONS a reçu une migration, et la naissance doit alors migrer (§ 31 · 2.4)"
     );
 }
