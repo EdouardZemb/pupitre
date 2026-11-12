@@ -73,7 +73,8 @@ pub struct Document<'r> {
     /// en chemin n'ont pu rendre.
     avertissements: Vec<Avertissement>,
     /// La version de schéma que connaît l'application qui l'a ouvert, ou fait naître : celle de
-    /// la table des migrations de l'ouverture (§ 31 · 2.4). La relecture du disque la relit.
+    /// la table des migrations de l'ouverture (§ 31 · 2.4). La relecture du disque et la réception
+    /// la relisent (`raison_de_la_memoire`).
     version_connue: u64,
 }
 
@@ -136,7 +137,11 @@ impl Document<'_> {
     /// de cette écriture, s'il en vient un, rejoint [`Document::avertissements`]. Un document en
     /// lecture seule que son accès prive d'échange : `Erreur::LectureSeule`, et le message ne
     /// s'applique pas. Un document de version de schéma plus récente (§ 31 · 2.4) reçoit, et ce
-    /// qu'il reçoit s'écrit, sans compaction.
+    /// qu'il reçoit s'écrit, sans compaction. Un document entier qui reçoit une version de schéma
+    /// plus récente que la version de schéma connue, ou illisible, passe en lecture seule
+    /// (`VersionPlusRecente`, `VersionIllisible`) avant que ce qu'il a reçu ne s'écrive : il ne
+    /// se compacte pas, et une relecture du disque, si l'écriture est refusée, relit la version
+    /// de schéma du disque.
     pub fn recevoir(
         &mut self,
         echange: &mut Echange,
@@ -152,6 +157,13 @@ impl Document<'_> {
             // Seule une panne injectée rend ce cas : la réception a changé le document, ce que ne
             // fait pas un message illisible.
             reception = reception.and(Err(synchro::Erreur::Automerge(AutomergeError::Fail)));
+        }
+        // § 31 · 2.4 : ce qui est reçu peut porter une version de schéma plus récente que la
+        // version de schéma connue, ou illisible : la mémoire la lit comme la relecture du disque,
+        // avant que l'écriture de ce qui est reçu ne décide de compacter. Un document devenu plus
+        // récent ne se compacte pas, et ce qu'il a reçu s'écrit quand même.
+        if self.lecture_seule.is_none() {
+            self.lecture_seule = self.raison_de_la_memoire();
         }
         // Une réception refusée en chemin peut avoir appliqué une part du message : ce que porte
         // la mémoire s'écrit.
@@ -444,8 +456,8 @@ impl Document<'_> {
     /// puis `lire_le_dossier`, sans démarrage : rien n'est retiré ni renommé), sans toucher à la
     /// garde, et tire un acteur neuf ; une raison de lecture seule que la relecture trouve devient
     /// celle du document, sur ce qui se lit. Lue entière, la mémoire relue lit sa version de
-    /// schéma comme l'ouverture, devant la version connue du document, sans migrer
-    /// (`raison_de_la_version`, § 31 · 2.4) : une copie plus récente le reste. Une relecture qui
+    /// schéma comme l'ouverture, devant la version de schéma connue du document, sans migrer
+    /// (`raison_de_la_memoire`, § 31 · 2.4) : une copie plus récente le reste. Une relecture qui
     /// échoue laisse la mémoire d'avant l'écriture refusée (`fork_at` des heads `avant`), en
     /// lecture seule `RelectureManquee`, sur le fichier qu'elle n'a pu lire, ou sur le dossier du
     /// document si son erreur n'en nomme aucun.
@@ -455,10 +467,8 @@ impl Document<'_> {
         match relu {
             Ok((mut automerge, lecture_seule, _, _)) => {
                 automerge.set_actor(ActorId::random());
-                let lecture_seule = lecture_seule.or_else(|| {
-                    raison_de_la_version(version_de_schema(&automerge), self.version_connue)
-                });
                 self.automerge = automerge;
+                let lecture_seule = lecture_seule.or_else(|| self.raison_de_la_memoire());
                 self.lecture_seule = lecture_seule;
             }
             Err(erreur) => {
@@ -473,6 +483,13 @@ impl Document<'_> {
                 self.lecture_seule = Some(LectureSeule::RelectureManquee { chemin });
             }
         }
+    }
+
+    /// § 31 · 2.4 : la raison de lecture seule que donne la version de schéma de la mémoire,
+    /// devant la version de schéma connue du document, sans migrer (`raison_de_la_version`). La
+    /// relecture du disque et la réception la lisent ainsi, quand la mémoire se lit entière.
+    fn raison_de_la_memoire(&self) -> Option<LectureSeule> {
+        raison_de_la_version(version_de_schema(&self.automerge), self.version_connue)
     }
 
     /// Ce que permet le document : tout, s'il est entier ; sinon, l'accès de sa raison de lecture
@@ -605,10 +622,11 @@ fn version_de_schema(automerge: &Automerge) -> Option<u64> {
     }
 }
 
-/// La raison de lecture seule que donne la version de schéma lue `lue`, devant la version connue
-/// `connue` (`version::lecture`, § 31 · 2.4) : plus récente, `VersionPlusRecente` ; absente,
-/// nulle ou d'un autre type, `VersionIllisible` ; la version connue, ou une plus ancienne, aucune
-/// (l'ouverture migre celle-ci, la relecture du disque non).
+/// La raison de lecture seule que donne la version de schéma lue `lue`, devant la version de
+/// schéma connue `connue` (`version::lecture`, § 31 · 2.4) : une version de schéma plus récente,
+/// `VersionPlusRecente` ; une version de schéma absente, nulle ou d'un autre type,
+/// `VersionIllisible` ; la version de schéma connue, ou une version de schéma plus ancienne,
+/// aucune (l'ouverture migre celle-ci, la relecture du disque et la réception non).
 fn raison_de_la_version(lue: Option<u64>, connue: u64) -> Option<LectureSeule> {
     match version::lecture(lue, connue) {
         Lecture::Ecrire | Lecture::Migrer { .. } => None,
@@ -965,6 +983,10 @@ pub(crate) fn faire_naitre_le_fonds<'r>(
         // La compaction réécrira un fichier complet, et rendra la naissance durable.
         compaction_due: !avertissements.is_empty(),
         avertissements,
+        // § 31 · 2.4 : la naissance ne migre pas. Le fonds naît à la version de schéma de la
+        // genèse, 1, qui n'est la version de schéma connue que tant que `MIGRATIONS` est vide :
+        // le jour où la table reçoit sa première migration, la naissance doit migrer, et
+        // `le_fonds_nait_a_la_version_de_schema_connue` (`tests/version.rs`) devient rouge.
         version_connue: version::connue(MIGRATIONS),
     })
 }

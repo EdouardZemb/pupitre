@@ -21,15 +21,15 @@ pub struct Migration<'a> {
 /// Ce que permet un document, selon sa version de schéma et celle que connaît l'application.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Lecture {
-    /// La version connue : il se lit et s'écrit.
+    /// La version de schéma connue : il se lit et s'écrit.
     Ecrire,
-    /// Une version plus ancienne, `de` : il migre à son ouverture, jusqu'à `vers`, la version
-    /// connue.
+    /// Une version de schéma plus ancienne, `de` : il migre à son ouverture, jusqu'à `vers`, la
+    /// version de schéma connue.
     Migrer { de: u64, vers: u64 },
-    /// Une version plus récente : il se lit sans écrire.
+    /// Une version de schéma plus récente : il se lit sans écrire.
     LireSansEcrire,
-    /// Une version absente, nulle, ou qui n'est pas un entier non signé : il se lit, sans écrire
-    /// ni échanger.
+    /// Une version de schéma absente, nulle, ou qui n'est pas un entier non signé : il se lit,
+    /// sans écrire ni échanger.
     Illisible,
 }
 

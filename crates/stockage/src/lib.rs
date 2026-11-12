@@ -96,8 +96,9 @@ pub enum LectureSeule {
     /// fichier complet : le fichier qui manque ne se nomme pas, celui qui l'attend, si.
     DependancesManquantes { chemin: PathBuf },
     /// Le document, qui se lit entier, porte la version de schéma `version`, plus récente que
-    /// celle que connaît l'application (§ 31 · 2.4) : il se lit sans écrire, reçoit et envoie ;
-    /// ce qu'il reçoit s'écrit en fichiers d'ajout, sans compaction.
+    /// celle que connaît l'application (§ 31 · 2.4), dès son ouverture ou depuis qu'il l'a
+    /// reçue : il se lit sans écrire, reçoit et envoie ; ce qu'il reçoit s'écrit en fichiers
+    /// d'ajout, sans compaction.
     VersionPlusRecente { version: u64 },
     /// Le document, qui se lit entier, porte une version de schéma absente, nulle, ou qui n'est
     /// pas un entier non signé (§ 31 · 2.4) : il se lit, sans écrire ni échanger.
