@@ -123,6 +123,10 @@ pub enum Avertissement {
     /// Le voisin `chemin` d'un fichier d'ajout n'a pu prendre sa place : il se lit où il est, et se
     /// met en place à l'ouverture suivante.
     VoisinRestant { chemin: PathBuf, erreur: io::Error },
+    /// Le nom provisoire `chemin` n'a pu se lire, ou prendre le nom de son empreinte : il reste, et
+    /// se range à l'ouverture suivante (§ 31 · 6.1). Un dossier `captations/` qui ne se liste pas
+    /// se nomme de même, et rien ne s'y range.
+    NomProvisoireRestant { chemin: PathBuf, erreur: io::Error },
 }
 
 /// Le SHA-256 de `octets`, en 64 caractères hexadécimaux minuscules (`Sha256::digest`).

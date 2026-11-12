@@ -7,7 +7,9 @@
 //! À chaque ouverture, la garde prise, le démarrage donne son sort à chaque `.partiel` de
 //! `documents/` (§ 31 · 2.1) : le voisin d'un fichier d'ajout dont le contenu donne l'empreinte
 //! prend sa place, ou se lit où il est ; le voisin lisible du fichier complet se lit, puis la
-//! compaction le fond ; tout autre se retire.
+//! compaction le fond ; tout autre se retire. Après la lecture du fonds et sa compaction
+//! d'ouverture, chaque nom provisoire de `captations/` dont le contenu donne une empreinte que le
+//! fonds nomme prend ce nom (§ 31 · 6.1).
 //!
 //! Une écriture est faite ; faite, avec un avertissement, quand son renommage n'est pas rendu
 //! durable ou que la compaction qui la suit échoue ; ou refusée, avant la fin de son renommage,
@@ -15,6 +17,7 @@
 //! en lecture seule, comme un fichier illisible à l'ouverture ; une compaction d'ouverture qui
 //! échoue vient en avertissement, et le document s'ouvre.
 
+use std::collections::BTreeSet;
 use std::ffi::OsStr;
 use std::fs;
 use std::io;
@@ -22,13 +25,15 @@ use std::path::{Path, PathBuf};
 
 use automerge::transaction::{CommitOptions, Transactable, Transaction};
 use automerge::{
-    ActorId, Automerge, AutomergeError, Change, ChangeHash, LoadOptions, OnPartialLoad, ROOT,
-    ReadDoc,
+    ActorId, Automerge, AutomergeError, Change, ChangeHash, LoadOptions, ObjType, OnPartialLoad,
+    ROOT, ReadDoc, Value,
 };
 use noyau::donnees::acces::Acces;
 use noyau::donnees::compaction::{self, Lu};
 use noyau::donnees::demarrage::{self, Partiel, Sort};
-use noyau::donnees::fonds::{GENESE, IDENTIFIANT, LIGNEE, MESSAGE_DE_LA_NAISSANCE, PROPRIETAIRE};
+use noyau::donnees::fonds::{
+    GENESE, IDENTIFIANT, LIGNEE, MESSAGE_DE_LA_NAISSANCE, PRISES, PROPRIETAIRE,
+};
 use synchro::{Copie, Echange};
 
 use crate::fichier::{self, Echec, ecrire_a_cote};
@@ -452,8 +457,12 @@ impl Document<'_> {
 /// ceux du document ; un renommage du démarrage non rendu durable rend la compaction due. Une
 /// compaction qui échoue n'empêche pas d'ouvrir : son erreur vient en avertissement
 /// (`Avertissement::Compaction`), rien n'est perdu, et la compaction est due : l'écriture
-/// suivante retire ce qu'elle n'a pas retiré. Une erreur du démarrage ou de la lecture rend la
-/// garde, avant tout document.
+/// suivante retire ce qu'elle n'a pas retiré. Enfin, même en lecture seule, chaque nom provisoire
+/// de `captations/` dont le contenu donne une empreinte que nomme le document lu
+/// (`empreintes_nommees`) prend ce nom (`Captations::ranger_les_noms_provisoires`, § 31 · 6.1) ;
+/// ses avertissements (`NomProvisoireRestant`, `NonDurable`) rejoignent ceux du document, sans
+/// empêcher d'ouvrir. Une erreur du démarrage ou de la lecture rend la garde, avant tout
+/// document.
 pub(crate) fn rouvrir_le_fonds(racine: &RacineDesDonnees) -> Result<Option<Document<'_>>, Erreur> {
     let garde = racine.prendre_la_garde()?;
     let dossier = dossier_du_fonds(racine);
@@ -485,7 +494,21 @@ pub(crate) fn rouvrir_le_fonds(racine: &RacineDesDonnees) -> Result<Option<Docum
             .avertissements
             .push(Avertissement::Compaction(erreur));
     }
+    // Le rangement suit la compaction d'ouverture, même en lecture seule : rien n'y fait échouer
+    // l'ouverture.
+    let nommees = empreintes_nommees(&document.automerge);
+    let restants = racine.captations().ranger_les_noms_provisoires(&nommees);
+    document.avertissements.extend(restants);
     Ok(Some(document))
+}
+
+/// Les empreintes que nomme le document `automerge`, tel qu'il se lit : les clés de ses prises
+/// (`PRISES`, à sa racine). Sans prises qui se lisent comme un objet à clés, aucune.
+fn empreintes_nommees(automerge: &Automerge) -> BTreeSet<String> {
+    match automerge.get(ROOT, PRISES) {
+        Ok(Some((Value::Object(ObjType::Map), prises))) => automerge.keys(&prises).collect(),
+        _ => BTreeSet::new(),
+    }
 }
 
 /// § 31 · 2.1 : le démarrage dans `documents/`, la garde prise, avant toute lecture du fonds.
@@ -590,14 +613,13 @@ fn complet_present(dossier: &Path) -> Result<bool, Erreur> {
 
 /// Lit le dossier `dossier` d'un document, sans compaction ni démarrage : son fichier complet
 /// (`lire_le_complet`), s'il existe (`present`, que l'appelant tient de `complet_present`), puis
-/// chaque voisin du fichier complet que le démarrage lit
-/// (`lire_les_voisins_du_complet`), puis ses fichiers d'ajout et chaque voisin d'un fichier
-/// d'ajout que le démarrage met en place, dans l'ordre des noms (`lire_les_ajouts`), chacun par
-/// `fichier::lire` ; tout lu, elle cherche les dépendances manquantes
-/// (`dependances_manquantes`). Elle ne construit aucun `Document`, ne touche pas à la garde, et
-/// ne retire ni ne renomme rien : l'ouverture et la relecture du disque l'appellent. Sans
-/// fichier complet ni voisin lu, la mémoire est un document neuf, sans genèse, qui n'est jamais
-/// entier : `CompletIllisible`, comme un fichier complet vide.
+/// chaque voisin du fichier complet que le démarrage lit (`lire_les_voisins_du_complet`), puis
+/// ses fichiers d'ajout et chaque voisin d'un fichier d'ajout que le démarrage met en place, dans
+/// l'ordre des noms (`lire_les_ajouts`), chacun par `fichier::lire` ; tout lu, elle cherche les
+/// dépendances manquantes (`dependances_manquantes`). Elle ne construit aucun `Document`, ne
+/// touche pas à la garde, et ne retire ni ne renomme rien : l'ouverture et la relecture du disque
+/// l'appellent. Sans fichier complet ni voisin lu, la mémoire est un document neuf, sans genèse,
+/// qui n'est jamais entier : `CompletIllisible`, comme un fichier complet vide.
 ///
 /// Rend la mémoire lue, ce qui se lit ; la première raison de lecture seule qu'elle trouve, dans
 /// cet ordre : le fichier complet, puis ses voisins, puis les fichiers d'ajout, puis les

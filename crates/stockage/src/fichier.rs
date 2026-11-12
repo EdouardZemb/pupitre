@@ -5,7 +5,8 @@
 //!
 //! Chaque étape d'une écriture a sa fonction, qui passe par le point d'injection d'une panne
 //! juste avant son geste sur le disque : les écritures à côté (`ecrire_a_cote`), les
-//! versements des captations et le démarrage des documents passent par elles.
+//! versements des captations, le démarrage des documents et le rangement des noms provisoires
+//! passent par elles.
 
 use std::fs::{self, File};
 use std::io::{self, Write};
@@ -28,6 +29,11 @@ pub enum Echec {
 /// Le premier nom libre de `<nom>.<processus>.partiel`, `-2`, `-3`…, dans le dossier de `chemin`,
 /// lu sur le disque (§ 31 · 2.1) : un nom pris est un voisin qu'un arrêt a laissé, et il n'est
 /// jamais touché. Le choix est celui de `noyau::donnees::demarrage::voisin_libre`.
+///
+/// Le choix d'un nom libre suppose la racine des données tenue par un seul processus, le
+/// verrou de `RacineDesDonnees::ouvrir` : le nom lu libre pourrait sinon naître entre la lecture
+/// du dossier et la création du voisin, et `File::create` tronquerait le voisin d'un autre
+/// écrivain.
 ///
 /// Un dossier qui ne se lit pas rend l'erreur du disque, avant tout voisin.
 pub fn voisin(chemin: &Path) -> io::Result<PathBuf> {

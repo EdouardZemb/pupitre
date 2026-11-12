@@ -125,6 +125,14 @@ impl RacineDesDonnees {
     /// `a_l_ouverture` le dit, c'est-à-dire dès qu'il a un fichier d'ajout ou un voisin du
     /// fichier complet, s'il écrit, et la compaction retire le voisin qu'elle absorbe.
     ///
+    /// Enfin, même en lecture seule, chaque nom provisoire de `captations/` dont le contenu
+    /// entier donne une empreinte que le fonds nomme, tel qu'il se lit, et qu'aucune captation
+    /// rangée ne porte encore, prend ce nom (§ 31 · 6.1) ; de deux noms provisoires du même
+    /// contenu, le premier dans l'ordre des noms. Aucun nom provisoire n'est retiré. Un nom
+    /// provisoire qui ne se lit pas, ou ne peut prendre ce nom, reste, et le fonds s'ouvre avec
+    /// [`Avertissement::NomProvisoireRestant`](crate::Avertissement::NomProvisoireRestant) ; il
+    /// se range à l'ouverture suivante.
+    ///
     /// Un fichier illisible ouvre le fonds en lecture seule ([`Document::lecture_seule`]), en se
     /// nommant : le fonds montre ce qui se lit, n'écrit ni ne se compacte, n'envoie ni ne reçoit.
     /// C'est un fichier complet vide, ou qu'`Automerge::load` refuse, ou un voisin lisible du
