@@ -536,15 +536,22 @@ fn une_copie_plus_recente_recoit_sans_transmettre_aucune_modification() {
 // § 31 · 10, test 10 : deux copies plus récentes ne s'échangent aucune modification, et leur échange finit
 #[test]
 fn deux_copies_plus_recentes_se_reunissent_sans_rien_ecrire() {
-    // A et B, migrées chacune par une application qui connaît la version de schéma 2, B notant
-    // ensuite idee-2, se rouvrent par `fonds()`, qui ne connaît que la version de schéma 1.
-    // Réunies, aucune ne reçoit de modification, et aucun fichier de leurs fonds ne change.
+    // A et B, migrées chacune par une application qui connaît la version de schéma 2, A notant
+    // ensuite idee-3 et B idee-2, se rouvrent par `fonds()`, qui ne connaît que la version de
+    // schéma 1. Chacune a une modification que l'autre n'a pas : réunies, aucune ne la reçoit, et
+    // aucun fichier de leurs fonds ne change.
     let (chemin_a, chemin_b) = deux_copies("version-deux-plus-recentes");
     let m = migration_de_test();
     let migrations = migrations_de_test(&m);
     let racine_a = ouvrir(&chemin_a);
     let racine_b = ouvrir(&chemin_b);
-    drop(ouvrir_le_fonds_selon(&racine_a, &migrations));
+    {
+        let mut a = ouvrir_le_fonds_selon(&racine_a, &migrations);
+        faite(
+            ecrire(&mut a, |tx| noter(tx, "idee-3", "Un refrain sans rime")),
+            "A note idee-3",
+        );
+    }
     {
         let mut b = ouvrir_le_fonds_selon(&racine_b, &migrations);
         faite(
@@ -557,6 +564,12 @@ fn deux_copies_plus_recentes_se_reunissent_sans_rien_ecrire() {
     let raison = LectureSeule::VersionPlusRecente { version: 2 };
     assert_eq!(a.lecture_seule(), Some(&raison), "A n'est pas plus récente");
     assert_eq!(b.lecture_seule(), Some(&raison), "B n'est pas plus récente");
+    for (copie, porte, manque) in [(&a, "idee-3", "idee-2"), (&b, "idee-2", "idee-3")] {
+        assert!(
+            porte_l_idee(copie.automerge(), porte) && !porte_l_idee(copie.automerge(), manque),
+            "une copie ne porte pas {porte} seule"
+        );
+    }
     let heads_d_a = a.automerge().get_heads();
     let heads_de_b = b.automerge().get_heads();
     let dossier_a = dossier_du_fonds(&chemin_a);
@@ -576,6 +589,14 @@ fn deux_copies_plus_recentes_se_reunissent_sans_rien_ecrire() {
         b.automerge().get_heads(),
         heads_de_b,
         "B a reçu une modification d'A"
+    );
+    assert!(
+        !porte_l_idee(a.automerge(), "idee-2"),
+        "A a reçu idee-2, que B a notée"
+    );
+    assert!(
+        !porte_l_idee(b.automerge(), "idee-3"),
+        "B a reçu idee-3, qu'A a notée"
     );
     assert_eq!(
         empreintes(&dossier_a),
