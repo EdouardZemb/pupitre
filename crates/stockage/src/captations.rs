@@ -45,7 +45,8 @@ impl Captations<'_> {
         {
             return Ok(e);
         }
-        let provisoire = voisin(&self.dossier().join(&e));
+        let provisoire =
+            voisin(&self.dossier().join(&e)).map_err(|erreur| disque(&self.dossier(), erreur))?;
         if let Err(refus) = self.ranger(&provisoire, &rangee, octets, &e) {
             // Le nom provisoire peut ne pas être né : son retrait peut alors échouer, et le
             // refus rendu reste celui du rangement.

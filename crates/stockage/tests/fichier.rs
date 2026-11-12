@@ -4,7 +4,6 @@ mod commun;
 
 use std::fs;
 use std::io;
-use std::path::PathBuf;
 
 use commun::{dossier_jetable, entrees};
 use stockage::fichier::{Echec, ecrire_a_cote, voisin};

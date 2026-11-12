@@ -11,6 +11,8 @@ use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
+use noyau::donnees::demarrage::voisin_libre;
+
 use crate::pannes::{self, Etape};
 
 /// Pourquoi une écriture à côté n'est pas faite, ou pas tout à fait.
@@ -23,11 +25,23 @@ pub enum Echec {
     NonDurable(io::Error),
 }
 
-/// `<nom>.<processus>.partiel`, dans le dossier de `chemin`.
-pub fn voisin(chemin: &Path) -> PathBuf {
-    let mut nom = chemin.file_name().unwrap_or_default().to_os_string();
-    nom.push(format!(".{}.partiel", std::process::id()));
-    chemin.with_file_name(nom)
+/// Le premier nom libre de `<nom>.<processus>.partiel`, `-2`, `-3`…, dans le dossier de `chemin`,
+/// lu sur le disque (§ 31 · 2.1) : un nom pris est un voisin qu'un arrêt a laissé, et il n'est
+/// jamais touché. Le choix est celui de `noyau::donnees::demarrage::voisin_libre`.
+///
+/// Un dossier qui ne se lit pas rend l'erreur du disque, avant tout voisin.
+pub fn voisin(chemin: &Path) -> io::Result<PathBuf> {
+    // Le dossier d'un nom seul, sans dossier, est le dossier courant.
+    let dossier = match chemin.parent() {
+        Some(dossier) if !dossier.as_os_str().is_empty() => dossier,
+        _ => Path::new("."),
+    };
+    let mut pris = Vec::new();
+    for entree in fs::read_dir(dossier)? {
+        pris.push(entree?.file_name().to_string_lossy().into_owned());
+    }
+    let nom = chemin.file_name().unwrap_or_default().to_string_lossy();
+    Ok(chemin.with_file_name(voisin_libre(&nom, std::process::id(), &pris)))
 }
 
 /// Écrit le voisin, le synchronise (`sync_all`), le ferme, le relit, le renomme en `chemin`
@@ -41,7 +55,8 @@ pub fn voisin(chemin: &Path) -> PathBuf {
 /// [`rendre_durable`] arrive après le renommage, et rend [`Echec::NonDurable`] : le fichier est
 /// déjà en place sous `chemin`, avec ses nouveaux octets, et il n'y a plus de voisin à ôter.
 pub fn ecrire_a_cote(chemin: &Path, octets: &[u8]) -> Result<(), Echec> {
-    let voisin = voisin(chemin);
+    // Un dossier qui ne se lit pas refuse avant tout voisin : il n'y a rien à ôter.
+    let voisin = voisin(chemin).map_err(Echec::Refusee)?;
     if let Err(erreur) = ecrire_relire_puis_renommer(&voisin, chemin, octets) {
         oter(&voisin);
         return Err(Echec::Refusee(erreur));
