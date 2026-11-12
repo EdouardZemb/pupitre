@@ -8,7 +8,8 @@ use crate::donnees::acces::Acces;
 pub const AJOUTS_AU_PLUS: usize = 100;
 
 /// Point 1 : à l'ouverture d'un document qui écrit, s'il y a un fichier d'ajout, ou le voisin
-/// entier du fichier complet. Un document en lecture seule ne se compacte pas.
+/// lisible du fichier complet (non vide, et que `load` relit sans erreur). Un document en lecture
+/// seule ne se compacte pas.
 pub fn a_l_ouverture(acces: Acces, ajouts: usize, voisin_du_complet: bool) -> bool {
     acces.ecrit() && (ajouts > 0 || voisin_du_complet)
 }
@@ -29,10 +30,12 @@ pub fn apres_une_ecriture(
 /// Ce que l'adaptateur a lu d'un fichier d'ajout, ou du voisin du fichier complet.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Lu {
-    /// Le nom du fichier, tel que l'adaptateur le retirera.
+    /// Son chemin relatif au dossier du document, `/` pour séparateur, tel que l'adaptateur le
+    /// retirera : `ajouts/<empreinte>.automerge`, ou `complet.automerge.<processus>[-<n>].partiel`.
     pub nom: String,
     /// Lisible : un fichier d'ajout dont le contenu donne l'empreinte de son nom et que
-    /// `load_incremental` charge.
+    /// `load_incremental` charge, ou un voisin du fichier complet non vide que `load` relit sans
+    /// erreur.
     pub lisible: bool,
     /// Chacune de ses modifications est dans le fichier complet relu.
     pub absorbe: bool,

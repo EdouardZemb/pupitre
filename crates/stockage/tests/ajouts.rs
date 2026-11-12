@@ -94,7 +94,8 @@ fn rouvrir_relit_le_complet_puis_les_ajouts() {
     );
     let heads = fonds.automerge().get_heads();
     let valeur = fonds.automerge().hydrate(None);
-    // Le voisin d'une écriture qu'un processus n'a pas finie.
+    // Le voisin d'une écriture qu'un processus n'a pas finie : son contenu ne donne pas
+    // l'empreinte de son nom, et le démarrage le retire.
     let partiel =
         dossier_des_ajouts(&chemin).join(format!("{}.automerge.4242.partiel", "0".repeat(64)));
     fs::write(&partiel, b"une ecriture interrompue").expect("déposer le .partiel");
@@ -107,10 +108,9 @@ fn rouvrir_relit_le_complet_puis_les_ajouts() {
 
     assert_eq!(fonds.automerge().get_heads(), heads);
     assert_eq!(fonds.automerge().hydrate(None), valeur);
-    assert_eq!(
-        fs::read(&partiel).expect("relire le .partiel"),
-        b"une ecriture interrompue",
-        "le .partiel n'est plus tel qu'il a été déposé"
+    assert!(
+        !partiel.exists(),
+        "le .partiel non conforme déposé dans ajouts/ reste après la réouverture"
     );
 }
 
@@ -924,6 +924,40 @@ fn une_relecture_qui_echoue_met_le_document_en_lecture_seule() {
     assert!(
         !porte_l_idee(fonds.automerge(), "idee-2"),
         "le fonds rouvert porte l'écriture refusée"
+    );
+}
+
+#[test]
+fn une_relecture_sans_fichier_complet_met_le_document_en_lecture_seule() {
+    // Le fichier complet ôté pendant que le document est ouvert : la relecture du disque, sans
+    // fichier complet ni voisin qui le remplace, ne lit qu'un document sans genèse, jamais entier.
+    let chemin = commun::dossier_jetable("ajouts-relecture-sans-complet").join("donnees");
+    let racine = ouvrir(&chemin);
+    let mut fonds = faire_naitre(&racine);
+    faite(
+        commun::ecrire(&mut fonds, |tx| {
+            commun::noter(tx, "idee-2", "Un pont en mineur")
+        }),
+        "la première écriture",
+    );
+    let complet = dossier_du_fonds(&chemin).join("complet.automerge");
+    fs::remove_file(&complet).expect("ôter le fichier complet");
+
+    let refus = {
+        let _panne = couper(Etape::Renommage, 1);
+        commun::ecrire(&mut fonds, |tx| {
+            commun::noter(tx, "idee-3", "Une coda en suspens")
+        })
+    };
+
+    assert!(
+        matches!(refus, Err(Erreur::Disque { .. })),
+        "attendu l'écriture refusée ; rendu {refus:?}"
+    );
+    assert_eq!(
+        fonds.lecture_seule(),
+        Some(&LectureSeule::CompletIllisible { chemin: complet }),
+        "relu sans fichier complet, le document n'est pas en lecture seule sur le fichier complet"
     );
 }
 

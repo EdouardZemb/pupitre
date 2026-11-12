@@ -13,10 +13,10 @@ permissions:
 jobs:
   mutants:
     runs-on: ubuntu-latest
-    # Deux fois le passage complet mesuré à froid (« No cache found. »), 339 mutants sur quatre
-    # cœurs : 18 min 0 s le 2026-11-11, PR #29, chaque mutant construisant aussi les tests du
+    # Deux fois le passage complet mesuré à froid (« No cache found. »), 371 mutants sur quatre
+    # cœurs : 16 min 5 s le 2026-11-12, PR #30, chaque mutant construisant aussi les tests du
     # rendu (LE-29 de modele-projet). À remesurer quand le périmètre de la mutation s'étend.
-    timeout-minutes: 36
+    timeout-minutes: 33
     permissions:
       contents: read
     steps:

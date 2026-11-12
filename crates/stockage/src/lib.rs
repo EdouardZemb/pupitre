@@ -7,6 +7,7 @@
 //! injecte une panne à chaque étape d'une écriture ; sans elle, ses points laissent tout passer.
 
 mod captations;
+mod demarrage;
 mod documents;
 pub mod fichier;
 #[cfg(feature = "pannes")]
@@ -84,7 +85,9 @@ pub enum LectureSeule {
     AjoutIllisible { chemin: PathBuf },
     /// Le fichier complet `chemin` est vide, ou `Automerge::load` le refuse : le document montre
     /// ce qui s'en lit (`OnPartialLoad::Ignore`), ou rien s'il ne s'en lit rien, puis les
-    /// fichiers d'ajout.
+    /// fichiers d'ajout. Absent, sans voisin lisible qui le remplace, il ne laisse rien non plus,
+    /// à la relecture du disque : un document sans genèse n'est jamais entier. `chemin` est aussi
+    /// un voisin lisible du fichier complet que `load_incremental` refuse après lui.
     CompletIllisible { chemin: PathBuf },
     /// Tout lu, une modification attend ses dépendances (`get_missing_deps`) : un fichier
     /// d'ajout manque. `chemin` est le premier fichier d'ajout, dans l'ordre des noms, qui attend
@@ -114,10 +117,17 @@ pub enum Avertissement {
     /// Le fichier `chemin` est en place, mais son renommage n'a pas été rendu durable.
     NonDurable { chemin: PathBuf, erreur: io::Error },
     /// La compaction a échoué (`Disque` ou `CompactionInfidele`) : rien n'est perdu, et elle se
-    /// retente à l'écriture suivante, qui retire les fichiers d'ajout qu'elle n'a pas retirés.
-    /// Coupée en chemin, elle a pu remplacer le fichier complet sans le rendre durable, ou
-    /// retirer une part des fichiers d'ajout qu'il absorbe.
+    /// retente à l'écriture suivante, qui retire ce qu'elle n'a pas retiré. Coupée en chemin,
+    /// elle a pu remplacer le fichier complet sans le rendre durable, ou retirer une part des
+    /// fichiers d'ajout qu'il absorbe.
     Compaction(Erreur),
+    /// Le voisin `chemin` d'un fichier d'ajout n'a pu prendre sa place : il se lit où il est, et se
+    /// met en place à l'ouverture suivante.
+    VoisinRestant { chemin: PathBuf, erreur: io::Error },
+    /// Le nom provisoire `chemin` n'a pu se lire, ou prendre le nom de son empreinte : il reste, et
+    /// l'ouverture suivante le relit, puis le range si le fonds le nomme (§ 31 · 6.1). Un dossier
+    /// `captations/` qui ne se liste pas se nomme de même, et rien ne s'y range.
+    NomProvisoireRestant { chemin: PathBuf, erreur: io::Error },
 }
 
 /// Le SHA-256 de `octets`, en 64 caractères hexadécimaux minuscules (`Sha256::digest`).

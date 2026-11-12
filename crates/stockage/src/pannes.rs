@@ -25,8 +25,11 @@ pub enum Etape {
     /// Avant la synchronisation du voisin (`sync_all`).
     SyncAll,
     /// Avant chaque lecture de `fichier::lire` (`fs::read`) : la relecture d'un voisin ou du nom
-    /// provisoire d'une captation, et chaque fichier que lisent l'ouverture, la relecture du
-    /// disque et la compaction. `Captations::relire` et `Captations::verifier` n'y passent pas.
+    /// provisoire d'une captation, et chaque fichier que lisent l'ouverture (son démarrage
+    /// compris : chaque `.partiel` du dossier du fonds et de `ajouts/` ; puis, le fonds lu, chaque
+    /// nom provisoire de `captations/`), la relecture du disque, la compaction, et la naissance
+    /// (chaque `.partiel` du dossier du fonds).
+    /// `Captations::relire` et `Captations::verifier` n'y passent pas.
     Relecture,
     /// Avant le renommage du voisin (`fs::rename`).
     Renommage,

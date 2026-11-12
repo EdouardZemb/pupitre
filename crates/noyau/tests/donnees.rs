@@ -55,7 +55,7 @@ fn compacter_a_l_ouverture() {
     assert!(a_l_ouverture(Acces::Entier, 1, false), "un fichier d'ajout");
     assert!(
         a_l_ouverture(Acces::Entier, 0, true),
-        "le voisin entier du fichier complet"
+        "le voisin lisible du fichier complet"
     );
     assert!(
         !a_l_ouverture(Acces::Illisible, 3, false),
@@ -63,7 +63,7 @@ fn compacter_a_l_ouverture() {
     );
     assert!(
         !a_l_ouverture(Acces::Illisible, 0, true),
-        "illisible, le voisin entier du fichier complet : pas de compaction"
+        "illisible, le voisin lisible du fichier complet : pas de compaction"
     );
 }
 

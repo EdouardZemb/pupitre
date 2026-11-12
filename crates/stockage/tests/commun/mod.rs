@@ -371,7 +371,8 @@ pub fn reunir_en_suivant_a(
 
 /// Relit `documents/fonds/` à part, sans `RacineDesDonnees` : `Automerge::load` de
 /// `complet.automerge`, puis `load_incremental` de chaque `ajouts/*.automerge`. Les noms en
-/// `.partiel`, de `documents/fonds/` comme de `ajouts/`, sont ignorés, comme `fonds()` le fait.
+/// `.partiel`, de `documents/fonds/` comme de `ajouts/`, sont ignorés ; `fonds()`, lui, lit ceux
+/// que son démarrage lit ou met en place.
 pub fn relire_le_dossier_du_fonds(racine_des_donnees: &Path) -> Automerge {
     let dossier = dossier_du_fonds(racine_des_donnees);
     let complet = dossier.join("complet.automerge");

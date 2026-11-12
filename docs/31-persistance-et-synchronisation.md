@@ -192,7 +192,9 @@ de tête (§ 2.4) : le [glossaire](80-glossaire.md#les-données) les distingue.
   contenu : deux écritures identiques font un seul fichier. Le fichier d'ajout d'une
   opération porte `save_after` des *heads* du document d'avant l'opération, les empreintes de
   ses dernières modifications (§ 9) : il ne dépend ni
-  d'une compaction faite à l'ouverture, ni de la relecture du disque après un refus.
+  d'une compaction faite à l'ouverture, ni de la relecture du disque après un refus. Les
+  fichiers d'ajout vivent dans `ajouts/` : une écriture recrée ce dossier s'il manque ;
+  l'ouverture d'un document ne le crée jamais, et lit un `ajouts/` absent comme vide.
 - **Ouvrir un document**, c'est lire son fichier complet, puis ses fichiers d'ajout, dans
   n'importe quel ordre : Automerge met de côté une modification dont les dépendances ne
   sont pas encore lues.
@@ -200,28 +202,34 @@ de tête (§ 2.4) : le [glossaire](80-glossaire.md#les-données) les distingue.
   (`app/src-tauri/src/lib.rs`) : un fichier voisin, `<nom>.<processus>.partiel`, est écrit,
   synchronisé sur le disque, fermé, relu, puis renommé. Relu, il doit rendre les octets
   écrits ; sinon, il ne prend pas la place. L'export du cahier, lui, ne relit pas son
-  voisin. Hors de Windows, le dossier est synchronisé
+  voisin, et ne lui donne aucun suffixe. Hors de Windows, le dossier est synchronisé
   à son tour, pour que le renommage survive à une coupure. Un fichier est donc entier, ou
   absent. Sous Windows, où un dossier ne se synchronise pas, le fichier est renommé par
   `std::fs::rename`, qui remplace au besoin un fichier complet existant, puis rouvert en
   écriture, sans être tronqué, et synchronisé à son tour (`sync_all`, soit
   `FlushFileBuffers`) : Windows garde en cache les métadonnées d'un fichier, et seul un
   fichier synchronisé les écrit. Le renommage peut tout de même se perdre après la réponse.
-  Au démarrage, dans `documents/`, le voisin d'un fichier d'ajout dont le contenu donne
-  l'empreinte de son nom prend donc sa place. Le voisin d'un fichier complet que `load` relit
-  sans erreur se lit avec le document, comme un fichier d'ajout, puisqu'Automerge ignore ce
-  qu'il a déjà ; la compaction de l'ouverture le fond, puis le retire. Il se lit de même quand
-  le fichier complet manque encore, à la naissance du document (§ 2.3) : le document existe
-  alors, et Pupitre n'est plus neuf (§ 9.1). La compaction n'écrit jamais son propre voisin
-  par-dessus celui qu'elle fond : le numéro d'un processus se réemploie d'un lancement à
-  l'autre, et un nom déjà pris reçoit un suffixe (`<nom>.<processus>-2.partiel`, `-3`…).
-  Tout autre `.partiel` de `documents/` est retiré. Le nom provisoire d'une captation suit le § 6.1 : il n'est jamais retiré d'office.
+  Au démarrage, à l'ouverture du document, dans `documents/`, le voisin d'un fichier d'ajout
+  dont le contenu donne l'empreinte de son nom prend donc sa place ; si le disque refuse ce
+  renommage, il se lit où il est, avec un avertissement, et se met en place au démarrage
+  suivant. Le voisin lisible d'un fichier complet, non vide, et que `load` relit sans erreur,
+  se lit avec le document, comme un fichier d'ajout, puisqu'Automerge ignore ce qu'il a déjà ;
+  la compaction de l'ouverture le fond, puis le retire. Il se lit de même quand le fichier
+  complet manque encore, à la naissance du document (§ 2.3) : le document existe alors, et
+  Pupitre n'est plus neuf (§ 9.1). La compaction n'écrit jamais son propre voisin par-dessus
+  celui qu'elle fond : le numéro d'un processus se réemploie d'un lancement à l'autre, et un
+  nom déjà pris reçoit un suffixe (`<nom>.<processus>-2.partiel`, `-3`…). Tout autre
+  `.partiel` de `documents/` est retiré, qu'il porte un autre nom ou un autre contenu ; un
+  fichier qui n'est pas un `.partiel` est laissé tel quel, et le démarrage ne crée aucun
+  dossier dans `documents/`. Le nom provisoire d'une captation suit le § 6.1 : il n'est jamais
+  retiré d'office.
   Une opération refusée ôte son voisin avant de dire son refus : elle le vide, rend ce vide
   durable (`sync_all`, sous chaque système), puis le retire ; l'export du cahier, lui, retire
   le sien sans le vider. Un retrait qui échoue, ou qu'une coupure perd, laisse ainsi un voisin
-  vide : vide, il ne se lit pas, et ne prend pas la place au démarrage. Seule une double
-  panne, un voisin dont le vide n'a pu être rendu durable et dont le retrait échoue ou se
-  perd, peut faire paraître une opération refusée à la relance.
+  vide : vide, un voisin ne se lit jamais, qu'il soit celui d'un fichier d'ajout ou du fichier
+  complet, et le démarrage le retire. Seule une double panne, un voisin dont le vide n'a pu
+  être rendu durable et dont le retrait échoue ou se perd, peut faire paraître une opération
+  refusée à la relance.
 - **Une opération nommée n'est faite qu'une fois son fichier d'ajout renommé**, ou, à la
   naissance d'un document, son premier fichier complet (§ 2.3), et la commande ne répond
   qu'alors ([ADR-022](adr/adr-022-documents-cote-natif.md)). Son écriture a trois issues :
@@ -308,9 +316,10 @@ flowchart LR
 Un fichier d'ajout par geste : ils s'accumulent. La **compaction** les fond dans le fichier
 complet.
 
-1. Elle a lieu à l'ouverture d'un document qui a des fichiers d'ajout, ou le voisin entier de
-   son fichier complet (§ 2.1), puis dès que ses fichiers d'ajout pèsent ensemble plus que son
-   fichier complet, ou passent la centaine.
+1. Elle a lieu à l'ouverture d'un document qui a des fichiers d'ajout, ou le voisin lisible de
+   son fichier complet : non vide, et que `load` relit sans erreur (§ 2.1). Elle a lieu ensuite
+   dès que ses fichiers d'ajout pèsent ensemble plus que son fichier complet, ou passent la
+   centaine.
 2. Elle enregistre le document entier, historique compris, relit en mémoire ce qu'elle a
    enregistré, et vérifie qu'il mène au même point de l'histoire que le document en mémoire.
    Sinon elle n'écrit rien, et l'ancien fichier complet reste en place.
@@ -650,18 +659,23 @@ premiers caractères de l'empreinte : `captations/3f/3fa1…`. Git range ainsi s
 dizaines ; à cent mille, quelques centaines : aucun ne déborde.
 
 Une captation s'écrit sous un nom provisoire, dans `captations/`, jamais dans un dossier
-temporaire. Elle est écrite, synchronisée sur le disque, fermée, relue contre son empreinte,
-puis renommée à son empreinte, dans son sous-dossier. Hors de Windows, ce sous-dossier est
-synchronisé à son tour, et le dossier `captations/` quand le sous-dossier vient d'être créé ;
-sous Windows, la captation renommée est rouverte en écriture, sans être tronquée, et
-synchronisée, comme au § 2.1. Si l'empreinte existe
-déjà, le fichier provisoire est retiré : rien n'est réécrit. Un nom provisoire laissé par un
-arrêt brutal n'est jamais retiré d'office : une capture interrompue doit en relire l'audio
-([CAP-01](20-sfd/21-capter-et-organiser.md#cap-01--capter-en-un-geste) · 2). Sous Windows,
-où un renommage peut se perdre après la réponse (§ 2.1), un nom provisoire de `captations/`
-dont le contenu entier donne une empreinte qu'un document nomme, et qu'aucun fichier ne porte
-encore, prend ce nom au démarrage. Les autres restent, pour la reprise d'une capture
-interrompue.
+temporaire : `<empreinte>.<processus>.partiel`, ou, si ce nom est pris,
+`<empreinte>.<processus>-2.partiel`, `-3`…, formé comme le nom d'un voisin (§ 2.1). Elle est
+écrite, synchronisée sur le disque, fermée, relue contre son empreinte, puis renommée à son
+empreinte, dans son sous-dossier. Hors de Windows, ce sous-dossier est synchronisé à son tour,
+et le dossier `captations/` quand le sous-dossier vient d'être créé ; sous Windows, la
+captation renommée est rouverte en écriture, sans être tronquée, et synchronisée, comme au
+§ 2.1. Si l'empreinte existe déjà, rien ne s'écrit, ni nom provisoire ni captation : rien n'est
+jamais réécrit. Un nom provisoire laissé par un arrêt brutal n'est jamais retiré d'office : une
+capture interrompue doit en relire l'audio
+([CAP-01](20-sfd/21-capter-et-organiser.md#cap-01--capter-en-un-geste) · 2). Un renommage
+peut se perdre après la réponse, sous Windows comme ailleurs (§ 2.1) : au démarrage, à
+l'ouverture du fonds, un nom provisoire de `captations/` dont le contenu entier donne une
+empreinte que le fonds nomme, et qu'aucun fichier ne porte encore, prend ce nom ; de deux noms
+provisoires du même contenu, le premier dans l'ordre des noms. En lecture seule, le fonds nomme
+ce qui s'en lit. Un nom provisoire qui ne se lit pas, ou que le disque refuse de renommer,
+reste, avec un avertissement, et le démarrage suivant le relit, puis le range si le fonds le
+nomme. Les autres restent, pour la reprise d'une capture interrompue.
 
 | Propriété | Conséquence | Testée par |
 |---|---|---|
@@ -923,7 +937,7 @@ pupitre-archive-AAAA-MM-JJ/               un dossier, écrit sous un nom proviso
 | 1 | **Dérivés jetables** : supprimer tous les dérivés, les reconstruire, comparer les empreintes canoniques | Un dérivé dépend d'un état non stocké, ou un contenu décidé s'est logé dans un cache |
 | 2 | **Aller-retour du miroir** : documents → miroir → documents, comparer leurs teneurs (§ 2.6) | Le miroir perd une information |
 | 3 | **Convergence** : trois répliques, opérations concurrentes aléatoires, synchronisation dans un ordre aléatoire | Les répliques divergent ; ou un conflit de texte, d'accord, de hauteur ou d'attribut est fusionné, ou perdu, au lieu d'être présenté « à trancher » |
-| 4 | **Captations** : l'empreinte de chaque objet égale son nom ; aucun objet modifié après écriture ; couper l'écriture à chaque étape ; renommage perdu après la réponse : la captation nommée par un document reprend son nom au démarrage | Corruption ou réécriture ; ou une captation nommée a un contenu qui trahit son nom ; ou une captation qu'un document nomme manque ; ou, au démarrage, un nom provisoire de `captations/` est retiré |
+| 4 | **Captations** : l'empreinte de chaque objet égale son nom ; aucun objet modifié après écriture ; couper l'écriture à chaque étape ; renommage perdu après la réponse : la captation nommée par un document prend son nom au démarrage | Corruption ou réécriture ; ou une captation nommée a un contenu qui trahit son nom ; ou une captation qu'un document nomme manque ; ou, au démarrage, un nom provisoire de `captations/` est retiré |
 | 5 | **Aucune éviction prématurée** : couper le nœud, capter, purger le cache | Une captation non accusée disparaît |
 | 6 | **Restauration** : la procédure du § 9, chaque semaine sur le nœud, chaque nuit en CI sur un jeu de test | Un seul de ses contrôles échoue |
 | 7 | **Rien d'engendré dans les documents** : chercher les champs interdits du [§ 30 · 13](30-modele-de-domaine.md#13-ce-que-le-modèle-interdit-de-stocker) | Un champ engendré est stocké |
