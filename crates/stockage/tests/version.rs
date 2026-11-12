@@ -2,8 +2,10 @@
 //! ouverture, et la migration s'écrit en un fichier d'ajout, avec son message ; deux répliques
 //! qui migrent chacune de son côté écrivent la même modification ; un fonds de version de schéma
 //! plus récente se lit sans écrire, même relu du disque, et reçoit, sans transmettre aucune
-//! modification ; une version de schéma illisible ouvre le fonds en lecture seule ; un fonds
-//! illisible ne migre pas ; une migration que le disque refuse n'ouvre pas le fonds.
+//! modification ; deux copies plus récentes ne s'échangent aucune modification ; une version de
+//! schéma illisible ouvre le fonds en lecture seule, et, reçue, prive d'échange une copie plus
+//! récente ; un fonds illisible ne migre pas ; une migration que le disque refuse n'ouvre pas le
+//! fonds.
 //!
 //! La migration de test est engendrée à l'exécution depuis la genèse (`migration_de_test`), et
 //! entre dans la table le temps du test, par `fonds_selon` ; `fonds()` ouvre selon la table de
@@ -549,6 +551,103 @@ fn une_copie_plus_recente_recoit_sans_rien_transmettre() {
         ScalarValue::Uint(1),
         "B n'est plus à la version de schéma 1"
     );
+}
+
+// § 31 · 10, test 10 : deux copies plus récentes ne s'échangent aucune modification, et leur échange finit
+#[test]
+fn deux_copies_plus_recentes_se_reunissent_sans_rien_ecrire() {
+    // A et B, migrées chacune par une application qui connaît la version de schéma 2, B notant
+    // ensuite idee-2, se rouvrent par `fonds()`, qui ne connaît que la version de schéma 1.
+    // Réunies, aucune ne reçoit de modification, et aucun fichier de leurs fonds ne change.
+    let (chemin_a, chemin_b) = deux_copies("version-deux-plus-recentes");
+    let m = migration_de_test();
+    let migrations = migrations_de_test(&m);
+    let racine_a = ouvrir(&chemin_a);
+    let racine_b = ouvrir(&chemin_b);
+    drop(ouvrir_selon(&racine_a, &migrations));
+    {
+        let mut b = ouvrir_selon(&racine_b, &migrations);
+        faite(
+            ecrire(&mut b, |tx| noter(tx, "idee-2", "Un pont en mineur")),
+            "B note idee-2",
+        );
+    }
+    let mut a = ouvrir_le_fonds_tel_quel(&racine_a);
+    let mut b = ouvrir_le_fonds_tel_quel(&racine_b);
+    let raison = LectureSeule::VersionPlusRecente { version: 2 };
+    assert_eq!(a.lecture_seule(), Some(&raison), "A n'est pas plus récente");
+    assert_eq!(b.lecture_seule(), Some(&raison), "B n'est pas plus récente");
+    let heads_d_a = a.automerge().get_heads();
+    let heads_de_b = b.automerge().get_heads();
+    let dossier_a = dossier_du_fonds(&chemin_a);
+    let dossier_b = dossier_du_fonds(&chemin_b);
+    let avant_a = empreintes(&dossier_a);
+    let avant_b = empreintes(&dossier_b);
+
+    // `reunir` finit, chaque réception faite sans avertissement.
+    reunir(&mut a, &mut b);
+
+    assert_eq!(
+        a.automerge().get_heads(),
+        heads_d_a,
+        "A a reçu une modification de B"
+    );
+    assert_eq!(
+        b.automerge().get_heads(),
+        heads_de_b,
+        "B a reçu une modification d'A"
+    );
+    assert_eq!(
+        empreintes(&dossier_a),
+        avant_a,
+        "un fichier du fonds d'A a changé"
+    );
+    assert_eq!(
+        empreintes(&dossier_b),
+        avant_b,
+        "un fichier du fonds de B a changé"
+    );
+}
+
+#[test]
+fn une_copie_plus_recente_qui_recoit_une_version_de_schema_illisible_n_echange_plus() {
+    // B, migrée, connaît la version de schéma 2, et écrit ; A ne connaît que la version de
+    // schéma 1. Une première réunion fait passer A en lecture seule, d'une version de schéma plus
+    // récente ; puis B pose une version de schéma illisible, qu'une seconde réunion porte à A.
+    let (chemin_a, chemin_b) = deux_copies("version-recue-illisible");
+    let m = migration_de_test();
+    let migrations = migrations_de_test(&m);
+    let racine_a = ouvrir(&chemin_a);
+    let racine_b = ouvrir(&chemin_b);
+    let mut b = ouvrir_selon(&racine_b, &migrations);
+    let mut a = ouvrir_le_fonds(&racine_a);
+    reunir(&mut a, &mut b);
+    assert_eq!(
+        a.lecture_seule(),
+        Some(&LectureSeule::VersionPlusRecente { version: 2 }),
+        "A, qui a reçu la version de schéma 2, n'est pas plus récente"
+    );
+    faite(
+        ecrire(&mut b, |tx| tx.put(ROOT, VERSION_DE_SCHEMA, "deux")),
+        "B pose une version de schéma qui n'est pas un entier non signé",
+    );
+
+    reunir(&mut a, &mut b);
+
+    let raison = LectureSeule::VersionIllisible;
+    assert_eq!(
+        a.lecture_seule(),
+        Some(&raison),
+        "A, qui a reçu une version de schéma illisible, échange encore"
+    );
+    assert_eq!(
+        valeur(a.automerge(), &ROOT, VERSION_DE_SCHEMA),
+        ScalarValue::from("deux"),
+        "A n'a pas reçu la version de schéma illisible"
+    );
+    let dossier = dossier_du_fonds(&chemin_a);
+    let avant = empreintes(&dossier);
+    constater_la_lecture_seule(&mut a, &raison, &dossier, &avant);
 }
 
 #[test]
