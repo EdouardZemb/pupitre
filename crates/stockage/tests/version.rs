@@ -85,6 +85,11 @@ fn migrer_a_l_ouverture_ecrit_la_migration_avec_son_message() {
 
     let fonds = ouvrir_selon(&racine, &table);
 
+    // Le fonds ouvert selon la table tient la garde, comme celui de `fonds()`.
+    assert!(
+        matches!(racine.fonds(), Err(Erreur::FondsDejaOuvert)),
+        "un second fonds s'ouvre pendant que vit celui de fonds_selon"
+    );
     let doc = fonds.automerge();
     assert_eq!(
         valeur(doc, &ROOT, VERSION_DE_SCHEMA),

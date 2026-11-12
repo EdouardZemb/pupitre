@@ -70,8 +70,9 @@ pub enum Erreur {
     Synchro(synchro::Erreur),
 }
 
-/// Pourquoi un document est en lecture seule (§ 31 · 2.1) : il montre ce qui se lit, n'écrit
-/// d'opération ni ne se compacte, n'envoie ni ne reçoit.
+/// Pourquoi un document est en lecture seule (§ 31 · 2.1, § 31 · 2.4) : il montre ce qui se lit,
+/// n'écrit d'opération ni ne se compacte ; sauf devant une version de schéma plus récente, il
+/// n'envoie ni ne reçoit.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LectureSeule {
     /// La relecture du disque, après une écriture refusée, a échoué sur `chemin` : le document
@@ -94,18 +95,28 @@ pub enum LectureSeule {
     /// une modification qui manque au document lu, ni chargée ni en attente, ou, à défaut, le
     /// fichier complet : le fichier qui manque ne se nomme pas, celui qui l'attend, si.
     DependancesManquantes { chemin: PathBuf },
+    /// Le document, qui se lit entier, porte la version de schéma `version`, plus récente que
+    /// celle que connaît l'application (§ 31 · 2.4) : il se lit sans écrire, reçoit et envoie ;
+    /// ce qu'il reçoit s'écrit en fichiers d'ajout, sans compaction.
+    VersionPlusRecente { version: u64 },
+    /// Le document, qui se lit entier, porte une version de schéma absente, nulle, ou qui n'est
+    /// pas un entier non signé (§ 31 · 2.4) : il se lit, sans écrire ni échanger.
+    VersionIllisible,
 }
 
 impl LectureSeule {
-    /// Ce que permet un document en lecture seule pour cette raison : un fichier illisible, ou
-    /// une relecture manquée, le laisse illisible, sans écriture ni échange.
+    /// Ce que permet un document en lecture seule pour cette raison : une version de schéma plus
+    /// récente le laisse échanger (`PlusRecent`) ; un fichier illisible, une relecture manquée ou
+    /// une version de schéma illisible le laissent illisible, sans écriture ni échange.
     pub fn acces(&self) -> Acces {
         match self {
+            LectureSeule::VersionPlusRecente { .. } => Acces::PlusRecent,
             LectureSeule::RelectureManquee { .. }
             | LectureSeule::AjoutAltere { .. }
             | LectureSeule::AjoutIllisible { .. }
             | LectureSeule::CompletIllisible { .. }
-            | LectureSeule::DependancesManquantes { .. } => Acces::Illisible,
+            | LectureSeule::DependancesManquantes { .. }
+            | LectureSeule::VersionIllisible => Acces::Illisible,
         }
     }
 }

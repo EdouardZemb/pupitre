@@ -6,3 +6,4 @@ pub mod compaction;
 pub mod copie;
 pub mod demarrage;
 pub mod fonds;
+pub mod version;
