@@ -142,7 +142,7 @@ fn une_captation_alteree_ou_absente_se_nomme() {
     }
 
     // Un nom provisoire déposé dans captations/, dont le contenu ne donne pas le nom.
-    let provisoire = voisin(&dossier.join(empreinte(&commun::octets(5, 200))));
+    let provisoire = voisin(&dossier.join(empreinte(&commun::octets(5, 200)))).unwrap();
     fs::write(&provisoire, commun::octets(6, 200)).expect("déposer le nom provisoire");
 
     // Une captation saine, déposée hors du sous-dossier de ses deux premiers caractères.
@@ -166,6 +166,37 @@ fn une_captation_alteree_ou_absente_se_nomme() {
     assert!(
         provisoire.is_file(),
         "un nom provisoire n'est jamais retiré d'office"
+    );
+}
+
+// § 31 · 6.1 : un nom provisoire laissé par un arrêt n'est jamais retiré d'office, ni tronqué
+#[test]
+fn verser_laisse_intact_un_nom_provisoire_laisse() {
+    let d = commun::dossier_jetable("captation-nom-laisse");
+    let racine =
+        RacineDesDonnees::ouvrir(&d.join("donnees")).expect("ouvrir la racine des données");
+    let captations = racine.captations();
+    let octets = commun::octets(7, 300);
+    let e = empreinte(&octets);
+    let laisse = racine
+        .chemin()
+        .join("captations")
+        .join(format!("{e}.{}.partiel", std::process::id()));
+    fs::write(&laisse, commun::octets(6, 200)).expect("déposer le nom provisoire laissé");
+
+    let panne = pannes::couper(Etape::Renommage, 1);
+    let rendu = captations.verser(&octets);
+    drop(panne);
+
+    assert!(rendu.is_err(), "rendu {rendu:?}");
+    assert_eq!(
+        fs::read(&laisse).expect("relire le nom laissé"),
+        commun::octets(6, 200)
+    );
+    captations.verser(&octets).expect("verser sans panne");
+    assert_eq!(
+        fs::read(&laisse).expect("relire le nom laissé"),
+        commun::octets(6, 200)
     );
 }
 

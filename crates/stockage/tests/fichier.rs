@@ -12,12 +12,35 @@ use stockage::pannes::{self, Etape};
 
 #[test]
 fn le_voisin_porte_le_numero_du_processus() {
-    let d = PathBuf::from("d");
+    let d = dossier_jetable("fichier-voisin-nom");
 
     assert_eq!(
-        voisin(&d.join("complet.automerge")),
+        voisin(&d.join("complet.automerge")).unwrap(),
         d.join(format!("complet.automerge.{}.partiel", std::process::id()))
     );
+}
+
+// § 31 · 2.1 : un nom de voisin pris reçoit un suffixe, et ce qu'il porte n'est jamais touché
+#[test]
+fn un_nom_de_voisin_pris_recoit_un_suffixe() {
+    let d = dossier_jetable("fichier-voisin-suffixe");
+    let chemin = d.join("complet.automerge");
+    let pid = std::process::id();
+    let nu = d.join(format!("complet.automerge.{pid}.partiel"));
+    let deux = d.join(format!("complet.automerge.{pid}-2.partiel"));
+    let trois = d.join(format!("complet.automerge.{pid}-3.partiel"));
+
+    fs::write(&nu, "laissé").unwrap();
+    assert_eq!(voisin(&chemin).unwrap(), deux);
+    fs::write(&deux, "laissé").unwrap();
+    assert_eq!(voisin(&chemin).unwrap(), trois);
+    fs::remove_file(&deux).unwrap();
+    assert_eq!(voisin(&chemin).unwrap(), deux);
+
+    ecrire_a_cote(&chemin, b"apres").expect("écrire à côté, le nom du voisin étant pris");
+
+    assert_eq!(fs::read(&chemin).unwrap(), b"apres");
+    assert_eq!(fs::read(&nu).unwrap(), "laissé".as_bytes());
 }
 
 #[test]
