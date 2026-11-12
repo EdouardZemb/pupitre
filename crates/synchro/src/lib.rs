@@ -3,7 +3,7 @@
 //! lit aussi les conflits et les relève, selon la règle du noyau (§ 70 · 1). Il n'a aucun
 //! transport : le réseau se branche dessus, ou à côté.
 
-use automerge::sync::{Message, State, SyncDoc};
+use automerge::sync::{ChunkList, Message, State, SyncDoc};
 use automerge::{Automerge, AutomergeError};
 use noyau::donnees::copie::comparer;
 
@@ -40,6 +40,18 @@ impl Echange {
     pub fn prochain_message(&mut self, doc: &Automerge) -> Option<Vec<u8>> {
         doc.generate_sync_message(&mut self.etat)
             .map(Message::encode)
+    }
+
+    /// Le prochain message, sans aucune modification (§ 31 · 2.4) : celui de
+    /// `generate_sync_message`, `changes` remplacé par `ChunkList::empty()` et `heads` par celles
+    /// de l'autre copie (`State::their_heads`, champ public d'automerge 0.12.0, vide tant qu'elle
+    /// n'a rien dit). Sans ces heads, l'autre copie redemanderait sans fin ce qu'elle voit
+    /// annoncé, et l'échange ne finirait pas.
+    pub fn prochain_message_sans_modification(&mut self, doc: &Automerge) -> Option<Vec<u8>> {
+        let mut message = doc.generate_sync_message(&mut self.etat)?;
+        message.changes = ChunkList::empty();
+        message.heads = self.etat.their_heads.clone().unwrap_or_default();
+        Some(message.encode())
     }
 
     /// `Message::decode`, puis `SyncDoc::receive_sync_message`. Un message illisible est

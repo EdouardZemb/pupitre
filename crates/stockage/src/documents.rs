@@ -9,9 +9,10 @@
 //! prend sa place, ou se lit où il est ; le voisin lisible du fichier complet se lit, puis la
 //! compaction le fond ; tout autre se retire. Lu entier, le fonds lit sa version de schéma
 //! (§ 31 · 2.4) : plus ancienne que celle que connaît l'application, il migre, et la migration
-//! s'écrit en un fichier d'ajout ; plus récente, il se lit sans écrire ; absente ou illisible, il
-//! s'ouvre en lecture seule. Après sa compaction d'ouverture, chaque nom provisoire de
-//! `captations/` dont le contenu donne une empreinte que le fonds nomme prend ce nom (§ 31 · 6.1).
+//! s'écrit en un fichier d'ajout ; plus récente, il se lit sans écrire, et reçoit sans rien
+//! transmettre ; absente ou illisible, il s'ouvre en lecture seule. Après sa compaction
+//! d'ouverture, chaque nom provisoire de `captations/` dont le contenu donne une empreinte que le
+//! fonds nomme prend ce nom (§ 31 · 6.1).
 //!
 //! Une écriture est faite ; faite, avec un avertissement, quand son renommage n'est pas rendu
 //! durable ou que la compaction qui la suit échoue ; ou refusée, avant la fin de son renommage,
@@ -114,14 +115,21 @@ impl Document<'_> {
         })
     }
 
-    /// Le prochain message de l'échange pour l'autre copie (`Echange::prochain_message`), ou
-    /// `None` quand il n'y a plus rien à dire. Un document en lecture seule que son accès prive
-    /// d'échange n'envoie rien : `None` aussi.
+    /// Le prochain message de l'échange pour l'autre copie, ou `None` quand il n'y a plus rien à
+    /// dire. Un document entier transmet ses modifications (`Echange::prochain_message`) ; un
+    /// document de version de schéma plus récente n'en transmet aucune (§ 31 · 2.4,
+    /// `Echange::prochain_message_sans_modification`). Un document en lecture seule que son accès
+    /// prive d'échange n'envoie rien : `None` aussi.
     pub fn prochain_message(&self, echange: &mut Echange) -> Option<Vec<u8>> {
-        if !self.acces().echange() {
+        let acces = self.acces();
+        if !acces.echange() {
             return None;
         }
-        echange.prochain_message(&self.automerge)
+        if acces.ecrit() {
+            echange.prochain_message(&self.automerge)
+        } else {
+            echange.prochain_message_sans_modification(&self.automerge)
+        }
     }
 
     /// § 31 · 2.1 : ce que la synchronisation reçoit ne l'est qu'une fois écrit. Le message
