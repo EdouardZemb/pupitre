@@ -8,7 +8,8 @@ use crate::donnees::acces::Acces;
 pub const AJOUTS_AU_PLUS: usize = 100;
 
 /// Point 1 : à l'ouverture d'un document qui écrit, s'il y a un fichier d'ajout, ou le voisin
-/// entier du fichier complet. Un document en lecture seule ne se compacte pas.
+/// lisible du fichier complet (non vide, et que `load` relit sans erreur). Un document en lecture
+/// seule ne se compacte pas.
 pub fn a_l_ouverture(acces: Acces, ajouts: usize, voisin_du_complet: bool) -> bool {
     acces.ecrit() && (ajouts > 0 || voisin_du_complet)
 }
