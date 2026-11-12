@@ -43,8 +43,10 @@ pub fn fichier_du_voisin(nom: &str) -> Option<&str> {
 /// Un `.partiel` de `documents/`, tel que l'adaptateur l'a lu (seuls les noms en `.partiel`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Partiel<'a> {
-    /// Dans `ajouts/` : son nom, et l'empreinte de son contenu. Un voisin vide a l'empreinte du
-    /// vide, qui n'est jamais celle de son nom : il se retire, il ne se met jamais en place.
+    /// Dans `ajouts/` : son nom, et l'empreinte de son contenu. La règle met en place le voisin
+    /// dont le contenu donne l'empreinte de son nom. Un fichier d'ajout n'est jamais vide (il
+    /// porte toujours au moins une modification) : l'empreinte du vide ne nomme aucun fichier
+    /// d'ajout, et un voisin vidé ne prend pas la place.
     DansAjouts { nom: &'a str, empreinte: &'a str },
     /// Dans le dossier d'un document : son nom, et s'il est lisible (non vide, `load` sans erreur).
     /// Un voisin de zéro octet n'est pas lisible : il ne se lit jamais.
@@ -103,10 +105,15 @@ pub struct Provisoire {
 /// de deux du même contenu, le premier dans l'ordre reçu, que l'adaptateur donne trié par nom : le
 /// second écrirait sur une captation rangée (I14 ; § 31 · 6.1).
 pub fn a_ranger(provisoires: &[Provisoire], nommees: &BTreeSet<String>) -> Vec<(String, String)> {
+    let rangees: BTreeSet<&str> = provisoires
+        .iter()
+        .filter(|p| p.deja_rangee)
+        .map(|p| p.empreinte.as_str())
+        .collect();
     let mut vues = BTreeSet::new();
     provisoires
         .iter()
-        .filter(|p| !p.deja_rangee && nommees.contains(&p.empreinte))
+        .filter(|p| !rangees.contains(p.empreinte.as_str()) && nommees.contains(&p.empreinte))
         .filter(|p| vues.insert(p.empreinte.as_str()))
         .map(|p| (p.nom.clone(), p.empreinte.clone()))
         .collect()

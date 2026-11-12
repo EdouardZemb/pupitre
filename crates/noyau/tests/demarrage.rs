@@ -74,6 +74,8 @@ fn le_nom_d_un_voisin_se_reconnait_avec_son_suffixe() {
         "complet.automerge.4242-.partiel",
         "complet.automerge.4242-x.partiel",
         "complet.automerge.-2.partiel",
+        "complet.automerge.4242-2-3.partiel",
+        "complet.automerge4242.partiel",
         ".4242.partiel",
     ] {
         assert_eq!(fichier_du_voisin(nom), None, "{nom}");
@@ -166,4 +168,23 @@ fn les_noms_provisoires_a_ranger() {
             (format!("{}.4242.partiel", e(5)), e(4))
         ]
     );
+}
+
+// § 31 · 10, test 4 : un contenu déjà rangé par un nom provisoire ne se range pas une seconde fois
+#[test]
+fn un_contenu_deja_range_ne_se_range_pas_sous_un_autre_nom() {
+    let nommees = BTreeSet::from([e(1)]);
+    let provisoires = [
+        Provisoire {
+            nom: format!("{}.4242.partiel", e(1)),
+            empreinte: e(1),
+            deja_rangee: true,
+        },
+        Provisoire {
+            nom: format!("{}.4242-2.partiel", e(1)),
+            empreinte: e(1),
+            deja_rangee: false,
+        },
+    ];
+    assert!(a_ranger(&provisoires, &nommees).is_empty());
 }
