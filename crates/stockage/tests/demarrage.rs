@@ -830,7 +830,7 @@ fn une_ecriture_qui_ne_peut_recreer_ajouts_est_refusee() {
         Some(&LectureSeule::CompletIllisible {
             chemin: dossier.join("complet.automerge")
         }),
-        "la relecture d'un dossier absent ne met pas le fonds en lecture seule sur le fichier complet"
+        "relu d'un dossier absent, le fonds n'est pas en lecture seule sur le fichier complet"
     );
     assert!(
         fonds.automerge().get_heads().is_empty(),
@@ -1040,4 +1040,129 @@ fn en_lecture_seule_seul_ce_qui_se_lit_nomme() {
         "e9, nommée par le seul fichier qui ne se lit pas",
     );
     drop(fonds);
+}
+
+// § 31 · 10, test 4 : aucun objet modifié après écriture
+// De deux noms provisoires du même contenu nommé, le premier dans l'ordre des noms prend le nom de
+// son empreinte ; l'autre reste, et ne se range jamais par-dessus la captation rangée (I14).
+#[test]
+fn de_deux_noms_provisoires_du_meme_contenu_le_premier_se_range() {
+    let chemin = commun::dossier_jetable("demarrage-noms-provisoires-jumeaux").join("donnees");
+    let racine = ouvrir(&chemin);
+    let du_contenu = octets(5, 300);
+    let e = empreinte(&du_contenu);
+    drop(naitre_avec_les_prises(&racine, &[&e]));
+    let captations = chemin.join("captations");
+    // `-` (0x2D) passe avant `.` (0x2E) : `<e>.4242-2.partiel` est le premier dans l'ordre des
+    // noms.
+    let premier = captations.join(format!("{e}.4242-2.partiel"));
+    fs::write(&premier, &du_contenu).expect("déposer le premier nom provisoire");
+    let second = deposer_un_nom_provisoire(&chemin, &e, &du_contenu);
+    let rangee = commun::rangee(&chemin, &e);
+
+    let fonds = ouvrir_le_fonds(&racine);
+
+    assert_eq!(
+        fs::read(&rangee).expect("lire la captation rangée"),
+        du_contenu,
+        "la captation nommée n'a pas pris son nom"
+    );
+    assert!(
+        !premier.exists(),
+        "le premier nom provisoire, dans l'ordre des noms, n'a pas pris son nom"
+    );
+    assert!(
+        fs::read(&second).expect("relire le second nom provisoire") == du_contenu,
+        "le second nom provisoire n'est plus là, octet pour octet"
+    );
+    drop(fonds);
+    let rangee_avant = empreintes(&captations.join(&e[..2]));
+
+    let fonds = ouvrir_le_fonds(&racine);
+
+    assert!(
+        fs::read(&second).expect("relire le second nom provisoire, rouvert") == du_contenu,
+        "rouvert, le second nom provisoire s'est rangé par-dessus la captation rangée"
+    );
+    assert_eq!(
+        empreintes(&captations.join(&e[..2])),
+        rangee_avant,
+        "rouvert, la captation rangée a changé"
+    );
+    drop(fonds);
+}
+
+#[test]
+fn un_rangement_non_rendu_durable_avertit() {
+    let chemin = commun::dossier_jetable("demarrage-rangement-non-durable").join("donnees");
+    let racine = ouvrir(&chemin);
+    let du_contenu = octets(5, 300);
+    let e = empreinte(&du_contenu);
+    drop(naitre_avec_les_prises(&racine, &[&e]));
+    let provisoire = deposer_un_nom_provisoire(&chemin, &e, &du_contenu);
+    let rangee = commun::rangee(&chemin, &e);
+
+    // Le fonds n'a ni voisin ni fichier d'ajout : le démarrage dans `documents/` ne renomme rien,
+    // et aucune compaction ne suit l'ouverture. Le premier renommage rendu durable de l'ouverture
+    // est celui du rangement ; la synchronisation de `captations/`, quand le sous-dossier naît,
+    // n'en est pas un.
+    let ouvert = {
+        let _panne = couper(Etape::RendreDurable, 1);
+        racine.fonds()
+    };
+
+    let fonds = ouvert
+        .expect("un rangement non rendu durable n'empêche pas d'ouvrir")
+        .expect("le fonds est né");
+    assert_eq!(
+        fonds.lecture_seule(),
+        None,
+        "le fonds ouvert est en lecture seule"
+    );
+    match fonds.avertissements() {
+        [Avertissement::NonDurable { chemin: nomme, .. }] => assert_eq!(
+            nomme, &rangee,
+            "l'avertissement ne nomme pas la captation rangée"
+        ),
+        autres => panic!("attendu un seul NonDurable, rendu {autres:?}"),
+    }
+    assert_eq!(
+        fs::read(&rangee).expect("lire la captation rangée"),
+        du_contenu,
+        "la captation n'est pas rangée, entière"
+    );
+    assert!(!provisoire.exists(), "le nom provisoire reste");
+    drop(fonds);
+
+    drop(ouvrir_le_fonds(&racine));
+}
+
+#[test]
+fn un_dossier_des_captations_qui_ne_se_liste_pas_avertit() {
+    let chemin = commun::dossier_jetable("demarrage-captations-illisible").join("donnees");
+    let racine = ouvrir(&chemin);
+    drop(faire_naitre(&racine));
+    // `captations/`, vide, remplacé par un fichier : il ne se liste plus.
+    let captations = chemin.join("captations");
+    fs::remove_dir(&captations).expect("ôter captations/, vide");
+    fs::write(&captations, "inventé").expect("remplacer captations/ par un fichier");
+
+    let fonds = commun::ouvrir_le_fonds_tel_quel(&racine);
+
+    assert_eq!(
+        fonds.lecture_seule(),
+        None,
+        "le fonds ouvert est en lecture seule"
+    );
+    match fonds.avertissements() {
+        [Avertissement::NomProvisoireRestant { chemin: nomme, .. }] => assert_eq!(
+            nomme, &captations,
+            "l'avertissement ne nomme pas captations/"
+        ),
+        autres => panic!("attendu un seul NomProvisoireRestant, rendu {autres:?}"),
+    }
+    assert!(
+        fs::read(&captations).expect("relire le fichier") == "inventé".as_bytes(),
+        "le fichier qui remplace captations/ n'est plus là, octet pour octet"
+    );
 }

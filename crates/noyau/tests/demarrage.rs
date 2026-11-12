@@ -170,7 +170,8 @@ fn les_noms_provisoires_a_ranger() {
     );
 }
 
-// § 31 · 10, test 4 : une empreinte déjà rangée ne se range pas une seconde fois, sous un autre nom provisoire
+// § 31 · 10, test 4 : aucun objet modifié après écriture
+// Une empreinte déjà rangée ne se range pas une seconde fois, sous un autre nom provisoire.
 #[test]
 fn un_contenu_deja_range_ne_se_range_pas_sous_un_autre_nom() {
     let nommees = BTreeSet::from([e(1)]);
