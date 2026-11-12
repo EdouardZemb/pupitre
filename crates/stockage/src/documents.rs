@@ -173,8 +173,12 @@ impl Document<'_> {
     ///   retente à l'écriture suivante, qui retire ce qu'elle n'a pas retiré ;
     /// - refusée, avant la fin du renommage : le voisin est ôté, vidé puis retiré
     ///   ([`fichier::ecrire_a_cote`]), le document se relit du disque, avec un acteur neuf, et
-    ///   `Erreur::Disque` se rend. Une relecture qui échoue met le document en lecture seule
+    ///   `Erreur::Disque` se rend ; de même, avant tout voisin, quand `ajouts/`, absent, ne peut
+    ///   être recréé. Une relecture qui échoue met le document en lecture seule
     ///   (`LectureSeule::RelectureManquee`), sur sa mémoire d'avant l'écriture refusée.
+    ///
+    /// Un `ajouts/` absent, que l'ouverture ne crée pas, se recrée avant le voisin du fichier
+    /// d'ajout.
     ///
     /// Aucun message ne se prépare pendant une écriture : `ecrire` tient le document emprunté en
     /// écriture jusqu'à son retour, et le geste ne peut pas l'emprunter pour l'échange. Le premier
@@ -234,8 +238,9 @@ impl Document<'_> {
     /// l'autre sont absorbés quand, chargés dans le fichier complet relu, ils n'y ajoutent rien.
     /// Le voisin d'un fichier d'ajout que le démarrage n'a pu mettre en place n'est pas des
     /// siens : le démarrage suivant le met en place. Un dossier `ajouts/` absent n'a aucun
-    /// fichier d'ajout. Une compaction qui échoue est due : l'écriture suivante la retente ; une
-    /// compaction qui réussit ne l'est plus.
+    /// fichier d'ajout, et la compaction ne le crée pas : l'écriture suivante le recrée. Une
+    /// compaction qui échoue est due : l'écriture suivante la retente, même sans fichier complet,
+    /// qui pèse alors 0 octet ; une compaction qui réussit ne l'est plus.
     pub fn compacter(&mut self) -> Result<(), Erreur> {
         self.exiger(Acces::ecrit)?;
         let compaction = self.fondre_les_ajouts();
@@ -287,9 +292,15 @@ impl Document<'_> {
     }
 
     /// `save_after` des heads `avant`, sous `ajouts/<empreinte>.automerge`, écrit à côté puis
-    /// renommé ; puis la compaction, quand `apres_une_ecriture` le dit (§ 31 · 2.2). Ses trois
-    /// issues sont dites à [`Document::ecrire`], qui l'appelle comme [`Document::recevoir`].
+    /// renommé, `ajouts/` recréé d'abord s'il manque (`recreer_les_ajouts`) ; puis la compaction,
+    /// quand `apres_une_ecriture` le dit (§ 31 · 2.2). Ses trois issues sont dites à
+    /// [`Document::ecrire`], qui l'appelle comme [`Document::recevoir`]. Un refus de recréer
+    /// `ajouts/` est une écriture refusée : la mémoire porte déjà la modification, et se relit.
     fn ecrire_l_ajout(&mut self, avant: &[ChangeHash]) -> Result<Option<Avertissement>, Erreur> {
+        if let Err(refus) = self.recreer_les_ajouts() {
+            self.relire_du_disque(avant);
+            return Err(refus);
+        }
         let octets = self.automerge.save_after(avant);
         let chemin = self
             .dossier
@@ -316,6 +327,26 @@ impl Document<'_> {
         }
     }
 
+    /// Recrée `ajouts/` dans le dossier du document s'il manque (`fs::create_dir`) : l'ouverture
+    /// ne crée aucun dossier, et un fonds peut s'ouvrir sans lui (un voisin du fichier complet
+    /// seul, ou une copie qui ne garde pas un dossier vide). Créé, hors de Windows, il ne survit à
+    /// une coupure qu'une fois le dossier du document synchronisé (`fichier::rendre_durable`),
+    /// comme à la naissance ; un dossier ne se synchronise pas sous Windows. Présent, ou
+    /// remplacé par un fichier, il est laissé tel quel : l'écriture à côté refusera alors son
+    /// voisin. Un refus du disque rend `Erreur::Disque`.
+    fn recreer_les_ajouts(&self) -> Result<(), Erreur> {
+        let ajouts = self.dossier.join("ajouts");
+        match fs::create_dir(&ajouts) {
+            Err(erreur) if erreur.kind() == io::ErrorKind::AlreadyExists => Ok(()),
+            Err(erreur) => Err(disque(&ajouts, erreur)),
+            Ok(()) => {
+                #[cfg(not(windows))]
+                fichier::rendre_durable(&ajouts).map_err(|erreur| disque(&self.dossier, erreur))?;
+                Ok(())
+            }
+        }
+    }
+
     /// La compaction qui suit une écriture faite, quand `apres_une_ecriture` la dit. Une pesée
     /// des fichiers qui échoue la rend due, comme une compaction qui échoue.
     fn compacter_apres_une_ecriture(&mut self) -> Result<(), Erreur> {
@@ -331,9 +362,15 @@ impl Document<'_> {
 
     /// Ce que dit `apres_une_ecriture` de l'accès du document, de sa compaction due et des
     /// fichiers sur le disque : le poids du fichier complet, le poids et le nombre des fichiers
-    /// d'ajout.
+    /// d'ajout. Un fichier complet absent (un fonds ouvert par ses seuls voisins, sa compaction
+    /// d'ouverture en échec) pèse 0 octet : la compaction se retente.
     fn faut_il_compacter(&self) -> Result<bool, Erreur> {
-        let octets_du_complet = poids(&self.dossier.join("complet.automerge"))?;
+        let complet = self.dossier.join("complet.automerge");
+        let octets_du_complet = match fs::metadata(&complet) {
+            Ok(metadonnees) => metadonnees.len(),
+            Err(erreur) if erreur.kind() == io::ErrorKind::NotFound => 0,
+            Err(erreur) => return Err(disque(&complet, erreur)),
+        };
         let ajouts = fichiers_d_ajout(&self.dossier.join("ajouts"))?;
         let mut octets_des_ajouts = 0;
         for chemin in &ajouts {
@@ -348,15 +385,17 @@ impl Document<'_> {
         ))
     }
 
-    /// § 31 · 2.1 : après une écriture refusée, la mémoire se relit du disque
-    /// (`lire_le_dossier`, sans démarrage : rien n'est retiré ni renommé), sans toucher à la
-    /// garde, et tire un acteur neuf ; une raison de
-    /// lecture seule que la relecture trouve devient celle du document, sur ce qui se lit. Une
-    /// relecture qui échoue laisse la mémoire d'avant l'écriture refusée (`fork_at` des heads
-    /// `avant`), en lecture seule `RelectureManquee`, sur le fichier qu'elle n'a pu lire, ou sur
-    /// le dossier du document si son erreur n'en nomme aucun.
+    /// § 31 · 2.1 : après une écriture refusée, la mémoire se relit du disque (`complet_present`,
+    /// puis `lire_le_dossier`, sans démarrage : rien n'est retiré ni renommé), sans toucher à la
+    /// garde, et tire un acteur neuf ; une raison de lecture seule que la relecture trouve devient
+    /// celle du document, sur ce qui se lit. Une relecture qui échoue laisse la mémoire d'avant
+    /// l'écriture refusée (`fork_at` des heads `avant`), en lecture seule `RelectureManquee`, sur
+    /// le fichier qu'elle n'a pu lire, ou sur le dossier du document si son erreur n'en nomme
+    /// aucun.
     fn relire_du_disque(&mut self, avant: &[ChangeHash]) {
-        match lire_le_dossier(&self.dossier) {
+        let relu = complet_present(&self.dossier)
+            .and_then(|present| lire_le_dossier(&self.dossier, present));
+        match relu {
             Ok((mut automerge, lecture_seule, _, _)) => {
                 automerge.set_actor(ActorId::random());
                 self.automerge = automerge;
@@ -419,11 +458,8 @@ pub(crate) fn rouvrir_le_fonds(racine: &RacineDesDonnees) -> Result<Option<Docum
     let garde = racine.prendre_la_garde()?;
     let dossier = dossier_du_fonds(racine);
     let avertissements = demarrer(&racine.chemin().join("documents"), &dossier)?;
-    let complet = dossier.join("complet.automerge");
-    let present = complet
-        .try_exists()
-        .map_err(|erreur| disque(&complet, erreur))?;
-    let (mut automerge, lecture_seule, ajouts, voisins) = lire_le_dossier(&dossier)?;
+    let present = complet_present(&dossier)?;
+    let (mut automerge, lecture_seule, ajouts, voisins) = lire_le_dossier(&dossier, present)?;
     if demarrage::pupitre_neuf(present, voisins) {
         return Ok(None);
     }
@@ -467,10 +503,12 @@ pub(crate) fn rouvrir_le_fonds(racine: &RacineDesDonnees) -> Result<Option<Docum
 /// - `Lire` : rien ; `lire_le_dossier` le lit.
 /// - `Retirer` : `fichier::retirer` ; un refus est tu, et l'ouverture suivante le retente.
 ///
-/// Un dossier absent ne contient aucun `.partiel`, et le démarrage ne crée aucun dossier. Toute
-/// autre erreur de lecture d'un dossier, ou un refus du disque à la lecture d'un `.partiel`, rend
-/// `Erreur::Disque` : un voisin non lu peut porter une opération dite faite, ou le premier
-/// fichier complet. Un fichier qui n'est pas un `.partiel` n'est ni lu ni retiré.
+/// Un dossier absent ne contient aucun `.partiel`, et le démarrage ne crée aucun dossier : un
+/// `ajouts/` absent se recrée à la première écriture. Toute autre erreur de lecture d'un dossier,
+/// ou un refus du disque à la lecture d'un `.partiel` du dossier du fonds ou de `ajouts/` (ceux de
+/// `documents/` ne se lisent pas), rend `Erreur::Disque` : un voisin non lu peut porter une
+/// opération dite faite, ou le premier fichier complet. Un fichier qui n'est pas un `.partiel`
+/// n'est ni lu ni retiré.
 fn demarrer(documents: &Path, dossier: &Path) -> Result<Vec<Avertissement>, Erreur> {
     let mut avertissements = Vec::new();
     for chemin in partiels(documents)? {
@@ -541,8 +579,18 @@ fn voisin_lisible(octets: &[u8]) -> bool {
     !octets.is_empty() && Automerge::load(octets).is_ok()
 }
 
+/// Le fichier complet du dossier `dossier` d'un document existe (`try_exists`). Un refus du disque
+/// rend `Erreur::Disque`, sur le fichier complet.
+fn complet_present(dossier: &Path) -> Result<bool, Erreur> {
+    let complet = dossier.join("complet.automerge");
+    complet
+        .try_exists()
+        .map_err(|erreur| disque(&complet, erreur))
+}
+
 /// Lit le dossier `dossier` d'un document, sans compaction ni démarrage : son fichier complet
-/// (`lire_le_complet`), s'il existe, puis chaque voisin du fichier complet que le démarrage lit
+/// (`lire_le_complet`), s'il existe (`present`, que l'appelant tient de `complet_present`), puis
+/// chaque voisin du fichier complet que le démarrage lit
 /// (`lire_les_voisins_du_complet`), puis ses fichiers d'ajout et chaque voisin d'un fichier
 /// d'ajout que le démarrage met en place, dans l'ordre des noms (`lire_les_ajouts`), chacun par
 /// `fichier::lire` ; tout lu, elle cherche les dépendances manquantes
@@ -558,11 +606,9 @@ fn voisin_lisible(octets: &[u8]) -> bool {
 /// ou d'un dossier qui n'est pas absent, rend `Erreur::Disque`.
 fn lire_le_dossier(
     dossier: &Path,
+    present: bool,
 ) -> Result<(Automerge, Option<LectureSeule>, usize, usize), Erreur> {
     let complet = dossier.join("complet.automerge");
-    let present = complet
-        .try_exists()
-        .map_err(|erreur| disque(&complet, erreur))?;
     let (mut automerge, du_complet) = if present {
         lire_le_complet(&complet)?
     } else {
@@ -837,7 +883,8 @@ fn poids(chemin: &Path) -> Result<u64, Erreur> {
 /// que le geste soit fait. Un fichier complet, ou un voisin du fichier complet lisible (non
 /// vide, et qu'`Automerge::load` relit sans erreur), chacun lu par `fichier::lire`, dit le fonds
 /// né ; la naissance ne retire aucun voisin, et ne fait pas le démarrage. Un refus du disque à la
-/// lecture du dossier du fonds, s'il n'est pas absent, ou d'un `.partiel`, rend `Erreur::Disque`.
+/// lecture du dossier du fonds, s'il n'est pas absent, ou d'un `.partiel` de ce dossier, rend
+/// `Erreur::Disque`.
 pub(crate) fn faire_naitre_le_fonds<'r>(
     racine: &'r RacineDesDonnees,
     naissance: &Naissance<'_>,
@@ -848,9 +895,7 @@ pub(crate) fn faire_naitre_le_fonds<'r>(
     let garde = racine.prendre_la_garde()?;
     let dossier = dossier_du_fonds(racine);
     let complet = dossier.join("complet.automerge");
-    let present = complet
-        .try_exists()
-        .map_err(|erreur| disque(&complet, erreur))?;
+    let present = complet_present(&dossier)?;
     if !demarrage::pupitre_neuf(present, voisins_du_complet_lisibles(&dossier)?) {
         return Err(Erreur::FondsDejaNe);
     }
