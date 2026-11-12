@@ -182,7 +182,9 @@ Le plan maître le veut (en tête) : un plan de tranche qui le contredit le dit 
 relit ce point. **La PR de ce plan ne touche pas le plan maître** : sous la `v0.10.0` du modèle, l'étape « Les
 plans » de la CI vérifie chaque plan de `.claude/plans/` qu'une PR modifie, et le plan maître, dont les titres sont
 « ### Tranche N » et qui n'a pas les trois sections, serait refusé. Chaque point est donc dit ici, avec ce que la
-maîtrise d'ouvrage décide et le défaut que ce plan suit :
+maîtrise d'ouvrage décide et le défaut que ce plan suit. La description de la PR de ce plan (#34) a listé ces dix
+écarts et les sept questions qui suivent ; la maîtrise d'ouvrage les a tranchés le 2026-11-12, chacun selon son
+défaut (« Ok pour les défauts ») : chaque écart est retenu, et chaque question reçoit la réponse de son défaut.
 
 1. **Trois lectures dès la tranche 2** (C1). Le plan maître met la boîte en tranche 3, les requêtes en tranche 4.
    À décider : la vue d'une idée, la liste des idées non retirées et le journal, sans tri, filtre ni compte, dès
@@ -216,7 +218,7 @@ maîtrise d'ouvrage décide et le défaut que ce plan suit :
     seule idée visible » : deux idées cibles qui portent autre chose restent visibles toutes deux, et la prise ne
     paraît que dans l'une, la même sur chaque copie. Défaut : cette lecture, que la tâche 15 éprouve.
 
-Les questions à poser avec ces écarts, chacune avec son défaut :
+Les questions posées avec ces écarts, chacune tranchée le 2026-11-12 selon son défaut :
 
 1. **Un geste sans effet, une note au texte vide, un texte complété vide** (C12, Éc-5, Éc-22) : refusés, nommés par
    un constat, sans prendre la place de l'annulation ; vider le texte d'une idée n'est ainsi pas un geste. L'ADR-006
@@ -1713,7 +1715,7 @@ pousse plus rien.
 - [ ] **Étape 2 : les pistes.** `docs/pistes.md` : « Deux regroupements croisés, ou un même fichier importé sur deux appareils, laissent une idée vide visible, ou deux idées retirées qui portent une prise (`deux_regroupements_croises_retirent_les_deux_idees`, `une_prise_nee_sur_deux_repliques_ne_cache_aucun_de_ses_faits`) : le relevé des conflits du lot 3 les montre ; la tranche 5 dit le sort de l'idée laissée par l'import. » Et : « Une étiquette ou un lien posés des deux côtés, ou un fait d'une captation versée des deux côtés, laissent deux valeurs égales sous une clé (`une_etiquette_posee_des_deux_cotes_n_en_fait_qu_une`, `cap02_7_…`) : le relevé des conflits du lot 3 ne les présente pas « à trancher » (Éc-9). »
 - [ ] **Étape 3 : `CLAUDE.md` et `CONVENTIONS.md`.** « Commandes » : `cargo test -p stockage --release --test mesure -- --ignored --nocapture`, la mesure du test 13 ; la ligne `verifier` : l'étape du graphe de l'interface et celle du fonds de mesure, et, parmi ce qu'elle refuse, une écriture hors des deux adaptateurs (I28), un champ engendré (I01), une horloge, un aléa ou un fichier au noyau, un fichier, un fil, un réseau ou une horloge dans les services. `node scripts/verif-liens.mjs` et `node scripts/verif-faits.mjs` verts après le `git add`. Committer par chemins (`docs: le refus d'un fonds plus récent, un constat ; les pistes des regroupements croisés`), pousser.
 - [ ] **Étape 4 : remesurer, à froid.** Les délais de `verifier` (l'étape du fonds de mesure comprise, et sa construction en `--release`) et de `windows` se ramènent à deux fois un passage mesuré à froid (`.github/workflows/ci.yml:72-75`, LE-29 de modele-projet) : `gh cache delete` des clés `v0-rust-verifier` et `v0-rust-windows` de `main` et de la branche, puis un passage de `ci` (`gh run rerun <n>`, qui rejoue l'événement d'origine, sans dommage pour `ci` ; jamais pour `texte-pr`) ; « No cache found. » dans le journal de rust-cache de chaque job ; `gh run view <n> --json jobs` : les deux durées. Si deux fois l'une dépasse son `timeout-minutes`, il passe à deux fois la mesure, arrondie à la minute au-dessus, et son commentaire dit « à froid », la mesure, la date et la PR ; sinon, la description donne les deux mesures. Committer par chemins, s'il le faut (`ci: les délais remesurés à froid avec la suite des commandes et la mesure`), pousser.
-- [ ] **Étape 5 : le registre.** LE-14, colonne « État » : « clos le AAAA-MM-JJ : les PR (a) #NN et (b) #NN fusionnées, et (c) #NN, qui le clôt ; corrigés : § 40 · 3 (a), § 41 · 6 (c), § 31 · 2 et 2.3, § 30 · 1, 9.3 et 11, et CAP-02 (b), § 31 · 2.4, 2.6 et CAP-01 (c) ; les questions 1 à 7 tranchées le AAAA-MM-JJ ». `node scripts/verif-liens.mjs` et `node scripts/verif-faits.mjs` verts après le `git add`. Le corps final de la PR écrit (voir la tâche 20), committer par chemins (`docs: LE-14 clos avec la tranche 2`), pousser.
+- [ ] **Étape 5 : le registre.** LE-14, colonne « État » : « clos le AAAA-MM-JJ : les PR (a) #NN et (b) #NN fusionnées, et (c) #NN, qui le clôt ; corrigés : § 40 · 3 (a), § 41 · 6 (c), § 31 · 2 et 2.3, § 30 · 1, 9.3 et 11, et CAP-02 (b), § 31 · 2.4, 2.6 et CAP-01 (c) ; les questions 1 à 7 tranchées le 2026-11-12 ». `node scripts/verif-liens.mjs` et `node scripts/verif-faits.mjs` verts après le `git add`. Le corps final de la PR écrit (voir la tâche 20), committer par chemins (`docs: LE-14 clos avec la tranche 2`), pousser.
 - [ ] **Étape 6 : la revue de la PR (c) entière**, sur sa tête, LE-14 et les délais compris ; ses retours traités, poussés ; puis la relecture des corrections, sur la tête qui part, dont le SHA complet est celui que la tâche 20 passe à `--match-head-commit`. Un commit poussé après cette relecture la relance.
 
 ### Tâche 20 : la clôture de la tranche
