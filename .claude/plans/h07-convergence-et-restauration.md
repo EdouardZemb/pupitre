@@ -196,6 +196,84 @@ crates/stockage/
   tests/compaction.rs, synchronisation.rs, h07.rs
 ```
 
+## Mécanismes annoncés
+
+- `.github/workflows/ci.yml:4` — `pull_request:` — `ci.yml` tourne sur une PR, et non à l'envoi d'une autre
+  branche que `main` : la PR de l'essai s'ouvre en brouillon au premier envoi (« La branche »).
+- `.github/workflows/ci.yml:16` — `cancel-in-progress` — sur une PR, chaque envoi annule le passage en cours :
+  on pousse le vert une fois le rouge lu, et on attend son verdict avant la tâche suivante (« Le rouge, puis
+  le vert »).
+- `.github/workflows/ci.yml:83` — `Swatinem/rust-cache` — rust-cache ne sauve pas le cache d'un passage
+  rouge : le premier passage vert après l'entrée d'`automerge` donne les durées de `verifier` et de `windows`
+  (tâche 1, pas 5 ; tâche 12, pas 1).
+- `.github/workflows/ci.yml:153` — `cargo tauri build` — le job `windows` construit l'installateur ;
+  `stockage` et `synchro` y passent à `clippy` et à leurs tests avant lui, et `clippy` y voit le code propre
+  à Windows, que `verifier` ne compile pas (décision 2).
+- `.cargo/mutants.toml:6` — `examine_globs` — la liste des modules que la mutation examine :
+  `compaction.rs` et `copie.rs` y entrent (décision 4 ; tâche 4, pas 3).
+- `.cargo/mutants.toml:24` — `additional_cargo_test_args` — les tests que rejoue chaque mutant :
+  `--test donnees` y entre (décision 4).
+- `.github/workflows/mutants-complet.yml:8` — `workflow_dispatch` — le passage complet de la mutation se
+  lance à la demande, sur la branche de l'essai : la remesure à froid (tâche 4, pas 5).
+- `crates/noyau/tests/commun/mod.rs:5` — `#![allow(dead_code)]` — chaque fichier de tests est une crate à
+  part, où une aide inemployée lèverait `dead_code`, que `-D warnings` refuse : le `tests/commun/mod.rs` du
+  stockage commence de même (tâche 1).
+- `docs/41-pile-technique.md:289` — `Application (côté natif), nœud` — `automerge` est déjà au budget de
+  dépendances (§ 41 · 6) : il entre sans ligne nouvelle (décision 5).
+- `docs/41-pile-technique.md:296` — `application (côté natif), nœud` — `sha2` est déjà au budget de
+  dépendances, au noyau et au côté natif : il entre sans ligne nouvelle (décision 5).
+- `crates/stockage/src/racine_des_donnees.rs:64` — `TryLockError::WouldBlock` — `File::try_lock` ne refuse
+  que si un autre processus tient le verrou : la seule présence du fichier `verrou`, qu'emporte une copie, ne
+  dit rien (tâche 1 ; vigilance 5).
+- `crates/stockage/src/fichier.rs:110` — `fs::rename(de, vers)` — `std::fs::rename` remplace au besoin le
+  fichier qui porte déjà ce nom, sous Windows comme ailleurs (tâche 2).
+- `crates/stockage/tests/commun/mod.rs:54` — `fs::remove_dir_all` — sous Windows, `remove_dir_all` efface
+  aussi un fichier en lecture seule, et sous Linux seuls les droits du dossier comptent : le test de la
+  tâche 3 ne lève pas la lecture seule de l'objet.
+- `crates/stockage/src/documents.rs:270` — `save_after` — `save_after` des heads d'avant rend les seules
+  modifications faites depuis : le contenu d'un fichier d'ajout, d'une écriture comme d'une réception
+  (tâches 7 et 10 ; décision 7).
+- `crates/stockage/src/documents.rs:493` — `load_incremental` — `load_incremental` s'arrête sans erreur au
+  premier tronçon altéré : seul le contrôle de l'empreinte du nom voit un fichier d'ajout altéré
+  (vigilance 1).
+- `crates/stockage/src/documents.rs:401` — `ActorId::random()` — chaque ouverture tire un acteur neuf,
+  qu'Automerge tire lui-même : `getrandom` attend le lot 1 (décision 5 ; tâche 6).
+- `crates/stockage/tests/commun/mod.rs:125` — `comprime le fichier complet` — `save` comprime le fichier
+  complet, `save_after` ne comprime pas les fichiers d'ajout : le fonds des tâches 7 et 8 naît d'un texte
+  long (`texte_long`).
+- `crates/synchro/src/lib.rs:41` — `generate_sync_message` — il rend `None` quand une copie n'a plus rien à
+  dire : `reunir` s'achève quand aucune des deux n'envoie (tâches 9 et 10).
+- `crates/synchro/src/lib.rs:48` — `Message::decode` — il refuse des octets qui ne sont pas un message, avant
+  que le document ne reçoive quoi que ce soit (tâche 9).
+
+## Outils et cas limites
+
+- `load_incremental` — un fichier d'ajout altéré se charge sans erreur jusqu'à son premier tronçon altéré —
+  `un_ajout_altere_se_nomme_et_rien_ne_bouge` (tâche 7), `la_compaction_garde_un_ajout_altere` (tâche 8)
+- `File::try_lock` — un fichier `verrou` présent que nul processus ne tient, comme en emporte une copie —
+  `la_seule_presence_du_verrou_ne_dit_rien` (tâche 1)
+- `std::fs::rename` — sous Windows, un fichier qui porte déjà le nom visé —
+  `ecrire_a_cote_remplace_un_fichier_existant` (tâche 2), dans le job `windows`
+- `std::fs::rename` — une cible qui est un dossier non vide, que le renommage refuse —
+  `un_renommage_refuse_retire_le_voisin` (tâche 2)
+- `std::fs::remove_dir_all` — un objet mis en lecture seule, que Windows efface quand même —
+  `verser_deux_fois_ne_fait_qu_un_objet` (tâche 3)
+- `save` et `save_after` — le fichier complet comprimé, les fichiers d'ajout non —
+  `chaque_ecriture_ajoute_un_fichier_nomme_par_son_empreinte` et `chaque_ouverture_tire_un_acteur_neuf`
+  (tâche 7), sur un fonds né de `texte_long()`
+- `merge` d'Automerge — deux documents sans genèse commune, chacun avec son propre `idees` —
+  `sans_genese_les_idees_d_un_cote_sortent_de_la_vue` (tâche 5)
+- `generate_sync_message` — deux copies identiques échangent encore un message, qui n'apporte rien —
+  `un_message_sans_rien_de_neuf_n_ecrit_rien` (tâche 10)
+- `Message::decode` — des octets quelconques — `un_message_illisible_est_refuse_et_le_document_ne_bouge_pas`
+  (tâche 9)
+- `cargo update --workspace` — un `Cargo.lock` en retard sur les `Cargo.toml`, que la commande réécrit sans
+  échouer — l'étape « Cargo.lock à jour » de `verifier`, rouge au pas 2 de la tâche 1, puis verte
+
+## Revues
+
+- la revue de chaque tâche, par une autre session : Tâche 1, Tâche 2, Tâche 3, Tâche 4, Tâche 5, Tâche 6, Tâche 7, Tâche 8, Tâche 9, Tâche 10, Tâche 11
+
 ---
 
 ### Tâche 1 : les deux crates, la racine des données et son verrou

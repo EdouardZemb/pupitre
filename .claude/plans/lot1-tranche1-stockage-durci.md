@@ -174,6 +174,98 @@ dans la tâche qui possède le code.
 5. **Un document illisible d'une version de schéma plus ancienne** : il ne migre pas, et rien ne s'écrit.
    `un_document_illisible_ne_migre_pas`, tâche 13.
 
+## Mécanismes annoncés
+
+- `crates/stockage/src/fichier.rs:29` — `std::process::id()` — le voisin d'H07 ne porte que le numéro du
+  processus, sans suffixe : un voisin laissé sous ce numéro serait écrasé (décision 8 d'H07 ; tâche 10).
+- `crates/stockage/src/fichier.rs:91` — `File::create(chemin)` — `File::create` tronque le fichier qui porte
+  déjà ce nom : sans suffixe, un nom provisoire laissé par un arrêt serait tronqué, puis retiré par l'échec
+  (tâche 10).
+- `crates/stockage/src/documents.rs:557` — `OsStr::new("automerge")` — le code d'H07 ne lit, dans `ajouts/`,
+  que les `.automerge` : un fichier étranger n'y est ni lu ni retiré (point de revue 3 ; tâche 11, une
+  caractérisation).
+- `crates/stockage/src/racine_des_donnees.rs:63` — `verrou.try_lock()` — `ouvrir` prend le verrou avant de
+  créer `documents/` et `captations/`, et n'y touche à rien d'autre : `le_demarrage_ne_touche_rien_sans_le_verrou`
+  est une caractérisation (tâche 11).
+- `crates/stockage/tests/h07.rs:231-232` — `refuser la lecture du fichier` — sous Windows, le verrou que tient
+  une racine des données ouverte peut refuser la lecture du fichier `verrou` : le test de la tâche 11 compare
+  les empreintes de `documents/` et de `captations/`, jamais celles de la racine des données.
+- `crates/stockage/src/documents.rs:192-193` — `&mut self` — `ecrire` prend déjà `&mut self` : aucun message
+  ne se prépare pendant une écriture, et les deux doctests sur `Document::ecrire` sont des caractérisations
+  (tâche 6).
+- `crates/stockage/src/documents.rs:493` — `load_incremental` — `load_incremental` s'arrête sans erreur au
+  premier tronçon altéré : seule l'empreinte du nom dit qu'un fichier d'ajout a changé, et un fichier
+  illisible n'est jamais retiré (tâches 4 et 7).
+- `crates/stockage/src/lib.rs:83` — `DuplicateSeqNumber` — `load_incremental` refuse un fichier d'ajout qui
+  donne l'empreinte de son nom, mais porte une modification d'un acteur à un rang déjà pris : `AjoutIllisible`
+  (tâche 7).
+- `crates/stockage/src/documents.rs:456` — `OnPartialLoad::Ignore` — un fichier complet que `load` refuse se
+  relit par `load_with_options`, sans ce qui ne se lit pas : `CompletIllisible` montre ce qui se lit
+  (tâche 7).
+- `crates/synchro/src/lib.rs:60` — `needs_reset` — `State::needs_reset`, champ public d'automerge 0.12.0 : le
+  prochain message demande à l'autre copie d'oublier ce qu'elle croit avoir envoyé (`sent_hashes`), et elle
+  le renvoie (point de revue 2 ; tâche 6).
+- `crates/synchro/src/lib.rs:41` — `generate_sync_message` — un message dont les modifications sont ôtées ne
+  laisse `generate_sync_message` rendre `None` que s'il annonce les heads de l'autre copie (`State::their_heads`,
+  champ public en 0.12.0, vide au premier message) ; sans elles, l'échange ne finit pas (Éc-6 ; tâche 14).
+- `.cargo/mutants.toml:45` — `sort alors en 3` — sur un TIMEOUT, cargo-mutants sort en 3, ce qui fait
+  échouer `mutants` : la recherche de `voisin_libre` est bornée, et chacun de ses mutants panique ou rend un
+  autre nom (tâche 9).
+- `Cargo.toml:3` — `resolver = "3"` — sans cible de test, `cargo clippy -p stockage --lib` ne tire aucune
+  dépendance de test, donc ni la dépendance du stockage sur lui-même ni `pannes` : l'étape « Lint du
+  stockage, sans pannes » compile le stockage tel qu'il se livre (tâche 3).
+- `crates/stockage/Cargo.toml:21` — `features = ["pannes"]` — cargo admet qu'une crate dépende d'elle-même en
+  test, avec une fonction : seuls les tests du stockage activent `pannes` (tâche 3).
+- `.github/workflows/ci.yml:146` — `cargo test -p stockage -p synchro` — le job `windows` ne lance que les
+  tests de `stockage` et de `synchro` : les tests du noyau ne tournent que dans `verifier` et `mutants`
+  (écart 2).
+- `.github/workflows/ci.yml:4` — `pull_request:` — `ci.yml` tourne sur une PR, et non à l'envoi d'une autre
+  branche que `main` : chaque PR de la tranche s'ouvre en brouillon au premier envoi.
+
+## Outils et cas limites
+
+- `git ls-files` — un fichier indexé par `git add -f`, que le `.gitignore` masque, reste suivi et listé —
+  l'essai de la tâche 2 : `essai.automerge` et `pupitre-archive-2026-11-09/LISEZMOI.md`, indexés de force,
+  refusés par le contrôle 6
+- `git check-ignore` — un fichier indexé échappe à la règle qui le masque — l'essai de la tâche 2, étape 3 :
+  les deux fichiers désindexés d'abord, puis `git check-ignore` sans `-v`
+- `cargo-mutants` — un mutant qui boucle sans fin, pris par le délai (TIMEOUT), le fait sortir en 3 —
+  `le_voisin_prend_le_premier_nom_libre` (tâche 9), sur la recherche bornée de `voisin_libre`, et le job
+  `mutants`
+- `rustdoc` — un doctest `compile_fail` passe sur toute erreur de compilation, pas seulement la sienne —
+  les deux doctests sur `Document::ecrire` (tâche 6), dont le premier dit la sienne, `compile_fail,E0502`
+- `load_incremental` — un fichier d'ajout qui donne l'empreinte de son nom, mais porte une modification d'un
+  acteur à un rang déjà pris (`DuplicateSeqNumber`) — `un_ajout_qu_automerge_refuse_ouvre_en_lecture_seule`
+  (tâche 7)
+- `load_incremental` — un fichier d'ajout altéré se charge sans erreur jusqu'à son premier tronçon altéré —
+  `un_ajout_altere_ouvre_en_lecture_seule_et_se_nomme` et `la_compaction_garde_un_ajout_altere` (tâche 7)
+- `Automerge::load` — un fichier complet altéré, que `load` refuse et que `load_with_options`
+  (`OnPartialLoad::Ignore`) relit en partie — `un_complet_illisible_ouvre_en_lecture_seule_et_se_nomme`
+  (tâche 7)
+- le protocole de synchronisation d'automerge 0.12.0 — après une réception refusée, l'autre copie ne renvoie
+  pas ce qu'elle a rangé dans `sent_hashes` — `une_reception_refusee_relit_le_document_et_l_echange_reprend`
+  (tâche 6)
+- `generate_sync_message` — des messages sans modification qui n'annoncent pas les heads de l'autre copie, et
+  l'échange ne finit pas — `une_copie_n_plus_1_recoit_sans_rien_transmettre` (tâche 14), qui borne les
+  messages
+- `File::create` — un nom provisoire ou un voisin laissé sous le même nom, qu'elle tronquerait —
+  `verser_laisse_intact_un_nom_provisoire_laisse` et `un_nom_de_voisin_pris_recoit_un_suffixe` (tâche 10)
+- `std::fs::read_dir` — un dossier absent, `ajouts/` à côté d'un seul voisin du complet, dont le `NotFound`
+  n'est pas une erreur — `un_voisin_du_complet_vide_laisse_pupitre_neuf` (tâche 11)
+- le verrou d'un fichier sous Windows — le fichier `verrou` d'une racine des données ouverte, dont la lecture
+  peut être refusée — `le_demarrage_ne_touche_rien_sans_le_verrou` (tâche 11), qui ne lit que `documents/`
+  et `captations/`
+- `format!("{}")` et `format!("{:e}")` — un `F64` dont l'une ou l'autre forme est la plus courte, `-0`,
+  l'infini — `un_f64_s_ecrit_sous_sa_forme_la_plus_courte` (tâche 15)
+- `ObjType::Map` et `ObjType::Table` — deux sortes d'objets à clés, qu'Automerge distingue —
+  `map_et_table_sont_une_seule_sorte` (tâche 15)
+- `get` d'Automerge — deux valeurs concurrentes d'une même clé, dont Automerge ne présente qu'une —
+  `la_teneur_prend_la_valeur_que_presente_automerge` (tâche 15)
+
+## Revues
+
+- la revue de chaque tâche : Tâche 1, Tâche 2, Tâche 3, Tâche 4, Tâche 5, Tâche 6, Tâche 7, Tâche 8, Tâche 9, Tâche 10, Tâche 11, Tâche 12, Tâche 13, Tâche 14, Tâche 15, Tâche 16
+
 ---
 
 ## La carte des fichiers
