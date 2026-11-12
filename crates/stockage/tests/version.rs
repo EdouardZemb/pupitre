@@ -18,8 +18,9 @@ use automerge::{
 use commun::{
     CONTENEUR_DE_LA_MIGRATION, constater_la_lecture_seule, copier_l_arbre, deux_copies,
     dossier_des_ajouts, dossier_du_fonds, dossier_jetable, ecrire, empreintes, entrees,
-    faire_naitre, faite, migration_de_test, migrations_de_test, noter, objet, octets, ouvrir,
-    ouvrir_le_fonds_tel_quel, ouvrir_les_echanges, porte_l_idee, reunir, reunir_en_suivant_a,
+    faire_naitre, faite, migration_de_test, migrations_de_test, noter, nouveaux, objet, octets,
+    ouvrir, ouvrir_le_fonds, ouvrir_le_fonds_tel_quel, ouvrir_les_echanges, porte_l_idee, reunir,
+    reunir_en_suivant_a,
 };
 use noyau::donnees::fonds::{ACTEUR_DE_LA_GENESE, VERSION_DE_SCHEMA};
 use noyau::donnees::version::Migration;
@@ -414,4 +415,55 @@ fn une_copie_plus_recente_relue_du_disque_reste_en_lecture_seule() {
         ),
         autre => panic!("attendu LectureSeule à l'écriture, rendu {autre:?}"),
     }
+}
+
+// § 31 · 10, test 10 : ouvrir un document de version de schéma N + 1 avec une application qui ne connaît que N
+#[test]
+fn une_copie_qui_recoit_une_version_plus_recente_passe_en_lecture_seule() {
+    // A ne connaît que la version de schéma 1 ; B, migrée, lui envoie la migration. Reçue, elle
+    // s'écrit, et A, d'une version de schéma plus récente que celle qu'elle connaît, se lit sans
+    // écrire ni se compacter.
+    let (chemin_a, chemin_b) = deux_copies("version-recue");
+    let m = migration_de_test();
+    let table = migrations_de_test(&m);
+    let racine_a = ouvrir(&chemin_a);
+    let racine_b = ouvrir(&chemin_b);
+    let mut b = ouvrir_selon(&racine_b, &table);
+    let mut a = ouvrir_le_fonds(&racine_a);
+    let ajouts_a = dossier_des_ajouts(&chemin_a);
+    let avant = entrees(&ajouts_a);
+
+    reunir(&mut a, &mut b);
+
+    let raison = LectureSeule::VersionPlusRecente { version: 2 };
+    assert_eq!(
+        a.lecture_seule(),
+        Some(&raison),
+        "A, qui a reçu la version de schéma 2, n'est pas en lecture seule"
+    );
+    assert_eq!(
+        valeur(a.automerge(), &ROOT, VERSION_DE_SCHEMA),
+        ScalarValue::Uint(2),
+        "A n'a pas reçu la migration"
+    );
+    match ecrire(&mut a, |tx| noter(tx, "idee-2", "Une phrase refusée")) {
+        Err(Erreur::LectureSeule(rendue)) => assert_eq!(
+            rendue, raison,
+            "l'écriture ne rend pas la raison de la lecture seule"
+        ),
+        autre => panic!("attendu LectureSeule à l'écriture, rendu {autre:?}"),
+    }
+    match a.compacter() {
+        Err(Erreur::LectureSeule(rendue)) => assert_eq!(
+            rendue, raison,
+            "la compaction ne rend pas la raison de la lecture seule"
+        ),
+        autre => panic!("attendu LectureSeule à la compaction, rendu {autre:?}"),
+    }
+    let ajoutes = nouveaux(&avant, &entrees(&ajouts_a));
+    assert_eq!(
+        ajoutes.len(),
+        1,
+        "la réception écrit un fichier d'ajout, que rien ne fond : {ajoutes:?}"
+    );
 }
