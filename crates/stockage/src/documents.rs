@@ -30,12 +30,15 @@ use automerge::{
 };
 use noyau::donnees::acces::Acces;
 use noyau::donnees::compaction::{self, Lu};
-use noyau::donnees::demarrage::{self, Partiel, Sort};
+use noyau::donnees::demarrage::{self, Sort};
 use noyau::donnees::fonds::{
     GENESE, IDENTIFIANT, LIGNEE, MESSAGE_DE_LA_NAISSANCE, PRISES, PROPRIETAIRE,
 };
 use synchro::{Copie, Echange};
 
+use crate::demarrage::{
+    demarrer, sort_dans_ajouts, sort_dans_le_dossier, voisin_lisible, voisins_du_complet_lisibles,
+};
 use crate::fichier::{self, Echec, ecrire_a_cote};
 use crate::pannes::{self, Etape};
 use crate::{Avertissement, Erreur, LectureSeule, RacineDesDonnees, disque, empreinte};
@@ -517,97 +520,6 @@ fn empreintes_nommees(automerge: &Automerge) -> BTreeSet<String> {
     }
 }
 
-/// § 31 · 2.1 : le démarrage dans `documents/`, la garde prise, avant toute lecture du fonds.
-/// Chaque `.partiel` reçoit son sort (`sort_d_un_partiel`), dans l'ordre des noms : ceux de
-/// `documents` (`Ailleurs`), puis ceux du dossier du fonds `dossier` (`DansLeDossier`, lisible
-/// s'il n'est pas vide et qu'`Automerge::load` le relit sans erreur), puis ceux de son `ajouts/`
-/// (`DansAjouts`, avec l'empreinte de son contenu) ; chaque `.partiel` dont le sort demande le
-/// contenu se lit par `fichier::lire`.
-///
-/// - `MettreEnPlace` : le voisin est renommé en son fichier d'ajout (`fichier_du_voisin`), dans
-///   `ajouts/`, puis le renommage est rendu durable. Un renommage refusé ne fait pas échouer
-///   l'ouverture : le voisin reste où il est, `lire_le_dossier` le lit avec les fichiers
-///   d'ajout, et `Avertissement::VoisinRestant` le nomme. Un renommage non rendu durable laisse
-///   le fichier d'ajout en place, avec `Avertissement::NonDurable`.
-/// - `Lire` : rien ; `lire_le_dossier` le lit.
-/// - `Retirer` : `fichier::retirer` ; un refus est tu, et l'ouverture suivante le retente.
-///
-/// Un dossier absent ne contient aucun `.partiel`, et le démarrage ne crée aucun dossier dans
-/// `documents/` : un `ajouts/` absent se recrée à la première écriture. Toute autre erreur de
-/// lecture d'un dossier, ou un refus du disque à la lecture d'un `.partiel` du dossier du fonds ou
-/// de `ajouts/` (ceux de `documents/` ne se lisent pas), rend `Erreur::Disque` : un voisin non lu
-/// peut porter une opération dite faite, ou le premier fichier complet. Un fichier qui n'est pas
-/// un `.partiel` n'est ni lu ni retiré.
-fn demarrer(documents: &Path, dossier: &Path) -> Result<Vec<Avertissement>, Erreur> {
-    let mut avertissements = Vec::new();
-    for chemin in partiels(documents)? {
-        let sort = demarrage::sort_d_un_partiel(Partiel::Ailleurs);
-        donner_son_sort(&chemin, sort, &mut avertissements);
-    }
-    for chemin in partiels(dossier)? {
-        let octets = fichier::lire(&chemin).map_err(|erreur| disque(&chemin, erreur))?;
-        let sort = sort_dans_le_dossier(&chemin, &octets);
-        donner_son_sort(&chemin, sort, &mut avertissements);
-    }
-    for chemin in partiels(&dossier.join("ajouts"))? {
-        let octets = fichier::lire(&chemin).map_err(|erreur| disque(&chemin, erreur))?;
-        let sort = sort_dans_ajouts(&chemin, &octets);
-        donner_son_sort(&chemin, sort, &mut avertissements);
-    }
-    Ok(avertissements)
-}
-
-/// Fait du `.partiel` `chemin` ce que dit `sort`, comme [`demarrer`] le dit ; un avertissement
-/// rejoint `avertissements`.
-fn donner_son_sort(chemin: &Path, sort: Sort, avertissements: &mut Vec<Avertissement>) {
-    match sort {
-        Sort::Lire => {}
-        Sort::Retirer => {
-            // Un voisin qui reste se retire à l'ouverture suivante.
-            let _ = fichier::retirer(chemin);
-        }
-        Sort::MettreEnPlace => {
-            let nom = nom_de(chemin);
-            let nom_du_fichier = demarrage::fichier_du_voisin(&nom)
-                .expect("un voisin à mettre en place nomme son fichier d'ajout");
-            let cible = chemin.with_file_name(nom_du_fichier);
-            if let Err(erreur) = fichier::renommer(chemin, &cible) {
-                avertissements.push(Avertissement::VoisinRestant {
-                    chemin: chemin.to_path_buf(),
-                    erreur,
-                });
-            } else if let Err(erreur) = fichier::rendre_durable_apres_le_renommage(&cible) {
-                avertissements.push(Avertissement::NonDurable {
-                    chemin: cible,
-                    erreur,
-                });
-            }
-        }
-    }
-}
-
-/// Le sort du `.partiel` `chemin` du dossier d'un document, de contenu `octets`.
-fn sort_dans_le_dossier(chemin: &Path, octets: &[u8]) -> Sort {
-    demarrage::sort_d_un_partiel(Partiel::DansLeDossier {
-        nom: &nom_de(chemin),
-        lisible: voisin_lisible(octets),
-    })
-}
-
-/// Le sort du `.partiel` `chemin` d'`ajouts/`, de contenu `octets`.
-fn sort_dans_ajouts(chemin: &Path, octets: &[u8]) -> Sort {
-    demarrage::sort_d_un_partiel(Partiel::DansAjouts {
-        nom: &nom_de(chemin),
-        empreinte: &empreinte(octets),
-    })
-}
-
-/// Le voisin du fichier complet de contenu `octets` est lisible : il n'est pas vide, et
-/// `Automerge::load` le relit sans erreur. Vide, Automerge le lirait comme un document neuf.
-fn voisin_lisible(octets: &[u8]) -> bool {
-    !octets.is_empty() && Automerge::load(octets).is_ok()
-}
-
 /// Le fichier complet du dossier `dossier` d'un document existe (`try_exists`). Un refus du disque
 /// rend `Erreur::Disque`, sur le fichier complet.
 fn complet_present(dossier: &Path) -> Result<bool, Erreur> {
@@ -821,7 +733,7 @@ fn fichiers_d_ajout(ajouts: &Path) -> Result<Vec<PathBuf>, Erreur> {
 }
 
 /// Les `.partiel` de `dossier`, triés par nom. Un dossier absent n'en a aucun.
-fn partiels(dossier: &Path) -> Result<Vec<PathBuf>, Erreur> {
+pub(crate) fn partiels(dossier: &Path) -> Result<Vec<PathBuf>, Erreur> {
     fichiers_de(dossier, &["partiel"])
 }
 
@@ -849,7 +761,7 @@ fn fichiers_de(dossier: &Path, extensions: &[&str]) -> Result<Vec<PathBuf>, Erre
 }
 
 /// Le nom du fichier `chemin`.
-fn nom_de(chemin: &Path) -> String {
+pub(crate) fn nom_de(chemin: &Path) -> String {
     chemin
         .file_name()
         .unwrap_or_default()
@@ -957,20 +869,6 @@ pub(crate) fn faire_naitre_le_fonds<'r>(
         compaction_due: !avertissements.is_empty(),
         avertissements,
     })
-}
-
-/// Le nombre de voisins du fichier complet du dossier `dossier` dont le sort est `Lire` : non
-/// vides, et qu'`Automerge::load` relit sans erreur. Chaque `.partiel` se lit par
-/// `fichier::lire`.
-fn voisins_du_complet_lisibles(dossier: &Path) -> Result<usize, Erreur> {
-    let mut lisibles = 0;
-    for chemin in partiels(dossier)? {
-        let octets = fichier::lire(&chemin).map_err(|erreur| disque(&chemin, erreur))?;
-        if sort_dans_le_dossier(&chemin, &octets) == Sort::Lire {
-            lisibles += 1;
-        }
-    }
-    Ok(lisibles)
 }
 
 /// Le refus du disque sur `chemin` d'une écriture à côté, refusée ou non durable :

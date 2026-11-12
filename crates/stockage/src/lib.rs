@@ -7,6 +7,7 @@
 //! injecte une panne à chaque étape d'une écriture ; sans elle, ses points laissent tout passer.
 
 mod captations;
+mod demarrage;
 mod documents;
 pub mod fichier;
 #[cfg(feature = "pannes")]
