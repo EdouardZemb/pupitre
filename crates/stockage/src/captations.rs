@@ -39,8 +39,8 @@ impl Captations<'_> {
     /// contre l'empreinte ; le sous-dossier se crée au besoin, et, hors de Windows,
     /// `captations/` se synchronise alors ; le nom provisoire est renommé à l'empreinte, et le
     /// renommage rendu durable. Chaque étape passe par sa fonction de `fichier`, comme une
-    /// écriture à côté. Un dossier `captations/` qui ne se lit pas rend [`Erreur::Disque`], sur
-    /// ce dossier, avant tout nom provisoire. Un refus avant la fin du renommage retire le nom
+    /// écriture à côté. Un dossier `captations/` qui ne se liste pas rend [`Erreur::Disque`],
+    /// sur ce dossier, avant tout nom provisoire. Un refus avant la fin du renommage retire le nom
     /// provisoire, puis se rend : [`Erreur::CaptationAlteree`] si la relecture ne donne pas
     /// l'empreinte. Un refus de rendre le renommage durable arrive après lui : il se rend, mais
     /// la captation est déjà rangée, entière.
@@ -167,8 +167,10 @@ impl Captations<'_> {
         for (nom, e) in demarrage::a_ranger(&provisoires, nommees) {
             let provisoire = dossier.join(&nom);
             let rangee = self.chemin_de(&e);
-            let renomme =
-                creer_le_sous_dossier(&rangee).and_then(|()| renommer(&provisoire, &rangee));
+            let renomme = self
+                .creer_le_sous_dossier(&rangee)
+                .map_err(|(_, erreur)| erreur)
+                .and_then(|()| renommer(&provisoire, &rangee));
             if let Err(erreur) = renomme {
                 avertissements.push(Avertissement::NomProvisoireRestant {
                     chemin: provisoire,
@@ -213,9 +215,29 @@ impl Captations<'_> {
                 empreinte: e.to_string(),
             });
         }
-        let sous_dossier = rangee.parent().unwrap_or(rangee);
-        creer_le_sous_dossier(rangee).map_err(|erreur| disque(sous_dossier, erreur))?;
+        self.creer_le_sous_dossier(rangee)
+            .map_err(|(chemin, erreur)| disque(&chemin, erreur))?;
         renommer(provisoire, rangee).map_err(|erreur| disque(rangee, erreur))
+    }
+
+    /// Crée au besoin le sous-dossier de la captation rangée `rangee` (`fs::create_dir`) ; déjà
+    /// là, il est laissé tel quel. Né, hors de Windows, il ne survit à une coupure qu'une fois
+    /// `captations/` synchronisé : `rendre_durable` synchronise le dossier de son chemin. Un
+    /// dossier ne se synchronise pas sous Windows. Ce n'est pas le renommage rendu durable :
+    /// aucune panne ne s'y injecte. Un refus du disque rend son erreur, avec le dossier du geste
+    /// refusé : le sous-dossier, s'il ne se crée pas ; `captations/`, s'il ne se synchronise pas.
+    fn creer_le_sous_dossier(&self, rangee: &Path) -> Result<(), (PathBuf, io::Error)> {
+        let sous_dossier = rangee.parent().unwrap_or(rangee);
+        match fs::create_dir(sous_dossier) {
+            Ok(()) => {
+                #[cfg(not(windows))]
+                crate::fichier::rendre_durable(sous_dossier)
+                    .map_err(|erreur| (self.dossier(), erreur))?;
+                Ok(())
+            }
+            Err(erreur) if erreur.kind() == io::ErrorKind::AlreadyExists => Ok(()),
+            Err(erreur) => Err((sous_dossier.to_path_buf(), erreur)),
+        }
     }
 
     /// Le dossier `captations/` de la racine des données.
@@ -248,24 +270,6 @@ fn trahit_son_nom(chemin: &Path, sous_dossier: Option<&str>) -> Result<bool, Err
     }
     let octets = fs::read(chemin).map_err(|erreur| disque(chemin, erreur))?;
     Ok(crate::empreinte(&octets) != nom)
-}
-
-/// Crée au besoin le sous-dossier de la captation rangée `rangee` (`fs::create_dir`) ; déjà là, il
-/// est laissé tel quel. Né, hors de Windows, il ne survit à une coupure qu'une fois `captations/`
-/// synchronisé : `rendre_durable` synchronise le dossier de son chemin. Un dossier ne se
-/// synchronise pas sous Windows. Ce n'est pas le renommage rendu durable : aucune panne ne s'y
-/// injecte. Un refus du disque rend son erreur.
-fn creer_le_sous_dossier(rangee: &Path) -> io::Result<()> {
-    let sous_dossier = rangee.parent().unwrap_or(rangee);
-    match fs::create_dir(sous_dossier) {
-        Ok(()) => {
-            #[cfg(not(windows))]
-            crate::fichier::rendre_durable(sous_dossier)?;
-            Ok(())
-        }
-        Err(erreur) if erreur.kind() == io::ErrorKind::AlreadyExists => Ok(()),
-        Err(erreur) => Err(erreur),
-    }
 }
 
 /// Ce que contient `dossier` : le chemin et la sorte de chaque entrée. Un refus du disque rend
