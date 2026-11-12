@@ -5,6 +5,8 @@
 //!
 //! La fonction `pannes`, que seuls ses tests demandent, rend public le module `pannes`, qui
 //! injecte une panne à chaque étape d'une écriture ; sans elle, ses points laissent tout passer.
+//! Elle compile aussi `RacineDesDonnees::fonds_selon`, qui ouvre le fonds selon les migrations
+//! qu'un test lui donne.
 
 mod captations;
 mod demarrage;

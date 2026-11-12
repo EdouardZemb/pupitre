@@ -127,10 +127,10 @@ impl RacineDesDonnees {
     /// acteur neuf (`set_actor(ActorId::random())`).
     ///
     /// Lu entier, le fonds lit sa version de schéma (§ 31 · 2.4), un entier non signé à la racine
-    /// du document, et la compare à celle que connaît l'application, celle de la table
-    /// `MIGRATIONS` (`noyau::donnees::version::lecture`). La même : il s'ouvre entier. Plus
-    /// ancienne : chaque migration de la table au-delà de la sienne s'applique, dans l'ordre, puis
-    /// s'écrit en un fichier d'ajout, avec les issues d'une écriture : refusée, le fonds ne
+    /// du document, et la compare à celle que connaît l'application, celle des migrations
+    /// (`MIGRATIONS`, `noyau::donnees::version::lecture`). La même : il s'ouvre entier. Plus
+    /// ancienne : les migrations au-delà de la sienne s'appliquent, dans l'ordre, puis s'écrivent
+    /// ensemble en un seul fichier d'ajout, avec les issues d'une écriture : refusée, le fonds ne
     /// s'ouvre pas, et [`Erreur::Disque`] se rend ; en place, mais non durable, il s'ouvre avec
     /// [`Avertissement::NonDurable`](crate::Avertissement::NonDurable). Plus récente : il s'ouvre
     /// en lecture seule
@@ -173,9 +173,9 @@ impl RacineDesDonnees {
         documents::rouvrir_le_fonds(self, MIGRATIONS)
     }
 
-    /// L'ouverture de [`RacineDesDonnees::fonds`], selon la table `migrations` qu'un test lui
-    /// donne, au lieu de `MIGRATIONS` : un point d'entrée des tests, hors de l'API livrée, sous la
-    /// fonction `pannes`. La garde se prend et se rend comme pour `fonds()`.
+    /// L'ouverture de [`RacineDesDonnees::fonds`], selon les migrations `migrations` qu'un test
+    /// lui donne, au lieu de `MIGRATIONS` : un point d'entrée des tests, hors de l'API livrée, sous
+    /// la fonction `pannes`. La garde se prend et se rend comme pour `fonds()`.
     #[cfg(feature = "pannes")]
     pub fn fonds_selon(
         &self,

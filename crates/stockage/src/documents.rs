@@ -8,11 +8,11 @@
 //! `documents/` (§ 31 · 2.1) : le voisin d'un fichier d'ajout dont le contenu donne l'empreinte
 //! prend sa place, ou se lit où il est ; le voisin lisible du fichier complet se lit, puis la
 //! compaction le fond ; tout autre se retire. Lu entier, le fonds lit sa version de schéma
-//! (§ 31 · 2.4) : plus ancienne que celle que connaît l'application, il migre, et la migration
-//! s'écrit en un fichier d'ajout ; plus récente, il se lit sans écrire, et reçoit, sans
-//! transmettre aucune modification ; absente ou illisible, il s'ouvre en lecture seule. Après sa
-//! compaction d'ouverture, chaque nom provisoire de `captations/` dont le contenu donne une
-//! empreinte que le fonds nomme prend ce nom (§ 31 · 6.1).
+//! (§ 31 · 2.4) : plus ancienne que celle que connaît l'application, il migre, et ses migrations
+//! s'écrivent ensemble en un seul fichier d'ajout ; plus récente, il se lit sans écrire, et
+//! reçoit, sans transmettre aucune modification ; absente ou illisible, il s'ouvre en lecture
+//! seule. Après sa compaction d'ouverture, chaque nom provisoire de `captations/` dont le contenu
+//! donne une empreinte que le fonds nomme prend ce nom (§ 31 · 6.1).
 //!
 //! Une écriture est faite ; faite, avec un avertissement, quand son renommage n'est pas rendu
 //! durable ou que la compaction qui la suit échoue ; ou refusée, avant la fin de son renommage,
@@ -73,9 +73,9 @@ pub struct Document<'r> {
     /// Les avertissements de la naissance ou de l'ouverture, et ceux que des réceptions refusées
     /// en chemin n'ont pu rendre.
     avertissements: Vec<Avertissement>,
-    /// La version de schéma que connaît l'application qui l'a ouvert, ou fait naître : celle de
-    /// la table des migrations de l'ouverture (§ 31 · 2.4). La relecture du disque et la réception
-    /// la relisent (`raison_de_la_memoire`).
+    /// La version de schéma que connaît l'application qui l'a ouvert, ou fait naître : celle des
+    /// migrations de l'ouverture (§ 31 · 2.4). La relecture du disque et la réception la relisent
+    /// (`raison_de_la_memoire`).
     version_connue: u64,
 }
 
@@ -383,20 +383,21 @@ impl Document<'_> {
         }
     }
 
-    /// § 31 · 2.4 : applique les migrations `a_appliquer`, dans l'ordre de la table
-    /// (`Change::try_from`, puis `apply_changes`), puis écrit `save_after` des heads d'avant en un
-    /// fichier d'ajout (`ecrire_le_fichier_d_ajout`), comme une écriture : refusé, `Erreur::Disque`
-    /// se rend, et le fonds ne s'ouvre pas ; en place, mais non durable, l'avertissement rejoint
-    /// ceux du document, et la compaction est due. La table est du code, que ses tests éprouvent :
-    /// une migration qui ne se lit pas, ou ne s'applique pas, est un défaut du code (`expect`).
+    /// § 31 · 2.4 : applique les migrations `a_appliquer`, dans l'ordre de la suite des
+    /// migrations (`Change::try_from`, puis `apply_changes`), puis écrit `save_after` des heads
+    /// d'avant en un seul fichier d'ajout (`ecrire_le_fichier_d_ajout`), comme une écriture :
+    /// refusé, `Erreur::Disque` se rend, et le fonds ne s'ouvre pas ; en place, mais non durable,
+    /// l'avertissement rejoint ceux du document, et la compaction est due. Les migrations sont du
+    /// code, que ses tests éprouvent : une migration qui ne se lit pas, ou ne s'applique pas, est
+    /// un défaut du code (`expect`).
     fn migrer(&mut self, a_appliquer: &[Migration<'_>]) -> Result<(), Erreur> {
         let avant = self.automerge.get_heads();
         let modifications = a_appliquer.iter().map(|migration| {
-            Change::try_from(migration.octets).expect("une migration de la table se lit")
+            Change::try_from(migration.octets).expect("une migration écrite d'avance se lit")
         });
         self.automerge
             .apply_changes(modifications)
-            .expect("une migration de la table s'applique");
+            .expect("une migration écrite d'avance s'applique");
         let avertissement = self.ecrire_le_fichier_d_ajout(&avant)?;
         self.avertissements.extend(avertissement);
         Ok(())
@@ -540,29 +541,29 @@ impl Document<'_> {
     }
 }
 
-/// Le fonds de `racine`, la garde prise, selon la table `migrations` : d'abord le démarrage
+/// Le fonds de `racine`, la garde prise, selon les migrations `migrations` : d'abord le démarrage
 /// (`demarrer`), puis, s'il est né, sa lecture (`lire_le_dossier`), avec un acteur neuf, en
 /// lecture seule si un fichier ne se lit pas ; puis, s'il se lit entier, sa version de schéma
-/// devant celle que connaît la table (`version::connue`, § 31 · 2.4) : la même, il est entier ;
-/// plus ancienne, il migre (`Document::migrer`, les migrations de `version::a_appliquer`), et
-/// une migration refusée rend `Erreur::Disque`, sans document ; plus récente, absente ou
-/// illisible, il est en lecture seule (`raison_de_la_version`) ; un fonds illisible ne migre pas.
-/// Puis sa compaction, quand `a_l_ouverture` le dit, sur l'accès qui suit la lecture de la version
-/// de schéma et sur ce que la lecture a lu, avant la migration : un fichier d'ajout lu, ou un
-/// voisin du fichier complet. Pupitre neuf (`pupitre_neuf` : ni fichier complet, ni voisin du
-/// fichier complet lu) : `None`. Les avertissements du démarrage (`VoisinRestant`, `NonDurable`)
-/// sont ceux du document ; un renommage du démarrage non rendu durable rend la compaction due.
-/// Une compaction qui échoue n'empêche pas d'ouvrir : son erreur vient en avertissement
-/// (`Avertissement::Compaction`), rien n'est perdu, et la compaction est due : l'écriture
-/// suivante retire ce qu'elle n'a pas retiré. Enfin, même en lecture seule, chaque nom provisoire
-/// de `captations/` dont le contenu donne une empreinte que nomme le document lu
-/// (`empreintes_nommees`) prend ce nom (`Captations::ranger_les_noms_provisoires`, § 31 · 6.1) ;
-/// ses avertissements (`NomProvisoireRestant`, `NonDurable`) rejoignent ceux du document, sans
-/// empêcher d'ouvrir. Une erreur du démarrage, de la lecture ou de la migration rend la garde :
-/// le document qui n'est pas rendu la rend à sa fin.
+/// devant celle que donnent les migrations (`version::connue`, § 31 · 2.4) : la même, il est
+/// entier ; plus ancienne, il migre (`Document::migrer`, les migrations de
+/// `version::a_appliquer`), et une migration refusée rend `Erreur::Disque`, sans document ; plus
+/// récente, absente ou illisible, il est en lecture seule (`raison_de_la_version`) ; un fonds
+/// illisible ne migre pas. Puis sa compaction, quand `a_l_ouverture` le dit, sur l'accès qui suit
+/// la lecture de la version de schéma et sur ce que la lecture a lu, avant la migration : un
+/// fichier d'ajout lu, ou un voisin du fichier complet. Pupitre neuf (`pupitre_neuf` : ni
+/// fichier complet, ni voisin du fichier complet lu) : `None`. Les avertissements du démarrage
+/// (`VoisinRestant`, `NonDurable`) sont ceux du document ; un renommage du démarrage non rendu
+/// durable rend la compaction due. Une compaction qui échoue n'empêche pas d'ouvrir : son erreur
+/// vient en avertissement (`Avertissement::Compaction`), rien n'est perdu, et la compaction est
+/// due : l'écriture suivante retire ce qu'elle n'a pas retiré. Enfin, même en lecture seule,
+/// chaque nom provisoire de `captations/` dont le contenu donne une empreinte que nomme le
+/// document lu (`empreintes_nommees`) prend ce nom (`Captations::ranger_les_noms_provisoires`,
+/// § 31 · 6.1) ; ses avertissements (`NomProvisoireRestant`, `NonDurable`) rejoignent ceux du
+/// document, sans empêcher d'ouvrir. Une erreur du démarrage, de la lecture ou de la migration
+/// rend la garde : le document qui n'est pas rendu la rend à sa fin.
 ///
-/// `fonds()` l'appelle avec `MIGRATIONS`, et `fonds_selon`, sous la fonction `pannes`, avec la
-/// table que lui donne un test.
+/// `fonds()` l'appelle avec `MIGRATIONS`, et `fonds_selon`, sous la fonction `pannes`, avec les
+/// migrations que lui donne un test.
 pub(crate) fn rouvrir_le_fonds<'r>(
     racine: &'r RacineDesDonnees,
     migrations: &[Migration<'_>],
@@ -1004,7 +1005,7 @@ pub(crate) fn faire_naitre_le_fonds<'r>(
         avertissements,
         // § 31 · 2.4 : la naissance ne migre pas. Le fonds naît à la version de schéma de la
         // genèse, 1, qui n'est la version de schéma connue que tant que `MIGRATIONS` est vide :
-        // le jour où la table reçoit sa première migration, la naissance doit migrer, et
+        // le jour où `MIGRATIONS` reçoit sa première migration, la naissance doit migrer, et
         // `le_fonds_nait_a_la_version_de_schema_connue` (`tests/version.rs`) devient rouge.
         version_connue: version::connue(MIGRATIONS),
     })

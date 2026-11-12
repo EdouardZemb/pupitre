@@ -1,6 +1,6 @@
 //! Le schéma du fonds, provisoire jusqu'à la `v0.3.0` (§ 31 · 2.3, § 31 · 2.4) : les clés de
 //! la racine du document et de ses objets, les messages de la genèse et de la naissance, la
-//! genèse elle-même, en octets, et la table des migrations. Le noyau, qui calculera les
+//! genèse elle-même, en octets, et les migrations (`MIGRATIONS`). Le noyau, qui calculera les
 //! modifications des opérations nommées, et les adaptateurs `Documents` les trouvent ici ; le
 //! noyau ne lit pas ces octets.
 
@@ -43,7 +43,7 @@ pub const ACTEUR_DE_LA_GENESE: [u8; 16] = *b"pupitre-genese-1";
 #[rustfmt::skip]
 pub const GENESE: &[u8] = &[133, 111, 74, 131, 232, 226, 103, 51, 1, 96, 0, 16, 112, 117, 112, 105, 116, 114, 101, 45, 103, 101, 110, 101, 115, 101, 45, 49, 1, 1, 0, 16, 71, 101, 110, 195, 168, 115, 101, 32, 100, 117, 32, 102, 111, 110, 100, 115, 0, 6, 21, 32, 52, 1, 66, 4, 86, 4, 87, 1, 112, 2, 125, 17, 118, 101, 114, 115, 105, 111, 110, 95, 100, 101, 95, 115, 99, 104, 101, 109, 97, 5, 105, 100, 101, 101, 115, 6, 112, 114, 105, 115, 101, 115, 3, 127, 1, 2, 0, 127, 19, 2, 0, 1, 3, 0];
 
-/// La table des migrations du fonds (§ 31 · 2.4), dans l'ordre : la n-ième mène à la version de
-/// schéma n + 1. Vide : l'application ne connaît que la version de schéma 1, celle de la genèse.
+/// Les migrations du fonds (§ 31 · 2.4), dans l'ordre : la n-ième mène à la version de schéma
+/// n + 1. Aucune : l'application ne connaît que la version de schéma 1, celle de la genèse.
 /// Une migration publiée, portée par une étiquette, ne change plus.
 pub const MIGRATIONS: &[Migration<'static>] = &[];

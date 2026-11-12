@@ -1,7 +1,7 @@
 //! La version de schéma (§ 31 · 2.4) : ce que permet un document selon la version de schéma qu'il
 //! porte et celle que connaît l'application, et les migrations écrites d'avance qui le font passer
 //! de l'une à l'autre. L'adaptateur `Documents` lit la version de schéma, applique et écrit les
-//! migrations ; ces règles ne voient que les numéros, et la table.
+//! migrations ; ces règles ne voient que les numéros, et la suite des migrations.
 
 use std::cmp::Ordering;
 
@@ -50,14 +50,14 @@ pub fn lecture(version: Option<u64>, connue: u64) -> Lecture {
     }
 }
 
-/// La version de schéma que connaît l'application de la table `migrations` : 1 + le nombre de
-/// migrations. La table se suit : `vers` = 2, 3…
+/// La version de schéma que connaît l'application des migrations `migrations` : 1 + le nombre de
+/// migrations. Elles se suivent : `vers` = 2, 3…
 pub fn connue(migrations: &[Migration<'_>]) -> u64 {
     1 + migrations.len() as u64
 }
 
-/// Les migrations au-delà de `de`, dans l'ordre de la table : celles qui font passer un document
-/// de la version de schéma `de` à la version connue.
+/// Les migrations au-delà de `de`, dans l'ordre de la suite des migrations : celles qui font
+/// passer un document de la version de schéma `de` à la version de schéma connue.
 pub fn a_appliquer<'m, 'a>(migrations: &'m [Migration<'a>], de: u64) -> &'m [Migration<'a>] {
     let deja = migrations
         .iter()
