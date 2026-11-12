@@ -4,8 +4,9 @@
 //! plus récente se lit sans écrire, même relu du disque, et reçoit, sans transmettre aucune
 //! modification ; deux copies plus récentes ne s'échangent aucune modification ; une version de
 //! schéma illisible ouvre le fonds en lecture seule, et, reçue, prive d'échange une copie plus
-//! récente ; un fonds illisible ne migre pas ; une migration que le disque refuse n'ouvre pas le
-//! fonds.
+//! récente ; une copie plus récente qui reçoit la version de schéma connue le reste jusqu'à sa
+//! réouverture ; un fonds illisible ne migre pas ; une migration que le disque refuse n'ouvre pas
+//! le fonds.
 //!
 //! La migration de test est engendrée à l'exécution depuis la genèse (`migration_de_test`), et
 //! entre dans les migrations le temps du test, par `fonds_selon` ; `fonds()` ouvre selon les
@@ -627,6 +628,51 @@ fn une_copie_plus_recente_qui_recoit_une_version_de_schema_illisible_n_echange_p
     let dossier = dossier_du_fonds(&chemin_a);
     let avant = empreintes(&dossier);
     constater_la_lecture_seule(&mut a, &raison, &dossier, &avant);
+}
+
+#[test]
+fn une_copie_plus_recente_qui_recoit_la_version_de_schema_connue_le_reste() {
+    // B, migrée, connaît la version de schéma 2 ; A ne connaît que la version de schéma 1. Une
+    // première réunion fait passer A en lecture seule, d'une version de schéma plus récente ;
+    // puis B, entière, repose la version de schéma 1, qu'une seconde réunion porte à A. A reste
+    // plus récente, et ne redevient entière qu'à sa réouverture.
+    let (chemin_a, chemin_b) = deux_copies("version-recue-connue");
+    let m = migration_de_test();
+    let migrations = migrations_de_test(&m);
+    let racine_a = ouvrir(&chemin_a);
+    let racine_b = ouvrir(&chemin_b);
+    let mut b = ouvrir_le_fonds_selon(&racine_b, &migrations);
+    let mut a = ouvrir_le_fonds(&racine_a);
+    reunir(&mut a, &mut b);
+    let raison = LectureSeule::VersionPlusRecente { version: 2 };
+    assert_eq!(
+        a.lecture_seule(),
+        Some(&raison),
+        "A, qui a reçu la version de schéma 2, n'est pas plus récente"
+    );
+    faite(
+        ecrire(&mut b, |tx| {
+            tx.put(ROOT, VERSION_DE_SCHEMA, connue(MIGRATIONS))
+        }),
+        "B repose la version de schéma que connaît A",
+    );
+
+    reunir(&mut a, &mut b);
+
+    assert_eq!(
+        valeur(a.automerge(), &ROOT, VERSION_DE_SCHEMA),
+        ScalarValue::Uint(connue(MIGRATIONS)),
+        "A n'a pas reçu la version de schéma qu'elle connaît"
+    );
+    assert_eq!(
+        a.lecture_seule(),
+        Some(&raison),
+        "A, plus récente, redevient entière en recevant la version de schéma qu'elle connaît"
+    );
+    constater_le_refus_d_ecrire(&mut a, &raison);
+    drop(a);
+    // Rouverte, A lit la version de schéma qu'elle connaît : `ouvrir_le_fonds` l'exige entière.
+    drop(ouvrir_le_fonds(&racine_a));
 }
 
 #[test]
