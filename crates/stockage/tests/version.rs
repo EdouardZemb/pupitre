@@ -355,7 +355,7 @@ fn une_migration_que_le_disque_refuse_n_ouvre_pas_le_fonds() {
     }
 }
 
-// § 31 · 10, test 10 : une copie entière qui reçoit la version de schéma N + 1, ou la relit du disque, passe ou reste en lecture seule
+// § 31 · 10, test 10 : une copie plus récente relue du disque le reste
 #[test]
 fn une_copie_plus_recente_relue_du_disque_reste_en_lecture_seule() {
     // Une copie plus récente dont l'écriture d'une réception est refusée se relit du disque : la
@@ -409,7 +409,7 @@ fn une_copie_plus_recente_relue_du_disque_reste_en_lecture_seule() {
     constater_le_refus_d_ecrire(&mut a, &raison);
 }
 
-// § 31 · 10, test 10 : une copie entière qui reçoit la version de schéma N + 1, ou la relit du disque, passe ou reste en lecture seule
+// § 31 · 10, test 10 : une copie entière qui reçoit la version de schéma N + 1 passe en lecture seule
 #[test]
 fn une_copie_qui_recoit_une_version_de_schema_plus_recente_passe_en_lecture_seule() {
     // A ne connaît que la version de schéma 1 ; B, migrée, lui envoie la migration. Reçue, elle

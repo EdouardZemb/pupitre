@@ -34,8 +34,8 @@ fn map_et_table_sont_une_seule_sorte() {
     let teneur_de = |sorte: ObjType| {
         let mut doc = Automerge::new();
         let mut tx = doc.transaction();
-        // En automerge 0.12.0, une `Table` non vide ne se bâtit pas (`put` rend `NotAnObject`) et se
-        // lit vide : le test compare donc deux objets vides, une `Map` et une `Table`.
+        // En automerge 0.12.0, une `Table` non vide ne se bâtit pas (`put` rend `NotAnObject`) et
+        // se lit vide : le test compare donc deux objets vides, une `Map` et une `Table`.
         tx.put_object(ROOT, "m", sorte).unwrap();
         tx.commit();
         teneur(&doc).unwrap()
