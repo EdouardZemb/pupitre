@@ -1,15 +1,17 @@
 //! La version de schéma et les migrations (§ 31 · 2.4) : un fonds plus ancien migre à son
 //! ouverture, et la migration s'écrit en un fichier d'ajout, avec son message ; deux répliques
 //! qui migrent chacune de son côté écrivent la même modification ; un fonds de version de schéma
-//! plus récente se lit sans écrire, même relu du disque ; une version de schéma illisible ouvre
-//! le fonds en lecture seule ; un fonds illisible ne migre pas ; une migration que le disque
-//! refuse n'ouvre pas le fonds.
+//! plus récente se lit sans écrire, même relu du disque, et reçoit sans rien transmettre ; une
+//! version de schéma illisible ouvre le fonds en lecture seule ; un fonds illisible ne migre pas ;
+//! une migration que le disque refuse n'ouvre pas le fonds.
 //!
 //! La migration de test est engendrée à l'exécution depuis la genèse (`migration_de_test`), et
 //! entre dans la table le temps du test, par `fonds_selon` ; `fonds()` ouvre selon la table de
 //! l'application, vide, qui ne connaît que la version de schéma 1.
 
 mod commun;
+
+use std::fs;
 
 use automerge::transaction::{Transactable, Transaction};
 use automerge::{
@@ -18,14 +20,14 @@ use automerge::{
 use commun::{
     CONTENEUR_DE_LA_MIGRATION, constater_la_lecture_seule, copier_l_arbre, deux_copies,
     dossier_des_ajouts, dossier_du_fonds, dossier_jetable, ecrire, empreintes, entrees,
-    faire_naitre, faite, migration_de_test, migrations_de_test, noter, nouveaux, objet, octets,
-    ouvrir, ouvrir_le_fonds, ouvrir_le_fonds_tel_quel, ouvrir_les_echanges, porte_l_idee, reunir,
-    reunir_en_suivant_a,
+    faire_naitre, faite, lire_le_complet, migration_de_test, migrations_de_test, noter, nouveaux,
+    objet, octets, ouvrir, ouvrir_le_fonds, ouvrir_le_fonds_tel_quel, ouvrir_les_echanges,
+    porte_l_idee, reunir, reunir_en_suivant_a,
 };
 use noyau::donnees::fonds::{ACTEUR_DE_LA_GENESE, MIGRATIONS, VERSION_DE_SCHEMA};
 use noyau::donnees::version::{Migration, connue};
 use stockage::pannes::{Etape, couper};
-use stockage::{Avertissement, Document, Erreur, LectureSeule, RacineDesDonnees};
+use stockage::{Avertissement, Document, Erreur, LectureSeule, RacineDesDonnees, empreinte};
 
 /// Le message de la migration vers la version de schéma 2 (§ 31 · 2.4).
 const MESSAGE_DE_LA_MIGRATION: &str = "Fonds passé à la version de schéma 2";
@@ -478,6 +480,74 @@ fn une_copie_qui_recoit_une_version_plus_recente_passe_en_lecture_seule() {
         ajoutes.len(),
         1,
         "la réception écrit un fichier d'ajout, que rien ne fond : {ajoutes:?}"
+    );
+}
+
+// § 31 · 10, test 10 : la copie plus récente reçoit, et ne transmet aucune modification
+#[test]
+fn une_copie_plus_recente_recoit_sans_rien_transmettre() {
+    // A, migrée par une application qui connaît la version de schéma 2, se rouvre par `fonds()`,
+    // qui ne connaît que la version 1 ; B, qui ne connaît que la version 1, note idee-2. Réunie
+    // avec B, A reçoit idee-2 et l'écrit en fichiers d'ajout, sans se compacter ; B ne reçoit
+    // rien d'A, pas même la migration.
+    let (chemin_a, chemin_b) = deux_copies("version-recoit-sans-transmettre");
+    let m = migration_de_test();
+    let racine_a = ouvrir(&chemin_a);
+    let racine_b = ouvrir(&chemin_b);
+    drop(ouvrir_selon(&racine_a, &migrations_de_test(&m)));
+    let mut a = ouvrir_le_fonds_tel_quel(&racine_a);
+    assert_eq!(
+        a.lecture_seule(),
+        Some(&LectureSeule::VersionPlusRecente { version: 2 })
+    );
+    let mut b = ouvrir_le_fonds(&racine_b);
+    faite(
+        ecrire(&mut b, |tx| noter(tx, "idee-2", "Un pont en mineur")),
+        "B note idee-2",
+    );
+    let ajouts_a = dossier_des_ajouts(&chemin_a);
+    // Le fichier d'ajout de la migration y est déjà.
+    let avant = entrees(&ajouts_a);
+    let complet_d_avant = lire_le_complet(&chemin_a);
+
+    reunir(&mut a, &mut b);
+
+    assert!(
+        porte_l_idee(a.automerge(), "idee-2"),
+        "A ne porte pas l'idée reçue"
+    );
+    assert!(
+        lire_le_complet(&chemin_a) == complet_d_avant,
+        "le fichier complet d'A a changé pendant la réunion : A s'est compactée"
+    );
+    let apres = entrees(&ajouts_a);
+    assert!(
+        apres.len() > avant.len(),
+        "ajouts/ d'A n'a aucun fichier de plus : {avant:?}, puis {apres:?}"
+    );
+    for nom in nouveaux(&avant, &apres) {
+        let contenu = fs::read(ajouts_a.join(&nom)).expect("lire le fichier d'ajout");
+        assert_eq!(
+            nom,
+            format!("{}.automerge", empreinte(&contenu)),
+            "le nom du fichier d'ajout n'est pas l'empreinte de son contenu"
+        );
+    }
+    drop(a);
+    let a = ouvrir_le_fonds_tel_quel(&racine_a);
+    assert!(
+        porte_l_idee(a.automerge(), "idee-2"),
+        "A, rouverte, ne porte pas l'idée reçue"
+    );
+    assert_eq!(
+        migrations_dans(b.automerge()),
+        0,
+        "B a reçu une modification au message de la migration"
+    );
+    assert_eq!(
+        valeur(b.automerge(), &ROOT, VERSION_DE_SCHEMA),
+        ScalarValue::Uint(1),
+        "B n'est plus à la version de schéma 1"
     );
 }
 

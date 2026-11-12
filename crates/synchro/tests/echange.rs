@@ -1,6 +1,7 @@
 //! L'échange entre deux copies d'un document (§ 31 · 4.4, § 31 · 2.5) : deux copies d'une même
-//! lignée convergent par le protocole d'Automerge ; deux copies étrangères ne s'échangent rien ;
-//! un message illisible est refusé, et le document ne bouge pas.
+//! lignée convergent par le protocole d'Automerge ; une copie plus récente reçoit, et ne transmet
+//! aucune modification (§ 31 · 2.4) ; deux copies étrangères ne s'échangent rien ; un message
+//! illisible est refusé, et le document ne bouge pas.
 //!
 //! Les documents vivent en mémoire. Leur racine porte un propriétaire, un document et une lignée,
 //! sous les clés du fonds ; la seconde copie naît d'un `fork()` de la première.
@@ -111,8 +112,26 @@ fn reunir(
     distante: &mut Automerge,
     de_la_distante: &mut Echange,
 ) {
+    reunir_selon(
+        locale,
+        de_la_locale,
+        distante,
+        de_la_distante,
+        Echange::prochain_message,
+    );
+}
+
+/// La réunion de `reunir`, où la locale prépare chacun de ses messages par
+/// `message_de_la_locale`, et la distante par `Echange::prochain_message`.
+fn reunir_selon(
+    locale: &mut Automerge,
+    de_la_locale: &mut Echange,
+    distante: &mut Automerge,
+    de_la_distante: &mut Echange,
+    message_de_la_locale: impl Fn(&mut Echange, &Automerge) -> Option<Vec<u8>>,
+) {
     for _ in 0..TOURS_AU_PLUS {
-        let vers_la_distante = de_la_locale.prochain_message(locale);
+        let vers_la_distante = message_de_la_locale(de_la_locale, locale);
         let vers_la_locale = de_la_distante.prochain_message(distante);
         if vers_la_distante.is_none() && vers_la_locale.is_none() {
             return;
@@ -164,6 +183,36 @@ fn deux_copies_d_une_meme_lignee_convergent() {
             ["seule la distante l'écrit"]
         );
     }
+}
+
+// § 31 · 10, test 10 : la copie plus récente reçoit, et ne transmet aucune modification
+#[test]
+fn une_copie_n_plus_1_recoit_sans_rien_transmettre() {
+    // A, la copie plus récente, envoie ses messages sans aucune modification ; B, les siens par
+    // le protocole. Chacune a une modification que l'autre n'a pas : A reçoit celle de B, et B
+    // ne reçoit pas celle d'A.
+    let mut a = naitre(&copie(PROPRIETAIRE_1, DOCUMENT_1, LIGNEE_1));
+    let mut b = a.fork();
+    ecrire(&mut a, "a", "x");
+    ecrire(&mut b, "b", "y");
+    let mut de_a = Echange::ouvrir(&copie_de(&a), &copie_de(&b)).expect("ouvrir l'échange d'A");
+    let mut de_b = Echange::ouvrir(&copie_de(&b), &copie_de(&a)).expect("ouvrir l'échange de B");
+
+    // La réunion finit avant `TOURS_AU_PLUS` tours, quand ni A ni B n'envoie plus rien.
+    reunir_selon(
+        &mut a,
+        &mut de_a,
+        &mut b,
+        &mut de_b,
+        Echange::prochain_message_sans_modification,
+    );
+
+    assert_eq!(valeur_de(&b).get("a"), None, "B a reçu la modification d'A");
+    assert_eq!(
+        valeur_de(&a).get("b"),
+        Some(&vec!["y".to_string()]),
+        "A n'a pas reçu la modification de B"
+    );
 }
 
 #[test]
