@@ -94,7 +94,8 @@ fn rouvrir_relit_le_complet_puis_les_ajouts() {
     );
     let heads = fonds.automerge().get_heads();
     let valeur = fonds.automerge().hydrate(None);
-    // Le voisin d'une écriture qu'un processus n'a pas finie.
+    // Le voisin d'une écriture qu'un processus n'a pas finie : son contenu ne donne pas
+    // l'empreinte de son nom, et le démarrage le retire.
     let partiel =
         dossier_des_ajouts(&chemin).join(format!("{}.automerge.4242.partiel", "0".repeat(64)));
     fs::write(&partiel, b"une ecriture interrompue").expect("déposer le .partiel");
@@ -107,10 +108,9 @@ fn rouvrir_relit_le_complet_puis_les_ajouts() {
 
     assert_eq!(fonds.automerge().get_heads(), heads);
     assert_eq!(fonds.automerge().hydrate(None), valeur);
-    assert_eq!(
-        fs::read(&partiel).expect("relire le .partiel"),
-        b"une ecriture interrompue",
-        "le .partiel n'est plus tel qu'il a été déposé"
+    assert!(
+        !partiel.exists(),
+        "le .partiel non conforme déposé dans ajouts/ reste après la réouverture"
     );
 }
 
