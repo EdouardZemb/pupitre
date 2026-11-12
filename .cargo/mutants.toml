@@ -1,6 +1,7 @@
 # Le test de mutation du noyau (famille 3 des garde-fous de la méthode).
-# Neuf modules sont examinés : la théorie (hauteurs, tonalités, accords, table), la palette, le
-# clavier et la guitare, et les règles des données (la compaction et la comparaison des copies).
+# Dix modules sont examinés : la théorie (hauteurs, tonalités, accords, table), la palette, le
+# clavier et la guitare, et les règles des données (la compaction, l'accès d'un document et la
+# comparaison des copies).
 # Le rendu (`rendu/`) n'est pas examiné.
 examine_globs = [
     "crates/noyau/src/hauteur.rs",
@@ -10,11 +11,12 @@ examine_globs = [
     "crates/noyau/src/palette.rs",
     "crates/noyau/src/clavier.rs",
     "crates/noyau/src/guitare.rs",
+    "crates/noyau/src/donnees/acces.rs",
     "crates/noyau/src/donnees/compaction.rs",
     "crates/noyau/src/donnees/copie.rs",
 ]
 
-# Chaque mutant ne rejoue que les tests de ces neuf modules, et les tests unitaires : les tests du
+# Chaque mutant ne rejoue que les tests de ces dix modules, et les tests unitaires : les tests du
 # rendu dessinent les 48 pages de table, les 72 versos et les fiches de chaque case, et la suite
 # complète prend une minute et demie en debug, contre deux secondes et demie sans eux. Ils
 # appellent la théorie sans la vérifier : ses propres tests tuent tous ses mutants (0 survivant

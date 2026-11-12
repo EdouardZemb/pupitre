@@ -2,11 +2,13 @@
 //! `captations/<deux premiers caractères>/<empreinte>`, écrite une fois, jamais réécrite.
 
 use std::ffi::OsStr;
-use std::fs::{self, File, FileType};
-use std::io::{self, Write};
+use std::fs::{self, FileType};
+use std::io;
 use std::path::{Path, PathBuf};
 
-use crate::fichier::{rendre_durable, voisin};
+use crate::fichier::{
+    ecrire_et_synchroniser, lire, rendre_durable_apres_le_renommage, renommer, retirer, voisin,
+};
 use crate::{Erreur, RacineDesDonnees, disque};
 
 /// Les captations d'une racine des données ouverte, dans son dossier `captations/`.
@@ -29,9 +31,11 @@ impl Captations<'_> {
     /// rien écrire. Sinon, les octets s'écrivent sous le nom provisoire
     /// `voisin(captations/<empreinte>)`, synchronisé, fermé, puis relu contre l'empreinte ; le
     /// sous-dossier se crée au besoin, et, hors de Windows, `captations/` se synchronise alors ;
-    /// le nom provisoire est renommé à l'empreinte, et le renommage rendu durable. Un refus
-    /// avant la fin du renommage retire le nom provisoire, puis se rend :
-    /// [`Erreur::CaptationAlteree`] si la relecture ne donne pas l'empreinte.
+    /// le nom provisoire est renommé à l'empreinte, et le renommage rendu durable. Chaque étape
+    /// passe par sa fonction de `fichier`, comme une écriture à côté. Un refus avant la fin du
+    /// renommage retire le nom provisoire, puis se rend : [`Erreur::CaptationAlteree`] si la
+    /// relecture ne donne pas l'empreinte. Un refus de rendre le renommage durable arrive après
+    /// lui : il se rend, mais la captation est déjà rangée, entière.
     pub fn verser(&self, octets: &[u8]) -> Result<String, Erreur> {
         let e = crate::empreinte(octets);
         let rangee = self.chemin_de(&e);
@@ -45,10 +49,10 @@ impl Captations<'_> {
         if let Err(refus) = self.ranger(&provisoire, &rangee, octets, &e) {
             // Le nom provisoire peut ne pas être né : son retrait peut alors échouer, et le
             // refus rendu reste celui du rangement.
-            let _ = fs::remove_file(&provisoire);
+            let _ = retirer(&provisoire);
             return Err(refus);
         }
-        rendre_durable(&rangee).map_err(|erreur| disque(&rangee, erreur))?;
+        rendre_durable_apres_le_renommage(&rangee).map_err(|erreur| disque(&rangee, erreur))?;
         Ok(e)
     }
 
@@ -109,8 +113,8 @@ impl Captations<'_> {
         octets: &[u8],
         e: &str,
     ) -> Result<(), Erreur> {
-        ecrire(provisoire, octets).map_err(|erreur| disque(provisoire, erreur))?;
-        let relus = fs::read(provisoire).map_err(|erreur| disque(provisoire, erreur))?;
+        ecrire_et_synchroniser(provisoire, octets).map_err(|erreur| disque(provisoire, erreur))?;
+        let relus = lire(provisoire).map_err(|erreur| disque(provisoire, erreur))?;
         if crate::empreinte(&relus) != e {
             return Err(Erreur::CaptationAlteree {
                 empreinte: e.to_string(),
@@ -121,14 +125,16 @@ impl Captations<'_> {
             Ok(()) => {
                 // Hors de Windows, le sous-dossier né ne survit à une coupure qu'une fois
                 // `captations/` synchronisé : `rendre_durable` synchronise le dossier de son
-                // chemin. Un dossier ne se synchronise pas sous Windows.
+                // chemin. Un dossier ne se synchronise pas sous Windows. Ce n'est pas le
+                // renommage rendu durable : aucune panne ne s'y injecte.
                 #[cfg(not(windows))]
-                rendre_durable(sous_dossier).map_err(|erreur| disque(&self.dossier(), erreur))?;
+                crate::fichier::rendre_durable(sous_dossier)
+                    .map_err(|erreur| disque(&self.dossier(), erreur))?;
             }
             Err(erreur) if erreur.kind() == io::ErrorKind::AlreadyExists => {}
             Err(erreur) => return Err(disque(sous_dossier, erreur)),
         }
-        fs::rename(provisoire, rangee).map_err(|erreur| disque(rangee, erreur))
+        renommer(provisoire, rangee).map_err(|erreur| disque(rangee, erreur))
     }
 
     /// Le dossier `captations/` de la racine des données.
@@ -140,13 +146,6 @@ impl Captations<'_> {
     fn chemin_de(&self, e: &str) -> PathBuf {
         self.dossier().join(&e[..2]).join(e)
     }
-}
-
-/// Écrit `octets` dans `chemin`, le synchronise (`sync_all`), puis le ferme.
-fn ecrire(chemin: &Path, octets: &[u8]) -> io::Result<()> {
-    let mut fichier = File::create(chemin)?;
-    fichier.write_all(octets)?;
-    fichier.sync_all()
 }
 
 /// 64 caractères hexadécimaux minuscules : le seul nom que porte une captation.

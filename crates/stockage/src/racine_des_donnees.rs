@@ -1,7 +1,9 @@
 //! La racine des données d'un fonds et son verrou (§ 31 · 2.1).
 
 use std::fs::{self, File, OpenOptions, TryLockError};
+use std::mem;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use automerge::AutomergeError;
 use automerge::transaction::Transaction;
@@ -16,6 +18,29 @@ pub struct RacineDesDonnees {
     /// Le fichier `verrou`, tenu ouvert : le système lève le verrou quand il se ferme, donc
     /// quand la racine des données se ferme, et aussi à un arrêt brutal.
     _verrou: File,
+    /// Un [`Document`] du fonds vit dans ce processus. Un `AtomicBool`, pour que la racine des
+    /// données reste `Sync` (l'état de l'application, en tranche 3).
+    fonds_ouvert: AtomicBool,
+}
+
+/// La garde du fonds, tenue le temps d'une ouverture : tant que le [`Document`] n'est pas né,
+/// elle se rend d'elle-même à la fin de la portée, quelle que soit la sortie (`Err`, `Ok(None)`).
+/// Le [`Document`] la reprend par [`Garde::passer_au_document`] et la rend à sa fin.
+pub(crate) struct Garde<'r> {
+    racine: &'r RacineDesDonnees,
+}
+
+impl Garde<'_> {
+    /// Le document né tient la garde : il la rendra à sa fin, pas cette garde-ci.
+    pub(crate) fn passer_au_document(self) {
+        mem::forget(self);
+    }
+}
+
+impl Drop for Garde<'_> {
+    fn drop(&mut self) {
+        self.racine.rendre_la_garde();
+    }
 }
 
 impl RacineDesDonnees {
@@ -46,7 +71,23 @@ impl RacineDesDonnees {
         Ok(RacineDesDonnees {
             chemin: chemin.to_path_buf(),
             _verrou: verrou,
+            fonds_ouvert: AtomicBool::new(false),
         })
+    }
+
+    /// Prend la garde du fonds (`compare_exchange(false, true)`) : un seul [`Document`] à la
+    /// fois. Prise, elle est à qui l'a prise ; sinon [`Erreur::FondsDejaOuvert`], et la garde
+    /// reste à son titulaire.
+    pub(crate) fn prendre_la_garde(&self) -> Result<Garde<'_>, Erreur> {
+        self.fonds_ouvert
+            .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
+            .map_err(|_| Erreur::FondsDejaOuvert)?;
+        Ok(Garde { racine: self })
+    }
+
+    /// Rend la garde : à n'appeler que pour la garde qu'on a prise.
+    pub(crate) fn rendre_la_garde(&self) {
+        self.fonds_ouvert.store(false, Ordering::Release);
     }
 
     /// Le chemin de la racine des données, tel qu'il a été reçu.
@@ -60,19 +101,27 @@ impl RacineDesDonnees {
     }
 
     /// Le fonds, rouvert s'il est né (son `complet.automerge` existe) ; sinon `None`. Le fichier
-    /// complet se lit, puis chaque fichier d'ajout (`load_incremental`) ; chaque ouverture tire
-    /// un acteur neuf (`set_actor(ActorId::random())`) ; puis le fonds se compacte quand
-    /// `a_l_ouverture` le dit, c'est-à-dire dès qu'il a un fichier d'ajout.
+    /// complet se lit, puis chaque fichier d'ajout, dans l'ordre des noms (`load_incremental`) ;
+    /// chaque ouverture tire un acteur neuf (`set_actor(ActorId::random())`) ; puis le fonds se
+    /// compacte quand `a_l_ouverture` le dit, c'est-à-dire dès qu'il a un fichier d'ajout, s'il
+    /// écrit.
     ///
-    /// Un fichier d'ajout dont le contenu ne donne pas l'empreinte de son nom rend
-    /// [`Erreur::AjoutAltere`] ; une modification qui attend encore ses dépendances, tout lu,
-    /// [`Erreur::DependancesManquantes`] ; un fichier qu'Automerge ne lit pas,
-    /// [`Erreur::Automerge`]. Une compaction qui échoue fait échouer l'ouverture, avec son erreur.
+    /// Un fichier illisible ouvre le fonds en lecture seule ([`Document::lecture_seule`]), en se
+    /// nommant : le fonds montre ce qui se lit, n'écrit ni ne se compacte, n'envoie ni ne reçoit.
+    /// C'est un fichier complet vide, ou qu'`Automerge::load` refuse (`CompletIllisible`) ; un
+    /// fichier d'ajout dont le contenu ne donne pas l'empreinte de son nom (`AjoutAltere`), ou que
+    /// `load_incremental` refuse (`AjoutIllisible`) ; tout lu, une modification qui attend encore
+    /// ses dépendances (`DependancesManquantes`). La première raison trouvée l'emporte, dans cet
+    /// ordre. Un refus du disque à la lecture rend [`Erreur::Disque`]. Une compaction qui échoue
+    /// n'empêche pas d'ouvrir : son erreur vient en avertissement ([`Document::avertissements`]),
+    /// rien n'est perdu, et l'écriture suivante la retente, et retire ce qu'elle n'a pas retiré.
     ///
     /// Un seul [`Document`] du fonds doit vivre à la fois : chacun se compacte de sa seule
     /// mémoire, et deux `Document` qui écrivent puis se compactent perdent les écritures de l'un.
     /// Le verrou de la racine des données écarte les autres processus, pas un second `Document`
-    /// du même processus ; le lot 1 pose la garde.
+    /// du même processus : la garde de la racine des données s'en charge. Un `Document` déjà
+    /// vivant : [`Erreur::FondsDejaOuvert`], avant toute lecture. La garde se prend avant la
+    /// lecture et se rend si elle rend `Err` ou `None` ; le `Document` la rend à sa fin.
     pub fn fonds(&self) -> Result<Option<Document<'_>>, Erreur> {
         documents::rouvrir_le_fonds(self)
     }
@@ -80,9 +129,13 @@ impl RacineDesDonnees {
     /// § 31 · 2.3 : `GENESE`, la naissance (`MESSAGE_DE_LA_NAISSANCE`, qui écrit `IDENTIFIANT`,
     /// `LIGNEE` et `PROPRIETAIRE`), puis le premier geste, avec son message ; les trois en un
     /// seul fichier, `documents/fonds/complet.automerge`, écrit à côté puis renommé, et
-    /// `documents/fonds/ajouts/` créé. Le geste refusé, rien ne s'écrit.
+    /// `documents/fonds/ajouts/` créé. Le geste refusé, rien ne s'écrit. Le fichier complet
+    /// refusé avant la fin de son renommage rend [`Erreur::Disque`], et seul `ajouts/` reste,
+    /// vide ; en place, mais son renommage non rendu durable, le fonds naît, avec cet
+    /// avertissement ([`Document::avertissements`]).
     ///
-    /// Un fonds déjà né rend [`Erreur::FondsDejaNe`], sans que le geste soit fait.
+    /// Un fonds déjà né rend [`Erreur::FondsDejaNe`], sans que le geste soit fait. Un `Document`
+    /// du fonds déjà vivant rend [`Erreur::FondsDejaOuvert`], avant toute lecture.
     pub fn faire_naitre_le_fonds(
         &self,
         naissance: &Naissance<'_>,

@@ -198,7 +198,9 @@ de tête (§ 2.4) : le [glossaire](80-glossaire.md#les-données) les distingue.
   sont pas encore lues.
 - **Chaque fichier s'écrit à côté, puis prend sa place**, comme l'export du cahier des tables
   (`app/src-tauri/src/lib.rs`) : un fichier voisin, `<nom>.<processus>.partiel`, est écrit,
-  synchronisé sur le disque, fermé, puis renommé. Hors de Windows, le dossier est synchronisé
+  synchronisé sur le disque, fermé, relu, puis renommé. Relu, il doit rendre les octets
+  écrits ; sinon, il ne prend pas la place. L'export du cahier, lui, ne relit pas son
+  voisin. Hors de Windows, le dossier est synchronisé
   à son tour, pour que le renommage survive à une coupure. Un fichier est donc entier, ou
   absent. Sous Windows, où un dossier ne se synchronise pas, le fichier est renommé par
   `std::fs::rename`, qui remplace au besoin un fichier complet existant, puis rouvert en
@@ -214,19 +216,34 @@ de tête (§ 2.4) : le [glossaire](80-glossaire.md#les-données) les distingue.
   par-dessus celui qu'elle fond : le numéro d'un processus se réemploie d'un lancement à
   l'autre, et un nom déjà pris reçoit un suffixe (`<nom>.<processus>-2.partiel`, `-3`…).
   Tout autre `.partiel` de `documents/` est retiré. Le nom provisoire d'une captation suit le § 6.1 : il n'est jamais retiré d'office.
-  Une opération refusée retire son voisin avant de dire son refus, comme l'export du cahier.
-- **Une opération nommée n'est faite qu'une fois son fichier d'ajout en place**, ou, à la
+  Une opération refusée ôte son voisin avant de dire son refus : elle le vide, rend ce vide
+  durable (`sync_all`, sous chaque système), puis le retire ; l'export du cahier, lui, retire
+  le sien sans le vider. Un retrait qui échoue, ou qu'une coupure perd, laisse ainsi un voisin
+  vide : vide, il ne se lit pas, et ne prend pas la place au démarrage. Seule une double
+  panne, un voisin dont le vide n'a pu être rendu durable et dont le retrait échoue ou se
+  perd, peut faire paraître une opération refusée à la relance.
+- **Une opération nommée n'est faite qu'une fois son fichier d'ajout renommé**, ou, à la
   naissance d'un document, son premier fichier complet (§ 2.3), et la commande ne répond
-  qu'alors ([ADR-022](adr/adr-022-documents-cote-natif.md)). Si
-  l'écriture échoue, l'opération est refusée, le refus se dit, et le document se relit du
-  disque : la mémoire ne garde jamais une écriture que le disque n'a pas. Une opération sur
-  deux documents suit le § 3 : si la seconde écriture échoue, la première reste, Pupitre le
-  dit, et le contrôle au démarrage répare la référence manquante. Un document n'est lu par la
-  synchronisation qu'entre deux opérations : une modification ne part vers le nœud qu'une
-  fois son fichier d'ajout en place, ou, à la naissance d'un document, son premier fichier
-  complet. De même, ce que la synchronisation reçoit ne l'est qu'une fois écrit, en un fichier
-  d'ajout (`save_after` des *heads* d'avant la réception), avant que l'échange ne continue ; un
-  message qui n'apporte rien n'écrit rien.
+  qu'alors ([ADR-022](adr/adr-022-documents-cote-natif.md)). Son écriture a trois issues :
+  faite ; faite, avec un avertissement, quand son renommage n'a pas été rendu durable, ou que
+  la compaction qui la suit échoue (§ 2.2), ce qui ne la défait pas ; ou refusée, quand elle
+  échoue avant la fin du renommage. Refusée, l'opération ôte son voisin, le refus se dit,
+  et le document se relit du disque, avec un acteur neuf : la mémoire ne garde jamais une
+  écriture que le disque n'a pas. Une relecture du disque qui échoue met le document en
+  lecture seule, sur sa mémoire d'avant l'opération refusée. Le premier fichier complet et une
+  migration (§ 2.4) s'écrivent de même, faits, faits avec un avertissement, ou refusés ;
+  refusé, le premier fichier complet laisse Pupitre neuf (§ 2.3). Ces trois issues précisent
+  l'[ADR-023](adr/adr-023-stockage-des-documents.md), qui ne change pas : un fichier « en
+  place » y est un fichier renommé (la question C2 du [registre](registre.md), LE-12,
+  tranchée le 2026-11-09). Une opération sur deux documents suit le § 3 : si la seconde
+  écriture échoue, la première reste, Pupitre le dit, et le contrôle au démarrage répare la
+  référence manquante. Un document n'est lu par la synchronisation qu'entre deux opérations :
+  une modification ne part vers le nœud qu'une fois son fichier d'ajout renommé, ou, à la
+  naissance d'un document, son premier fichier complet. De même, ce que la synchronisation
+  reçoit ne l'est qu'une fois écrit, en un fichier d'ajout (`save_after` des *heads* d'avant
+  la réception), avant que l'échange ne continue, avec les trois issues d'une opération ; un
+  message qui n'apporte rien n'écrit rien. Une réception dont l'écriture est refusée relance
+  en outre l'échange, pour que l'autre copie renvoie ce que la relecture a ôté.
 - **Le message d'une opération nommée** est celui de sa modification Automerge, qui porte
   aussi son heure : le journal se lit dans l'historique (§ 3).
 - **Chaque ouverture d'un document tire un acteur neuf.** Un acteur, au sens d'Automerge, est
@@ -241,7 +258,12 @@ de tête (§ 2.4) : le [glossaire](80-glossaire.md#les-données) les distingue.
   refuse un tronçon (*chunk*) altéré. `load_incremental` ne sert jamais seul de contrôle : il
   s'arrête sans erreur au premier tronçon altéré. Une fois tout lu, aucune modification
   n'attend ses dépendances (`get_missing_deps(&[])` est vide). Sinon, le document s'ouvre en
-  lecture seule, sur ce qui se lit, et un bandeau nomme le fichier. La réparation vient du
+  lecture seule, sur ce qui se lit, et un bandeau nomme le fichier. Les deux lectures seules
+  se nomment : illisible, devant un fichier qui ne se lit pas, une relecture du disque
+  manquée (ci-dessus), ou une version de schéma absente, nulle, ou qui n'est pas un entier non
+  signé ; et plus récente, devant une version de schéma plus récente (§ 2.4). Ni l'une ni
+  l'autre n'écrit d'opération ni ne se compacte. Illisible, le document n'envoie ni ne
+  reçoit ; plus récent, il reçoit, et ne transmet aucune modification. La réparation vient du
   nœud ou, sans lui, de l'archive complète. Le bandeau du document en lecture seule propose
   alors de repartir de l'archive. Pupitre ferme la racine des données : chaque fichier qu'il y
   tient, la prise que sert le protocole des captations comprise, puis le fichier du verrou,
@@ -272,10 +294,11 @@ de tête (§ 2.4) : le [glossaire](80-glossaire.md#les-données) les distingue.
 
 ```mermaid
 flowchart LR
-  O["Opération nommée<br/>une modification atomique"] --> V["Fichier voisin<br/>écrit, synchronisé, fermé"]
+  O["Opération nommée<br/>une modification atomique"] --> V["Fichier voisin<br/>écrit, synchronisé, fermé, relu"]
   V --> R["Renommé<br/>fichier d'ajout"]
   R --> F["La commande répond<br/>opération faite"]
   V -.->|"échec"| X["Opération refusée<br/>document relu du disque"]
+  R -.->|"rendre durable refusé, compaction en échec"| A["Opération faite, avec un avertissement"]
   R --> C{"Ajouts plus lourds que le fichier complet,<br/>ou plus de cent ?"}
   C -->|"oui"| K["Compaction<br/>fichier complet réécrit et relu,<br/>ajouts absorbés retirés"]
 ```
@@ -291,12 +314,17 @@ complet.
 2. Elle enregistre le document entier, historique compris, relit en mémoire ce qu'elle a
    enregistré, et vérifie qu'il mène au même point de l'histoire que le document en mémoire.
    Sinon elle n'écrit rien, et l'ancien fichier complet reste en place.
-3. Elle l'écrit dans un fichier complet neuf, à côté puis renommé (§ 2.1), puis relit ce
-   fichier, et vérifie qu'il rend les octets écrits.
+3. Elle l'écrit dans un voisin, synchronisé, fermé, puis relu, qui doit rendre les octets
+   écrits, et seulement alors renommé en fichier complet (§ 2.1).
 4. Elle retire alors les seuls fichiers d'ajout dont chaque modification est dans le fichier
    complet relu, et, aux mêmes conditions, le voisin du fichier complet qu'elle a fondu. Un
    fichier illisible, ou dont une modification attend ses dépendances, n'est
    jamais retiré. Une écriture arrivée entre-temps garde le sien.
+
+Une compaction qui échoue, à l'ouverture ou après une écriture, n'empêche ni d'ouvrir ni
+d'écrire : elle avertit, ne perd rien, laisse en place ce qu'elle n'a pas retiré, et se
+retente à l'écriture suivante. Un retrait interrompu laisse des fichiers absorbés, que la
+compaction suivante retire.
 
 Elle ne retire jamais d'histoire : un fichier complet porte toutes les modifications du
 document, et le journal et le retour avant une opération (§ 3) restent entiers. Coupée à

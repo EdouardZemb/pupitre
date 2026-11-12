@@ -3,10 +3,12 @@
 mod commun;
 
 use std::fs;
+use std::io;
 use std::path::PathBuf;
 
-use commun::entrees;
-use stockage::fichier::{ecrire_a_cote, voisin};
+use commun::{dossier_jetable, entrees};
+use stockage::fichier::{Echec, ecrire_a_cote, voisin};
+use stockage::pannes::{self, Etape};
 
 #[test]
 fn le_voisin_porte_le_numero_du_processus() {
@@ -61,7 +63,7 @@ fn un_renommage_refuse_retire_le_voisin() {
     let rendu = ecrire_a_cote(&chemin, &commun::octets(5, 256));
 
     assert!(
-        rendu.is_err(),
+        matches!(rendu, Err(Echec::Refusee(_))),
         "un fichier ne prend pas la place d'un dossier : rendu {rendu:?}"
     );
     assert!(chemin.is_dir(), "le dossier a disparu");
@@ -71,4 +73,86 @@ fn un_renommage_refuse_retire_le_voisin() {
         garde
     );
     assert_eq!(entrees(&d), ["complet.automerge"], "un .partiel reste");
+}
+
+// § 31 · 10, test 8 : interrompre une écriture à chaque étape
+#[test]
+fn ecrire_a_cote_coupee_a_chaque_etape() {
+    // Avant la fin du renommage : refusée, le fichier garde ce qu'il portait, et le voisin est
+    // retiré.
+    for (i, etape) in [
+        Etape::VoisinEcrit,
+        Etape::SyncAll,
+        Etape::Relecture,
+        Etape::Renommage,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let d = dossier_jetable(&format!("fichier-coupee-{i}"));
+        let chemin = d.join("complet.automerge");
+        fs::write(&chemin, b"avant").unwrap();
+        let _panne = pannes::couper(etape, 1);
+        assert!(
+            matches!(ecrire_a_cote(&chemin, b"apres"), Err(Echec::Refusee(_))),
+            "{etape:?}"
+        );
+        assert_eq!(fs::read(&chemin).unwrap(), b"avant", "{etape:?}");
+        assert_eq!(entrees(&d), ["complet.automerge"], "{etape:?}");
+    }
+
+    // Après le renommage : non durable, le fichier porte déjà ses nouveaux octets, et il n'y a
+    // plus de voisin.
+    let d = dossier_jetable("fichier-coupee-rendre-durable");
+    let chemin = d.join("complet.automerge");
+    fs::write(&chemin, b"avant").unwrap();
+    let _panne = pannes::couper(Etape::RendreDurable, 1);
+    let rendu = ecrire_a_cote(&chemin, b"apres");
+    assert!(
+        matches!(rendu, Err(Echec::NonDurable(_))),
+        "RendreDurable : rendu {rendu:?}"
+    );
+    assert_eq!(fs::read(&chemin).unwrap(), b"apres");
+    assert_eq!(entrees(&d), ["complet.automerge"], "un voisin reste");
+}
+
+// § 31 · 10, test 8 : renommage refusé, le voisin est retiré ; sa double panne le vide
+#[test]
+fn un_voisin_qui_ne_se_retire_pas_se_vide() {
+    let d = dossier_jetable("fichier-voisin-vide");
+    let chemin = d.join("complet.automerge");
+    fs::write(&chemin, b"avant").unwrap();
+    let _renommage = pannes::couper(Etape::Renommage, 1);
+    let _retrait = pannes::couper(Etape::Retrait, 1);
+
+    let rendu = ecrire_a_cote(&chemin, b"apres");
+
+    assert!(matches!(rendu, Err(Echec::Refusee(_))), "rendu {rendu:?}");
+    assert_eq!(fs::read(&chemin).unwrap(), b"avant");
+    // Le voisin, nommé en clair et non par `voisin()`, dont le nom pourra prendre un suffixe
+    // quand il est déjà pris (§ 31 · 2.1).
+    let partiel =
+        chemin.with_file_name(format!("complet.automerge.{}.partiel", std::process::id()));
+    assert!(partiel.is_file(), "le voisin qui ne se retire pas reste");
+    assert_eq!(
+        fs::metadata(&partiel).expect("lire le voisin").len(),
+        0,
+        "le voisin qui ne se retire pas se vide"
+    );
+}
+
+// LE-10, § 31 · 2.2, point 3 : un voisin relu qui ne rend pas les octets écrits ne prend pas la place
+#[test]
+fn un_voisin_relu_autre_ne_prend_pas_la_place() {
+    let d = dossier_jetable("fichier-relu-autre");
+    let chemin = d.join("complet.automerge");
+    fs::write(&chemin, b"avant").unwrap();
+    let _alteration = pannes::alterer_la_relecture(1);
+
+    match ecrire_a_cote(&chemin, b"apres") {
+        Err(Echec::Refusee(e)) => assert_eq!(e.kind(), io::ErrorKind::InvalidData, "{e:?}"),
+        autre => panic!("attendu Refusee, rendu {autre:?}"),
+    }
+    assert_eq!(fs::read(&chemin).unwrap(), b"avant");
+    assert_eq!(entrees(&d), ["complet.automerge"], "un voisin reste");
 }

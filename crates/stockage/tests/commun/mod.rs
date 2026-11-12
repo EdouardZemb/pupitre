@@ -1,10 +1,14 @@
 //! Les aides des tests du stockage, écrites une seule fois : la naissance, l'heure et le message
 //! des tests, le dossier jetable de chaque test, ce que contient un dossier et l'empreinte de
-//! chacun de ses fichiers, des octets engendrés au lieu d'un fichier, un texte long, la copie
-//! d'un arbre de fichiers, l'ouverture de la racine des données et du fonds, la naissance du
-//! fonds et ses deux copies, l'écriture des tests, les chemins du fonds et des captations, la
-//! réunion de deux copies, la relecture du dossier du fonds, l'objet à clés que porte une clé,
-//! et les gestes de test sur le fonds.
+//! chacun de ses fichiers, des octets engendrés au lieu d'un fichier, un texte long, la copie d'un
+//! arbre de fichiers, l'ouverture de la racine des données et du fonds, entier ou tel qu'il
+//! s'ouvre, la naissance du fonds et ses deux copies, un fonds bâti sans racine des données,
+//! l'écriture des tests, avec ou sans son message et son heure, l'écriture faite sans
+//! avertissement, les chemins du fonds et des captations, les échanges de deux copies et leur
+//! réunion, la relecture du dossier du fonds, l'objet à clés que porte une clé, l'idée que porte
+//! le fonds, les noms nouveaux d'un dossier, le fichier d'ajout qu'une écriture ou une réception
+//! ajoute, l'octet du milieu d'un fichier changé, ce que refuse un document en lecture seule, et
+//! les gestes de test sur le fonds.
 
 // Chaque fichier de test n'emploie qu'une partie des aides.
 #![allow(dead_code)]
@@ -14,11 +18,17 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use automerge::transaction::{Transactable, Transaction};
-use automerge::{Automerge, AutomergeError, ObjId, ObjType, ROOT, ReadDoc, Value};
-use noyau::donnees::fonds::{ETIQUETTES, FORMAT, IDEE, IDEES, PRISES, TEXTE};
-use stockage::{Document, Erreur, Naissance, RacineDesDonnees, empreinte};
-use synchro::Echange;
+use automerge::transaction::{CommitOptions, Transactable, Transaction};
+use automerge::{
+    ActorId, Automerge, AutomergeError, Change, ChangeHash, ObjId, ObjType, ROOT, ReadDoc, Value,
+};
+use noyau::donnees::fonds::{
+    ETIQUETTES, FORMAT, GENESE, IDEE, IDEES, MESSAGE_DE_LA_NAISSANCE, PRISES, TEXTE,
+};
+use stockage::{
+    Avertissement, Document, Erreur, LectureSeule, Naissance, RacineDesDonnees, empreinte,
+};
+use synchro::{Copie, Echange};
 
 /// La naissance des tests : des identifiants écrits, jamais tirés.
 pub const NAISSANCE: Naissance<'static> = Naissance {
@@ -153,8 +163,26 @@ pub fn ouvrir(chemin: &Path) -> RacineDesDonnees {
     })
 }
 
-/// Le fonds de `racine`, rouvert.
+/// Le fonds de `racine`, rouvert entier : ni en lecture seule, ni avec un avertissement. Un test
+/// qui attend l'un ou l'autre l'ouvre par `ouvrir_le_fonds_tel_quel`.
 pub fn ouvrir_le_fonds(racine: &RacineDesDonnees) -> Document<'_> {
+    let fonds = ouvrir_le_fonds_tel_quel(racine);
+    assert_eq!(
+        fonds.lecture_seule(),
+        None,
+        "le fonds rouvert est en lecture seule"
+    );
+    assert!(
+        fonds.avertissements().is_empty(),
+        "le fonds rouvert a des avertissements : {:?}",
+        fonds.avertissements()
+    );
+    fonds
+}
+
+/// Le fonds de `racine`, rouvert tel qu'il s'ouvre : en lecture seule, ou avec des
+/// avertissements, s'il en a.
+pub fn ouvrir_le_fonds_tel_quel(racine: &RacineDesDonnees) -> Document<'_> {
     racine
         .fonds()
         .expect("rouvrir le fonds")
@@ -162,12 +190,19 @@ pub fn ouvrir_le_fonds(racine: &RacineDesDonnees) -> Document<'_> {
 }
 
 /// Le fonds né d'une idée au texte long : `idee-1`, `texte_long()`, `MESSAGE_DU_GESTE`, `HEURE`.
+/// Il naît sans avertissement.
 pub fn faire_naitre(racine: &RacineDesDonnees) -> Document<'_> {
-    racine
+    let fonds = racine
         .faire_naitre_le_fonds(&NAISSANCE, MESSAGE_DU_GESTE, HEURE, |tx| {
             noter(tx, "idee-1", &texte_long())
         })
-        .expect("faire naître le fonds")
+        .expect("faire naître le fonds");
+    assert!(
+        fonds.avertissements().is_empty(),
+        "le fonds est né avec des avertissements : {:?}",
+        fonds.avertissements()
+    );
+    fonds
 }
 
 /// Le fonds né (`faire_naitre`) dans `<dossier jetable>/a`, fermé, puis copié dans `<…>/b` : A, B.
@@ -184,17 +219,64 @@ pub fn deux_copies(nom: &str) -> (PathBuf, PathBuf) {
     (a, b)
 }
 
-/// Le chemin d'écriture des tests nouveaux du stockage : quand l'écriture changera de forme, il
-/// changera seul. Les tests d'H07 écrivent par `Document::ecrire`. Écrit
-/// `geste` dans `document`, sous le message `MESSAGE_DU_GESTE`, à l'heure `HEURE`.
+/// Un fonds que le test bâtit en mémoire, sans racine des données : la genèse, puis une naissance
+/// qui écrit chaque couple (clé, chaîne) de `champs` à la racine du document, sous
+/// `MESSAGE_DE_LA_NAISSANCE`, à l'heure `HEURE`, par l'acteur `acteur`.
+pub fn batir_un_fonds(acteur: ActorId, champs: &[(&str, &str)]) -> Automerge {
+    let mut bati = Automerge::new();
+    bati.set_actor(acteur);
+    bati.apply_changes([Change::try_from(GENESE).expect("lire la genèse")])
+        .expect("appliquer la genèse");
+    let mut tx = bati.transaction();
+    for &(cle, valeur) in champs {
+        tx.put(ROOT, cle, valeur)
+            .expect("écrire un champ de la naissance");
+    }
+    tx.commit_with(
+        CommitOptions::default()
+            .with_message(MESSAGE_DE_LA_NAISSANCE)
+            .with_time(HEURE),
+    );
+    bati
+}
+
+/// Le chemin d'écriture des tests nouveaux du stockage, avec `ecrire_a` qu'il appelle : quand
+/// l'écriture changera de forme, il changera seul. Les tests d'H07 écrivent par
+/// `Document::ecrire`. Écrit `geste` dans `document`, sous le message `MESSAGE_DU_GESTE`, à
+/// l'heure `HEURE`, et rend ce que rend l'écriture : faite (`None`), faite avec un
+/// avertissement, ou refusée.
 // L'erreur est celle de `Document::ecrire`, que l'aide rend telle quelle. Clippy épargne la
 // méthode, exportée par le stockage, mais pas l'aide, qui ne l'est pas.
 #[allow(clippy::result_large_err)]
 pub fn ecrire(
     document: &mut Document<'_>,
     geste: impl FnOnce(&mut Transaction<'_>) -> Result<(), AutomergeError>,
-) -> Result<(), Erreur> {
-    document.ecrire(MESSAGE_DU_GESTE, HEURE, geste)
+) -> Result<Option<Avertissement>, Erreur> {
+    ecrire_a(document, MESSAGE_DU_GESTE, HEURE, geste)
+}
+
+/// L'écriture d'`ecrire`, sous le message `message`, à l'heure `heure` : le chemin d'écriture
+/// des tests nouveaux qui donnent à chaque écriture son message et son heure.
+// L'erreur est rendue telle quelle, comme par `ecrire`.
+#[allow(clippy::result_large_err)]
+pub fn ecrire_a(
+    document: &mut Document<'_>,
+    message: &str,
+    heure: i64,
+    geste: impl FnOnce(&mut Transaction<'_>) -> Result<(), AutomergeError>,
+) -> Result<Option<Avertissement>, Erreur> {
+    document.ecrire(message, heure, geste)
+}
+
+/// L'écriture `quoi`, que `rendu` dit, est faite sans avertissement : `Ok(None)`. Les écritures
+/// des tests d'H07 l'exigent : aucune panne n'y est armée, et un avertissement y est un verdict à
+/// instruire, comme un refus.
+#[track_caller]
+pub fn faite(rendu: Result<Option<Avertissement>, Erreur>, quoi: &str) {
+    assert!(
+        matches!(rendu, Ok(None)),
+        "{quoi} : attendu l'écriture faite, sans avertissement ; rendu {rendu:?}"
+    );
 }
 
 /// `documents/fonds/`, dans la racine des données `racine_des_donnees`.
@@ -226,23 +308,59 @@ pub fn rangee(racine_des_donnees: &Path, e: &str) -> PathBuf {
     racine_des_donnees.join("captations").join(&e[..2]).join(e)
 }
 
+/// Les échanges de deux copies, vus de chacune : celui d'`a` avec `b`, puis celui de `b` avec `a`.
+pub fn ouvrir_les_echanges(a: &Document<'_>, b: &Document<'_>) -> (Echange, Echange) {
+    let copie_a = a.copie().expect("la copie d'A");
+    let copie_b = b.copie().expect("la copie de B");
+    let ea = Echange::ouvrir(&copie_a, &copie_b).expect("ouvrir l'échange d'A");
+    let eb = Echange::ouvrir(&copie_b, &copie_a).expect("ouvrir l'échange de B");
+    (ea, eb)
+}
+
 /// Réunit deux copies sans réseau : chacune envoie tant qu'elle a à dire, en octets, comme le
-/// fera le transport du lot 3. Rend le nombre de messages ; au-delà de mille, la réunion ne
-/// s'achève pas, et c'est un échec.
+/// fera le transport du lot 3. Chaque réception, d'`a` comme de `b`, est faite sans
+/// avertissement : aucune panne n'y est armée. Rend le nombre de messages ; au-delà de mille, la
+/// réunion ne s'achève pas, et c'est un échec.
 pub fn reunir(a: &mut Document<'_>, b: &mut Document<'_>) -> usize {
-    let mut ea = Echange::ouvrir(&a.copie().unwrap(), &b.copie().unwrap()).unwrap();
-    let mut eb = Echange::ouvrir(&b.copie().unwrap(), &a.copie().unwrap()).unwrap();
+    let (mut ea, mut eb) = ouvrir_les_echanges(a, b);
+    reunir_en_suivant_a(a, &mut ea, b, &mut eb, |_, _, rendu| {
+        assert!(
+            matches!(rendu, Ok(None)),
+            "A reçoit le message de B, sans avertissement : rendu {rendu:?}"
+        );
+    })
+}
+
+/// La réunion de `reunir`, sur les échanges `ea` d'`a` et `eb` de `b`, qui suit chaque réception
+/// d'`a` : `recue` la reçoit, avec `a` après la réception, ses heads d'avant et ce que la
+/// réception a rendu, et la réunion continue quoi qu'elle ait rendu. Chaque réception de `b` doit
+/// être faite sans avertissement : un test qui arme une panne la fait tomber sur une réception
+/// d'`a`, `b` n'ayant alors rien de neuf à recevoir. Rend le nombre de messages ; au-delà de
+/// mille, la réunion ne s'achève pas, et c'est un échec.
+pub fn reunir_en_suivant_a(
+    a: &mut Document<'_>,
+    ea: &mut Echange,
+    b: &mut Document<'_>,
+    eb: &mut Echange,
+    mut recue: impl FnMut(&Document<'_>, &[ChangeHash], Result<Option<Avertissement>, Erreur>),
+) -> usize {
     let mut n = 0;
     loop {
-        let de_a = a.prochain_message(&mut ea);
+        let de_a = a.prochain_message(ea);
         if let Some(m) = &de_a {
-            b.recevoir(&mut eb, m).unwrap();
+            let rendu = b.recevoir(eb, m);
+            assert!(
+                matches!(rendu, Ok(None)),
+                "B reçoit le message d'A, sans avertissement : rendu {rendu:?}"
+            );
             n += 1;
         }
-        let de_b = b.prochain_message(&mut eb);
+        let de_b = b.prochain_message(eb);
         if let Some(m) = &de_b {
-            a.recevoir(&mut ea, m).unwrap();
+            let heads_d_avant = a.automerge().get_heads();
+            let rendu = a.recevoir(ea, m);
             n += 1;
+            recue(a, &heads_d_avant, rendu);
         }
         if de_a.is_none() && de_b.is_none() {
             return n;
@@ -282,6 +400,115 @@ pub fn objet(doc: &Automerge, parent: &ObjId, cle: &str) -> ObjId {
         Some((Value::Object(ObjType::Map), objet)) => objet,
         autre => panic!("{cle} ne porte pas un objet à clés : {autre:?}"),
     }
+}
+
+/// Les idées de `doc` portent l'idée `idee`.
+pub fn porte_l_idee(doc: &Automerge, idee: &str) -> bool {
+    doc.get(objet(doc, &ROOT, IDEES), idee)
+        .expect("lire les idées")
+        .is_some()
+}
+
+/// Les noms de `apres` qui ne sont pas dans `avant`, dans l'ordre : ce qu'un dossier a gagné.
+pub fn nouveaux(avant: &[String], apres: &[String]) -> Vec<String> {
+    apres
+        .iter()
+        .filter(|nom| !avant.contains(nom))
+        .cloned()
+        .collect()
+}
+
+/// Le fichier d'ajout qu'une écriture ou une réception de `doc` a écrit dans `ajouts`, qu'elle a
+/// fait passer des noms `avant` aux noms `apres` : un seul fichier de plus, nommé par l'empreinte
+/// de son contenu, qui vaut `save_after` des heads `heads_d_avant` de `doc`, celles d'avant
+/// l'écriture ou la réception. Rend son contenu.
+pub fn constater_un_ajout(
+    doc: &Automerge,
+    heads_d_avant: &[ChangeHash],
+    ajouts: &Path,
+    avant: &[String],
+    apres: &[String],
+) -> Vec<u8> {
+    assert_eq!(
+        apres.len(),
+        avant.len() + 1,
+        "pas un seul fichier d'ajout de plus : {avant:?}, puis {apres:?}"
+    );
+    let noms = nouveaux(avant, apres);
+    assert_eq!(noms.len(), 1, "un seul fichier nouveau : {noms:?}");
+    let contenu = fs::read(ajouts.join(&noms[0])).expect("lire le fichier d'ajout");
+    assert_eq!(
+        noms[0],
+        format!("{}.automerge", empreinte(&contenu)),
+        "le nom du fichier d'ajout n'est pas l'empreinte de son contenu"
+    );
+    assert!(
+        contenu == doc.save_after(heads_d_avant),
+        "le fichier d'ajout n'est pas save_after des heads d'avant"
+    );
+    contenu
+}
+
+/// Change l'octet du milieu du fichier `chemin` (`^ 0xFF`), puis rend les octets altérés.
+pub fn alterer_l_octet_du_milieu(chemin: &Path) -> Vec<u8> {
+    let mut octets = fs::read(chemin).unwrap_or_else(|e| panic!("lire {} : {e}", chemin.display()));
+    let milieu = octets.len() / 2;
+    octets[milieu] ^= 0xFF;
+    fs::write(chemin, &octets).unwrap_or_else(|e| panic!("altérer {} : {e}", chemin.display()));
+    octets
+}
+
+/// Ce que refuse `document`, en lecture seule pour la raison `raison` (§ 31 · 2.1) : `ecrire` et
+/// `compacter` rendent `Erreur::LectureSeule(raison)`, `prochain_message` rend `None`, et
+/// `recevoir` rend `Erreur::LectureSeule(_)`. Ces quatre appels faits, chaque fichier sous
+/// `dossier`, le dossier du fonds, a encore son empreinte d'`avant`, prise avant l'ouverture, ou
+/// dès que le document est en lecture seule.
+/// L'échange s'ouvre sur la copie de `NAISSANCE`, qu'un document illisible peut ne plus porter.
+pub fn constater_la_lecture_seule(
+    document: &mut Document<'_>,
+    raison: &LectureSeule,
+    dossier: &Path,
+    avant: &BTreeMap<PathBuf, String>,
+) {
+    match ecrire(document, |tx| noter(tx, "idee-9", "Une phrase refusée")) {
+        Err(Erreur::LectureSeule(rendue)) => assert_eq!(
+            &rendue, raison,
+            "l'écriture ne rend pas la raison de la lecture seule"
+        ),
+        autre => panic!("attendu LectureSeule à l'écriture, rendu {autre:?}"),
+    }
+    match document.compacter() {
+        Err(Erreur::LectureSeule(rendue)) => assert_eq!(
+            &rendue, raison,
+            "la compaction ne rend pas la raison de la lecture seule"
+        ),
+        autre => panic!("attendu LectureSeule à la compaction, rendu {autre:?}"),
+    }
+    let copie = Copie {
+        proprietaire: NAISSANCE.proprietaire.to_owned(),
+        document: NAISSANCE.identifiant.to_owned(),
+        lignee: NAISSANCE.lignee.to_owned(),
+    };
+    let mut echange = Echange::ouvrir(&copie, &copie).expect("ouvrir l'échange");
+    assert_eq!(
+        document.prochain_message(&mut echange),
+        None,
+        "un document en lecture seule a envoyé un message"
+    );
+    let mut de_l_autre =
+        Echange::ouvrir(&copie, &copie).expect("ouvrir l'échange de l'autre copie");
+    let message = de_l_autre
+        .prochain_message(document.automerge())
+        .expect("le message de l'autre copie");
+    match document.recevoir(&mut echange, &message) {
+        Err(Erreur::LectureSeule(_)) => {}
+        autre => panic!("attendu LectureSeule à la réception, rendu {autre:?}"),
+    }
+    assert_eq!(
+        empreintes(dossier),
+        *avant,
+        "un fichier du fonds a changé depuis l'ouverture en lecture seule"
+    );
 }
 
 // Les gestes de test, qu'appellent les fermetures `geste` : les opérations nommées arrivent au

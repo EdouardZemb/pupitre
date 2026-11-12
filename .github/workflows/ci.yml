@@ -97,6 +97,11 @@ jobs:
         run: cargo fmt --all --check
       - name: Lint
         run: cargo clippy -p noyau -p cahier -p stockage -p synchro --all-targets -- -D warnings
+      # Le stockage tel qu'il se livre, sans la fonction `pannes` : chaque commande qui le nomme
+      # construit aussi ses cibles de test, donc sa dépendance de test sur lui-même, donc `pannes`.
+      # Sans cible de test, celle-ci ne tire aucune dépendance de test (résolveur 3).
+      - name: Lint du stockage, sans pannes
+        run: cargo clippy -p stockage --lib -- -D warnings
       # L'interface, deux fois : en natif, son code de test compris ; en WebAssembly, telle que
       # trunk la construit.
       - name: Lint de l'interface (natif, tests compris)
@@ -133,6 +138,10 @@ jobs:
       # code propre à Windows, que le job verifier ne compile pas.
       - name: Lint du stockage et de la synchronisation
         run: cargo clippy -p stockage -p synchro --all-targets -- -D warnings
+      # Sous Windows aussi, le stockage tel qu'il se livre, sans la fonction `pannes` (voir le job
+      # verifier).
+      - name: Lint du stockage, sans pannes
+        run: cargo clippy -p stockage --lib -- -D warnings
       - name: Tests du stockage et de la synchronisation (H07)
         run: cargo test -p stockage -p synchro
       - name: Installer trunk
@@ -169,11 +178,11 @@ jobs:
   mutants:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    # Deux fois le passage complet mesuré à froid (« No cache found. »), 333 mutants sur quatre
-    # cœurs : 17 min 21 s le 2026-11-05, PR #18, chaque mutant construisant aussi les tests du
+    # Deux fois le passage complet mesuré à froid (« No cache found. »), 339 mutants sur quatre
+    # cœurs : 18 min 0 s le 2026-11-11, PR #29, chaque mutant construisant aussi les tests du
     # rendu (LE-29 de modele-projet). Le job d'une PR mute, au pire, autant. À remesurer quand
     # le périmètre de la mutation s'étend.
-    timeout-minutes: 35
+    timeout-minutes: 36
     permissions:
       contents: read
     steps:

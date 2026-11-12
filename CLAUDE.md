@@ -16,7 +16,7 @@ Ce dépôt porte la conception d'une application d'aide à la composition, écri
 - Les crates :
   - `noyau` (`crates/noyau`) : la théorie, les pages SVG et les règles des données, sans entrée-sortie ;
   - `cahier` (`crates/cahier`) : le PDF et sa commande en ligne ;
-  - `stockage` (`crates/stockage`) : la racine des données, les documents et les captations sur fichiers, côté natif ;
+  - `stockage` (`crates/stockage`) : la racine des données, les documents et les captations sur fichiers, côté natif ; sa fonction de Cargo `pannes`, que seuls ses tests activent, coupe une écriture à l'étape voulue ;
   - `synchro` (`crates/synchro`) : le cœur de la couche de synchronisation, sans réseau ;
   - `interface` (`app/ui`) : l'interface Leptos ;
   - `etabli` (`app/src-tauri`) : l'application Tauri.
@@ -36,6 +36,7 @@ Les commandes de Rust, telles que la CI les lance. Deux usages du poste : chaque
 - `cargo update --workspace`, puis `git diff --exit-code Cargo.lock` : le `Cargo.lock` suit les `Cargo.toml` ; ces commandes ne construisent rien. L'étape « Cargo.lock à jour » de `verifier` les lance ; en échec, elle dépose le `Cargo.lock` qu'elle a résolu en artefact `cargo-lock`, à relire puis à committer : le tenir à jour ne demande aucun cargo local.
 - `cargo fmt --all --check` : le format du code.
 - `cargo clippy -p noyau -p cahier -p stockage -p synchro --all-targets -- -D warnings` : les avertissements du noyau, du cahier, du stockage et de la synchronisation valent des erreurs. Le job `windows` passe aussi `stockage` et `synchro` à `clippy` et à leurs tests, sous Windows (H07).
+- `cargo clippy -p stockage --lib -- -D warnings` : compile le stockage sans `pannes`, tel que l'établi le recevra, ses avertissements valant des erreurs ; `verifier` et `windows` le lancent.
 - `cargo clippy -p interface --all-targets -- -D warnings`, puis `cargo clippy -p interface --target wasm32-unknown-unknown -- -D warnings` : de même pour l'interface, sur la cible de l'hôte puis sur celle du navigateur.
 - `cargo clippy -p etabli --all-targets -- -D warnings` : de même pour l'application ; elle demande `app/ui/dist`, donc une construction de l'interface avant.
 - `cargo test -p noyau -p cahier -p interface -p stockage -p synchro` : les tests, dont ceux par propriétés ; `cargo test -p etabli` pour l'application.
