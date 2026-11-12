@@ -29,10 +29,12 @@ pub fn apres_une_ecriture(
 /// Ce que l'adaptateur a lu d'un fichier d'ajout, ou du voisin du fichier complet.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Lu {
-    /// Le nom du fichier, tel que l'adaptateur le retirera.
+    /// Son chemin relatif au dossier du document, `/` pour séparateur, tel que l'adaptateur le
+    /// retirera : `ajouts/<empreinte>.automerge`, ou `complet.automerge.<processus>.partiel`.
     pub nom: String,
     /// Lisible : un fichier d'ajout dont le contenu donne l'empreinte de son nom et que
-    /// `load_incremental` charge.
+    /// `load_incremental` charge, ou un voisin du fichier complet non vide que `load` relit sans
+    /// erreur.
     pub lisible: bool,
     /// Chacune de ses modifications est dans le fichier complet relu.
     pub absorbe: bool,

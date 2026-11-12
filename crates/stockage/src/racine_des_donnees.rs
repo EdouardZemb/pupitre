@@ -100,16 +100,34 @@ impl RacineDesDonnees {
         Captations::de(self)
     }
 
-    /// Le fonds, rouvert s'il est né (son `complet.automerge` existe) ; sinon `None`. Le fichier
-    /// complet se lit, puis chaque fichier d'ajout, dans l'ordre des noms (`load_incremental`) ;
-    /// chaque ouverture tire un acteur neuf (`set_actor(ActorId::random())`) ; puis le fonds se
-    /// compacte quand `a_l_ouverture` le dit, c'est-à-dire dès qu'il a un fichier d'ajout, s'il
-    /// écrit.
+    /// § 31 · 2.1 : le démarrage, puis le fonds, rouvert s'il est né ; sinon `None`.
+    ///
+    /// La garde prise, le démarrage donne son sort à chaque `.partiel` de `documents/`, du
+    /// dossier du fonds et de son `ajouts/`, dans l'ordre des noms : le voisin d'un fichier
+    /// d'ajout dont le contenu donne l'empreinte que porte le nom de ce fichier prend sa place ;
+    /// le voisin du fichier complet, s'il n'est pas vide et qu'`Automerge::load` le relit, se
+    /// lit ; tout autre se retire. Un voisin d'un fichier d'ajout qui ne peut prendre sa place
+    /// se lit où il est, et le fonds s'ouvre avec
+    /// [`Avertissement::VoisinRestant`](crate::Avertissement::VoisinRestant) ; un renommage du
+    /// démarrage non rendu durable, avec
+    /// [`Avertissement::NonDurable`](crate::Avertissement::NonDurable). Un retrait refusé est tu,
+    /// et se retente à l'ouverture suivante. Le démarrage ne crée aucun dossier, et laisse tel
+    /// quel un fichier qui n'est pas un `.partiel`. Un refus du disque à la lecture d'un dossier
+    /// qui n'est pas absent, ou d'un `.partiel`, rend [`Erreur::Disque`] : un voisin non lu peut
+    /// porter une opération dite faite, ou le premier fichier complet.
+    ///
+    /// Le fonds est né quand son `complet.automerge` existe, ou un voisin lisible de celui-ci.
+    /// Le fichier complet se lit, puis chaque voisin du fichier complet, puis chaque fichier
+    /// d'ajout, chacun dans l'ordre des noms (`load_incremental`) ; chaque ouverture tire un
+    /// acteur neuf (`set_actor(ActorId::random())`) ; puis le fonds se compacte quand
+    /// `a_l_ouverture` le dit, c'est-à-dire dès qu'il a un fichier d'ajout ou un voisin du
+    /// fichier complet, s'il écrit, et la compaction retire le voisin qu'elle absorbe.
     ///
     /// Un fichier illisible ouvre le fonds en lecture seule ([`Document::lecture_seule`]), en se
     /// nommant : le fonds montre ce qui se lit, n'écrit ni ne se compacte, n'envoie ni ne reçoit.
-    /// C'est un fichier complet vide, ou qu'`Automerge::load` refuse (`CompletIllisible`) ; un
-    /// fichier d'ajout dont le contenu ne donne pas l'empreinte de son nom (`AjoutAltere`), ou que
+    /// C'est un fichier complet vide, ou qu'`Automerge::load` refuse, ou un voisin lisible du
+    /// fichier complet que `load_incremental` refuse (`CompletIllisible`) ; un fichier d'ajout
+    /// dont le contenu ne donne pas l'empreinte de son nom (`AjoutAltere`), ou que
     /// `load_incremental` refuse (`AjoutIllisible`) ; tout lu, une modification qui attend encore
     /// ses dépendances (`DependancesManquantes`). La première raison trouvée l'emporte, dans cet
     /// ordre. Un refus du disque à la lecture rend [`Erreur::Disque`]. Une compaction qui échoue
@@ -134,8 +152,10 @@ impl RacineDesDonnees {
     /// vide ; en place, mais son renommage non rendu durable, le fonds naît, avec cet
     /// avertissement ([`Document::avertissements`]).
     ///
-    /// Un fonds déjà né rend [`Erreur::FondsDejaNe`], sans que le geste soit fait. Un `Document`
-    /// du fonds déjà vivant rend [`Erreur::FondsDejaOuvert`], avant toute lecture.
+    /// Un fonds déjà né rend [`Erreur::FondsDejaNe`], sans que le geste soit fait : son
+    /// `complet.automerge` existe, ou un voisin lisible de celui-ci, que la naissance ne retire
+    /// pas, et que l'ouverture lit. Un `Document` du fonds déjà vivant rend
+    /// [`Erreur::FondsDejaOuvert`], avant toute lecture.
     pub fn faire_naitre_le_fonds(
         &self,
         naissance: &Naissance<'_>,

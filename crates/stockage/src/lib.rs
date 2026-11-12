@@ -84,7 +84,9 @@ pub enum LectureSeule {
     AjoutIllisible { chemin: PathBuf },
     /// Le fichier complet `chemin` est vide, ou `Automerge::load` le refuse : le document montre
     /// ce qui s'en lit (`OnPartialLoad::Ignore`), ou rien s'il ne s'en lit rien, puis les
-    /// fichiers d'ajout.
+    /// fichiers d'ajout. Absent, sans voisin lisible qui le remplace, il ne laisse rien non plus,
+    /// à la relecture du disque : un document sans genèse n'est jamais entier. `chemin` est aussi
+    /// un voisin lisible du fichier complet que `load_incremental` refuse après lui.
     CompletIllisible { chemin: PathBuf },
     /// Tout lu, une modification attend ses dépendances (`get_missing_deps`) : un fichier
     /// d'ajout manque. `chemin` est le premier fichier d'ajout, dans l'ordre des noms, qui attend
@@ -118,6 +120,9 @@ pub enum Avertissement {
     /// Coupée en chemin, elle a pu remplacer le fichier complet sans le rendre durable, ou
     /// retirer une part des fichiers d'ajout qu'il absorbe.
     Compaction(Erreur),
+    /// Le voisin `chemin` d'un fichier d'ajout n'a pu prendre sa place : il se lit où il est, et se
+    /// met en place à l'ouverture suivante.
+    VoisinRestant { chemin: PathBuf, erreur: io::Error },
 }
 
 /// Le SHA-256 de `octets`, en 64 caractères hexadécimaux minuscules (`Sha256::digest`).

@@ -4,6 +4,11 @@
 //! s'écrit de même, en un fichier d'ajout, avant que l'échange ne continue. L'essai ne connaît
 //! que le fonds, qui naît une seule fois (§ 31 · 2.3).
 //!
+//! À chaque ouverture, la garde prise, le démarrage donne son sort à chaque `.partiel` de
+//! `documents/` (§ 31 · 2.1) : le voisin d'un fichier d'ajout dont le contenu donne l'empreinte
+//! prend sa place, ou se lit où il est ; le voisin lisible du fichier complet se lit, puis la
+//! compaction le fond ; tout autre se retire.
+//!
 //! Une écriture est faite ; faite, avec un avertissement, quand son renommage n'est pas rendu
 //! durable ou que la compaction qui la suit échoue ; ou refusée, avant la fin de son renommage,
 //! et le document se relit alors du disque. Une relecture du disque qui échoue met le document
@@ -12,6 +17,7 @@
 
 use std::ffi::OsStr;
 use std::fs;
+use std::io;
 use std::path::{Path, PathBuf};
 
 use automerge::transaction::{CommitOptions, Transactable, Transaction};
@@ -21,6 +27,7 @@ use automerge::{
 };
 use noyau::donnees::acces::Acces;
 use noyau::donnees::compaction::{self, Lu};
+use noyau::donnees::demarrage::{self, Partiel, Sort};
 use noyau::donnees::fonds::{GENESE, IDENTIFIANT, LIGNEE, MESSAGE_DE_LA_NAISSANCE, PROPRIETAIRE};
 use synchro::{Copie, Echange};
 
@@ -211,9 +218,10 @@ impl Document<'_> {
 
     /// § 31 · 2.2 : les octets de `save()`, relus en mémoire par `Automerge::load`, puis écrits
     /// dans un fichier complet neuf par `ecrire_a_cote`, qui relit son voisin du disque avant de
-    /// le renommer ; puis chaque fichier d'ajout se lit par `fichier::lire`, et ceux que désigne
-    /// `a_retirer` sont retirés par `fichier::retirer`. Un document en lecture seule ne se
-    /// compacte pas : `Erreur::LectureSeule`, et rien ne s'écrit.
+    /// le renommer ; puis chaque voisin du fichier complet que le dossier du document garde
+    /// (`complet.automerge.<processus>.partiel`), et chaque fichier d'ajout, se lit par
+    /// `fichier::lire`, et ceux que désigne `a_retirer` sont retirés par `fichier::retirer`. Un
+    /// document en lecture seule ne se compacte pas : `Erreur::LectureSeule`, et rien ne s'écrit.
     ///
     /// Les octets de `save()` qui ne se lisent pas, ou ne mènent pas aux mêmes heads, ne
     /// s'écrivent pas : `CompactionInfidele`, et l'ancien fichier complet garde l'histoire qu'il
@@ -221,8 +229,12 @@ impl Document<'_> {
     /// pas ces mêmes octets ne prend pas la place : `Erreur::Disque` se rend
     /// (`io::ErrorKind::InvalidData`), l'ancien fichier complet reste en place, et rien n'est
     /// retiré. Un fichier d'ajout est lisible quand son contenu donne l'empreinte de son nom et
-    /// que `load_incremental` le charge, dans le fichier complet relu ; absorbé, quand il n'y
-    /// ajoute rien. Une compaction qui échoue est due : l'écriture suivante la retente ; une
+    /// que `load_incremental` le charge, dans le fichier complet relu ; un voisin du fichier
+    /// complet, quand il n'est pas vide et qu'`Automerge::load` le relit sans erreur ; l'un et
+    /// l'autre sont absorbés quand, chargés dans le fichier complet relu, ils n'y ajoutent rien.
+    /// Le voisin d'un fichier d'ajout que le démarrage n'a pu mettre en place n'est pas des
+    /// siens : le démarrage suivant le met en place. Un dossier `ajouts/` absent n'a aucun
+    /// fichier d'ajout. Une compaction qui échoue est due : l'écriture suivante la retente ; une
     /// compaction qui réussit ne l'est plus.
     pub fn compacter(&mut self) -> Result<(), Erreur> {
         self.exiger(Acces::ecrit)?;
@@ -250,14 +262,25 @@ impl Document<'_> {
         // le fichier complet en place mène aux mêmes heads.
         ecrire_a_cote(&complet, &octets).map_err(|echec| disque_d_un_echec(&complet, echec))?;
 
-        let ajouts = self.dossier.join("ajouts");
         let mut lus = Vec::new();
-        for chemin in fichiers_d_ajout(&ajouts)? {
+        for chemin in partiels(&self.dossier)? {
+            let nom = nom_de(&chemin);
+            if demarrage::fichier_du_voisin(&nom) != Some("complet.automerge") {
+                continue;
+            }
+            let octets = fichier::lire(&chemin).map_err(|erreur| disque(&chemin, erreur))?;
+            lus.push(Lu {
+                lisible: voisin_lisible(&octets),
+                absorbe: charger_contre(&relu, &octets) == Some(true),
+                nom,
+            });
+        }
+        for chemin in fichiers_d_ajout(&self.dossier.join("ajouts"))? {
             let octets = fichier::lire(&chemin).map_err(|erreur| disque(&chemin, erreur))?;
             lus.push(lu_contre(&relu, &chemin, &octets));
         }
         for nom in compaction::a_retirer(&lus) {
-            let chemin = ajouts.join(nom);
+            let chemin = dans_le_dossier(&self.dossier, &nom);
             fichier::retirer(&chemin).map_err(|erreur| disque(&chemin, erreur))?;
         }
         Ok(())
@@ -326,14 +349,15 @@ impl Document<'_> {
     }
 
     /// § 31 · 2.1 : après une écriture refusée, la mémoire se relit du disque
-    /// (`lire_le_dossier`), sans toucher à la garde, et tire un acteur neuf ; une raison de
+    /// (`lire_le_dossier`, sans démarrage : rien n'est retiré ni renommé), sans toucher à la
+    /// garde, et tire un acteur neuf ; une raison de
     /// lecture seule que la relecture trouve devient celle du document, sur ce qui se lit. Une
     /// relecture qui échoue laisse la mémoire d'avant l'écriture refusée (`fork_at` des heads
     /// `avant`), en lecture seule `RelectureManquee`, sur le fichier qu'elle n'a pu lire, ou sur
     /// le dossier du document si son erreur n'en nomme aucun.
     fn relire_du_disque(&mut self, avant: &[ChangeHash]) {
         match lire_le_dossier(&self.dossier) {
-            Ok((mut automerge, lecture_seule, _)) => {
+            Ok((mut automerge, lecture_seule, _, _)) => {
                 automerge.set_actor(ActorId::random());
                 self.automerge = automerge;
                 self.lecture_seule = lecture_seule;
@@ -381,35 +405,43 @@ impl Document<'_> {
     }
 }
 
-/// Le fonds de `racine`, rouvert s'il est né (`lire_le_dossier`), avec un acteur neuf, en
-/// lecture seule si un fichier ne se lit pas, puis compacté quand `a_l_ouverture` le dit ;
-/// sinon `None`. Une compaction qui échoue n'empêche pas d'ouvrir : son erreur vient en
-/// avertissement (`Avertissement::Compaction`), rien n'est perdu, et la compaction est due :
-/// l'écriture suivante retire ce qu'elle n'a pas retiré. L'essai ne lit pas le voisin du fichier
-/// complet : le lot 1 le fond.
+/// Le fonds de `racine`, la garde prise : d'abord le démarrage (`demarrer`), puis, s'il est né,
+/// sa lecture (`lire_le_dossier`), avec un acteur neuf, en lecture seule si un fichier ne se lit
+/// pas, puis sa compaction quand `a_l_ouverture` le dit : un fichier d'ajout lu, ou un voisin du
+/// fichier complet. Pupitre neuf (`pupitre_neuf` : ni fichier complet, ni voisin du fichier
+/// complet lu) : `None`. Les avertissements du démarrage (`VoisinRestant`, `NonDurable`) sont
+/// ceux du document ; un renommage du démarrage non rendu durable rend la compaction due. Une
+/// compaction qui échoue n'empêche pas d'ouvrir : son erreur vient en avertissement
+/// (`Avertissement::Compaction`), rien n'est perdu, et la compaction est due : l'écriture
+/// suivante retire ce qu'elle n'a pas retiré. Une erreur du démarrage ou de la lecture rend la
+/// garde, avant tout document.
 pub(crate) fn rouvrir_le_fonds(racine: &RacineDesDonnees) -> Result<Option<Document<'_>>, Erreur> {
     let garde = racine.prendre_la_garde()?;
     let dossier = dossier_du_fonds(racine);
+    let avertissements = demarrer(&racine.chemin().join("documents"), &dossier)?;
     let complet = dossier.join("complet.automerge");
-    if !complet
+    let present = complet
         .try_exists()
-        .map_err(|erreur| disque(&complet, erreur))?
-    {
+        .map_err(|erreur| disque(&complet, erreur))?;
+    let (mut automerge, lecture_seule, ajouts, voisins) = lire_le_dossier(&dossier)?;
+    if demarrage::pupitre_neuf(present, voisins) {
         return Ok(None);
     }
-    let (mut automerge, lecture_seule, ajouts) = lire_le_dossier(&dossier)?;
     automerge.set_actor(ActorId::random());
     // Le document né rend la garde à sa fin, même si la compaction qui suit échoue.
     garde.passer_au_document();
+    let compaction_due = avertissements
+        .iter()
+        .any(|avertissement| matches!(avertissement, Avertissement::NonDurable { .. }));
     let mut document = Document {
         racine,
         dossier,
         automerge,
         lecture_seule,
-        compaction_due: false,
-        avertissements: Vec::new(),
+        compaction_due,
+        avertissements,
     };
-    if compaction::a_l_ouverture(document.acces(), ajouts, false)
+    if compaction::a_l_ouverture(document.acces(), ajouts, voisins > 0)
         && let Err(erreur) = document.compacter()
     {
         // `compacter` a rendu la compaction due : l'écriture suivante la retente.
@@ -420,23 +452,172 @@ pub(crate) fn rouvrir_le_fonds(racine: &RacineDesDonnees) -> Result<Option<Docum
     Ok(Some(document))
 }
 
+/// § 31 · 2.1 : le démarrage dans `documents/`, la garde prise, avant toute lecture du fonds.
+/// Chaque `.partiel` reçoit son sort (`sort_d_un_partiel`), dans l'ordre des noms : ceux de
+/// `documents` (`Ailleurs`), puis ceux du dossier du fonds `dossier` (`DansLeDossier`, lisible
+/// s'il n'est pas vide et qu'`Automerge::load` le relit sans erreur), puis ceux de son `ajouts/`
+/// (`DansAjouts`, avec l'empreinte de son contenu) ; chaque `.partiel` dont le sort demande le
+/// contenu se lit par `fichier::lire`.
+///
+/// - `MettreEnPlace` : le voisin est renommé en son fichier d'ajout (`fichier_du_voisin`), dans
+///   `ajouts/`, puis le renommage est rendu durable. Un renommage refusé ne fait pas échouer
+///   l'ouverture : le voisin reste où il est, `lire_le_dossier` le lit avec les fichiers
+///   d'ajout, et `Avertissement::VoisinRestant` le nomme. Un renommage non rendu durable laisse
+///   le fichier d'ajout en place, avec `Avertissement::NonDurable`.
+/// - `Lire` : rien ; `lire_le_dossier` le lit.
+/// - `Retirer` : `fichier::retirer` ; un refus est tu, et l'ouverture suivante le retente.
+///
+/// Un dossier absent ne contient aucun `.partiel`, et le démarrage ne crée aucun dossier. Toute
+/// autre erreur de lecture d'un dossier, ou un refus du disque à la lecture d'un `.partiel`, rend
+/// `Erreur::Disque` : un voisin non lu peut porter une opération dite faite, ou le premier
+/// fichier complet. Un fichier qui n'est pas un `.partiel` n'est ni lu ni retiré.
+fn demarrer(documents: &Path, dossier: &Path) -> Result<Vec<Avertissement>, Erreur> {
+    let mut avertissements = Vec::new();
+    for chemin in partiels(documents)? {
+        let sort = demarrage::sort_d_un_partiel(Partiel::Ailleurs);
+        donner_son_sort(&chemin, sort, &mut avertissements);
+    }
+    for chemin in partiels(dossier)? {
+        let octets = fichier::lire(&chemin).map_err(|erreur| disque(&chemin, erreur))?;
+        let sort = sort_dans_le_dossier(&chemin, &octets);
+        donner_son_sort(&chemin, sort, &mut avertissements);
+    }
+    for chemin in partiels(&dossier.join("ajouts"))? {
+        let octets = fichier::lire(&chemin).map_err(|erreur| disque(&chemin, erreur))?;
+        let sort = sort_dans_ajouts(&chemin, &octets);
+        donner_son_sort(&chemin, sort, &mut avertissements);
+    }
+    Ok(avertissements)
+}
+
+/// Fait du `.partiel` `chemin` ce que dit `sort`, comme [`demarrer`] le dit ; un avertissement
+/// rejoint `avertissements`.
+fn donner_son_sort(chemin: &Path, sort: Sort, avertissements: &mut Vec<Avertissement>) {
+    match sort {
+        Sort::Lire => {}
+        Sort::Retirer => {
+            // Un voisin qui reste se retire à l'ouverture suivante.
+            let _ = fichier::retirer(chemin);
+        }
+        Sort::MettreEnPlace => {
+            let nom = nom_de(chemin);
+            let nom_du_fichier = demarrage::fichier_du_voisin(&nom)
+                .expect("un voisin à mettre en place nomme son fichier d'ajout");
+            let cible = chemin.with_file_name(nom_du_fichier);
+            if let Err(erreur) = fichier::renommer(chemin, &cible) {
+                avertissements.push(Avertissement::VoisinRestant {
+                    chemin: chemin.to_path_buf(),
+                    erreur,
+                });
+            } else if let Err(erreur) = fichier::rendre_durable_apres_le_renommage(&cible) {
+                avertissements.push(Avertissement::NonDurable {
+                    chemin: cible,
+                    erreur,
+                });
+            }
+        }
+    }
+}
+
+/// Le sort du `.partiel` `chemin` du dossier d'un document, de contenu `octets`.
+fn sort_dans_le_dossier(chemin: &Path, octets: &[u8]) -> Sort {
+    demarrage::sort_d_un_partiel(Partiel::DansLeDossier {
+        nom: &nom_de(chemin),
+        lisible: voisin_lisible(octets),
+    })
+}
+
+/// Le sort du `.partiel` `chemin` d'`ajouts/`, de contenu `octets`.
+fn sort_dans_ajouts(chemin: &Path, octets: &[u8]) -> Sort {
+    demarrage::sort_d_un_partiel(Partiel::DansAjouts {
+        nom: &nom_de(chemin),
+        empreinte: &empreinte(octets),
+    })
+}
+
+/// Le voisin du fichier complet de contenu `octets` est lisible : il n'est pas vide, et
+/// `Automerge::load` le relit sans erreur. Vide, Automerge le lirait comme un document neuf.
+fn voisin_lisible(octets: &[u8]) -> bool {
+    !octets.is_empty() && Automerge::load(octets).is_ok()
+}
+
 /// Lit le dossier `dossier` d'un document, sans compaction ni démarrage : son fichier complet
-/// (`lire_le_complet`), puis ses fichiers d'ajout, dans l'ordre des noms (`lire_les_ajouts`),
-/// chacun par `fichier::lire` ; tout lu, elle cherche les dépendances manquantes
-/// (`dependances_manquantes`). Elle ne construit aucun `Document` et ne touche pas à la garde :
-/// l'ouverture et la relecture du disque l'appellent. Rend la mémoire lue, ce qui se lit, la
-/// première raison de lecture seule qu'elle trouve, dans cet ordre : le fichier complet, puis
-/// les fichiers d'ajout, puis les dépendances ; et le nombre de fichiers d'ajout. Un refus du
-/// disque à la lecture rend `Erreur::Disque`.
-fn lire_le_dossier(dossier: &Path) -> Result<(Automerge, Option<LectureSeule>, usize), Erreur> {
+/// (`lire_le_complet`), s'il existe, puis chaque voisin du fichier complet que le démarrage lit
+/// (`lire_les_voisins_du_complet`), puis ses fichiers d'ajout et chaque voisin d'un fichier
+/// d'ajout que le démarrage met en place, dans l'ordre des noms (`lire_les_ajouts`), chacun par
+/// `fichier::lire` ; tout lu, elle cherche les dépendances manquantes
+/// (`dependances_manquantes`). Elle ne construit aucun `Document`, ne touche pas à la garde, et
+/// ne retire ni ne renomme rien : l'ouverture et la relecture du disque l'appellent. Sans
+/// fichier complet ni voisin lu, la mémoire est un document neuf, sans genèse, qui n'est jamais
+/// entier : `CompletIllisible`, comme un fichier complet vide.
+///
+/// Rend la mémoire lue, ce qui se lit ; la première raison de lecture seule qu'elle trouve, dans
+/// cet ordre : le fichier complet, puis ses voisins, puis les fichiers d'ajout, puis les
+/// dépendances ; le nombre de fichiers d'ajout lus, un voisin d'un fichier d'ajout resté compris ;
+/// et le nombre de voisins du fichier complet lus. Un refus du disque à la lecture d'un fichier,
+/// ou d'un dossier qui n'est pas absent, rend `Erreur::Disque`.
+fn lire_le_dossier(
+    dossier: &Path,
+) -> Result<(Automerge, Option<LectureSeule>, usize, usize), Erreur> {
     let complet = dossier.join("complet.automerge");
-    let (mut automerge, du_complet) = lire_le_complet(&complet)?;
-    let fichiers = fichiers_d_ajout(&dossier.join("ajouts"))?;
-    let ajouts = lire_les_ajouts(&mut automerge, &fichiers)?;
+    let present = complet
+        .try_exists()
+        .map_err(|erreur| disque(&complet, erreur))?;
+    let (mut automerge, du_complet) = if present {
+        lire_le_complet(&complet)?
+    } else {
+        (Automerge::new(), None)
+    };
+    let voisins = lire_les_voisins_du_complet(&mut automerge, dossier)?;
+    let du_complet = if !present && voisins.lus == 0 {
+        Some(LectureSeule::CompletIllisible {
+            chemin: complet.clone(),
+        })
+    } else {
+        du_complet
+    };
+    let ajouts = lire_les_ajouts(&mut automerge, &dossier.join("ajouts"))?;
     let raison = du_complet
+        .or(voisins.raison)
         .or(ajouts.raison)
         .or_else(|| dependances_manquantes(&automerge, &ajouts.charges, &complet));
-    Ok((automerge, raison, fichiers.len()))
+    Ok((automerge, raison, ajouts.nombre, voisins.lus))
+}
+
+/// Ce que `lire_les_voisins_du_complet` rend : le nombre de voisins du fichier complet lus, et la
+/// raison de lecture seule du premier que `load_incremental` refuse.
+struct VoisinsLus {
+    lus: usize,
+    raison: Option<LectureSeule>,
+}
+
+/// Charge dans `automerge` (`load_incremental`), après le fichier complet, ou sans lui, chaque
+/// voisin du fichier complet du dossier `dossier` dont le sort est `Lire` (non vide, et
+/// qu'`Automerge::load` relit sans erreur), dans l'ordre des noms, chacun par `fichier::lire`.
+/// Un autre `.partiel` n'est ni chargé ni compté. Un voisin lisible que `load_incremental`
+/// refuse n'en est pas moins lu, et compté : il donne `CompletIllisible`, sur son chemin ; le
+/// premier, dans l'ordre des noms, l'emporte.
+fn lire_les_voisins_du_complet(
+    automerge: &mut Automerge,
+    dossier: &Path,
+) -> Result<VoisinsLus, Erreur> {
+    let mut voisins = VoisinsLus {
+        lus: 0,
+        raison: None,
+    };
+    for chemin in partiels(dossier)? {
+        let octets = fichier::lire(&chemin).map_err(|erreur| disque(&chemin, erreur))?;
+        if sort_dans_le_dossier(&chemin, &octets) != Sort::Lire {
+            continue;
+        }
+        voisins.lus += 1;
+        if automerge.load_incremental(&octets).is_err() {
+            voisins.raison = voisins
+                .raison
+                .or(Some(LectureSeule::CompletIllisible { chemin }));
+        }
+    }
+    Ok(voisins)
 }
 
 /// Le fichier complet `complet`, lu par `fichier::lire`, puis `Automerge::load`. Vide, ou
@@ -463,39 +644,50 @@ fn lire_le_complet(complet: &Path) -> Result<(Automerge, Option<LectureSeule>), 
 }
 
 /// Ce que `lire_les_ajouts` rend : les fichiers d'ajout chargés, avec leur contenu, dans l'ordre
-/// des noms, et la raison de lecture seule du premier qui ne l'est pas.
-struct AjoutsLus<'f> {
-    charges: Vec<(&'f Path, Vec<u8>)>,
+/// des noms ; la raison de lecture seule du premier qui ne l'est pas ; et le nombre de fichiers
+/// d'ajout lus, un voisin d'un fichier d'ajout resté compris.
+struct AjoutsLus {
+    charges: Vec<(PathBuf, Vec<u8>)>,
     raison: Option<LectureSeule>,
+    nombre: usize,
 }
 
-/// Lit les fichiers d'ajout `fichiers`, triés par nom, chacun par `fichier::lire`, et charge
-/// (`load_incremental`) ceux qui se lisent. Un fichier dont le contenu ne donne pas l'empreinte
-/// de son nom n'est pas chargé, et donne `AjoutAltere` ; un fichier qui la donne, mais que
+/// Lit, dans l'ordre des noms, chaque fichier d'ajout de `ajouts` et chaque voisin d'un fichier
+/// d'ajout que le démarrage met en place (`Sort::MettreEnPlace` : son contenu donne l'empreinte
+/// que porte le nom de son fichier), resté là quand son renommage a été refusé ; chacun par
+/// `fichier::lire`, et charge (`load_incremental`) ceux qui se lisent. Un autre `.partiel` n'est
+/// ni chargé ni compté. Un fichier d'ajout dont le contenu ne donne pas l'empreinte de son nom
+/// n'est pas chargé, et donne `AjoutAltere` ; un fichier qui la donne, mais que
 /// `load_incremental` refuse, ne l'est pas non plus, et donne `AjoutIllisible`. Le premier, dans
-/// l'ordre des noms, l'emporte. Rien n'est retiré ni réécrit.
-fn lire_les_ajouts<'f>(
-    automerge: &mut Automerge,
-    fichiers: &'f [PathBuf],
-) -> Result<AjoutsLus<'f>, Erreur> {
+/// l'ordre des noms, l'emporte. Rien n'est retiré ni réécrit. Un dossier `ajouts/` absent n'a
+/// aucun fichier.
+fn lire_les_ajouts(automerge: &mut Automerge, ajouts: &Path) -> Result<AjoutsLus, Erreur> {
     let mut lus = AjoutsLus {
         charges: Vec::new(),
         raison: None,
+        nombre: 0,
     };
-    for chemin in fichiers {
-        let octets = fichier::lire(chemin).map_err(|erreur| disque(chemin, erreur))?;
+    for chemin in fichiers_de(ajouts, &["automerge", "partiel"])? {
+        let octets = fichier::lire(&chemin).map_err(|erreur| disque(&chemin, erreur))?;
+        let conforme = if chemin.extension() == Some(OsStr::new("partiel")) {
+            // Le voisin d'un fichier d'ajout ne se lit que s'il en prend la place : son contenu
+            // donne alors l'empreinte du nom de ce fichier.
+            if sort_dans_ajouts(&chemin, &octets) != Sort::MettreEnPlace {
+                continue;
+            }
+            true
+        } else {
+            est_conforme(&chemin, &octets)
+        };
+        lus.nombre += 1;
         // `load_incremental` s'arrête sans erreur au premier tronçon altéré : seule l'empreinte
         // du nom dit qu'un fichier d'ajout a changé.
-        let refus = if !est_conforme(chemin, &octets) {
-            Some(LectureSeule::AjoutAltere {
-                chemin: chemin.clone(),
-            })
+        let refus = if !conforme {
+            Some(LectureSeule::AjoutAltere { chemin })
         } else if automerge.load_incremental(&octets).is_err() {
-            Some(LectureSeule::AjoutIllisible {
-                chemin: chemin.clone(),
-            })
+            Some(LectureSeule::AjoutIllisible { chemin })
         } else {
-            lus.charges.push((chemin.as_path(), octets));
+            lus.charges.push((chemin, octets));
             None
         };
         lus.raison = lus.raison.or(refus);
@@ -512,7 +704,7 @@ fn lire_les_ajouts<'f>(
 /// ne se nomme pas non plus. Rien ne manque : `None`.
 fn dependances_manquantes(
     automerge: &Automerge,
-    charges: &[(&Path, Vec<u8>)],
+    charges: &[(PathBuf, Vec<u8>)],
     complet: &Path,
 ) -> Option<LectureSeule> {
     let manquantes = automerge.get_missing_deps(&[]);
@@ -522,7 +714,7 @@ fn dependances_manquantes(
     let chemin = charges
         .iter()
         .find(|(_, octets)| attend_l_une_de(&manquantes, octets))
-        .map_or(complet, |(chemin, _)| *chemin);
+        .map_or(complet, |(chemin, _)| chemin.as_path());
     Some(LectureSeule::DependancesManquantes {
         chemin: chemin.to_path_buf(),
     })
@@ -548,18 +740,56 @@ fn fichier_nomme(erreur: &Erreur) -> Option<&Path> {
     }
 }
 
-/// Les fichiers d'ajout de `ajouts`, `<empreinte>.automerge`, triés par nom. Un autre nom, un
-/// `.partiel` par exemple, n'en est pas un : il est laissé tel quel.
+/// Les fichiers d'ajout de `ajouts`, `<empreinte>.automerge`, triés par nom. Un `.partiel` n'en
+/// est pas un : le démarrage lui donne son sort. Un dossier `ajouts/` absent n'en a aucun.
 fn fichiers_d_ajout(ajouts: &Path) -> Result<Vec<PathBuf>, Erreur> {
+    fichiers_de(ajouts, &["automerge"])
+}
+
+/// Les `.partiel` de `dossier`, triés par nom. Un dossier absent n'en a aucun.
+fn partiels(dossier: &Path) -> Result<Vec<PathBuf>, Erreur> {
+    fichiers_de(dossier, &["partiel"])
+}
+
+/// Ce que contient `dossier` sous l'une des `extensions`, trié par nom ; un autre nom n'est ni
+/// lu ni retiré. Un dossier absent (`io::ErrorKind::NotFound`) ne contient rien, et n'est pas
+/// créé ; toute autre erreur de lecture du dossier rend `Erreur::Disque`.
+fn fichiers_de(dossier: &Path, extensions: &[&str]) -> Result<Vec<PathBuf>, Erreur> {
+    let entrees = match fs::read_dir(dossier) {
+        Ok(entrees) => entrees,
+        Err(erreur) if erreur.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(erreur) => return Err(disque(dossier, erreur)),
+    };
     let mut fichiers = Vec::new();
-    for entree in fs::read_dir(ajouts).map_err(|erreur| disque(ajouts, erreur))? {
-        let chemin = entree.map_err(|erreur| disque(ajouts, erreur))?.path();
-        if chemin.extension() == Some(OsStr::new("automerge")) {
+    for entree in entrees {
+        let chemin = entree.map_err(|erreur| disque(dossier, erreur))?.path();
+        if extensions
+            .iter()
+            .any(|extension| chemin.extension() == Some(OsStr::new(extension)))
+        {
             fichiers.push(chemin);
         }
     }
     fichiers.sort();
     Ok(fichiers)
+}
+
+/// Le nom du fichier `chemin`.
+fn nom_de(chemin: &Path) -> String {
+    chemin
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .into_owned()
+}
+
+/// Le chemin de `nom`, relatif au dossier du document `dossier`, `/` pour séparateur, tel que la
+/// compaction le nomme (`Lu`) : chaque segment s'ajoute à `dossier`.
+fn dans_le_dossier(dossier: &Path, nom: &str) -> PathBuf {
+    nom.split('/')
+        .fold(dossier.to_path_buf(), |chemin, segment| {
+            chemin.join(segment)
+        })
 }
 
 /// Le contenu `octets` du fichier d'ajout `chemin` donne l'empreinte de son nom.
@@ -568,24 +798,26 @@ fn est_conforme(chemin: &Path, octets: &[u8]) -> bool {
 }
 
 /// Ce que la compaction lit du fichier d'ajout `chemin`, de contenu `octets`, contre le fichier
-/// complet relu `relu`, dans un `fork()` de `relu` où `load_incremental` le charge : lisible,
+/// complet relu `relu` (`charger_contre`) : son nom, `ajouts/<empreinte>.automerge` ; lisible,
 /// son contenu donne l'empreinte de son nom (`est_conforme`), et il s'est chargé sans erreur ;
-/// absorbé, chargé, il laisse les heads de `relu` inchangées, et aucune modification n'y attend
-/// ses dépendances.
+/// absorbé, chargé, il n'ajoute rien à `relu`.
 fn lu_contre(relu: &Automerge, chemin: &Path, octets: &[u8]) -> Lu {
-    let mut avec_l_ajout = relu.fork();
-    let charge = avec_l_ajout.load_incremental(octets).is_ok();
+    let charge = charger_contre(relu, octets);
     Lu {
-        nom: chemin
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .into_owned(),
-        lisible: charge && est_conforme(chemin, octets),
-        absorbe: charge
-            && avec_l_ajout.get_heads() == relu.get_heads()
-            && avec_l_ajout.get_missing_deps(&[]).is_empty(),
+        nom: format!("ajouts/{}", nom_de(chemin)),
+        lisible: charge.is_some() && est_conforme(chemin, octets),
+        absorbe: charge == Some(true),
     }
+}
+
+/// Le contenu `octets` d'un fichier d'ajout ou d'un voisin du fichier complet, chargé
+/// (`load_incremental`) dans un `fork()` du fichier complet relu `relu` : `None` s'il ne se
+/// charge pas ; sinon, s'il est absorbé : il laisse les heads de `relu` inchangées, et aucune
+/// modification n'y attend ses dépendances.
+fn charger_contre(relu: &Automerge, octets: &[u8]) -> Option<bool> {
+    let mut avec = relu.fork();
+    avec.load_incremental(octets).ok()?;
+    Some(avec.get_heads() == relu.get_heads() && avec.get_missing_deps(&[]).is_empty())
 }
 
 /// Le poids de `chemin` sur le disque, en octets.
@@ -600,6 +832,12 @@ fn poids(chemin: &Path) -> Result<u64, Erreur> {
 /// avant la fin de son renommage, le fichier complet ne laisse que `ajouts/`, vide, et
 /// `Erreur::Disque` se rend ; en place, mais son renommage non rendu durable, le document naît
 /// avec cet avertissement (`Avertissement::NonDurable`), et sa compaction est due.
+///
+/// Le fonds ne naît que si Pupitre est neuf (`pupitre_neuf`) : sinon `Erreur::FondsDejaNe`, sans
+/// que le geste soit fait. Un fichier complet, ou un voisin du fichier complet lisible (non
+/// vide, et qu'`Automerge::load` relit sans erreur), chacun lu par `fichier::lire`, dit le fonds
+/// né ; la naissance ne retire aucun voisin, et ne fait pas le démarrage. Un refus du disque à la
+/// lecture du dossier du fonds, s'il n'est pas absent, ou d'un `.partiel`, rend `Erreur::Disque`.
 pub(crate) fn faire_naitre_le_fonds<'r>(
     racine: &'r RacineDesDonnees,
     naissance: &Naissance<'_>,
@@ -610,10 +848,10 @@ pub(crate) fn faire_naitre_le_fonds<'r>(
     let garde = racine.prendre_la_garde()?;
     let dossier = dossier_du_fonds(racine);
     let complet = dossier.join("complet.automerge");
-    if complet
+    let present = complet
         .try_exists()
-        .map_err(|erreur| disque(&complet, erreur))?
-    {
+        .map_err(|erreur| disque(&complet, erreur))?;
+    if !demarrage::pupitre_neuf(present, voisins_du_complet_lisibles(&dossier)?) {
         return Err(Erreur::FondsDejaNe);
     }
     // Rien ne s'écrit avant que le geste soit fait : refusé, il ne laisse rien.
@@ -646,6 +884,20 @@ pub(crate) fn faire_naitre_le_fonds<'r>(
         compaction_due: !avertissements.is_empty(),
         avertissements,
     })
+}
+
+/// Le nombre de voisins du fichier complet du dossier `dossier` dont le sort est `Lire` : non
+/// vides, et qu'`Automerge::load` relit sans erreur. Chaque `.partiel` se lit par
+/// `fichier::lire`.
+fn voisins_du_complet_lisibles(dossier: &Path) -> Result<usize, Erreur> {
+    let mut lisibles = 0;
+    for chemin in partiels(dossier)? {
+        let octets = fichier::lire(&chemin).map_err(|erreur| disque(&chemin, erreur))?;
+        if sort_dans_le_dossier(&chemin, &octets) == Sort::Lire {
+            lisibles += 1;
+        }
+    }
+    Ok(lisibles)
 }
 
 /// Le refus du disque sur `chemin` d'une écriture à côté, refusée ou non durable :
