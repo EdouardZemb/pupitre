@@ -2,13 +2,13 @@
 //! des tests, le dossier jetable de chaque test, ce que contient un dossier et l'empreinte de
 //! chacun de ses fichiers, des octets engendrés au lieu d'un fichier, un texte long, la copie d'un
 //! arbre de fichiers, l'ouverture de la racine des données et du fonds, entier ou tel qu'il
-//! s'ouvre, la naissance du fonds et ses deux copies, un fonds bâti sans racine des données,
-//! l'écriture des tests, avec ou sans son message et son heure, l'écriture faite sans
-//! avertissement, les chemins du fonds et des captations, les échanges de deux copies et leur
-//! réunion, la relecture du dossier du fonds, l'objet à clés que porte une clé, l'idée que porte
-//! le fonds, les noms nouveaux d'un dossier, le fichier d'ajout qu'une écriture ou une réception
-//! ajoute, l'octet du milieu d'un fichier changé, ce que refuse un document en lecture seule, et
-//! les gestes de test sur le fonds.
+//! s'ouvre, la naissance du fonds et ses deux copies, un fonds bâti sans racine des données, la
+//! migration de test et sa table, l'écriture des tests, avec ou sans son message et son heure,
+//! l'écriture faite sans avertissement, les chemins du fonds et des captations, les échanges de
+//! deux copies et leur réunion, la relecture du dossier du fonds, l'objet à clés que porte une
+//! clé, l'idée que porte le fonds, les noms nouveaux d'un dossier, le fichier d'ajout qu'une
+//! écriture ou une réception ajoute, l'octet du milieu d'un fichier changé, ce que refuse un
+//! document en lecture seule, et les gestes de test sur le fonds.
 
 // Chaque fichier de test n'emploie qu'une partie des aides.
 #![allow(dead_code)]
@@ -23,8 +23,10 @@ use automerge::{
     ActorId, Automerge, AutomergeError, Change, ChangeHash, ObjId, ObjType, ROOT, ReadDoc, Value,
 };
 use noyau::donnees::fonds::{
-    ETIQUETTES, FORMAT, GENESE, IDEE, IDEES, MESSAGE_DE_LA_NAISSANCE, PRISES, TEXTE,
+    ACTEUR_DE_LA_GENESE, ETIQUETTES, FORMAT, GENESE, IDEE, IDEES, MESSAGE_DE_LA_NAISSANCE, PRISES,
+    TEXTE, VERSION_DE_SCHEMA,
 };
+use noyau::donnees::version::{Migration, message_de_la_migration};
 use stockage::{
     Avertissement, Document, Erreur, LectureSeule, Naissance, RacineDesDonnees, empreinte,
 };
@@ -238,6 +240,46 @@ pub fn batir_un_fonds(acteur: ActorId, champs: &[(&str, &str)]) -> Automerge {
             .with_time(HEURE),
     );
     bati
+}
+
+/// Le conteneur de la racine du document que crée la migration de test : un objet à clés, où la
+/// donnée nouvelle d'un objet s'écrit en valeurs simples, sous `<objet>/<élément>` (§ 31 · 2.4).
+pub const CONTENEUR_DE_LA_MIGRATION: &str = "elements_de_test";
+
+/// La migration de test vers la version de schéma 2, engendrée à l'exécution depuis `GENESE`, de
+/// façon déterministe, comme la recette de la genèse (`genese_par_la_recette`, dans
+/// `tests/genese.rs`) : l'acteur `ACTEUR_DE_LA_GENESE`, qui pose `VERSION_DE_SCHEMA` à 2 et crée
+/// `CONTENEUR_DE_LA_MIGRATION`, un objet à clés, à la racine du document, sous le message
+/// `message_de_la_migration(2)`, à l'heure 0. Rend les octets de sa modification
+/// (`raw_bytes()`), qui ne dépend que de la genèse.
+pub fn migration_de_test() -> Vec<u8> {
+    let mut doc = Automerge::new().with_actor(ActorId::from(ACTEUR_DE_LA_GENESE));
+    doc.apply_changes([Change::try_from(GENESE).expect("lire la genèse")])
+        .expect("appliquer la genèse");
+    let mut tx = doc.transaction();
+    tx.put(ROOT, VERSION_DE_SCHEMA, 2u64)
+        .expect("poser la version de schéma 2");
+    tx.put_object(ROOT, CONTENEUR_DE_LA_MIGRATION, ObjType::Map)
+        .expect("créer le conteneur de la migration");
+    let message = message_de_la_migration(2);
+    let options = CommitOptions::default()
+        .with_message(message.as_str())
+        .with_time(0);
+    let (h, _) = tx.commit_with(options);
+    doc.get_change_by_hash(&h.expect("la migration est une modification"))
+        .expect("la modification de la migration")
+        .raw_bytes()
+        .to_vec()
+}
+
+/// La table de test, d'une migration : `octets`, vers la version de schéma 2, apportée par la
+/// version de Pupitre `0.0.0-essai`.
+pub fn migrations_de_test(octets: &[u8]) -> [Migration<'_>; 1] {
+    [Migration {
+        vers: 2,
+        octets,
+        version_de_pupitre: "0.0.0-essai",
+    }]
 }
 
 /// Le chemin d'écriture des tests nouveaux du stockage, avec `ecrire_a` qu'il appelle : quand

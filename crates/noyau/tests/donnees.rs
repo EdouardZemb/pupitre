@@ -1,9 +1,14 @@
 //! Les règles des données : ce que permet un document ouvert (§ 31 · 2.1), quand compacter,
-//! quels fichiers retirer (§ 31 · 2.2), et quelles copies s'échangent (§ 31 · 2.5).
+//! quels fichiers retirer (§ 31 · 2.2), comment se lit la version de schéma et quelles
+//! migrations s'appliquent (§ 31 · 2.4), et quelles copies s'échangent (§ 31 · 2.5).
 
 use noyau::donnees::acces::Acces;
 use noyau::donnees::compaction::{Lu, a_l_ouverture, a_retirer, apres_une_ecriture};
 use noyau::donnees::copie::{Copie, Difference, comparer};
+use noyau::donnees::fonds::MIGRATIONS;
+use noyau::donnees::version::{
+    Lecture, Migration, a_appliquer, connue, lecture, message_de_la_migration,
+};
 
 fn lu(nom: &str, lisible: bool, absorbe: bool) -> Lu {
     Lu {
@@ -44,6 +49,57 @@ fn copie(proprietaire: &str, document: &str, lignee: &str) -> Copie {
 fn l_acces_dit_ce_que_permet_un_document() {
     assert!(Acces::Entier.ecrit() && Acces::Entier.echange());
     assert!(!Acces::Illisible.ecrit() && !Acces::Illisible.echange());
+}
+
+#[test]
+fn l_acces_d_un_document_plus_recent() {
+    assert!(!Acces::PlusRecent.ecrit() && Acces::PlusRecent.echange());
+    assert!(!a_l_ouverture(Acces::PlusRecent, 3, true));
+    // § 31 · 2.2 : en lecture seule, pas de compaction
+    assert!(!apres_une_ecriture(
+        Acces::PlusRecent,
+        false,
+        1600,
+        15150,
+        101
+    ));
+}
+
+#[test]
+fn la_version_de_schema_decide_de_la_lecture() {
+    assert_eq!(lecture(Some(1), 1), Lecture::Ecrire);
+    assert_eq!(lecture(Some(1), 2), Lecture::Migrer { de: 1, vers: 2 });
+    assert_eq!(lecture(Some(2), 3), Lecture::Migrer { de: 2, vers: 3 });
+    assert_eq!(lecture(Some(2), 1), Lecture::LireSansEcrire);
+    assert_eq!(lecture(Some(3), 1), Lecture::LireSansEcrire);
+    assert_eq!(lecture(None, 1), Lecture::Illisible);
+    assert_eq!(lecture(Some(0), 1), Lecture::Illisible);
+    let (m2, m3) = (
+        Migration {
+            vers: 2,
+            octets: b"m2",
+            version_de_pupitre: "0.4.0",
+        },
+        Migration {
+            vers: 3,
+            octets: b"m3",
+            version_de_pupitre: "0.5.0",
+        },
+    );
+    assert_eq!((connue(&[]), connue(&[m2])), (1, 2));
+    assert_eq!(a_appliquer(&[m2, m3], 1), [m2, m3]);
+    assert_eq!(a_appliquer(&[m2, m3], 2), [m3]);
+    assert!(a_appliquer(&[m2, m3], 3).is_empty());
+    assert_eq!(
+        message_de_la_migration(2),
+        "Fonds passé à la version de schéma 2"
+    );
+    assert!(
+        MIGRATIONS
+            .iter()
+            .enumerate()
+            .all(|(i, m)| m.vers == i as u64 + 2)
+    );
 }
 
 #[test]
