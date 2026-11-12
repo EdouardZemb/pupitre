@@ -237,6 +237,92 @@ fn un_voisin_d_ajout_qui_ne_se_met_pas_en_place_se_lit_et_avertit() {
     );
 }
 
+// Le voisin d'un fichier d'ajout mis en place au démarrage, son renommage non rendu durable : le
+// fonds s'ouvre avec `NonDurable`, sur le fichier d'ajout. La compaction d'ouverture, que ce
+// fichier d'ajout lu demande, le fond aussitôt dans un fichier complet neuf, rendu durable, puis
+// le retire : l'avertissement nomme un fichier qui n'est plus, et la compaction, réussie, n'est
+// plus due.
+#[test]
+fn un_voisin_d_ajout_mis_en_place_non_rendu_durable_avertit() {
+    let chemin = commun::dossier_jetable("demarrage-voisin-d-ajout-non-durable").join("donnees");
+    let racine = ouvrir(&chemin);
+    let mut fonds = faire_naitre(&racine);
+    noter(&mut fonds, "idee-2", "Un pont en mineur");
+    drop(fonds);
+    let voisin = l_ajout_en_voisin(&chemin);
+    let nom_du_voisin = voisin
+        .file_name()
+        .expect("le voisin a un nom")
+        .to_string_lossy()
+        .into_owned();
+    let ajout = voisin.with_file_name(
+        nom_du_voisin
+            .strip_suffix(".4242.partiel")
+            .expect("le voisin du test finit en .4242.partiel"),
+    );
+
+    // Le premier renommage rendu durable de l'ouverture est celui du démarrage ; la compaction
+    // d'ouverture rend le sien durable après lui.
+    let ouvert = {
+        let _panne = couper(Etape::RendreDurable, 1);
+        racine.fonds()
+    };
+
+    let mut fonds = ouvert
+        .expect("un renommage non rendu durable n'empêche pas d'ouvrir")
+        .expect("le fonds est né");
+    assert_eq!(
+        fonds.lecture_seule(),
+        None,
+        "le fonds ouvert est en lecture seule"
+    );
+    match fonds.avertissements() {
+        [Avertissement::NonDurable { chemin: nomme, .. }] => assert_eq!(
+            nomme, &ajout,
+            "l'avertissement ne nomme pas le fichier d'ajout mis en place"
+        ),
+        autres => panic!("attendu un seul NonDurable, rendu {autres:?}"),
+    }
+    assert!(
+        porte_l_idee(fonds.automerge(), "idee-2"),
+        "le fonds ouvert ne porte pas l'écriture du voisin mis en place"
+    );
+    assert!(!voisin.exists(), "le voisin n'a pas pris sa place");
+    // La compaction d'ouverture a fondu le fichier d'ajout que nomme l'avertissement, puis l'a
+    // retiré : le fichier complet, relu seul, porte l'écriture.
+    assert_eq!(
+        entrees(&dossier_des_ajouts(&chemin)),
+        Vec::<String>::new(),
+        "la compaction d'ouverture n'a pas retiré le fichier d'ajout mis en place"
+    );
+    let seul = Automerge::load(&lire_le_complet(&chemin)).expect("lire le fichier complet");
+    assert!(
+        porte_l_idee(&seul, "idee-2"),
+        "le fichier complet relu seul ne porte pas l'écriture du voisin mis en place"
+    );
+    assert_eq!(
+        seul.get_heads(),
+        fonds.automerge().get_heads(),
+        "le fichier complet relu seul ne mène pas aux heads du fonds ouvert"
+    );
+    // Aucune compaction n'est due : l'écriture suivante, légère, garde son fichier d'ajout.
+    noter(&mut fonds, "idee-3", "Une coda en suspens");
+    assert_eq!(
+        entrees(&dossier_des_ajouts(&chemin)).len(),
+        1,
+        "l'écriture suivante a compacté le fonds : la compaction d'ouverture est restée due"
+    );
+    drop(fonds);
+
+    let fonds = ouvrir_le_fonds(&racine);
+    for idee in ["idee-2", "idee-3"] {
+        assert!(
+            porte_l_idee(fonds.automerge(), idee),
+            "rouvert sans panne, le fonds ne porte pas {idee}"
+        );
+    }
+}
+
 // § 31 · 10, test 8 : un voisin incomplet n'est pas lu comme une écriture
 #[test]
 fn un_voisin_incomplet_ou_non_conforme_est_retire() {
@@ -330,6 +416,74 @@ fn un_voisin_incomplet_ou_non_conforme_est_retire() {
         entrees(&ajouts),
         Vec::<String>::new(),
         "la compaction d'ouverture a laissé un fichier dans ajouts/"
+    );
+}
+
+// § 31 · 10, test 8 : un voisin non conforme dont le retrait est refusé n'est pas lu comme une écriture
+// Le retrait d'un `.partiel` que le démarrage retire est tu s'il est refusé, et se retente à
+// l'ouverture suivante (§ 31 · 2.1).
+#[test]
+fn un_voisin_non_conforme_qui_reste_ne_se_lit_pas() {
+    let chemin = commun::dossier_jetable("demarrage-voisin-non-conforme-reste").join("donnees");
+    let racine = ouvrir(&chemin);
+    let mut fonds = faire_naitre(&racine);
+    noter(&mut fonds, "idee-2", "Un pont en mineur");
+    let heads = fonds.automerge().get_heads();
+    let valeur = fonds.automerge().hydrate(None);
+    // Une modification valide que le fonds n'a pas, sous un nom dont elle ne donne pas
+    // l'empreinte : chargée, elle changerait les heads.
+    let mut copie = fonds.automerge().fork();
+    let mut tx = copie.transaction();
+    commun::noter(&mut tx, "idee-3", "Une coda en suspens").expect("noter l'idée");
+    tx.commit_with(
+        CommitOptions::default()
+            .with_message(MESSAGE_DU_GESTE)
+            .with_time(HEURE + 1),
+    );
+    let de_plus = copie.save_after(&heads);
+    drop(fonds);
+    let ajouts = dossier_des_ajouts(&chemin);
+    let nom = format!("{}.automerge.4242.partiel", "0".repeat(64));
+    let partiel = ajouts.join(&nom);
+    fs::write(&partiel, &de_plus).expect("déposer le .partiel non conforme");
+
+    // Le dossier du fonds et `documents/` n'ont aucun `.partiel`, et la compaction d'ouverture
+    // retire après le démarrage : le premier retrait de l'ouverture est celui du `.partiel`.
+    let fonds = {
+        let _panne = couper(Etape::Retrait, 1);
+        ouvrir_le_fonds(&racine)
+    };
+
+    assert_eq!(
+        fonds.automerge().get_heads(),
+        heads,
+        "le .partiel non conforme resté a changé les heads du fonds"
+    );
+    assert_eq!(
+        fonds.automerge().hydrate(None),
+        valeur,
+        "le .partiel non conforme resté a changé le contenu du fonds"
+    );
+    assert!(
+        fs::read(&partiel).expect("relire le .partiel resté") == de_plus,
+        "le .partiel dont le retrait est refusé n'est plus là, octet pour octet"
+    );
+    assert_eq!(
+        entrees(&ajouts),
+        [nom.as_str()],
+        "la compaction d'ouverture n'a pas retiré le seul fichier d'ajout"
+    );
+    drop(fonds);
+
+    let fonds = ouvrir_le_fonds(&racine);
+    assert_eq!(
+        fonds.automerge().get_heads(),
+        heads,
+        "rouvert sans panne, le fonds n'a pas les heads d'avant"
+    );
+    assert!(
+        !partiel.exists(),
+        "rouvert sans panne, le .partiel non conforme n'est pas retiré"
     );
 }
 
@@ -447,14 +601,22 @@ fn a_la_naissance_le_voisin_du_premier_complet_fait_exister_le_fonds() {
     assert!(!voisin.exists(), "le voisin n'est pas retiré");
 }
 
-#[test]
-fn un_voisin_du_complet_vide_laisse_pupitre_neuf() {
-    let chemin = commun::dossier_jetable("demarrage-voisin-du-complet-vide").join("donnees");
-    let racine = ouvrir(&chemin);
-    let dossier = dossier_du_fonds(&chemin);
+/// Crée le dossier du fonds de la racine des données `chemin`, et y dépose, seul, un voisin vide
+/// du fichier complet, `complet.automerge.4242.partiel`. Rend son chemin.
+fn deposer_un_voisin_du_complet_vide(chemin: &Path) -> PathBuf {
+    let dossier = dossier_du_fonds(chemin);
     fs::create_dir_all(&dossier).expect("créer le dossier du fonds");
     let voisin = dossier.join("complet.automerge.4242.partiel");
     fs::write(&voisin, b"").expect("déposer le voisin vide");
+    voisin
+}
+
+#[test]
+fn un_voisin_du_complet_vide_laisse_pupitre_neuf() {
+    let d = commun::dossier_jetable("demarrage-voisin-du-complet-vide");
+    let chemin = d.join("donnees");
+    let racine = ouvrir(&chemin);
+    let voisin = deposer_un_voisin_du_complet_vide(&chemin);
 
     match racine.fonds() {
         Ok(None) => {}
@@ -464,6 +626,42 @@ fn un_voisin_du_complet_vide_laisse_pupitre_neuf() {
     assert!(!voisin.exists(), "le voisin vide n'est pas retiré");
 
     drop(faire_naitre(&racine));
+
+    // Son retrait refusé, le voisin vide reste quand la lecture du dossier, puis la naissance, le
+    // lisent : ni l'une ni l'autre ne le compte. Rien d'autre ne se retire à l'ouverture d'un
+    // fonds qui n'est pas né : le premier retrait de l'ouverture est le sien.
+    let chemin = d.join("retrait-refuse");
+    let racine = ouvrir(&chemin);
+    let voisin = deposer_un_voisin_du_complet_vide(&chemin);
+
+    let ouvert = {
+        let _panne = couper(Etape::Retrait, 1);
+        racine.fonds()
+    };
+
+    match ouvert {
+        Ok(None) => {}
+        Ok(Some(_)) => panic!("retrait refusé : le voisin vide a fait exister le fonds"),
+        Err(autre) => panic!("retrait refusé : attendu aucun fonds ; rendu {autre:?}"),
+    }
+    assert_eq!(
+        fs::read(&voisin).expect("relire le voisin vide resté"),
+        Vec::<u8>::new(),
+        "retrait refusé : le voisin vide n'est plus là, vide"
+    );
+
+    drop(faire_naitre(&racine));
+
+    assert_eq!(
+        fs::read(&voisin).expect("relire le voisin vide après la naissance"),
+        Vec::<u8>::new(),
+        "la naissance a touché au voisin vide"
+    );
+    drop(ouvrir_le_fonds(&racine));
+    assert!(
+        !voisin.exists(),
+        "rouvert sans panne, le voisin vide n'est pas retiré"
+    );
 }
 
 // § 31 · 2.1 : un nom déjà pris reçoit un suffixe ; deux voisins laissés sous le même numéro de
@@ -513,9 +711,11 @@ fn un_fichier_etranger_est_laisse_tel_quel() {
     noter(&mut fonds, "idee-2", "Un pont en mineur");
     let heads = fonds.automerge().get_heads();
     drop(fonds);
+    // Un dans chacun des trois dossiers que le démarrage parcourt.
     let etrangers = [
-        dossier_des_ajouts(&chemin).join("desktop.ini"),
+        chemin.join("documents").join("desktop.ini"),
         dossier_du_fonds(&chemin).join("Thumbs.db"),
+        dossier_des_ajouts(&chemin).join("desktop.ini"),
     ];
     for etranger in &etrangers {
         fs::write(etranger, "inventé")
@@ -549,20 +749,19 @@ fn un_fichier_etranger_est_laisse_tel_quel() {
 fn le_demarrage_ne_touche_rien_sans_le_verrou() {
     let chemin = commun::dossier_jetable("demarrage-sans-le-verrou").join("donnees");
     let racine = ouvrir(&chemin);
-    drop(faire_naitre(&racine));
+    // Le fonds nomme la captation `e` : un rangement lancé sans le verrou renommerait son nom
+    // provisoire, comme un démarrage retirerait le `.partiel` non conforme d'`ajouts/`.
+    let du_contenu = octets(5, 300);
+    let e = empreinte(&du_contenu);
+    drop(naitre_avec_les_prises(&racine, &[&e]));
     let documents = chemin.join("documents");
     let captations = chemin.join("captations");
-    let zeros = "0".repeat(64);
     fs::write(
-        dossier_des_ajouts(&chemin).join(format!("{zeros}.automerge.4242.partiel")),
+        dossier_des_ajouts(&chemin).join(format!("{}.automerge.4242.partiel", "0".repeat(64))),
         b"une ecriture interrompue",
     )
     .expect("déposer un .partiel dans ajouts/");
-    fs::write(
-        captations.join(format!("{zeros}.4242.partiel")),
-        b"une captation interrompue",
-    )
-    .expect("déposer un .partiel dans captations/");
+    deposer_un_nom_provisoire(&chemin, &e, &du_contenu);
     let documents_avant = empreintes(&documents);
     let captations_avant = empreintes(&captations);
 
@@ -587,7 +786,7 @@ fn le_demarrage_ne_touche_rien_sans_le_verrou() {
     drop(racine);
 }
 
-// P2 : l'ouverture ne crée pas `ajouts/` ; la première écriture le recrée.
+// § 31 · 2.1 : l'ouverture ne crée pas `ajouts/` ; la première écriture le recrée.
 #[test]
 fn une_ecriture_recree_ajouts_s_il_manque() {
     let chemin = commun::dossier_jetable("demarrage-ajouts-absent-ecriture").join("donnees");
@@ -614,7 +813,7 @@ fn une_ecriture_recree_ajouts_s_il_manque() {
     );
 }
 
-// P2 : de même pour ce que la synchronisation reçoit.
+// § 31 · 2.1 : de même pour ce que la synchronisation reçoit.
 #[test]
 fn une_reception_recree_ajouts_s_il_manque() {
     let (chemin_a, chemin_b) = commun::deux_copies("demarrage-ajouts-absent-reception");
@@ -799,7 +998,8 @@ fn un_voisin_du_complet_qu_automerge_refuse_ouvre_en_lecture_seule() {
     );
 }
 
-// P2 : un `ajouts/` qui ne peut être recréé refuse l'écriture, et la mémoire se relit du disque.
+// § 31 · 2.1 : un `ajouts/` qui ne peut être recréé refuse l'écriture, et la mémoire se relit du
+// disque.
 #[test]
 fn une_ecriture_qui_ne_peut_recreer_ajouts_est_refusee() {
     let chemin = commun::dossier_jetable("demarrage-ajouts-non-recree").join("donnees");
@@ -839,6 +1039,61 @@ fn une_ecriture_qui_ne_peut_recreer_ajouts_est_refusee() {
     assert!(
         !dossier.exists(),
         "l'écriture refusée a recréé le dossier du document"
+    );
+}
+
+// § 31 · 2.1 : un `ajouts/` recréé dont la création n'a pu être rendue durable se retire, et
+// l'écriture suivante le recrée. Hors de Windows seulement, où un dossier se synchronise. Aucune
+// panne ne s'injecte dans cette synchronisation : sans droit de lecture, le dossier du document
+// accepte un dossier nouveau, mais ne s'ouvre pas, et sa synchronisation échoue.
+#[cfg(unix)]
+#[test]
+fn un_ajouts_recree_non_rendu_durable_se_retire() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let chemin = commun::dossier_jetable("demarrage-ajouts-non-durable").join("donnees");
+    let racine = ouvrir(&chemin);
+    drop(faire_naitre(&racine));
+    let dossier = dossier_du_fonds(&chemin);
+    let ajouts = dossier_des_ajouts(&chemin);
+    fs::remove_dir(&ajouts).expect("ôter ajouts/, vide");
+    let mut fonds = ouvrir_le_fonds(&racine);
+    let droits = |mode: u32| {
+        fs::set_permissions(&dossier, fs::Permissions::from_mode(mode))
+            .unwrap_or_else(|e| panic!("changer les droits de {} : {e}", dossier.display()))
+    };
+
+    droits(0o300);
+    let se_liste = fs::read_dir(&dossier).is_ok();
+    let refus = commun::ecrire(&mut fonds, |tx| {
+        commun::noter(tx, "idee-2", "Un pont en mineur")
+    });
+    // Les droits rendus avant tout constat : le dossier jetable doit pouvoir s'effacer.
+    droits(0o755);
+
+    assert!(
+        !se_liste,
+        "sans droit de lecture, le dossier du document se liste : ce processus passe outre les droits"
+    );
+    match refus {
+        Err(Erreur::Disque { chemin: refuse, .. }) => assert_eq!(
+            refuse, dossier,
+            "le refus ne nomme pas le dossier du document"
+        ),
+        autre => panic!("attendu l'écriture refusée par le disque ; rendu {autre:?}"),
+    }
+    assert!(
+        !ajouts.exists(),
+        "ajouts/, dont la création n'a pu être rendue durable, reste"
+    );
+    drop(fonds);
+
+    let mut fonds = ouvrir_le_fonds(&racine);
+    noter(&mut fonds, "idee-2", "Un pont en mineur");
+    assert_eq!(
+        entrees(&ajouts).len(),
+        1,
+        "l'écriture suivante n'a pas recréé ajouts/ avec son fichier d'ajout"
     );
 }
 
@@ -971,7 +1226,7 @@ fn un_nom_provisoire_qui_ne_se_range_pas_avertit() {
     }
 }
 
-// Décision 12 du plan maître : en lecture seule, ce que le fonds nomme est ce qui se lit.
+// § 31 · 6.1 : en lecture seule, ce que le fonds nomme est ce qui se lit.
 #[test]
 fn en_lecture_seule_seul_ce_qui_se_lit_nomme() {
     let chemin = commun::dossier_jetable("demarrage-nom-provisoire-lecture-seule").join("donnees");
