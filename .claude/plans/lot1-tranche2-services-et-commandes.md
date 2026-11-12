@@ -46,14 +46,14 @@ les suppose.
 - « Une PR qui ajoute un mot au glossaire le cherche d'abord (`git grep -n -i -w <mot> -- docs README.md CONVENTIONS.md`), requalifie chaque emploi antérieur et cite la recherche (LE-2) ; une PR qui périme un mot ou un identifiant le cherche dans tout le dépôt, maquettes et commentaires SVG compris (LE-3). »
 - « **Chaque écran** qu'une tranche ajoute se mène au clavier, focus visible […] » : la tranche 2 n'en ajoute aucun.
 - « Conventional Commits en français, en-tête de 100 caractères au plus, titre de 93 au plus ; « Refs #24 » » ; `git add` par chemins explicites, jamais `git add .` ; `git commit -F <scratchpad>/msg-t2-<tâche>-<étape>.txt` (un texte accentué passe par un fichier).
-- « Chaque PR qui livre un critère de la SFD en entier l'inscrit au tableau du § 70 · 4.1, et un test le nomme (`cap06_7_…`) et en calcule l'exemple ; `verif-faits.mjs` refuse un critère inscrit sans test qui le nomme. La porte ne voit pas un critère livré que la PR n'inscrit pas : la revue de chaque PR compare le tableau aux critères que la tranche dit livrer. » La tranche inscrit CAP-01 · 6 en PR (a), CAP-02 · 6 à 8 en PR (b) ; CAP-02 · 3, 4 et 5 ont leurs parts, sans inscription (§ 70 · 4.1 : « Un critère qui arrive par parts a un test nommé pour chaque part, et ne s'inscrit qu'avec la dernière »).
+- « Chaque PR qui livre un critère de la SFD en entier l'inscrit au tableau du § 70 · 4.1, et un test le nomme (`cap06_7_…`) et en calcule l'exemple ; `verif-faits.mjs` refuse un critère inscrit sans test qui le nomme. La porte ne voit pas un critère livré que la PR n'inscrit pas : la revue de chaque PR compare le tableau aux critères que la tranche dit livrer. » La tranche inscrit CAP-01 · 6 en PR (a), CAP-02 · 7 et 8 en PR (b) ; CAP-02 · 3, 4, 5 et 6 ont leurs parts, sans inscription (§ 70 · 4.1 : « Un critère qui arrive par parts a un test nommé pour chaque part, et ne s'inscrit qu'avec la dernière »). La règle vaut pour chaque critère : relu dans la SFD, un critère qui vise un geste ou un cas qu'une tranche ou un lot suivant livre (relier à un motif ou à un morceau, regrouper des photos…) garde son test de part, nommé (`cap02_6_…`), sans inscription ; un critère inscrit l'est parce que la tâche qui le livre dit, en une phrase, pourquoi il est entier.
 - « fusion par squash, une fois tout vert » ; mode `session` : la PR s'est ouverte en brouillon, donc `gh pr ready <n>`, puis, depuis le clone principal `pupitre`, sans `cd` ni `-R`, `gh pr merge <n> --squash --match-head-commit <SHA complet de la tête relue>`.
 - « une tranche qui alourdit les tests remesure les délais de `verifier` et de `windows` ; l'installateur NSIS reste en artefact. »
 - Le corps de chaque PR porte la section `## Écarts à la spec`, avec « Aucun. » : un écart à la spec se lève en corrigeant la spec dans la PR même, jamais en le déclarant. Le corps final s'écrit avant l'envoi qui le rend final (une retouche du corps ne relance que `texte-pr`, et `texte-pr` ne se relance jamais par `gh run rerun`).
 - Chaque PR part de `main` à jour, depuis le clone principal (`git fetch`, puis `git worktree add ../pupitre.worktrees/<branche> -b <branche> origin/main`), s'ouvre en brouillon au premier envoi (`ci.yml` ne tourne que sur une PR), et dit dans sa description les tests réécrits et pourquoi.
 - **Lire la CI** : `gh run list --branch <branche> --workflow ci --limit 1`, `gh run watch <n> --exit-status`, `gh run view <n> --log-failed`. Un rouge attendu se lit à l'étape « Lint » de `verifier` : toute erreur de compilation qui nomme l'élément manquant (`unresolved import`, `cannot find`, E0599, E0425) ; ou à « Tests » (`panicked at`, avec le nom du test). Un rouge à « Format » se corrige (`style: le format de rustfmt`) avant de relire. Un vert se lit à « Tests » de `verifier`, et, quand `stockage` ou `synchro` change, à « Tests du stockage et de la synchronisation (H07) » de `windows` : `test result: ok.` pour chaque fichier touché.
 - Chaque nom d'`automerge` 0.12.0 que le code emploie se vérifie sur docs.rs avant d'écrire ; un commentaire dans un bloc de test de ce plan est une spécification, qui devient des assertions.
-- Chaque test qui prouve un des tests 3, 4, 7, 8, 10, 11 ou 13 du § 31 · 10 porte au-dessus de lui `// § 31 · 10, test N : <la clause>`, la clause recopiée mot pour mot ; chaque test qui prouve un critère inscrit de la SFD se nomme `capNN_n_…` (`cap02_3_…`), précédé de `#[test]`.
+- Chaque test qui prouve un des tests 3, 4, 7, 8, 10, 11 ou 13 du § 31 · 10 porte au-dessus de lui `// § 31 · 10, test N : <la clause>`, la clause recopiée mot pour mot ; chaque test qui prouve un critère de la SFD, inscrit ou livré par parts, se nomme `capNN_n_…` (`cap02_7_…` pour un critère inscrit, `cap02_3_…` pour une part), précédé de `#[test]`.
 - Les heures sont des secondes, partout où le code les reçoit (l'heure d'une modification Automerge, `le`, `retiree`) ; un ULID les prend en millisecondes, par `heure × 1 000`. L'heure et l'aléa sont des arguments jusqu'à la tranche 3 ; les tests les donnent.
 
 ---
@@ -61,7 +61,8 @@ les suppose.
 ## Ce que les passages ont levé
 
 Les deux passages (AM-2, LE-6), faits avant ce plan, ne sont pas dans le dépôt : leur détail a servi à écrire ce
-plan ; la description de sa PR porte la table de couverture. La PR de ce plan consigne (`/consigner`), au motif
+plan ; la description de sa PR porte la table de couverture. La relecture du plan par une session neuve, après eux,
+a sa table à la fin de cette section. La PR de ce plan consigne (`/consigner`), au motif
 « Une spec qui se contredit » (cinquième constat ; la porte existe depuis LE-11), une ligne, LE-14, qui nomme C3, C4,
 C12, C17, C22, C23, C24, C30, les cinq sens doubles (C5, C6, C8, C9, C10), et les contradictions que le plan tranche
 par une question ou une correction : le test 13 (Éc-1 à Éc-3), « une seule idée visible » (Éc-8), la date d'un lien
@@ -74,8 +75,8 @@ clôt.
 |---|---|---|
 | C1. Les critères lisent le fonds, et aucune lecture n'est à la tranche | Trois lectures sans tri, filtre, compte ni recherche : `vue_d_une_idee`, `idees` (les idées non retirées) et `journal` (les messages de l'historique) ; jamais « requête », jamais « vue du fonds » ; écart 1 | 5, 11 |
 | C2. Rien ne crée une prise, un MIDI versé ou un texte versé avant l'import ; le générateur doit être livré | Les changements qui versent une fiche au noyau (`gestes::verser`), conduits par `Services::verser_une_fiche`, livrée hors d'`en-memoire`, sans commande avant la tranche 5 ; écart 2 | 10, 11, 18 |
-| C3. La vigilance 1 sur les prises | Les faits d'une captation en valeurs simples sous `<empreinte>/<fait>`, sans objet par empreinte : d'une prise, `idee`, `format`, `duree`, `le` et `par` ; d'un MIDI versé ou d'un texte versé, `idee` et `format` (§ 30 · 9.2 ne leur donne ni date ni appareil). Deux répliques qui versent la même captation posent chacune chaque fait : sous chaque clé, `get_all` rend deux valeurs, qu'Automerge ne fusionne pas, égales pour `format` et `duree`, différentes au besoin pour `le`, `par` et `idee` ; rien ne se perd, et le relevé des conflits vient au lot 3 ; une clé se coupe au premier `/` ; les empreintes nommées se tirent au noyau | 8, 10, 15 |
-| C4. La décision 9 énumère moins de conteneurs que sa règle n'en demande | Aucun conteneur de plus : chaque fait de la tranche 5 a déjà sa clé dans un conteneur de la décision 9, que le § 31 · 2 écrit (stems sous les prises, `<prise>/stem/<stem>/<fait>` ; noms d'origine, ensemble `<e>/nom/<nom>` → `true` sous la sorte de leur contenu ; manifeste, `<prise>/manifeste` ; rapport, `<import>/rapport` sous les imports) ; l'écart É3 du passage n'est pas pris | 8, 13 |
+| C3. La vigilance 1 sur les prises | Les faits d'une captation en valeurs simples sous `<empreinte>/<fait>`, sans objet par empreinte : d'une prise, `idee`, `format` et `duree` ; d'un MIDI versé ou d'un texte versé, `idee` et `format`. La date et l'appareil d'une prise sont des faits de sa captation, « lus une fois, sur la captation ou à sa création » (§ 30 · 9.2) : à INC-1, toute prise est importée, et rien ne les lit sur la captation (CAP-03, l'établi ne lit que l'en-tête d'un WAV ou d'un MIDI ; ADR-024, décision 6) ; ils restent absents, `—`, et n'ont pas de clé ; l'heure du versement et l'appareil qui verse sont ceux de l'idée qui naît (`le`, `par`), jamais ceux de la captation. `format` prend le vocabulaire du § 30 · 9.2 et de l'ADR-024, jamais l'extension (tâche 10). Deux répliques qui versent la même captation posent chacune chaque fait : sous chaque clé, `get_all` rend deux valeurs, qu'Automerge ne fusionne pas, égales pour `format` et `duree`, différentes au besoin pour `idee` ; rien ne se perd, et le relevé des conflits vient au lot 3 ; une clé se coupe au premier `/` ; les empreintes nommées se tirent au noyau | 8, 10, 15 |
+| C4. La décision 9 énumère moins de conteneurs que sa règle n'en demande | Aucun conteneur de plus : chaque fait de la tranche 5 a déjà sa clé dans un conteneur de la décision 9, que le § 31 · 2 écrit (stems sous les prises, `<prise>/stem/<stem>/<fait>` ; noms d'origine, ensemble `<e>/nom/<nom>` → `true` sous la sorte de leur contenu ; manifeste, `<prise>/manifeste` ; rapport, `<import>/rapport` sous les imports ; la division d'un MIDI et les autres faits d'un en-tête, sous des clés `<e>/<fait>` ajoutées, ce qui ne demande aucune migration) ; l'écart É3 du passage n'est pas pris | 8, 13 |
 | C5. « Vue du fonds », deux sens | Le noyau lit « le fonds lu » (`IdeeLue`, `CaptationLue`) ; « vue » seul pour ce que rend une lecture ; « vue du fonds » reste à CAP-07 | 2, 4 |
 | C6. « Écritures » du noyau contre « écriture » du disque | « Changements » (`Changement`, le mot du § 31 · 3) pour ce que rend le noyau, « écriture » pour le disque ; `Simple` n'a ni `Counter` ni objet `Text` | 2 |
 | C7. Ce qu'est une commande en tranche 2 | Une méthode de `Services`, qui prend un argument de `commandes` et rend une `Reponse` de `commandes`, avec à part le contexte du côté natif (`Contexte` : l'heure, l'aléa ; l'appareil, à la construction) ; les types de `commandes` ne portent que ce que l'interface envoie, dont `decalage_minutes` | 3, 5 |
@@ -101,7 +102,7 @@ clôt.
 | C27. `commandes` en WebAssembly ; la forme de la liste des noms | L'interface dépend de `commandes` dès la PR (a) ; `NOMS: &[&str]` | 3, 6 |
 | C28. Deux regroupements concurrents | Un test les écrit, une piste au lot 3 | 15, 19 |
 | C29. Les règles au noyau ne tournent que dans `verifier` | Chaque test de critère vit dans la suite, sur les deux paires | 5, 11, 12 |
-| C30. Les sorties des tranches 2 et 3 se recouvrent | CAP-01 · 6 inscrit en (a), que la vue tient dès noter (aucune prise ne s'écrit en (a)) ; CAP-02 · 6, 7, 8 inscrits en (b) ; CAP-02 · 4 vise chaque geste de tri, dont relier à un motif ou un morceau (INC-2) et regrouper une photo (lot 2) : son test de part, `cap02_4_…`, sans inscription (§ 70 · 4.1 ; la leçon d'AM-2 pour REN-08), comme CAP-02 · 3 et 5 ; CAP-02 · 6, dont l'exemple (annuler le dernier geste de tri) se calcule en entier, s'inscrit | 5, 7, 11, 13 |
+| C30. Les sorties des tranches 2 et 3 se recouvrent | Chaque critère relu dans la SFD (§ 70 · 4.1 ; la leçon d'AM-2 pour REN-08). Inscrits : CAP-01 · 6 en (a), son geste, noter à l'établi, étant la commande `noter`, livrée en entier, et chacun de ses faits se lisant dans la vue dès noter (aucune prise ne s'écrit en (a)) ; CAP-02 · 7 en (b), son cas, deux idées reliées en sens contraires puis la fusion des deux répliques, étant livré en entier (un lien vers un motif ou un morceau n'est pas son cas) ; CAP-02 · 8 en (b), son cas, une idée qui n'a qu'une prise, regroupée puis le geste annulé, se calculant en entier sur les gestes de la tranche. Des parts, sans inscription : CAP-02 · 4 et 6 visent chaque geste de tri, dont relier à un motif ou un morceau (INC-2) et regrouper une photo (lot 2), que la tranche ne journalise ni n'annule : leurs tests de part, `cap02_4_…` et `cap02_6_…` ; CAP-02 · 3 et 5, la boîte et les requêtes (tranches 3 et 4), et les photos de CAP-02 · 5 (lot 2) | 5, 7, 11, 12, 13 |
 | C31. Le contrôle statique d'I28 | « Écrire » : créer une modification ; le contrôle lit les `src/` ; trois fichiers permis ; `receive_sync_message` cité comme reprise | 17 |
 
 ### Le passage de LE-6
@@ -117,7 +118,7 @@ clôt.
 | Éc-7. Le retrait d'office sur la vue locale | Le test des regroupements croisés ; la piste | 15, 19 |
 | Éc-8. « Une seule idée visible » | « La prise ne paraît que dans une idée » ; écart 10 | 15 |
 | Éc-9. « N'en font qu'un » ; la date d'un lien | Le lien vaut `true`, sans date : la PR (b) corrige le § 30 · 1, dont la classe `Lien` porte `le`, la date d'un lien se lisant dans l'historique du fonds ; « n'en font qu'un » se lit sur les clés, et `get_all` rend deux valeurs `true` ; la piste du lot 3 : deux valeurs égales ne sont pas un conflit « à trancher » | 13, 15, 19 |
-| Éc-10. Délier depuis l'autre bout d'une idée retirée | Tout geste qui touche une idée retirée est refusé, sauf rétablir | 10 |
+| Éc-10. Délier depuis l'autre bout d'une idée retirée | Tout geste qui touche une idée retirée est refusé, sauf rétablir ; question 6 (l'ADR-006 n'admet que l'impossibilité stricte) | 10 |
 | Éc-11. Les formes du message | La table de la tâche 10 : le décalage du geste, sans année, « 1er », « Annulé : » suivi du message entier ; questions 2 et 4 | 2, 10, 12 |
 | Éc-12. « Jamais un ordre » contre le refus N + 1 | Un constat | 16 |
 | Éc-13. Le texte d'une `io::Error` | Une table par `io::ErrorKind`, qui nomme le fichier | 16 |
@@ -128,7 +129,7 @@ clôt.
 | Éc-18. « Ni `Counter` ni objet `Text` » et le témoin des types | Le test vise les documents des opérations, jamais le témoin des types | 14 |
 | Éc-19. Des critères dans deux tranches | C30 | 13 |
 | Éc-20. Trois répliques dans un ordre aléatoire | Réunions tirées, puis une réunion finale A–B, B–C, A–B | 15 |
-| Éc-21. « La même étiquette » | Octet pour octet, sans normalisation ; le § 31 · 2 le dit | 10, 13 |
+| Éc-21. « La même étiquette » | Octet pour octet, sans normalisation ; le § 31 · 2 le dit ; question 7 (le choix contraire ne se rattraperait pas sans migration après la `v0.3.0`) | 10, 13 |
 | Éc-22. Une note au texte vide | Refusée ; question 1 | 2 |
 | Éc-23. La décision 16 | Hors tranche 2 (tranche 8) | — |
 | Éc-24. « 40 Go » | Hors tranche 2 (tranches 5, 6) | — |
@@ -147,7 +148,33 @@ Les tensions que le relevé des exigences a trouvées, et leur sort :
 - T13 (le doctest) → C16, C17 ;
 - T14, T15 (« une seule idée visible », « intactes ») → Éc-8 ; `get_all` aussitôt après la réunion ;
 - T16 (l'assiette) → une seule règle, `idee::assiette` ;
-- T17, T18 (les opérations du test 13, les métadonnées des prises) → Éc-2 ; en tranche 2, les prises portent idée, format, durée, date, appareil ; les MIDI versés et les textes versés, idée et format (§ 30 · 9.2).
+- T17, T18 (les opérations du test 13, les métadonnées des prises) → Éc-2 ; en tranche 2, les prises portent idée, format et durée ; leur date et leur appareil, des faits de la captation que rien ne lit encore sur elle, restent absents, `—` (§ 30 · 9.2 ; CAP-03 ; ADR-024, décision 6) ; les MIDI versés et les textes versés, idée et format (§ 30 · 9.2), `format` au vocabulaire du § 30 · 9.2 et de l'ADR-024, jamais l'extension (C3).
+
+### La relecture par une session neuve
+
+Une session neuve a relu ce plan selon « La revue du plan » (`docs/modele/methode.md`), chaque mécanisme annoncé relu
+dans le code de `a36eef2` : dix-sept constats, tous retenus. Chacun a été cherché aussi ailleurs dans le plan, et la
+correction suit partout où la même croyance paraissait.
+
+| Constat | Décision de ce plan | Tâche |
+|---|---|---|
+| N1. Bloquant : une prise importée portait sous `le` et `par` l'heure et l'appareil du versement, des faits faux de sa captation (§ 30 · 9.2 ; CAP-03 ; ADR-024, décision 6) | Une prise n'écrit que `idee`, `format` et `duree` ; sa date et son appareil restent `—`, sans clé (C3) ; la liste blanche, le § 31 · 2, le témoin et sa teneur suivent | 2, 10, 11, 13, 14, 15 |
+| N2. Majeur : CAP-02 · 6 s'inscrivait, contre le § 70 · 4.1 que le plan applique à CAP-02 · 4 | Chaque critère relu dans la SFD (C30) : CAP-02 · 6, une part (`cap02_6_…`) ; CAP-01 · 6, CAP-02 · 7 et 8 inscrits, chacun avec sa phrase | 5, 11, 12, 13, 20 |
+| N3. Majeur : « n'a pas pu s'écrire » pour un refus du disque qui peut être une lecture | Un défaut neutre quant au geste, « S, le disque l'a refusé », éprouvé sur une lecture à l'ouverture (`ErrorKind::Other`) | 16 |
+| N4. Le test de l'outil `ulid` n'exerçait pas l'heure au-delà de 2⁴⁸ ms | L'heure se borne à 2⁴⁸ − 1 ms, et `une_heure_au_dela_de_2_puissance_48_millisecondes_s_y_borne` l'éprouve | 1 |
+| N5. Le test de l'outil `serde_json` ne vérifiait que des valeurs qu'il choisit | `verser` refuse une durée au-delà d'`ENTIER_SUR` (`DureeTropLongue`), éprouvé ; la source bornée de chaque autre entier d'une réponse, nommée | 3, 10 |
+| N6. `cle_du_lien` et le mutant équivalent `<` → `<=` | `(a.min(b), a.max(b))` | 9 |
+| N7. Éc-10, une règle de produit, sans question | Question 6, avec le renvoi à l'ADR-006 | 10 |
+| N8. Éc-21, inscrit au schéma de la `v0.3.0`, sans question | Question 7 | 10, 13 |
+| N9. `format` portait l'extension (`mid`, `txt`) | Le vocabulaire du § 30 · 9.2 et de l'ADR-024 : `wav`, `flac`… ; `smf0` à `smf2` ; `brut`, `markdown`, `chordpro` ; la division et les autres faits d'un en-tête en tranche 5, sous des clés ajoutées | 2, 10, 13 |
+| N10. Les raisons d'un refus ne couvraient pas chaque variante de `stockage::Erreur` | Une raison par variante, et celles qui ne surviennent qu'avant `Services` ; `CaptationsEnMemoire::relire` d'une captation absente | 4, 6 |
+| N11. La plage de la migration de test oubliait `CONTENEUR_DE_LA_MIGRATION` | `crates/stockage/tests/commun/mod.rs:264-303` | 4 |
+| N12. Des imports qui ne servent plus que sous `pannes` | `#[cfg(feature = "pannes")]` sur l'import, ou le chemin complet : `Transaction`, `CommitOptions`, `Transactable` | 6 |
+| N13. La seconde mention du nombre de modules de `.cargo/mutants.toml` | `:2` et `:22`, à chaque tâche qui ajoute un module | 1, 2, 9 |
+| N14. « sans `features =` » contredisait la ligne exigée | La ligne entière, égale à l'octet, et aucune clé `features` (hors `default-features`), avec sa plantation | 17 |
+| N15. Une vingtaine de textes attendus n'étaient pas écrits | Le texte de chaque variante d'`Erreur`, de `LectureSeule` et d'`Avertissement` | 16 |
+| N16. Une seule plantation pour quatre contrôles | Une plantation par contrôle : une commande en deux modifications, un message hors table, un `ScalarValue::counter` et un objet `Text`, une durée sous une idée | 14 |
+| N17. `message_connu` admettait tout texte après `Idée du <date> : ` | Les formes fermées de la table de la tâche 10 ; « Idée du 3 novembre : autre chose » refusé | 14 |
 
 ## Les écarts au plan maître
 
@@ -204,6 +231,15 @@ Les questions à poser avec ces écarts, chacune avec son défaut :
 5. **L'idée laissée vide par deux regroupements croisés, ou par un même fichier importé sur deux appareils** (C3,
    C28, Éc-7) : rien en tranche 2 hors du test qui l'écrit ; une piste pour le lot 3, et pour la tranche 5.
    Défaut : oui, la PR (c) écrit la piste.
+6. **Un geste de tri qui touche une idée retirée** (Éc-10) : refusé (`IdeeRetiree`), sauf rétablir ; délier, depuis
+   l'idée visible, un lien vers une idée retirée devient ainsi impossible, tant qu'elle n'est pas rétablie. Ce
+   n'est pas une impossibilité stricte, le seul refus que l'ADR-006 admet (« Le seul refus admis est
+   l'impossibilité stricte ») : c'est une règle de produit. Défaut : refusé, sauf rétablir ; l'ADR ne change pas,
+   et la PR (b) le dit.
+7. **Deux étiquettes qui s'affichent pareil** (Éc-21) : comparées octet pour octet, sans normalisation ; « été » en
+   NFC et en NFD font deux clés. Le choix est inscrit au § 31 · 2, dans le schéma de la `v0.3.0` : le choix
+   contraire, une normalisation à l'écriture, ne se rattraperait plus après elle sans migration. Défaut : octet
+   pour octet, sans normalisation.
 
 ---
 
@@ -342,10 +378,14 @@ dans la tâche qui possède le code.
 ## Outils et cas limites
 
 - `ulid` 3.0.0, `Ulid::from_parts` — des bits au-delà de 48 pour l'heure ou de 80 pour l'aléa sont masqués sans
-  erreur — `l_ulid_porte_l_heure_en_millisecondes_puis_l_alea` et `une_heure_negative_compte_pour_zero` (tâche 1)
+  erreur — `une_heure_au_dela_de_2_puissance_48_millisecondes_s_y_borne` (tâche 1), où l'heure, bornée à 2⁴⁸ − 1 ms
+  avant `from_parts`, rend `7ZZZZZZZZZ0000000000000000` au lieu de l'heure masquée ; l'aléa, dix octets, n'a jamais
+  plus de quatre-vingts bits ; et `l_ulid_porte_l_heure_en_millisecondes_puis_l_alea`, `une_heure_negative_compte_pour_zero`
 - `serde_json` — un entier au-delà de 2⁵³ − 1 s'écrit, puis `JSON.parse` l'arrondit ; NaN et l'infini s'écrivent
-  `null` — `les_entiers_d_une_reponse_restent_sous_2_puissance_53` (tâche 3) ; aucun type de `commandes` n'a de
-  flottant
+  `null` — `verser_une_duree_au_dela_d_entier_sur_est_refusee` (tâche 10), qui borne le seul entier d'une réponse
+  venu d'une fiche ; chaque autre entier d'une réponse vient d'une source bornée, que la tâche 3 nomme ;
+  `les_entiers_d_une_reponse_restent_sous_2_puissance_53` (tâche 3) éprouve la forme des nombres écrits ; aucun type
+  de `commandes` n'a de flottant
 - `commit_with` d'Automerge — une transaction dont chaque changement ne change rien rend `None`, sans modification
   ni message — `une_operation_sans_effet_est_inapplicable` (tâche 4)
 - `put` d'Automerge sur une clé en conflit — il écrit, et ôte les autres valeurs — `l_inverse_d_un_texte_en_conflit_rend_la_valeur_presentee`
@@ -397,6 +437,9 @@ dans la tâche qui possède le code.
   équivalent) ; un terme qui vaut 0 sur chaque date des tests survit à son mutant — `uuid_v4` écrit par `+`
   (tâche 1), dont les mutants `-` et `*` meurent sur `[0; 16]`, et les 29 février 2000 et 1er mars 2100 de
   `la_date_du_message_suit_le_decalage_et_dit_le_premier` (tâche 2)
+- `cargo-mutants` — `<` remplacé par `<=`, dans une comparaison dont les deux branches rendent la même chose à
+  l'égalité, ne change rien (mutant équivalent), et survivrait — `la_cle_du_lien_range_ses_bouts_par_octets`
+  (tâche 9), sur `cle_du_lien` écrit par `a.min(b)` et `a.max(b)`, qu'aucun opérateur ne fait muter
 - `cargo-mutants` — un `Display` dans un module muté (`copie.rs`, `teneur.rs`) a ses mutants — les messages de
   `Difference` et d'`ErreurDeTeneur` comparés dans `tests/donnees.rs` et `tests/teneur.rs` du noyau (tâche 16),
   que lance la mutation
@@ -501,8 +544,9 @@ emploie ; :29 et :210-218 : `empreinte` réexportée),
 **Interfaces — produit** (`noyau::donnees::identifiants`) :
 
 ```rust
-/// L'ULID de l'heure `heure`, en secondes (négative, elle compte pour 0), et de dix octets d'aléa
-/// (§ 30 · 2 ; § 41 · 6) : `Ulid::from_parts(heure × 1 000, aléa)`, en 26 caractères de Crockford.
+/// L'ULID de l'heure `heure`, en secondes (négative, elle compte pour 0 ; au-delà de 2⁴⁸ − 1 ms,
+/// la plus grande heure d'un ULID, elle s'y borne), et de dix octets d'aléa (§ 30 · 2 ; § 41 · 6) :
+/// `Ulid::from_parts(heure × 1 000, aléa)`, en 26 caractères de Crockford.
 pub fn ulid(heure: i64, alea: [u8; 10]) -> String;
 /// L'UUID version 4 de seize octets reçus (RFC 9562) : l'octet 6 prend `0100` en tête, l'octet 8
 /// `10` ; en minuscules, 8-4-4-4-12.
@@ -531,6 +575,14 @@ fn une_heure_negative_compte_pour_zero() {
     assert_eq!(ulid(-1, [0; 10]), "00000000000000000000000000");
 }
 #[test]
+fn une_heure_au_dela_de_2_puissance_48_millisecondes_s_y_borne() {
+    // 2⁴⁸ − 1 ms, la plus grande heure d'un ULID : from_parts masquerait l'heure, sans erreur
+    // (00000000AR0000000000000000), et l'ULID ne se rangerait plus comme elle.
+    assert_eq!(ulid(281_474_976_711, [0; 10]), "7ZZZZZZZZZ0000000000000000");
+    assert_eq!(ulid(i64::MAX, [0; 10]), "7ZZZZZZZZZ0000000000000000");
+    assert_eq!(ulid(281_474_976_710, [0; 10]), "7ZZZZZZZBG0000000000000000"); // sous la borne
+}
+#[test]
 fn deux_ulid_se_rangent_comme_leurs_heures() {
     assert!(ulid(1_700_000_000, [0xFF; 10]) < ulid(1_700_000_001, [0; 10]));
 }
@@ -550,8 +602,8 @@ fn l_empreinte_est_le_sha256_en_hexadecimal() {
 ```
 
 - [ ] **Étape 2 : voir le rouge.** Committer (`test: les identifiants du noyau`), pousser, ouvrir la PR en brouillon. Attendu à « Lint » de `verifier` : `unresolved import noyau::donnees::identifiants`.
-- [ ] **Étape 3 : écrire le code.** `ulid` : `let ms = (heure.max(0) as u64).saturating_mul(1000);` puis `Ulid::from_parts(ms, u128::from_be_bytes(…))`, l'aléa dans les dix octets de poids faible, puis `to_string()`. `uuid_v4` : `octets[6] = (octets[6] & 0x0F) + 0x40; octets[8] = (octets[8] & 0x3F) + 0x80;` puis l'écriture 8-4-4-4-12 ; `+` et non `|` : sur des bits que le masque a mis à zéro, le mutant `|` → `^` ne change rien, et survivrait (mutant équivalent), quand les mutants `-` (débordement, en debug) et `*` de `+` meurent sur `[0; 16]`. `empreinte` : le corps de `stockage::empreinte`, déplacé. `.cargo/mutants.toml` : `"crates/noyau/src/donnees/identifiants.rs"` dans `examine_globs`, `"--test", "identifiants"` dans `additional_cargo_test_args`, l'en-tête « Quatorze modules », et la liste des règles des données qui nomme « les identifiants ».
-- [ ] **Étape 4 : voir le vert.** Pousser. Le `Cargo.lock` en retard échoue à « Cargo.lock à jour » : prendre l'artefact `cargo-lock`, le relire (une entrée `ulid 3.0.0`, `sha2` ôté des dépendances de `stockage`), le committer. Attendu : `identifiants.rs` `ok. 5 passed` dans `verifier` ; dans `windows`, les tests du stockage gardent leurs comptes.
+- [ ] **Étape 3 : écrire le code.** `ulid` : `const HEURE_MAX_MS: u64 = (1 << 48) - 1;` (privée, la plus grande heure d'un ULID), puis `let ms = (heure.max(0) as u64).saturating_mul(1000).min(HEURE_MAX_MS);` puis `Ulid::from_parts(ms, u128::from_be_bytes(…))`, l'aléa dans les dix octets de poids faible (quatre-vingts bits, que `from_parts` ne masque jamais), puis `to_string()` ; les mutants de la borne, `(1 << 48) + 1` et `(1 << 48) / 1`, rendent `00000000010000000000000000` et `00000000000000000000000000` au premier cas de `une_heure_au_dela_de_2_puissance_48_millisecondes_s_y_borne`, et meurent (simulés sur le poste). `uuid_v4` : `octets[6] = (octets[6] & 0x0F) + 0x40; octets[8] = (octets[8] & 0x3F) + 0x80;` puis l'écriture 8-4-4-4-12 ; `+` et non `|` : sur des bits que le masque a mis à zéro, le mutant `|` → `^` ne change rien, et survivrait (mutant équivalent), quand les mutants `-` (débordement, en debug) et `*` de `+` meurent sur `[0; 16]`. `empreinte` : le corps de `stockage::empreinte`, déplacé. `.cargo/mutants.toml` : `"crates/noyau/src/donnees/identifiants.rs"` dans `examine_globs`, `"--test", "identifiants"` dans `additional_cargo_test_args`, les deux mentions du nombre de modules, l'en-tête (:2, « Quatorze modules sont examinés ») et le commentaire d'`additional_cargo_test_args` (:22, « ces quatorze modules »), et la liste des règles des données qui nomme « les identifiants ».
+- [ ] **Étape 4 : voir le vert.** Pousser. Le `Cargo.lock` en retard échoue à « Cargo.lock à jour » : prendre l'artefact `cargo-lock`, le relire (une entrée `ulid 3.0.0`, `sha2` ôté des dépendances de `stockage`), le committer. Attendu : `identifiants.rs` `ok. 6 passed` dans `verifier` ; dans `windows`, les tests du stockage gardent leurs comptes.
 - [ ] **Étape 5 : committer** `git add crates/noyau/Cargo.toml crates/noyau/src/donnees/mod.rs crates/noyau/src/donnees/identifiants.rs crates/stockage/src/lib.rs crates/stockage/Cargo.toml .cargo/mutants.toml Cargo.lock` (`feat: les identifiants au noyau, ULID, UUID et empreinte`).
 
 ### Tâche 2 : les changements, le fonds lu, la naissance et noter, au noyau
@@ -600,6 +652,9 @@ pub struct IdeeLue {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CaptationLue { pub sorte: Sorte, pub empreinte: String, pub idee: String, pub duree_ms: Option<u64> }
+/// Ce qui se verse d'une captation, ses faits lus : `format`, au vocabulaire du § 30 · 9.2 et de
+/// l'ADR-024, jamais l'extension (la table de la tâche 10) ; `duree_ms`, d'une prise seulement.
+/// La date et l'appareil d'une prise n'y sont pas : rien ne les lit sur la captation à INC-1.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Fiche { pub format: String, pub duree_ms: Option<u64> }
 /// Pourquoi un geste ne se fait pas : un constat, jamais un ordre (§ 50 · 5). Les variantes des
@@ -625,7 +680,7 @@ Au `fonds.rs`, les clés du schéma de la `v0.3.0` que les tâches suivantes éc
 `REQUETES_ENREGISTREES = "requetes_enregistrees"`, `IMPORTS = "imports"`, `ORIGINES_DECLAREES =
 "origines_declarees"`, `PHOTOS = "photos"` ; d'une idée, `PROVENANCE = "provenance"`, `PAR = "par"`, `LE = "le"`,
 `DEPUIS = "depuis"`, `RETIREE = "retiree"`, et les valeurs `CAPTEE = "captee"`, `IMPORTEE = "importee"` ; d'une
-captation, sous `<empreinte>/<fait>`, `IDEE`, `FORMAT` (déjà là), et, d'une prise seulement (§ 30 · 9.2), `DUREE = "duree"`, `LE`, `PAR` ; d'un lien,
+captation, sous `<empreinte>/<fait>`, `IDEE`, `FORMAT` (déjà là), et, d'une prise seulement (§ 30 · 9.2), `DUREE = "duree"` ; la date et l'appareil d'une captation n'ont pas de clé en tranche 2 (C3), `LE` et `PAR` restant des clés d'une idée ; d'un lien,
 `APPARENTE = "apparente"`. La doc de `PRISES` dit les clés à plat (« de `<empreinte>/<fait>` à sa valeur »).
 
 - [ ] **Étape 1 : écrire les tests** (`crates/noyau/tests/gestes.rs`).
@@ -692,7 +747,7 @@ fn chaque_sorte_a_son_conteneur() {
 
   Les aides `poser(&[&str], Simple) -> Changement` et `chemin(&[&str]) -> Vec<String>` sont privées au fichier.
 - [ ] **Étape 2 : voir le rouge.** Committer (`test: la naissance et noter, au noyau`), pousser. Attendu à « Lint » : `unresolved import noyau::donnees::gestes`.
-- [ ] **Étape 3 : écrire le code.** `date_du_message` : `let jours = (heure + i64::from(decalage_minutes) * 60).div_euclid(86_400);` puis le calcul civil des jours depuis 1970 (algorithme « days from civil » inversé, sur des entiers ; les dates de 2000 et de 2100 du test tuent les mutants de ses termes de siècle, qu'aucune autre ne fait jouer : simulés sur le poste, deux survivants sans elles, aucun avec), le jour `1` écrit « 1er », les mois en minuscules (« janvier » … « décembre », « février », « août », « décembre » accentués). `noter` : `texte.trim().is_empty()` refuse ; le texte se range tel qu'il est reçu. `.cargo/mutants.toml` : `gestes.rs` et `"--test", "gestes"`, l'en-tête « Quinze modules », la liste qui nomme « les gestes ». `changement.rs` ne porte que des types : il n'entre pas sous mutation.
+- [ ] **Étape 3 : écrire le code.** `date_du_message` : `let jours = (heure + i64::from(decalage_minutes) * 60).div_euclid(86_400);` puis le calcul civil des jours depuis 1970 (algorithme « days from civil » inversé, sur des entiers ; les dates de 2000 et de 2100 du test tuent les mutants de ses termes de siècle, qu'aucune autre ne fait jouer : simulés sur le poste, deux survivants sans elles, aucun avec), le jour `1` écrit « 1er », les mois en minuscules (« janvier » … « décembre », « février », « août », « décembre » accentués). `noter` : `texte.trim().is_empty()` refuse ; le texte se range tel qu'il est reçu. `.cargo/mutants.toml` : `gestes.rs` et `"--test", "gestes"`, les deux mentions du nombre de modules (:2, « Quinze modules sont examinés » ; :22, « ces quinze modules »), la liste qui nomme « les gestes ». `changement.rs` ne porte que des types : il n'entre pas sous mutation.
 - [ ] **Étape 4 : voir le vert.** Pousser. Attendu : `gestes.rs` `ok. 5 passed` dans `verifier`.
 - [ ] **Étape 5 : committer** par chemins (`feat: les changements, le fonds lu, la naissance et noter, au noyau`).
 
@@ -710,7 +765,9 @@ fn chaque_sorte_a_son_conteneur() {
 /// Les noms des commandes de la tranche 2 ; `exporter_cahier` les rejoint en tranche 3 (décision 11).
 pub const NOMS: &[&str] = &["noter", "completer", "poser_une_etiquette", "oter_une_etiquette", "relier",
     "delier", "regrouper", "retirer", "retablir", "annuler", "vue_d_une_idee", "idees", "journal"];
-/// Le plus grand entier que `JSON.parse` relit à l'identique : 2⁵³ − 1.
+/// Le plus grand entier que `JSON.parse` relit à l'identique : 2⁵³ − 1. Le noyau, qui ne voit pas
+/// cette crate, le répète (`noyau::donnees::gestes::ENTIER_SUR`, tâche 10) : un test de chacune le
+/// compare à `(1 << 53) - 1`.
 pub const ENTIER_SUR: u64 = 9_007_199_254_740_991;
 pub struct Noter { pub texte: String, pub decalage_minutes: i32 }
 pub struct Completer { pub idee: String, pub texte: String, pub decalage_minutes: i32 }
@@ -746,7 +803,24 @@ pub struct VueDUneIdee {
 pub struct EntreeDuJournal { pub message: String, pub heure: i64 }
 ```
 
-- [ ] **Étape 1 : écrire les tests** (`tests/serialisation.rs`) : `chaque_type_fait_l_aller_retour_par_serde_json`, qui sérialise puis relit un exemple de chaque type (de `Noter { texte: "Un refrain qui monte, en ré", decalage_minutes: 60 }` à `Refus { raison: Raison::VersionPlusRecente { version: 2 }, message: … }`) et compare ; `les_noms_sont_uniques_et_en_snake_case` (treize noms, aucun double, chacun `[a-z_]+`) ; `les_entiers_d_une_reponse_restent_sous_2_puissance_53` : une `VueDUneIdee` aux valeurs extrêmes que la tranche écrit (`le: 4_102_444_800`, le 1er janvier 2100 ; `duree_ms: Some(86_400_000)` ; `retiree: Some(4_102_444_800)`) et un `EntreeDuJournal { heure: 4_102_444_800 }` se sérialisent en nombres sans `.` ni `e`, chacun `<= ENTIER_SUR`, et `ENTIER_SUR == (1u64 << 53) - 1`.
+**Les entiers d'une réponse, et leur source bornée** (Éc-14). Chacun vient d'un producteur qui le tient sous
+`ENTIER_SUR`, et la doc de son champ le nomme :
+
+- `VueDUneIdee::le`, `VueDUneIdee::retiree` et `EntreeDuJournal::heure` : une heure en secondes, celle d'une
+  opération (`Operation::heure`), qui ne vient que du `Contexte` (l'horloge de l'établi dès la tranche 3, en
+  secondes depuis 1970, quelque 1,8 · 10⁹ en 2026 ; dans les tests, `HEURE` à quelques heures près, et le
+  1er janvier 2100 au plus), de la genèse (0) ou d'une migration (son heure, écrite d'avance ; 0 pour celle de
+  test). Une réplique reçue n'en porte pas d'autres : les mêmes opérations les ont écrites. 2⁵³ secondes sont à
+  quelque 285 millions d'années de 1970 ;
+- `VueDUneIdee::duree_ms` : la plus longue des durées des prises (`idee::duree`), que seul `gestes::verser` écrit,
+  sous `<e>/duree`, et qui refuse une durée au-delà d'`ENTIER_SUR` (`verser_une_duree_au_dela_d_entier_sur_est_refusee`,
+  tâche 10) ;
+- `Raison::VersionPlusRecente { version }` : la version de schéma d'un document, que seules les migrations
+  écrivent, chacune d'un de plus (`version::connue` : 1 + le nombre de migrations), bornée par le nombre de
+  migrations que Pupitre publiera ;
+- les `decalage_minutes`, que l'interface envoie : des `i32`, bornés par leur type.
+
+- [ ] **Étape 1 : écrire les tests** (`tests/serialisation.rs`) : `chaque_type_fait_l_aller_retour_par_serde_json`, qui sérialise puis relit un exemple de chaque type (de `Noter { texte: "Un refrain qui monte, en ré", decalage_minutes: 60 }` à `Refus { raison: Raison::VersionPlusRecente { version: 2 }, message: … }`) et compare ; `les_noms_sont_uniques_et_en_snake_case` (treize noms, aucun double, chacun `[a-z_]+`) ; `les_entiers_d_une_reponse_restent_sous_2_puissance_53` : une `VueDUneIdee` aux valeurs extrêmes que la tranche écrit (`le: 4_102_444_800`, le 1er janvier 2100 ; `duree_ms: Some(86_400_000)` ; `retiree: Some(4_102_444_800)`) et un `EntreeDuJournal { heure: 4_102_444_800 }` se sérialisent en nombres sans `.` ni `e`, chacun `<= ENTIER_SUR`, et `ENTIER_SUR == (1u64 << 53) - 1`. Ce test éprouve la forme des nombres écrits, sur des valeurs qu'il choisit ; la borne, ce sont les producteurs nommés plus haut, et le seul entier qui vient d'une fiche, la durée, a son test de refus à la tâche 10.
 - [ ] **Étape 2 : voir le rouge.** Membres du `Cargo.toml` : `"crates/commandes"`, après `"crates/synchro"` ; `ci.yml`, `-p commandes` au lint et aux tests de `verifier` ; `crates/commandes/Cargo.toml`, avec ses dépendances, et un `src/lib.rs` vide (sans eux, `cargo update --workspace` ne charge pas le membre, et `verif-faits.mjs` s'arrête) ; dans « Les crates » de `CLAUDE.md`, après `synchro`, la puce « `commandes` (`crates/commandes`) : les types des commandes et la liste de leurs noms, que l'interface et l'établi partagent ; » (le point 6 de `verif-faits.mjs` compare cette liste aux membres). `node scripts/verif-faits.mjs` vert après le `git add`. Committer (`test: les types des commandes`), pousser. Attendu : « Cargo.lock à jour » rouge ; l'artefact pris, relu (`commandes` et ses dépendances déjà présentes), committé ; puis « Lint » rouge, `unresolved import` sur `commandes::Noter`.
 - [ ] **Étape 3 : écrire le code** ; la doc de la crate dit qu'elle ne porte que ce que l'interface envoie et reçoit (C7), et qu'aucun type n'a de flottant (Éc-14).
 - [ ] **Étape 4 : voir le vert.** Attendu : `serialisation.rs` `ok. 3 passed` dans `verifier`.
@@ -826,7 +900,7 @@ impl DocumentsEnMemoire {
 impl Documents for DocumentsEnMemoire { /* … */ }
 #[derive(Default)]
 pub struct CaptationsEnMemoire { /* objets: RefCell<BTreeMap<String, Vec<u8>>> */ }
-impl Captations for CaptationsEnMemoire { /* verser : empreinte (noyau), une seule fois ; relire */ }
+impl Captations for CaptationsEnMemoire { /* verser : empreinte (noyau), une seule fois ; relire ; absente, Impossible */ }
 ```
 
 `lire_l_idee` rend `None` quand l'idée manque, ou qu'une de ses valeurs n'a pas le type du schéma (le test compare
@@ -834,8 +908,11 @@ la variante, `ScalarValue::Int(le)`, jamais `as_i64`) : une idée illisible n'es
 sont les clés de `LIENS` dont un bout est elle (`apparente:<a>:<b>`, coupée aux deux premiers `:`).
 `captations_de` parcourt chaque conteneur par `map_range`, en un passage, sans `get` par clé. Le refus d'une
 `Inapplicable` est `Raison::Impossible`, son message le `Debug` de l'erreur jusqu'à la tâche 16.
+`CaptationsEnMemoire::relire` d'une empreinte qu'elle ne garde pas rend `Raison::Impossible`, « Aucune captation ne
+porte l'empreinte {e}. », la raison que rend le stockage devant une captation absente (tâche 6) ; les deux paires
+ne donnent le même texte qu'à partir de la tâche 16, le stockage rendant le `Debug` de son erreur jusque-là.
 
-- [ ] **Étape 1 : écrire les tests** (`tests/application.rs`, sur `Automerge` directement) : `appliquer_pose_cree_et_ote` (sur `faire_naitre(&naissance(…), &noter(I, "Un refrain", Appareil::Etabli, HEURE, 0))`, puis une opération qui pose `idees/I/etiquettes/pont` = `Vrai`, une opération à trois changements : `Poser [idees, I, texte]` = `Chaine("Un refrain qui descend")`, `Creer { chemin: [idees, J], conteneurs: [etiquettes] }`, `Oter [idees, I, etiquettes, pont]` ; alors `lire_l_idee(&doc, I)` rend `IdeeLue { id: I, provenance: Captee { par: Etabli }, le: HEURE, texte: Some("Un refrain qui descend"), etiquettes: {}, retiree: None, liens: {} }`, `lire_l_idee(&doc, J)` rend `None` (ni `le` ni `provenance`), et `idees/J` est un objet à clés qui porte `etiquettes`) ; `un_objet_absent_annule_toute_l_operation` (`Poser` sous `idees/absente` après un `Poser` valide : `ObjetAbsent { chemin: ["idees", "absente"] }`, et les heads n'ont pas bougé) ; `une_operation_sans_effet_est_inapplicable` (`Oter` d'une clé absente : `Vide`, heads inchangés) ; `l_operation_porte_son_message_et_son_heure` (`journal` rend `("Idée du 14 novembre notée", HEURE)` en dernier) ; `la_genese_puis_la_naissance` (`naitre` : `journal` rend `[("Genèse du fonds", 0), ("Fonds créé", HEURE)]`, `version_de_schema` 1) ; `une_valeur_d_un_autre_type_rend_l_idee_illisible` (`le` posé en `Naturel` : `lire_l_idee` rend `None`) ; `la_paire_en_memoire_migre_a_son_ouverture` (point de revue 1 : `DocumentsEnMemoire::de(octets, &migrations_de_test(&migration_de_test()))` porte la version de schéma 2 et le conteneur de la migration ; rouvert de ses octets avec `MIGRATIONS`, `lecture_seule()` rend `Raison::VersionPlusRecente { version: 2 }`) ; `une_captation_versee_deux_fois_rend_la_meme_empreinte` (les objets de `CaptationsEnMemoire` sont privés : ce qui s'observe, c'est la même empreinte rendue deux fois, celle d'`empreinte(octets)`, et `relire` qui rend les octets). La migration de test se recopie de `crates/stockage/tests/commun/mod.rs:275-303` dans `tests/application.rs`, puis, à la tâche 5, dans la suite.
+- [ ] **Étape 1 : écrire les tests** (`tests/application.rs`, sur `Automerge` directement) : `appliquer_pose_cree_et_ote` (sur `faire_naitre(&naissance(…), &noter(I, "Un refrain", Appareil::Etabli, HEURE, 0))`, puis une opération qui pose `idees/I/etiquettes/pont` = `Vrai`, une opération à trois changements : `Poser [idees, I, texte]` = `Chaine("Un refrain qui descend")`, `Creer { chemin: [idees, J], conteneurs: [etiquettes] }`, `Oter [idees, I, etiquettes, pont]` ; alors `lire_l_idee(&doc, I)` rend `IdeeLue { id: I, provenance: Captee { par: Etabli }, le: HEURE, texte: Some("Un refrain qui descend"), etiquettes: {}, retiree: None, liens: {} }`, `lire_l_idee(&doc, J)` rend `None` (ni `le` ni `provenance`), et `idees/J` est un objet à clés qui porte `etiquettes`) ; `un_objet_absent_annule_toute_l_operation` (`Poser` sous `idees/absente` après un `Poser` valide : `ObjetAbsent { chemin: ["idees", "absente"] }`, et les heads n'ont pas bougé) ; `une_operation_sans_effet_est_inapplicable` (`Oter` d'une clé absente : `Vide`, heads inchangés) ; `l_operation_porte_son_message_et_son_heure` (`journal` rend `("Idée du 14 novembre notée", HEURE)` en dernier) ; `la_genese_puis_la_naissance` (`naitre` : `journal` rend `[("Genèse du fonds", 0), ("Fonds créé", HEURE)]`, `version_de_schema` 1) ; `une_valeur_d_un_autre_type_rend_l_idee_illisible` (`le` posé en `Naturel` : `lire_l_idee` rend `None`) ; `la_paire_en_memoire_migre_a_son_ouverture` (point de revue 1 : `DocumentsEnMemoire::de(octets, &migrations_de_test(&migration_de_test()))` porte la version de schéma 2 et le conteneur de la migration ; rouvert de ses octets avec `MIGRATIONS`, `lecture_seule()` rend `Raison::VersionPlusRecente { version: 2 }`) ; `une_captation_versee_deux_fois_rend_la_meme_empreinte` (les objets de `CaptationsEnMemoire` sont privés : ce qui s'observe, c'est la même empreinte rendue deux fois, celle d'`empreinte(octets)`, et `relire` qui rend les octets ; `relire` d'une autre empreinte rend `Raison::Impossible`). La migration de test se recopie de `crates/stockage/tests/commun/mod.rs:264-303` (`CONTENEUR_DE_LA_MIGRATION`, :267, que `migration_de_test` emploie, puis `migration_de_test` et `migrations_de_test`) dans `tests/application.rs`, puis, à la tâche 5, dans la suite.
 - [ ] **Étape 2 : voir le rouge.** Membre `"crates/services"`, après `"crates/commandes"`, `-p services` au lint et aux tests, l'étape sans `en-memoire` ; `crates/services/Cargo.toml`, avec ses dépendances, sa fonction et sa dépendance de test, et un `src/lib.rs` vide ; dans « Les crates » de `CLAUDE.md`, après `commandes`, la puce « `services` (`crates/services`) : les opérations nommées et les lectures du fonds, conduites sur les contrats `Documents` et `Captations` ; sa fonction de Cargo `en-memoire`, que seuls les tests activent, compile la paire d'adaptateurs en mémoire ; ». `node scripts/verif-faits.mjs` vert après le `git add`. Committer (`test: l'application des changements et la paire en mémoire`), pousser ; l'artefact `cargo-lock` relu et committé ; attendu à « Lint » : `unresolved import services::application`.
 - [ ] **Étape 3 : écrire le code.** `appliquer` : `let mut tx = doc.transaction();` ; pour chaque changement, le parent se trouve depuis `ROOT` par `tx.get(…)`, chaque pas un `Value::Object(ObjType::Map)`, sinon `tx.rollback()` et `ObjetAbsent { chemin: <le préfixe> }` ; `Poser` par `tx.put` (`Simple::Chaine` en `ScalarValue::Str`, `Entier` en `Int`, `Naturel` en `Uint`, `Vrai` en `Boolean(true)`) ; `Creer` par `tx.put_object(…, ObjType::Map)`, puis chaque conteneur ; `Oter` par `tx.delete` ; puis `tx.commit_with(CommitOptions::default().with_message(…).with_time(heure))`, et `None` rend `Vide`. La doc du module dit qu'il est le code partagé des deux adaptateurs, et le seul de `services` qui écrit (C31).
 - [ ] **Étape 4 : voir le vert.** Attendu : `application.rs` `ok. 8 passed` ; « Lint des services, sans en-memoire » vert.
@@ -877,7 +954,10 @@ ailleurs (§ 31 · 2.4 : « elle lit sans écrire. Elle montre ce qu'elle conna�
 rend, pour `vue_d_une_idee`, `Raison::Impossible` (« Aucune idée ne porte l'identifiant … », la variante
 `IdeeAbsente` de la tâche 10 ; jusque-là, le même texte écrit dans `services`), et pour `journal`, une liste vide.
 La vue tire `reliee` et `duree_ms` des règles de la tâche 9 ; jusqu'à elle, `reliee: false` et `duree_ms: None`, que
-rien ne peut démentir en (a), aucun lien ni aucune prise ne s'écrivant : CAP-01 · 6 s'inscrit donc en (a) (tâche 7).
+rien ne peut démentir en (a), aucun lien ni aucune prise ne s'écrivant. CAP-01 · 6 s'inscrit donc en (a) (tâche 7),
+entier : son geste, noter à l'établi, est la commande `noter`, livrée ici, et chacun de ses faits (datée, `captee`,
+née sur l'établi, sans prise ni durée) se lit dans la vue ; l'écran de la tranche 3 appelle la même commande, et le
+critère ne dit rien de lui.
 
 Deux familles de types portent les mêmes noms : `Appareil`, `Provenance` et `Sorte` de `noyau::donnees::gestes`,
 que reçoivent les services (`new`, `verser_une_fiche`), et ceux de `commandes`, que rend une vue. Les signatures et
@@ -985,10 +1065,36 @@ garde, `pupitre_neuf` et l'écriture du fichier complet, appelé par `faire_nait
 `faire_naitre_le_fonds` (sous `pannes`, qui construit par `application::naitre(&gestes::naissance(…))` puis sa
 fermeture). `ecrire` (sous `pannes`) et `appliquer` (livrée) appellent `ecrire_l_ajout`. `migrer` applique par
 `services::application::migrer`, puis écrit comme avant. Une fonction privée qui ne servirait que sous `pannes`
-passe sous `#[cfg(feature = "pannes")]` : l'étape « Lint du stockage, sans pannes » refuse le code mort. Les raisons
-d'un refus : `LectureSeule::VersionPlusRecente { version }` → `Raison::VersionPlusRecente { version }`, toute autre
-lecture seule → `Illisible`, `Disque` et `CaptationAlteree` → `Disque`, `Inapplicable` → `Impossible` ; le message,
-le `Debug` de l'erreur jusqu'à la tâche 16.
+passe sous `#[cfg(feature = "pannes")]` : l'étape « Lint du stockage, sans pannes » refuse le code mort. De même
+d'un import qui ne sert plus que sous `pannes` : il prend `#[cfg(feature = "pannes")]` sur son `use`, ou s'écrit
+par son chemin complet dans la fonction gardée ; et un import qui ne sert plus du tout se retire. La liste qui suit
+n'est pas fermée, les deux lints (« Lint », avec `pannes`, et « Lint du stockage, sans pannes », tous deux en
+`-D warnings`) disent le reste : `Transaction` (`documents.rs:29`, que n'emploient que `ecrire`, :255,
+`faire_naitre_le_fonds`, :974, et `naitre_en_memoire`, :1043 ; `racine_des_donnees.rs:9`, pour :204) et
+`CommitOptions` (`a_l_heure`, :1068), sous `pannes` ; `Naissance` et `AutomergeError` (`racine_des_donnees.rs:14`
+et :8, employés aux seules :201 et :204), sous `pannes`, sans quoi l'import de `crate::Naissance` ne se résout pas
+sans `pannes` ; `Transactable`, qui ne sert qu'au `tx.put` de la naissance (:1057), que `application::naitre`
+reprend : retiré ; `GENESE`, `MESSAGE_DE_LA_NAISSANCE` (`documents.rs:38`) et `Change` (:31), retirés quand
+`migrer` passe à `application::migrer` et que `naitre_en_memoire` part.
+
+Les raisons d'un refus, une par variante de `stockage::Erreur` (`crates/stockage/src/lib.rs:38-75`, et
+`Inapplicable`, que la tâche ajoute), dans un `match` sans `_` :
+
+- `LectureSeule(LectureSeule::VersionPlusRecente { version })` → `Raison::VersionPlusRecente { version }` ; toute
+  autre `LectureSeule` → `Illisible` ;
+- `Disque` et `CaptationAlteree` → `Disque` ;
+- `Inapplicable` → `Impossible` ; `CaptationAbsente` (`relire` d'une empreinte qu'aucun fichier ne porte) →
+  `Impossible`, comme `CaptationsEnMemoire::relire` (tâche 4) ; `FondsDejaNe` (`faire_naitre` sur une racine des
+  données qui n'est pas neuve, selon `pupitre_neuf`) → `Impossible` ;
+- `Automerge` → `Illisible` ;
+- celles qui ne surviennent qu'avant `Services`, ou hors de ses commandes, prennent une raison pour que le `match`
+  reste complet, sans test de la suite : `RacineDesDonneesTenue` (`RacineDesDonnees::ouvrir`, avant tout
+  `FondsSurFichiers`) et `FondsDejaOuvert` (`racine.fonds()`, dans `FondsSurFichiers::ouvrir`) → `Impossible` ;
+  `CompactionInfidele` (que seul `Document::compacter`, appelé seul, rend, et que `Services` n'appelle pas ; après
+  une écriture, la compaction échouée est un avertissement) → `Disque` ; `ChampAbsent` et `Synchro` (situer une
+  copie, recevoir un message, § 31 · 2.5 : la synchronisation, que `Services` ne conduit pas) → `Illisible`.
+
+Le message, le `Debug` de l'erreur jusqu'à la tâche 16.
 
 - [ ] **Étape 1 : écrire les tests.**
   - Le doctest déplacé de `ecrire` (:231-250) sur `appliquer`, le marqueur au-dessus :
@@ -1095,7 +1201,7 @@ pub fn empreintes_nommees(doc: &Automerge) -> BTreeSet<String>;
 
 - [ ] **Étape 1 : écrire les tests.** `genese_par_la_recette` crée la version de schéma puis chaque conteneur de `CONTENEURS_DE_LA_GENESE`, dans l'ordre ; `:101` attend les dix clés triées (`idees`, `imports`, `liens`, `midi_verses`, `origines_declarees`, `photos`, `prises`, `requetes_enregistrees`, `textes_verses`, `version_de_schema`) ; `:109` parcourt les neuf conteneurs. Au noyau (`tests/idee.rs`, créé ici) : `les_empreintes_nommees_se_coupent_au_premier_trait` : `["e1/idee", "e1/format", "e2/idee", "sans-trait", "e3/nom/a/b.wav"]` → `{"e1", "e2", "e3"}`. Dans `tests/demarrage.rs` : `un_midi_ou_un_texte_verse_nomme_prend_son_nom_au_demarrage` (`// § 31 · 10, test 4 : renommage perdu après la réponse : la captation nommée par un document prend son nom au démarrage`), qui pose par `commun::ecrire` la clé `<e>/idee` sous `MIDI_VERSES`, puis sous `TEXTES_VERSES`, laisse un nom provisoire de chacun, et rouvre : chacun prend son nom. `poser_une_prise` écrit `<e>/idee` et `<e>/format` sous `PRISES`, sans objet. Les références du test 11 : `GENESE_DU_FONDS` = `a02890acd15f12619da7f1f5abea9a8056db7188f909a467896ea50d4b5a6fc1` (calculée sur le poste, par un encodeur relu à l'octet sur la genèse d'aujourd'hui : 195 octets), et `TENEUR_DU_TEMOIN` = `6edd898e994a41036e5a4e7d42653910fcb99cb24f4f1ff42244f140b3bceabc`, le SHA-256 de la teneur du témoin de la tranche 1 avec les sept conteneurs nouveaux, vides (`{"idees":{"idee-1":{"etiquettes":{"refrain":b1},"texte":s"Un refrain qui monte, en ré"}},"identifiant":s"fonds-1","imports":{},"liens":{},"midi_verses":{},"origines_declarees":{},"photos":{},"prises":{},"proprietaire":s"proprietaire-1","requetes_enregistrees":{},"textes_verses":{},"version_de_schema":u1}`), calculé sur le poste par `python -X utf8` (le même calcul redonne `a349d135…` pour la teneur d'aujourd'hui), son commentaire récrit : `genese_et_teneur_figees` compare la genèse avant d'imprimer la teneur, qui ne paraîtrait qu'un envoi après la genèse neuve. Si la CI rend une autre teneur, c'est la sienne qui fait foi, et la PR dit l'écart au calcul.
 - [ ] **Étape 2 : voir le rouge.** Committer (`test: la genèse de la v0.3.0 et les empreintes nommées`), pousser. Attendu : « Lint » rouge (`cannot find value CONTENEURS_DE_LA_GENESE`).
-- [ ] **Étape 3 : écrire le code** : les constantes ; `documents::empreintes_nommees` remplacée par `services::lecture::empreintes_nommees` ; `GENESE` provisoire inchangée, pour lire l'octet de la recette.
+- [ ] **Étape 3 : écrire le code** : les constantes ; `documents::empreintes_nommees` remplacée par `services::lecture::empreintes_nommees`, et les imports qui ne servaient qu'à elle retirés (`PRISES`, `documents.rs:38`, et `ObjType`, `:30`, employés aux seules :632-633 ; « Lint », en `-D warnings`, dit tout autre reste) ; `GENESE` provisoire inchangée, pour lire l'octet de la recette.
 - [ ] **Étape 4 : la genèse neuve.** Pousser : `la_genese_se_reconstruit_a_l_octet` rouge, la liste des octets imprimée ; la recopier dans `GENESE`, sur une ligne, sous `#[rustfmt::skip]` ; vérifier sur le poste (`python -X utf8`) que son SHA-256 égale `a02890ac…6fc1` (si la CI rend d'autres octets, ce sont les siens qui font foi, et la PR dit l'écart au calcul). Puis `genese.rs`, `references.rs`, `demarrage.rs`, `fonds.rs` et `version.rs` verts dans `verifier` et `windows` ; `migration_de_test`, qui part de `GENESE`, suit seule.
 - [ ] **Étape 5 : committer** par chemins (`feat: le schéma de la v0.3.0, sa genèse, et les empreintes nommées au noyau`).
 
@@ -1131,7 +1237,7 @@ pub fn assiette<'a>(idees: impl IntoIterator<Item = &'a IdeeLue>, porte: impl Fn
   - `une_idee_est_vide_sans_rien` : sans rien et `0` → vrai ; une captation, un texte, une étiquette ou un lien, chacun seul → faux ;
   - `l_assiette_ecarte_les_idees_retirees` : douze idées, neuf portant la donnée, et une treizième retirée qui la porte → `Assiette { considerees: 12, portant: 9, decidees: 9 }`.
 - [ ] **Étape 2 : voir le rouge.** Committer (`test: les règles d'une idée`), pousser. Attendu à « Lint » : `cannot find function cle_du_lien`.
-- [ ] **Étape 3 : écrire le code** ; `.cargo/mutants.toml` : `idee.rs`, `"--test", "idee"`, l'en-tête « Seize modules », la liste qui nomme « les règles d'une idée » ; la vue (`Services::vue_d_une_idee`) prend `reliee` et `duree` d'ici, la durée sur les seules prises.
+- [ ] **Étape 3 : écrire le code** ; `cle_du_lien` range ses bouts par `let (p, q) = (a.min(b), a.max(b));`, puis `format!("apparente:{p}:{q}")` : aucun opérateur que `cargo-mutants` ferait muter, quand `if a < b { (a, b) } else { (b, a) }` laisserait le mutant `<` → `<=`, équivalent (pour `a == b`, les deux branches rendent la même clé), qui survivrait ; `.cargo/mutants.toml` : `idee.rs`, `"--test", "idee"`, les deux mentions du nombre de modules (:2, « Seize modules sont examinés » ; :22, « ces seize modules »), la liste qui nomme « les règles d'une idée » ; la vue (`Services::vue_d_une_idee`) prend `reliee` et `duree` d'ici, la durée sur les seules prises.
 - [ ] **Étape 4 : voir le vert.** Attendu : `idee.rs` `ok. 6 passed` dans `verifier`.
 - [ ] **Étape 5 : committer** par chemins (`feat: les règles d'une idée au noyau, lien, reliée, durée, assiette`).
 
@@ -1149,8 +1255,11 @@ pub enum Impossible {
     TexteVide, IdeeAbsente { idee: String }, IdeeRetiree { idee: String }, IdeeNonRetiree { idee: String },
     MemeTexte, EtiquetteVide, EtiquetteDejaPosee { etiquette: String }, EtiquetteAbsente { etiquette: String },
     RelieeAElleMeme, LienDejaPose, LienAbsent, CaptationAbsente { empreinte: String }, DejaDansLIdee,
-    CaptationDejaVersee { empreinte: String }, DureeHorsDUnePrise, HorsDeLImport,
+    CaptationDejaVersee { empreinte: String }, DureeHorsDUnePrise, DureeTropLongue { duree_ms: u64 }, HorsDeLImport,
 }
+/// Le plus grand entier que `JSON.parse` relit à l'identique, 2⁵³ − 1 : celui de
+/// `commandes::ENTIER_SUR`, que le noyau ne voit pas.
+pub const ENTIER_SUR: u64 = 9_007_199_254_740_991;
 pub fn presente(id: &str, lue: Option<IdeeLue>) -> Result<IdeeLue, Impossible>;
 pub fn completer(idee: &IdeeLue, texte: &str, heure: i64, decalage_minutes: i32) -> Result<GesteDeTri, Impossible>;
 pub fn poser_une_etiquette(idee: &IdeeLue, etiquette: &str, heure: i64, decalage_minutes: i32) -> Result<GesteDeTri, Impossible>;
@@ -1168,11 +1277,30 @@ pub fn verser(sorte: Sorte, empreinte: &str, fiche: &Fiche, idee: &str, provenan
 pub fn annulation(geste: &GesteDeTri, heure: i64) -> Operation;
 ```
 
-**Les règles.** Tout geste de tri qui touche une idée retirée rend `IdeeRetiree`, sauf `retablir` (Éc-10) ; un
-geste sans effet est refusé (C12) ; l'inverse se calcule sur l'idée lue avant le geste (Éc-6). Une étiquette se
-range sans `#`, comparée octet pour octet, sans normalisation (Éc-21) ; vide, `EtiquetteVide`. Un texte complété
-vide une fois ses blancs ôtés, `TexteVide` (question 1). Un MIDI versé ou un texte versé n'entre que par l'import
-(glossaire ; § 30 · 8.1) : versé de provenance `captee`, `HorsDeLImport`.
+**Les règles.** Tout geste de tri qui touche une idée retirée rend `IdeeRetiree`, sauf `retablir` (Éc-10 ;
+question 6) ; un geste sans effet est refusé (C12) ; l'inverse se calcule sur l'idée lue avant le geste (Éc-6). Une
+étiquette se range sans `#`, comparée octet pour octet, sans normalisation (Éc-21 ; question 7) ; vide,
+`EtiquetteVide`. Un texte complété vide une fois ses blancs ôtés, `TexteVide` (question 1). Un MIDI versé ou un texte
+versé n'entre que par l'import (glossaire ; § 30 · 8.1) : versé de provenance `captee`, `HorsDeLImport`. Une durée
+au-delà d'`ENTIER_SUR` ne se transmettrait pas telle quelle à l'interface (Éc-14) : `DureeTropLongue`, une
+impossibilité stricte (ADR-006).
+
+**Les faits d'une captation versée** (§ 30 · 9.2 ; ADR-024, décisions 4 et 6 ; C3). Une prise porte `idee`,
+`format` et `duree` ; un MIDI versé ou un texte versé, `idee` et `format`. La date et l'appareil d'une prise ne
+s'écrivent pas : ce sont des faits de sa captation, que rien ne lit sur elle à INC-1, où toute prise est importée ;
+ils valent `—`, et la capture audio, quand elle viendra, les portera par la `Fiche`. `format` prend le vocabulaire
+du § 30 · 9.2 et de l'ADR-024, jamais l'extension, et le noyau le range tel que la fiche le porte :
+
+- une prise : son format tel que sa signature et son en-tête le nomment, en minuscules, `wav` pour un en-tête
+  RIFF/WAVE, `flac` pour un en-tête `fLaC` ; les autres, nommés de même par la tranche 5, qui les reconnaît à leur
+  signature (CAP-03). Une prise `flac` n'a pas de durée à INC-1 : l'établi ne lit que l'en-tête d'un WAV, et les
+  autres formats sont versés avec leurs faits à `—` (ADR-024, décision 6). En tranche 2, les tests et le générateur
+  n'écrivent donc que `wav`, avec sa durée ;
+- un MIDI versé : son format SMF, `smf0`, `smf1` ou `smf2` ;
+- un texte versé : `brut`, `markdown` ou `chordpro`.
+
+Le codage, les canaux, la fréquence et les bits d'un WAV, et la division d'un MIDI, viennent en tranche 5 avec
+l'en-tête qui les donne, sous des clés `<e>/<fait>` ajoutées, ce qui ne demande aucune migration.
 
 Un chemin s'écrit ici par ses segments, `[idees, <i>, texte]` : `<e>/idee` est **une seule clé**, sans objet par
 empreinte (C3), et `[prises, "<e>/idee"]` a deux segments ; `<conteneur>` est celui de la sorte (`Sorte::conteneur`).
@@ -1187,22 +1315,23 @@ empreinte (C3), et `[prises, "<e>/idee"]` a deux segments ; `<conteneur>` est ce
 | regrouper | `Poser [<conteneur>, "<e>/idee"]` = cible ; la source vidée : `Poser [idees, <s>, retiree]` = heure | `Poser [<conteneur>, "<e>/idee"]` = source ; la source vidée : `Oter [idees, <s>, retiree]` | `Idée du {jc} : prise regroupée` (`MIDI versé regroupé`, `texte versé regroupé`), suivi de `, idée du {js} retirée` si la source est vidée |
 | retirer | `Poser [idees, <i>, retiree]` = `Entier(heure)` | `Oter` | `Idée du {j} retirée` |
 | rétablir | `Oter [idees, <i>, retiree]` | `Poser` = `Entier(<date d'avant>)` | `Idée du {j} rétablie` |
-| verser | `Creer [idees, <i>]` [`etiquettes`] ; `Poser [idees, <i>, provenance]`, puis `par`, `le`, (`depuis`) ; `Poser [<conteneur>, "<e>/idee"]` et `[<conteneur>, "<e>/format"]` ; d'une prise seulement, `[prises, "<e>/duree"]` (`Naturel`, si la fiche la porte), `[prises, "<e>/le"]`, `[prises, "<e>/par"]` (§ 30 · 9.2 : ni date ni appareil à un MIDI versé ni à un texte versé) | — | `Idée du {j} : prise versée` (`MIDI versé`, `texte versé`) |
+| verser | `Creer [idees, <i>]` [`etiquettes`] ; `Poser [idees, <i>, provenance]`, puis `par`, `le`, (`depuis`) ; `Poser [<conteneur>, "<e>/idee"]` et `[<conteneur>, "<e>/format"]` ; d'une prise seulement, `[prises, "<e>/duree"]` (`Naturel`, si la fiche la porte) ; ni `<e>/le` ni `<e>/par`, à aucune sorte | — | `Idée du {j} : prise versée` (`MIDI versé`, `texte versé`) |
 | annuler | l'inverse | — | `Annulé : <message du geste>` |
 
 La source d'un regroupement est vidée quand `est_vide` de la source, la captation ôtée, est vrai
 (`captations_de_la_source == 1`, ni texte, ni étiquette, ni lien). Les refus : `presente` rend `IdeeAbsente` pour
 `None` ; `MemeTexte` ; `EtiquetteDejaPosee`, `EtiquetteAbsente` ; `RelieeAElleMeme`, `LienDejaPose`, `LienAbsent` ;
 `DejaDansLIdee` (source = cible) ; `IdeeNonRetiree` (rétablir) ; `IdeeRetiree` (retirer une idée retirée, et toute
-idée retirée touchée) ; `CaptationDejaVersee` (`existante`) ; `DureeHorsDUnePrise` ; `HorsDeLImport`. Chaque `Display`, un constat :
+idée retirée touchée) ; `CaptationDejaVersee` (`existante`) ; `DureeHorsDUnePrise` ; `DureeTropLongue`
+(au-delà d'`ENTIER_SUR`) ; `HorsDeLImport`. Chaque `Display`, un constat :
 « Aucune idée ne porte l'identifiant {idee}. », « L'idée {idee} est retirée. », « L'idée {idee} n'est pas retirée. »,
 « Le texte est déjà celui-ci. », « L'étiquette est vide. », « L'étiquette #{e} est déjà posée. », « L'étiquette #{e}
 n'est pas posée. », « Une idée ne se relie pas à elle-même. », « Ces deux idées sont déjà reliées. », « Ces deux idées
 ne sont pas reliées. », « Aucune captation ne porte l'empreinte {e}. », « Cette captation est déjà dans cette
-idée. », « La captation {e} est déjà versée. », « Seule une prise a une durée. », « Un MIDI versé ou un texte versé
-n'entre que par l'import. ».
+idée. », « La captation {e} est déjà versée. », « Seule une prise a une durée. », « Une durée de {duree_ms} ms passe le plus
+grand entier que l'interface relit à l'identique. », « Un MIDI versé ou un texte versé n'entre que par l'import. ».
 
-- [ ] **Étape 1 : écrire les tests** (`tests/gestes.rs`), sur des `IdeeLue` écrites dans le test, nées à `HEURE` (« 14 novembre ») : un test par ligne de la table, qui compare les changements, l'inverse et le message entiers (par exemple `poser_une_etiquette(&a, "pont", HEURE, 0)` : message `"Idée du 14 novembre : étiquette #pont posée"`, changements `[poser(&["idees", A, "etiquettes", "pont"], Simple::Vrai)]`, inverse `[oter(&["idees", A, "etiquettes", "pont"])]`) ; `rétablir` d'une idée retirée à `HEURE - 3_600` repose `Entier(HEURE - 3_600)` ; `compléter` d'une idée sans texte a pour inverse `Oter` ; `regrouper` la seule prise d'une idée qui n'a rien d'autre retire la source, message `"Idée du 14 novembre : prise regroupée, idée du 14 novembre retirée"`, et la même avec un texte à la source ne la retire pas ; un test par refus, `Display` compris ; `deux_formes_d_une_meme_etiquette_font_deux_cles` (`"été"` en NFC et en NFD : deux changements différents) ; `annuler_rend_l_inverse_sous_annule` (`"Annulé : Idée du 14 novembre : étiquette #pont posée"`) ; `verser_une_prise_cree_son_idee_et_sa_fiche`, `verser_un_midi_n_a_pas_de_duree` (`DureeHorsDUnePrise`), `verser_un_midi_ou_un_texte_n_a_ni_date_ni_appareil` (ses changements entiers : `Creer`, les quatre valeurs de l'idée, puis `<e>/idee` et `<e>/format` seuls), `verser_un_midi_ou_un_texte_capte_est_refuse` (`HorsDeLImport`, les deux sortes), `verser_une_fiche_deja_versee_est_refuse`. Deux exemples entiers, que suivent les autres tests (`P` une empreinte, `A`, `V` deux idées, `IMPORT` l'ULID d'un import) :
+- [ ] **Étape 1 : écrire les tests** (`tests/gestes.rs`), sur des `IdeeLue` écrites dans le test, nées à `HEURE` (« 14 novembre ») : un test par ligne de la table, qui compare les changements, l'inverse et le message entiers (par exemple `poser_une_etiquette(&a, "pont", HEURE, 0)` : message `"Idée du 14 novembre : étiquette #pont posée"`, changements `[poser(&["idees", A, "etiquettes", "pont"], Simple::Vrai)]`, inverse `[oter(&["idees", A, "etiquettes", "pont"])]`) ; `rétablir` d'une idée retirée à `HEURE - 3_600` repose `Entier(HEURE - 3_600)` ; `compléter` d'une idée sans texte a pour inverse `Oter` ; `regrouper` la seule prise d'une idée qui n'a rien d'autre retire la source, message `"Idée du 14 novembre : prise regroupée, idée du 14 novembre retirée"`, et la même avec un texte à la source ne la retire pas ; un test par refus, `Display` compris ; `deux_formes_d_une_meme_etiquette_font_deux_cles` (`"été"` en NFC et en NFD : deux changements différents) ; `annuler_rend_l_inverse_sous_annule` (`"Annulé : Idée du 14 novembre : étiquette #pont posée"`) ; `verser_une_prise_cree_son_idee_et_sa_fiche` (ses changements entiers, ci-dessous : `<e>/idee`, `<e>/format` et `<e>/duree`, ni `<e>/le` ni `<e>/par`), `verser_un_midi_n_a_pas_de_duree` (`DureeHorsDUnePrise`), `verser_un_midi_ou_un_texte_ne_pose_que_son_idee_et_son_format` (ses changements entiers : `Creer`, les quatre valeurs de l'idée, puis `<e>/idee` et `<e>/format` seuls, le format `smf1` pour un MIDI, `brut` pour un texte), `verser_un_midi_ou_un_texte_capte_est_refuse` (`HorsDeLImport`, les deux sortes), `verser_une_fiche_deja_versee_est_refuse`, `verser_une_duree_au_dela_d_entier_sur_est_refusee` (`ENTIER_SUR == (1u64 << 53) - 1` ; une prise de `duree_ms: Some(ENTIER_SUR)` se verse, `Naturel(ENTIER_SUR)` sous `<e>/duree` ; `Some(ENTIER_SUR + 1)` rend `DureeTropLongue { duree_ms: ENTIER_SUR + 1 }`, son `Display` compris : chaque mutant de la comparaison `>` (`>=`, `==`, `<`) meurt sur l'un de ces deux cas). Deux exemples entiers, que suivent les autres tests (`P` une empreinte, `A`, `V` deux idées, `IMPORT` l'ULID d'un import) :
 
 ```rust
 // regrouper la seule prise P de V, qui n'a rien d'autre, dans A : V est vidée.
@@ -1215,7 +1344,8 @@ assert_eq!(geste.inverse, vec![
     poser(&["prises", cle.as_str()], Simple::Chaine(V.into())),
     oter(&["idees", V, "retiree"]),
 ]);
-// verser la prise P, importée par l'établi, sous l'idée V qui naît avec elle.
+// verser la prise P, importée par l'établi, sous l'idée V qui naît avec elle : l'heure et
+// l'appareil du versement sont ceux de l'idée ; la date et l'appareil de la prise restent « — ».
 let op = verser(Sorte::Prise, P, &Fiche { format: "wav".into(), duree_ms: Some(30_000) }, V,
                 &Provenance::Importee { par: Appareil::Etabli, depuis: IMPORT.into() }, None, HEURE, 0).unwrap();
 assert_eq!(op.message, "Idée du 14 novembre : prise versée");
@@ -1228,8 +1358,6 @@ assert_eq!(op.changements, vec![
     poser(&["prises", &format!("{P}/idee")], Simple::Chaine(V.into())),
     poser(&["prises", &format!("{P}/format")], Simple::Chaine("wav".into())),
     poser(&["prises", &format!("{P}/duree")], Simple::Naturel(30_000)),
-    poser(&["prises", &format!("{P}/le")], Simple::Entier(HEURE)),
-    poser(&["prises", &format!("{P}/par")], Simple::Chaine("etabli".into())),
 ]);
 ```
 - [ ] **Étape 2 : voir le rouge.** Committer (`test: les gestes de tri, verser et l'annulation, au noyau`), pousser. Attendu à « Lint » : `cannot find function completer`.
@@ -1269,7 +1397,7 @@ pas. `idees()`, une lecture, ne consulte pas `lecture_seule()` (tâche 5).
 
 - [ ] **Étape 1 : écrire les tests** dans la suite, avec leurs enveloppes dans les deux crates :
   - `chaque_geste_de_tri_parait_au_journal` (enveloppe `cap02_4_chaque_geste_de_tri_parait_au_journal_comme_une_operation_nommee`, une part, non inscrite : relier à un motif ou un morceau et regrouper une photo viennent après) : sur deux notes A et B et une prise P versée (idée V), compléter A, poser `#pont` sur A, ôter `#pont`, relier A–B, délier A–B, regrouper P dans A (V retirée), retirer B, rétablir B ; après chaque geste, une entrée de plus au journal, au message de la table de la tâche 10, à l'heure du contexte ;
-  - `l_idee_videe_par_un_regroupement_est_retiree` (enveloppe `cap02_8_l_idee_videe_par_un_regroupement_est_retiree_et_l_annulation_la_retablit`, que la tâche 12 complète par l'annulation) : X notée avec une prise P1 versée puis regroupée dans X ; V, née par `verser_une_fiche` de P2 seule ; regrouper P2 dans X : le journal gagne exactement une entrée, « Idée du 14 novembre : prise regroupée, idée du 14 novembre retirée » (« par le même geste »), la vue de V a `retiree: Some(HEURE)`, `idees()` ne la rend plus, la vue de X porte P1 et P2 ;
+  - `l_idee_videe_par_un_regroupement_est_retiree` (enveloppe `cap02_8_l_idee_videe_par_un_regroupement_est_retiree_et_l_annulation_la_retablit`, que la tâche 12 complète par l'annulation ; inscrit en (b), entier : son cas, une idée qui n'a qu'une prise, regroupée puis le geste annulé, se calcule sur les gestes de la tranche, et une idée qui porte aussi une photo, au lot 2, n'est pas « une idée qui n'a rien d'autre ») : X notée avec une prise P1 versée puis regroupée dans X ; V, née par `verser_une_fiche` de P2 seule ; regrouper P2 dans X : le journal gagne exactement une entrée, « Idée du 14 novembre : prise regroupée, idée du 14 novembre retirée » (« par le même geste »), la vue de V a `retiree: Some(HEURE)`, `idees()` ne la rend plus, la vue de X porte P1 et P2 ;
   - `deux_prises_regroupees_restent_deux_captations` (enveloppe `cap02_3_deux_prises_regroupees_restent_deux_captations_d_empreinte_inchangee`, une part, non inscrite) : les deux captations de X, distinctes, d'empreintes celles que `verser_une_fiche` a rendues, que `relire` rend ;
   - `une_idee_retiree_quitte_la_liste_et_se_retablit_telle_qu_elle_etait` (enveloppe `cap02_5_…`, la part de la boîte, non inscrite) : texte, étiquettes, liens, captations rendus ;
   - `un_geste_de_tri_sans_fonds_est_refuse_et_rien_ne_nait` (point de revue 2) ; son enveloppe sur la paire de fichiers, qui connaît la racine, ajoute `assert!(!racine.chemin().join("documents").join("fonds").exists())`, le trait `Paire` ne donnant aucun chemin ;
@@ -1278,7 +1406,7 @@ pas. `idees()`, une lecture, ne consulte pas `lecture_seule()` (tâche 5).
   - `la_vue_tire_reliee_et_la_duree_des_regles_du_noyau` : A et B reliées, B retirée : la vue de A dit `reliee: false` ; B rétablie : `true`. Puis V1 née d'une prise de 30 000 ms, V2 d'une prise de 64 000 ms regroupée dans V1 : la vue de V1 dit `duree_ms: Some(64_000)` ; une prise sans durée lue (`duree_ms: None`) regroupée dans V1 la ramène à `None` (CAP-02, Règles) ;
   - `une_commande_sur_un_fonds_plus_recent_est_refusee_et_le_nomme` (tâche 5) gagne, devant le fonds N + 1 : `idees()` répond ; `verser_une_fiche(gestes::Sorte::Prise, b"une prise devant un fonds plus recent", …)` rend `Raison::VersionPlusRecente { version: 2 }`, et `captations().relire(&empreinte(b"une prise devant un fonds plus recent"))` rend ces octets (§ 31 · 2.4 : « Une captation n'est jamais refusée pour autant »).
 
-  La prise de test : `verser_une_fiche(gestes::Sorte::Prise, b"une prise de test", &gestes::Fiche { format: "wav".into(), duree_ms: Some(30_000) }, &gestes::Provenance::Importee { par: gestes::Appareil::Etabli, depuis: IMPORT.into() }, …)` : à INC-1, une prise n'entre sur l'établi que par l'import (la capture audio de l'établi vient après INC-1).
+  La prise de test : `verser_une_fiche(gestes::Sorte::Prise, b"une prise de test", &gestes::Fiche { format: "wav".into(), duree_ms: Some(30_000) }, &gestes::Provenance::Importee { par: gestes::Appareil::Etabli, depuis: IMPORT.into() }, …)` : à INC-1, une prise n'entre sur l'établi que par l'import (la capture audio de l'établi vient après INC-1). Elle écrit `<e>/idee`, `<e>/format` (`wav`) et `<e>/duree` ; sa date et son appareil restent `—`, sans clé (C3) : l'heure et l'appareil du versement sont ceux de son idée, `le` et `par`.
 - [ ] **Étape 2 : voir le rouge.** Committer (`test: les gestes de tri et leurs critères, sur les deux paires`), pousser. Attendu à « Lint » : `no method named completer found`.
 - [ ] **Étape 3 : écrire le code.**
 - [ ] **Étape 4 : voir le vert.** Attendu : `commandes_en_memoire.rs` dans `verifier`, `commandes_sur_fichiers.rs` dans `verifier` et `windows`, verts, les comptes dans la description.
@@ -1306,7 +1434,7 @@ pub fn teneur(doc: &Automerge) -> Result<String, ErreurDeTeneur>;
 ```
 
 - [ ] **Étape 1 : écrire les tests.** Dans la suite :
-  - `annuler_rend_le_fonds_d_avant` (enveloppe `cap02_6_annuler_rend_le_fonds_d_avant_et_le_journal_porte_le_geste_puis_son_annulation`) : pour chacun des huit gestes de tri, la teneur d'avant le geste égale celle d'après l'annulation, et les deux dernières entrées du journal sont le message du geste puis `Annulé : ` suivi de lui ;
+  - `annuler_rend_le_fonds_d_avant` (enveloppe `cap02_6_annuler_rend_le_fonds_d_avant_et_le_journal_porte_le_geste_puis_son_annulation`, une part, non inscrite : « le dernier geste de tri » est aussi relier à un motif ou à un morceau (INC-2), et regrouper des photos (lot 2), que la tranche n'annule pas) : pour chacun des huit gestes de tri, la teneur d'avant le geste égale celle d'après l'annulation, et les deux dernières entrées du journal sont le message du geste puis `Annulé : ` suivi de lui ;
   - la seconde moitié de `l_idee_videe_par_un_regroupement_est_retiree` : annuler rend P2 à V, rétablie, et un second annuler rend `Raison::RienAAnnuler` ;
   - `la_suite_de_la_decision_18` : la table du passage de LE-6, § 3.9, rejouée pas à pas (noter A ; annuler refusé ; étiqueter A `#pont` ; noter B ; annuler, « Annulé : Idée du 14 novembre : étiquette #pont posée » ; annuler refusé ; relier A–B ; retirer B ; étiqueter A `#pont` ; reposer `#pont`, refusé ; annuler ; annuler refusé), puis le lien A–B présent, B retirée, A sans étiquette ;
   - `un_geste_refuse_ne_change_pas_ce_qu_annuler_vise` (point de revue 4) ; `la_reouverture_vide_ce_qu_annuler_vise` (point de revue 5) ;
@@ -1327,17 +1455,17 @@ témoin, :22, son commentaire, :25-44 ; la lignée, :157-206), `docs/31-persista
 `docs/70-qualite-et-verification.md` (§ 4.1, :156 et suivantes), `docs/80-glossaire.md`, `CONVENTIONS.md` (`mutants`),
 `.github/workflows/ci.yml` (`mutants`), `.github/workflows/mutants-complet.yml`.
 
-- [ ] **Étape 1 : CAP-02 · 7.** Dans `tests/repliques.rs`, qui inclut la suite (`#[path = "../../services/tests/suite/mod.rs"] mod suite;`), `cap02_7_deux_liens_poses_en_sens_contraires_n_en_font_qu_un` : deux notes A et B notées par les services sur la paire de fichiers, dans `<dossier jetable>/a`, fermées, l'arbre copié en `<…>/b` (`commun::copier_l_arbre`), chaque copie rouverte avec son `AleaDeTest` (graines 0 et 1) ; sur l'une `relier(A, B)`, sur l'autre `relier(B, A)` ; `commun::reunir`, sur `documents_mut().document_mut()` de chacune ; le conteneur `liens` des deux copies a une seule clé, `cle_du_lien(A, B)`, et `get_all` sur elle rend deux valeurs `true` (Éc-9). Committer, pousser, vert dans `verifier` et `windows`.
-- [ ] **Étape 2 : le témoin par les opérations** (C26). `references.rs` inclut la suite, comme `repliques.rs`. `faire_naitre_le_temoin(racine, alea: &mut dyn Alea)` devient : `Services` sur `FondsSurFichiers`, l'aléa reçu (`AleaDeTest { graine: 0, appels: 0 }` pour le témoin), `HEURE`, décalage 0 ; noter « Un refrain qui monte, en ré » ; poser `refrain` ; noter « Un pont en mi mineur » ; relier les deux ; verser une prise (`b"une prise du temoin"`, `wav`, 30 000 ms), un MIDI (`b"un midi du temoin"`, `mid`), un texte (`b"un texte du temoin"`, `txt`), chacun `Importee { par: Etabli, depuis: IMPORT }` (une idée née d'un fichier versé est `importee`, § 30 · 8.1 ; l'import lui-même ne s'écrit qu'en tranche 5, et `imports` reste vide) ; regrouper le MIDI dans la première idée. La teneur attendue, écrite en commentaire, calculée sur le poste (un sérialiseur qui redonne à l'octet la teneur et l'empreinte de la première version de ce plan) :
+- [ ] **Étape 1 : CAP-02 · 7.** Dans `tests/repliques.rs`, qui inclut la suite (`#[path = "../../services/tests/suite/mod.rs"] mod suite;`), `cap02_7_deux_liens_poses_en_sens_contraires_n_en_font_qu_un` : deux notes A et B notées par les services sur la paire de fichiers, dans `<dossier jetable>/a`, fermées, l'arbre copié en `<…>/b` (`commun::copier_l_arbre`), chaque copie rouverte avec son `AleaDeTest` (graines 0 et 1) ; sur l'une `relier(A, B)`, sur l'autre `relier(B, A)` ; `commun::reunir`, sur `documents_mut().document_mut()` de chacune ; le conteneur `liens` des deux copies a une seule clé, `cle_du_lien(A, B)`, et `get_all` sur elle rend deux valeurs `true` (Éc-9). CAP-02 · 7 s'inscrit, entier : son cas, deux idées reliées hors ligne en sens contraires sur deux répliques, puis leur fusion par l'échange de `synchro` (H07), est livré ici ; un lien vers un motif ou un morceau (INC-2) n'est pas son cas. Committer, pousser, vert dans `verifier` et `windows`.
+- [ ] **Étape 2 : le témoin par les opérations** (C26). `references.rs` inclut la suite, comme `repliques.rs`. `faire_naitre_le_temoin(racine, alea: &mut dyn Alea)` devient : `Services` sur `FondsSurFichiers`, l'aléa reçu (`AleaDeTest { graine: 0, appels: 0 }` pour le témoin), `HEURE`, décalage 0 ; noter « Un refrain qui monte, en ré » ; poser `refrain` ; noter « Un pont en mi mineur » ; relier les deux ; verser une prise (`b"une prise du temoin"`, format `wav`, 30 000 ms), un MIDI (`b"un midi du temoin"`, format `smf1`), un texte (`b"un texte du temoin"`, format `brut`), chacun `Importee { par: Etabli, depuis: IMPORT }` (une idée née d'un fichier versé est `importee`, § 30 · 8.1 ; l'import lui-même ne s'écrit qu'en tranche 5, et `imports` reste vide) ; regrouper le MIDI dans la première idée. La prise ne porte que `idee`, `format` et `duree` (tâche 10). La teneur attendue, écrite en commentaire, calculée sur le poste, 1 708 octets (un sérialiseur qui redonne à l'octet la teneur et l'empreinte des versions précédentes de ce plan, `13b6086f…`, puis `ae625f61…` sur 1 869 octets ; sans les deux faits de la prise ni le vocabulaire de `format`, `73565774…` sur 1 706, la valeur de la relecture par une session neuve) :
 
 ```text
-{"idees":{"01HF7YAT000000000000000004":{"etiquettes":{"refrain":b1},"le":i1700000000,"par":s"etabli","provenance":s"captee","texte":s"Un refrain qui monte, en ré"},"01HF7YAT000000000000000005":{"etiquettes":{},"le":i1700000000,"par":s"etabli","provenance":s"captee","texte":s"Un pont en mi mineur"},"01HF7YAT000000000000000006":{"depuis":s"01HF7YAT00ZZZZZZZZZZZZZZZZ","etiquettes":{},"le":i1700000000,"par":s"etabli","provenance":s"importee"},"01HF7YAT000000000000000007":{"depuis":s"01HF7YAT00ZZZZZZZZZZZZZZZZ","etiquettes":{},"le":i1700000000,"par":s"etabli","provenance":s"importee","retiree":i1700000000},"01HF7YAT000000000000000008":{"depuis":s"01HF7YAT00ZZZZZZZZZZZZZZZZ","etiquettes":{},"le":i1700000000,"par":s"etabli","provenance":s"importee"}},"identifiant":s"01HF7YAT000000000000000001","imports":{},"liens":{"apparente:01HF7YAT000000000000000004:01HF7YAT000000000000000005":b1},"midi_verses":{"dee9bf9e8aaeb03dce938f41ee65b33989d3436072478a95514ca26df98f39d3/format":s"mid","dee9bf9e8aaeb03dce938f41ee65b33989d3436072478a95514ca26df98f39d3/idee":s"01HF7YAT000000000000000004"},"origines_declarees":{},"photos":{},"prises":{"8c12b061b3b4734f4f62d617674f892c49cb31c9212878903601d7ca369a3299/duree":u30000,"8c12b061b3b4734f4f62d617674f892c49cb31c9212878903601d7ca369a3299/format":s"wav","8c12b061b3b4734f4f62d617674f892c49cb31c9212878903601d7ca369a3299/idee":s"01HF7YAT000000000000000006","8c12b061b3b4734f4f62d617674f892c49cb31c9212878903601d7ca369a3299/le":i1700000000,"8c12b061b3b4734f4f62d617674f892c49cb31c9212878903601d7ca369a3299/par":s"etabli"},"proprietaire":s"00000000-0000-4000-8000-000000000003","requetes_enregistrees":{},"textes_verses":{"05474c7f2b8f6390a4a215fa6edca1ac61a8f97aa9cad1e08652909008b565b8/format":s"txt","05474c7f2b8f6390a4a215fa6edca1ac61a8f97aa9cad1e08652909008b565b8/idee":s"01HF7YAT000000000000000008"},"version_de_schema":u1}
+{"idees":{"01HF7YAT000000000000000004":{"etiquettes":{"refrain":b1},"le":i1700000000,"par":s"etabli","provenance":s"captee","texte":s"Un refrain qui monte, en ré"},"01HF7YAT000000000000000005":{"etiquettes":{},"le":i1700000000,"par":s"etabli","provenance":s"captee","texte":s"Un pont en mi mineur"},"01HF7YAT000000000000000006":{"depuis":s"01HF7YAT00ZZZZZZZZZZZZZZZZ","etiquettes":{},"le":i1700000000,"par":s"etabli","provenance":s"importee"},"01HF7YAT000000000000000007":{"depuis":s"01HF7YAT00ZZZZZZZZZZZZZZZZ","etiquettes":{},"le":i1700000000,"par":s"etabli","provenance":s"importee","retiree":i1700000000},"01HF7YAT000000000000000008":{"depuis":s"01HF7YAT00ZZZZZZZZZZZZZZZZ","etiquettes":{},"le":i1700000000,"par":s"etabli","provenance":s"importee"}},"identifiant":s"01HF7YAT000000000000000001","imports":{},"liens":{"apparente:01HF7YAT000000000000000004:01HF7YAT000000000000000005":b1},"midi_verses":{"dee9bf9e8aaeb03dce938f41ee65b33989d3436072478a95514ca26df98f39d3/format":s"smf1","dee9bf9e8aaeb03dce938f41ee65b33989d3436072478a95514ca26df98f39d3/idee":s"01HF7YAT000000000000000004"},"origines_declarees":{},"photos":{},"prises":{"8c12b061b3b4734f4f62d617674f892c49cb31c9212878903601d7ca369a3299/duree":u30000,"8c12b061b3b4734f4f62d617674f892c49cb31c9212878903601d7ca369a3299/format":s"wav","8c12b061b3b4734f4f62d617674f892c49cb31c9212878903601d7ca369a3299/idee":s"01HF7YAT000000000000000006"},"proprietaire":s"00000000-0000-4000-8000-000000000003","requetes_enregistrees":{},"textes_verses":{"05474c7f2b8f6390a4a215fa6edca1ac61a8f97aa9cad1e08652909008b565b8/format":s"brut","05474c7f2b8f6390a4a215fa6edca1ac61a8f97aa9cad1e08652909008b565b8/idee":s"01HF7YAT000000000000000008"},"version_de_schema":u1}
 ```
 
-  `TENEUR_DU_TEMOIN` = `ae625f6101c8acc159b3b75b3291ba5e0a902d5362d7e9396d90188c2894dfff`. Une empreinte qui diffère se corrige dans le code, sauf si la teneur imprimée montre une erreur de ce calcul, que la PR dit. `la_lignee_ne_change_pas_la_teneur` fait naître deux témoins : l'un sous `AleaDeTest { graine: 0, appels: 0 }`, l'autre sous `AutreLignee`, un `Alea` de test de `references.rs` qui rend les tirages d'`AleaDeTest { graine: 0, appels: 0 }` et met à 1 l'octet 1 du deuxième, celui de la lignée ; seul ce tirage diffère, donc seule la lignée : `01HF7YAT000000000000000002` et `01HF7YAT00000G000000000002`, calculées sur le poste. Le second pose ensuite `LIGNEES_REMPLACEES`, comme aujourd'hui, par `commun::ecrire` sur `documents_mut().document_mut()`, sous `pannes` ; les deux teneurs égales. Une autre graine changerait aussi l'identifiant du document, l'identifiant de propriétaire et chaque idée, que la teneur porte. Pousser : `references.rs` vert dans `verifier` et `windows`.
-- [ ] **Étape 3 : les documents.** § 31 · 2 : le schéma de la `v0.3.0`, conteneur par conteneur, l'objet d'une idée, les clés à plat d'une captation (d'une prise, `idee`, `format`, `duree`, `le`, `par` ; d'un MIDI versé ou d'un texte versé, `idee` et `format` ; deux répliques qui versent la même captation laissent deux valeurs sous chaque clé, gardées, relevées au lot 3), les liens et leur clé, un lien et une étiquette en `true`, sans date, une étiquette rangée sans `#` et comparée octet pour octet, et où vivront les faits de la tranche 5 (C4) ; § 31 · 2.3 : la genèse de dix opérations. § 30 · 1 : la classe `Lien` perd `le` ; § 30 · 9.3 : « Un lien ne porte pas de date : celle du geste qui l'a posé se lit dans le journal du fonds » (Éc-9). § 30 · 11 et CAP-02 : la décision 18, dite sans « la place » (« Annuler ne vise que le dernier geste de tri fait sur l'appareil depuis l'ouverture ; une note, une requête enregistrée, un import ou une déclaration ne le visent ni ne le remplacent ; une annulation faite, un second « annuler » est refusé, et le dit »), l'exemple « Annulé : Idée du 3 novembre : étiquette #pont posée », un geste refusé qui ne change pas ce qu'annuler vise, et une clé en conflit avant le geste qui revient à sa seule valeur présentée (Éc-6) ; la phrase « Si une synchronisation a changé l'élément depuis, l'annulation est refusée, et Pupitre dit ce qui a changé » reste, ce refus venant au lot 3 (plan maître, « Ce qui est reporté »), et la PR le dit. § 70 · 4.1 : la ligne `| [CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées) | 6 à 8 | INC-1, lot 1 |`, sous celle de CAP-01 (tâche 7) ; CAP-02 · 4 n'y entre pas (C30). Glossaire, après `git grep -n -i -w "étiquette" -- docs README.md CONVENTIONS.md` et `git grep -n -i -w "annuler" -- docs README.md CONVENTIONS.md`, les sorties citées dans la PR : « **Étiquette** » (d'une idée : un mot posé sur elle, sans `#`, que le message et l'écran ajoutent ; de git : `vX.Y.Z`, qui publie une version ; on dit duquel il s'agit dès que le contexte ne le dit pas) et « **Annuler** » (au fonds, le dernier geste de tri, § 30 · 11 ; pour une proposition, l'acceptation, INC-2). `CONVENTIONS.md`, ligne `mutants` : « les règles d'une idée ». `node scripts/verif-liens.mjs` et `node scripts/verif-faits.mjs` verts après le `git add` ; `verif-diagrammes` se lit dans `documentation`.
+  `TENEUR_DU_TEMOIN` = `291a0df280e2274fe96fc10d24a232a57213a0e938fa0a7b844be8f056657dbc`. Une empreinte qui diffère se corrige dans le code, sauf si la teneur imprimée montre une erreur de ce calcul, que la PR dit. `la_lignee_ne_change_pas_la_teneur` fait naître deux témoins : l'un sous `AleaDeTest { graine: 0, appels: 0 }`, l'autre sous `AutreLignee`, un `Alea` de test de `references.rs` qui rend les tirages d'`AleaDeTest { graine: 0, appels: 0 }` et met à 1 l'octet 1 du deuxième, celui de la lignée ; seul ce tirage diffère, donc seule la lignée : `01HF7YAT000000000000000002` et `01HF7YAT00000G000000000002`, calculées sur le poste. Le second pose ensuite `LIGNEES_REMPLACEES`, comme aujourd'hui, par `commun::ecrire` sur `documents_mut().document_mut()`, sous `pannes` ; les deux teneurs égales. Une autre graine changerait aussi l'identifiant du document, l'identifiant de propriétaire et chaque idée, que la teneur porte. Pousser : `references.rs` vert dans `verifier` et `windows`.
+- [ ] **Étape 3 : les documents.** § 31 · 2 : le schéma de la `v0.3.0`, conteneur par conteneur, l'objet d'une idée, les clés à plat d'une captation (d'une prise, `idee`, `format` et `duree`, sa date et son appareil restant `—`, sans clé, tant que rien ne les lit sur la captation ; d'un MIDI versé ou d'un texte versé, `idee` et `format` ; `format` au vocabulaire du § 30 · 9.2 et de l'ADR-024, celui que la signature et l'en-tête d'une prise nomment (`wav`, `flac`…), `smf0`, `smf1` ou `smf2` d'un MIDI, `brut`, `markdown` ou `chordpro` d'un texte, jamais l'extension ; deux répliques qui versent la même captation laissent deux valeurs sous chaque clé, gardées, relevées au lot 3), les liens et leur clé, un lien et une étiquette en `true`, sans date, une étiquette rangée sans `#` et comparée octet pour octet, sans normalisation (question 7), et où vivront les faits de la tranche 5, dont la division d'un MIDI et les autres faits d'un en-tête, sous des clés ajoutées, sans migration (C4) ; § 31 · 2.3 : la genèse de dix opérations. § 30 · 1 : la classe `Lien` perd `le` ; § 30 · 9.3 : « Un lien ne porte pas de date : celle du geste qui l'a posé se lit dans le journal du fonds » (Éc-9). § 30 · 11 et CAP-02 : la décision 18, dite sans « la place » (« Annuler ne vise que le dernier geste de tri fait sur l'appareil depuis l'ouverture ; une note, une requête enregistrée, un import ou une déclaration ne le visent ni ne le remplacent ; une annulation faite, un second « annuler » est refusé, et le dit »), l'exemple « Annulé : Idée du 3 novembre : étiquette #pont posée », un geste refusé qui ne change pas ce qu'annuler vise, et une clé en conflit avant le geste qui revient à sa seule valeur présentée (Éc-6) ; la phrase « Si une synchronisation a changé l'élément depuis, l'annulation est refusée, et Pupitre dit ce qui a changé » reste, ce refus venant au lot 3 (plan maître, « Ce qui est reporté »), et la PR le dit. § 70 · 4.1 : la ligne `| [CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées) | 7, 8 | INC-1, lot 1 |`, sous celle de CAP-01 (tâche 7) ; CAP-02 · 4 et 6 n'y entrent pas : ils visent chaque geste de tri, dont relier à un motif ou un morceau et regrouper une photo, et ne s'inscriront qu'avec leur dernière part (C30) ; ni CAP-02 · 3 et 5, qui attendent la boîte et les requêtes. Glossaire, après `git grep -n -i -w "étiquette" -- docs README.md CONVENTIONS.md` et `git grep -n -i -w "annuler" -- docs README.md CONVENTIONS.md`, les sorties citées dans la PR : « **Étiquette** » (d'une idée : un mot posé sur elle, sans `#`, que le message et l'écran ajoutent ; de git : `vX.Y.Z`, qui publie une version ; on dit duquel il s'agit dès que le contexte ne le dit pas) et « **Annuler** » (au fonds, le dernier geste de tri, § 30 · 11 ; pour une proposition, l'acceptation, INC-2). `CONVENTIONS.md`, ligne `mutants` : « les règles d'une idée ». `node scripts/verif-liens.mjs` et `node scripts/verif-faits.mjs` verts après le `git add` ; `verif-diagrammes` se lit dans `documentation`.
 - [ ] **Étape 4 : remesurer la mutation, à froid**, comme à la tâche 7, `--ref t2b-schema-et-gestes`.
-- [ ] **Étape 5 : committer** par chemins (`test: CAP-02 · 7 et le témoin du test 11 par les opérations`, `docs: le schéma de la v0.3.0, annuler, et les critères livrés`, `ci: les délais de la mutation, remesurés avec les règles d'une idée`), pousser. **Fin de la PR (b) :** tous les jobs verts, `mutants` sans `MISSED`, le passage complet à froid lié ; la description nomme les deux références changées du test 11 (`GENESE_DU_FONDS`, `TENEUR_DU_TEMOIN`), dit `TENEUR_DES_TYPES` inchangée, la lecture des prises réécrite dans `h07.rs` (tâche 8), les parts de CAP-02 · 3, 4 et 5 non inscrites, et pourquoi (CAP-02 · 4 vise aussi relier à un motif ou un morceau et regrouper une photo), CAP-02 · 7 sur la paire de fichiers (écart 3), l'écart 9, les recherches de LE-2, et les questions 1, 2 et 4 tranchées ; la revue de la PR entière, ses retours traités ; puis la relecture des corrections, sur la tête qui part, celle de `--match-head-commit` ; `gh pr ready <n>`, puis la fusion.
+- [ ] **Étape 5 : committer** par chemins (`test: CAP-02 · 7 et le témoin du test 11 par les opérations`, `docs: le schéma de la v0.3.0, annuler, et les critères livrés`, `ci: les délais de la mutation, remesurés avec les règles d'une idée`), pousser. **Fin de la PR (b) :** tous les jobs verts, `mutants` sans `MISSED`, le passage complet à froid lié ; la description nomme les deux références changées du test 11 (`GENESE_DU_FONDS`, `TENEUR_DU_TEMOIN`), dit `TENEUR_DES_TYPES` inchangée, la lecture des prises réécrite dans `h07.rs` (tâche 8), CAP-02 · 7 et 8 inscrits, chacun avec sa phrase (tâches 11 et 13), les parts de CAP-02 · 3, 4, 5 et 6 non inscrites, et pourquoi (CAP-02 · 4 et 6 visent aussi relier à un motif ou un morceau et regrouper une photo), CAP-02 · 7 sur la paire de fichiers (écart 3), l'écart 9, la teneur du témoin sans date ni appareil de prise et au vocabulaire de `format` (C3), les recherches de LE-2, et les questions 1, 2, 4, 6 et 7 tranchées ; la revue de la PR entière, ses retours traités ; puis la relecture des corrections, sur la tête qui part, celle de `--match-head-commit` ; `gh pr ready <n>`, puis la fusion.
 
 ---
 
@@ -1353,12 +1481,16 @@ tâche 20.
 **Fichiers :** modifier `crates/services/tests/suite/mod.rs` et ses deux enveloppes.
 
 - [ ] **Étape 1 : écrire les tests** dans la suite, sur un fonds où chaque geste de la tranche a été fait une fois (une aide de la suite, `le_fonds_de_chaque_geste`, qui rejoue le témoin de la tâche 13 puis chaque geste de tri et une annulation) :
-  - `chaque_operation_laisse_une_seule_modification_avec_son_message` : la naissance compte à part, la première note en écrivant trois (« Genèse du fonds », « Fonds créé », puis son message) ; chaque autre commande faite en ajoute exactement une à `get_changes`, dont le message est celui que rend le noyau ;
-  - `l_historique_ne_porte_que_des_operations_connues` : chaque message de `journal` est la genèse, la naissance, un message de migration (`message_de_la_migration`), ou suit une forme de la table de la tâche 10 (une aide `message_connu`, qui reconnaît `Idée du <date> notée`, `Idée du <date> : …`, `Idée du <date> reliée à l'idée du <date>`, `Idée du <date> déliée de l'idée du <date>`, `Idée du <date> retirée`, `Idée du <date> rétablie`, et `Annulé : ` suivi d'une forme connue) ;
-  - `rien_d_engendre_n_est_stocke` (`// § 31 · 10, test 7 : chercher les champs interdits du § 30 · 13`) : chaque clé du document est dans la liste blanche tirée de `noyau::donnees::fonds` (la racine du document : la version de schéma, l'identifiant, la lignée, l'identifiant de propriétaire, les neuf conteneurs ; une idée : `texte`, `etiquettes`, `provenance`, `par`, `le`, `depuis`, `retiree` ; sous `prises`, `<empreinte>/` suivi de `idee`, `format`, `duree`, `le` ou `par` ; sous `midi_verses` et `textes_verses`, `<empreinte>/` suivi de `idee` ou `format` ; un lien : `apparente:<a>:<b>`), et aucun segment n'est l'un des noms interdits (`duree` sous une idée, `reliee`, `prises`, `photos`, `midi_verses` ou `textes_verses` sous une idée, `etiquettes` à la racine du document, `compte`, `total`, `a_envoyer`) ;
+  - `chaque_operation_laisse_une_seule_modification_avec_son_message` : la naissance compte à part, la première note en écrivant trois (« Genèse du fonds », « Fonds créé », puis son message) ; chaque autre commande faite en ajoute exactement une à `get_changes`, dont le message est celui que rend le noyau (une aide, `une_modification(doc, heads_d_avant, message) -> Result<(), String>`) ;
+  - `l_historique_ne_porte_que_des_operations_connues` : chaque message de `journal` est la genèse, la naissance, un message de migration (`message_de_la_migration`), ou suit l'une des formes fermées de la table de la tâche 10, que l'aide `message_connu` énumère, `<date>` étant une date de `date_du_message` (« 1er » ou de 2 à 31, puis l'un des douze mois) et `<e>` une étiquette non vide : `Idée du <date> notée` ; `Idée du <date> : texte complété` ; `Idée du <date> : étiquette #<e> posée`, `Idée du <date> : étiquette #<e> ôtée` ; `Idée du <date> reliée à l'idée du <date>`, `Idée du <date> déliée de l'idée du <date>` ; `Idée du <date> : prise regroupée`, `Idée du <date> : MIDI versé regroupé`, `Idée du <date> : texte versé regroupé`, chacune suivie au besoin de `, idée du <date> retirée` ; `Idée du <date> retirée`, `Idée du <date> rétablie` ; `Idée du <date> : prise versée`, `Idée du <date> : MIDI versé`, `Idée du <date> : texte versé` ; et `Annulé : ` suivi de la forme d'un geste de tri, jamais d'une note ni d'un versement, qu'annuler ne vise pas. Aucune forme ne finit par une suite libre ;
+  - `rien_d_engendre_n_est_stocke` (`// § 31 · 10, test 7 : chercher les champs interdits du § 30 · 13`) : chaque clé du document est dans la liste blanche tirée de `noyau::donnees::fonds` (la racine du document : la version de schéma, l'identifiant, la lignée, l'identifiant de propriétaire, les neuf conteneurs ; une idée : `texte`, `etiquettes`, `provenance`, `par`, `le`, `depuis`, `retiree` ; sous `prises`, `<empreinte>/` suivi de `idee`, `format` ou `duree` ; sous `midi_verses` et `textes_verses`, `<empreinte>/` suivi de `idee` ou `format` ; un lien : `apparente:<a>:<b>`), et aucun segment n'est l'un des noms interdits (`duree` sous une idée, `reliee`, `prises`, `photos`, `midi_verses` ou `textes_verses` sous une idée, `etiquettes` à la racine du document, `compte`, `total`, `a_envoyer`) ; un `<empreinte>/le` ou un `<empreinte>/par` sous `prises` sort de la liste blanche (C3) ;
   - `aucun_counter_ni_objet_text_dans_un_document_des_operations` : le parcours ne rencontre ni `ScalarValue::Counter`, ni `ObjType::Text`, ni `ObjType::Table`, ni `ObjType::List`.
 
-  Chacun prouve aussi qu'il refuse : une aide `parcourir(doc) -> Vec<String>` (les chemins fautifs) rend un chemin pour un document de test où l'on a posé à la main `idees/<i>/duree` (le seul `put` de la suite hors des opérations, dans un test, que le contrôle statique ne lit pas).
+  Chacun prouve aussi qu'il refuse, sur une plantation qui lui est propre, et la plantation paraît dans ce que rend son aide. Les plantations se posent à la main dans un document de test, né par `application::faire_naitre` : les seuls `put`, `put_object` et `commit` de la suite hors des opérations, dans un test, que le contrôle statique d'I28, qui ne lit que les `src/`, ne voit pas.
+  - `chaque_operation_…` : une commande plantée en deux modifications, deux `application::appliquer` de suite après les heads d'avant ; `une_modification` le refuse, et nomme les deux messages ;
+  - `l_historique_…` : `message_connu` refuse « Idée du 3 novembre : autre chose », une forme que la table n'a pas, et « Annulé : Idée du 3 novembre notée », une note qu'annuler ne vise pas ; il reconnaît un exemple de chaque forme de la table, et « Annulé : » suivi de chaque forme d'un geste de tri ;
+  - `rien_d_engendre_…` : `idees/<i>/duree`, posé à la main ; l'aide `parcourir(doc) -> Vec<String>` (les chemins fautifs) le rend ;
+  - `aucun_counter_…` : un `ScalarValue::counter(0)` sous `idees/<i>/compteur_de_test`, et un objet `ObjType::Text` sous `idees/<i>/texte_de_test`, posés à la main ; le parcours rend les deux chemins.
 - [ ] **Étape 2 : voir le rouge, puis le vert.** Ces tests n'appellent que ce que les PR (a) et (b) livrent : le rouge se lit sur leur aide de refus. Committer (`test: I28 sur l'historique, I01 et ni Counter ni Text`), pousser ; attendu, verts dans `verifier` et `windows`.
 - [ ] **Étape 3 : committer** par chemins.
 
@@ -1371,7 +1503,7 @@ tâche 20.
   - `une_etiquette_posee_des_deux_cotes_n_en_fait_qu_une` : une clé `pont`, deux valeurs `true`, égales ;
   - `deux_regroupements_d_une_meme_prise_ne_la_montrent_que_dans_une_idee` (Éc-8, écart 10) : `e1` regroupée dans Y d'un côté, dans Z de l'autre (Y et Z ont un texte) ; réunies : `e1` paraît dans la vue d'une seule idée, la même sur les deux copies ; `get_all(<e1>/idee)` rend deux valeurs ;
   - `deux_regroupements_croises_retirent_les_deux_idees` (C28, Éc-7) : X n'a que P, Y n'a que Q ; P → Y d'un côté, Q → X de l'autre ; réunies : X et Y retirées toutes deux, `idees()` vide ; ce que la piste du lot 3 traitera ;
-  - `une_prise_nee_sur_deux_repliques_ne_cache_aucun_de_ses_faits` (vigilance 1) : la même prise, importée par l'établi de chaque côté, à deux heures (`HEURE` et `HEURE + 60`) ; réunies : une seule clé par fait, et `get_all` rend deux valeurs pour chacun des cinq faits (chaque réplique les a posés) : deux `idee` et deux `le` différents, deux `par`, deux `format` et deux `duree` égaux, dont `get` présente la valeur ; l'idée laissée vide reste visible, ce que la question 5 laisse à la tranche 5 ;
+  - `une_prise_nee_sur_deux_repliques_ne_cache_aucun_de_ses_faits` (vigilance 1) : la même prise, importée par l'établi de chaque côté, à deux heures (`HEURE` et `HEURE + 60`, que portent les deux idées, jamais la prise) ; réunies : une seule clé par fait, et `get_all` rend deux valeurs pour chacun des trois faits (chaque réplique les a posés) : deux `idee` différents, deux `format` et deux `duree` égaux, dont `get` présente la valeur ; ni `<e>/le` ni `<e>/par` sous `prises` (C3) ; l'idée laissée vide reste visible, ce que la question 5 laisse à la tranche 5 ;
   - `l_inverse_d_un_texte_en_conflit_rend_la_valeur_presentee` (Éc-6) : le texte en conflit, compléter puis annuler : la teneur d'avant, et `get_all` ne rend plus qu'une valeur ;
   - `trois_repliques_convergent` (`// § 31 · 10, test 3 : trois répliques, opérations concurrentes aléatoires, synchronisation dans un ordre aléatoire`), `proptest`, `ProptestConfig { cases: 16, max_shrink_iters: 64, max_shrink_time: 60_000, ..ProptestConfig::default() }` : quatre idées nées sur A, copiées en B et C ; trente gestes de tri tirés (le geste, la réplique, ses arguments, refusés compris), des réunions tirées en chemin, puis A–B, B–C, A–B ; les trois copies ont les mêmes heads et la même teneur (Éc-20). La réduction bornée garde un échec sous les délais de `verifier` et de `windows`, où il se lit comme un échec et non comme un délai dépassé ; chaque ouverture tirant son acteur (`ActorId::random()`), un cas qui échoue se rejoue sans garantie, ce que dit le commentaire du test.
 - [ ] **Étape 2 : voir le rouge, puis le vert.** Le rouge se lit en faussant un temps l'attendu de `deux_regroupements_d_une_meme_prise_ne_la_montrent_que_dans_une_idee` (deux idées) : `panicked at`, puis l'attendu juste ; verts dans `verifier` et `windows`. Le délai de `windows` se relit (les seize cas de trois répliques sur fichiers).
@@ -1397,17 +1529,50 @@ Les règles : un constat, au vocabulaire du glossaire ; un chemin s'écrit par s
 texte sous Linux et sous Windows. Les erreurs gardent le chemin absolu qu'elles portent (aucun test de la tranche 1
 ne change) : l'adaptateur sur fichiers, qui connaît la racine des données, rend chaque chemin d'une `Erreur`, d'une
 `LectureSeule` ou d'un `Avertissement` relatif à elle (`strip_prefix(racine.chemin())`) avant d'en former le message
-d'un `Refus` ou d'un avertissement : le fichier se nomme `documents/fonds/ajouts/<e>.automerge`. Le texte d'une
-`io::Error` ou d'une `AutomergeError` n'est jamais recopié, mais dit par une table de `io::ErrorKind` (`NotFound` :
-« est absent », `PermissionDenied` : « est refusé par le système », `StorageFull` : « ne tient plus sur le disque »,
-`InvalidData` : « ne se relit pas tel qu'il a été écrit », tout autre : « n'a pas pu s'écrire ») et, pour Automerge,
-par ce qui ne se fait pas (« Le document ne se lit pas. »). Le refus N + 1 : « Ce fonds vient d'une version plus
-récente de Pupitre ; celle-ci le lit sans y écrire. » (Éc-12). Les textes des cinq types qui ne portent pas de
-fichier, chacun comparé en entier :
+d'un `Refus` ou d'un avertissement : le fichier se nomme `documents/fonds/ajouts/<e>.automerge`. Ce chemin, relatif,
+est le sujet de la phrase, sans article : il nomme un fichier ou un dossier (`Erreur::Disque` porte aussi celui d'un
+dossier, `documents/fonds/ajouts` ou `captations`), et « le fichier » dirait faux d'un dossier. Le texte d'une
+`io::Error` ou d'une `AutomergeError` n'est jamais recopié, mais dit par une table de `io::ErrorKind`, qui forme le
+constat sur un sujet `S`, le chemin ou « Le fichier écrit à côté » : `NotFound`, « S est absent » ;
+`PermissionDenied`, « S est refusé par le système » ; `StorageFull`, « S ne tient plus sur le disque » ;
+`InvalidData`, « S ne se relit pas tel qu'il a été écrit » ; tout autre genre, « S, le disque l'a refusé », neutre
+quant au geste : `Erreur::Disque` couvre une lecture, une écriture, une création, un renommage, un retrait ou le
+renommage rendu durable (`crates/stockage/src/lib.rs:41-43`), et « n'a pas pu s'écrire » dirait faux d'une lecture
+refusée. Pour Automerge, le texte dit ce qui ne se fait pas. Le refus N + 1 : « Ce fonds vient d'une version plus
+récente de Pupitre ; celle-ci le lit sans y écrire. » (Éc-12). Le texte de chaque variante, comparé en entier,
+`{c}` étant un chemin joint par `/`, `{table}` le constat de la table sur le sujet que la ligne nomme :
 
 | Type, variante | Texte |
 |---|---|
-| `Echec::Refusee(e)` | « Le fichier écrit à côté {la table de `e.kind()`} : celui qu'il devait remplacer n'a pas changé. » |
+| `Erreur::RacineDesDonneesTenue` | « Un autre processus tient la racine des données. » |
+| `Erreur::Disque { chemin, erreur }` | « {table, sur {c}}. » : « documents/fonds/complet.automerge est absent. », « documents/fonds/complet.automerge, le disque l'a refusé. » |
+| `Erreur::CaptationAlteree { empreinte }` | « Le contenu relu de la captation {empreinte} ne donne pas son empreinte. » |
+| `Erreur::CaptationAbsente { empreinte }` | « Aucune captation ne porte l'empreinte {empreinte}. » |
+| `Erreur::FondsDejaOuvert` | « Le fonds est déjà ouvert dans ce processus. » |
+| `Erreur::FondsDejaNe` | « Le fonds est déjà né : il ne naît qu'une fois. » |
+| `Erreur::Automerge(_)` | « Le document a refusé ce geste, ou sa racine ne se lit pas. » |
+| `Erreur::LectureSeule(l)` | le texte de `l` |
+| `Erreur::CompactionInfidele` | « Le fichier complet de la compaction, relu, ne mène pas au document en mémoire : aucun fichier d'ajout n'est retiré. » |
+| `Erreur::ChampAbsent { champ }` | « La racine du document ne porte pas de chaîne sous « {champ} » : la copie ne se situe pas. » |
+| `Erreur::Synchro(e)` | le texte de `e` |
+| `Erreur::Inapplicable(i)` | le texte de `i` |
+| `LectureSeule::RelectureManquee { chemin }` | « La relecture de {c}, après une écriture refusée, a échoué : le document montre ce qu'il était avant elle, et se lit sans écrire ni échanger. » |
+| `LectureSeule::AjoutAltere { chemin }` | « Le contenu de {c} ne donne pas l'empreinte que porte son nom : il n'est pas chargé, et le document se lit sans écrire ni échanger. » |
+| `LectureSeule::AjoutIllisible { chemin }` | « {c} donne l'empreinte de son nom, mais ne se charge pas : le document se lit sans lui, sans écrire ni échanger. » |
+| `LectureSeule::CompletIllisible { chemin }` | « {c} ne se lit pas en entier : le document montre ce qui s'en lit, sans écrire ni échanger. » |
+| `LectureSeule::DependancesManquantes { chemin }` | « {c} attend une modification qu'aucun fichier lu ne porte : un fichier d'ajout manque, et le document se lit sans écrire ni échanger. » |
+| `LectureSeule::VersionPlusRecente { version }` | « Ce fonds vient d'une version plus récente de Pupitre ; celle-ci le lit sans y écrire. » |
+| `LectureSeule::VersionIllisible` | « La version de schéma du document ne se lit pas : il se lit sans écrire ni échanger. » |
+| `Avertissement::NonDurable { chemin, erreur }` | « {c} est en place, mais son renommage n'est pas rendu durable. » |
+| `Avertissement::Compaction(e)` | « La compaction a échoué, sans rien perdre, et se retente à l'écriture suivante : {le texte de `e`} » |
+| `Avertissement::VoisinRestant { chemin, erreur }` | « Le voisin {c} n'a pas pris la place de son fichier : il se lit où il est, et la prend à l'ouverture suivante. » |
+| `Avertissement::NomProvisoireRestant { chemin, erreur }` | « {c} n'a pas pu se lire, ou prendre le nom de son empreinte : il reste, et l'ouverture suivante le relit. » |
+
+Les cinq types qui ne portent pas de fichier :
+
+| Type, variante | Texte |
+|---|---|
+| `Echec::Refusee(e)` | « {table de `e.kind()`, sur « Le fichier écrit à côté »} : celui qu'il devait remplacer n'a pas changé. » (« Le fichier écrit à côté, le disque l'a refusé : celui qu'il devait remplacer n'a pas changé. ») |
 | `Echec::NonDurable(_)` | « Le fichier est en place, mais son renommage n'est pas rendu durable. » |
 | `synchro::Erreur::MessageIllisible(_)` | « Le message reçu ne se lit pas : le document n'a pas changé. » |
 | `synchro::Erreur::Automerge(_)` | « Le message reçu ne s'applique pas au document. » |
@@ -1420,7 +1585,7 @@ fichier, chacun comparé en entier :
 | `ErreurDeTeneur::NaN { chemin }` | « La teneur ne s'écrit pas : la valeur {chemin, joint par `/`} n'est pas un nombre. » |
 | `ErreurDeTeneur::Inconnu { chemin, type_code }` | « La teneur ne s'écrit pas : la valeur {chemin} est d'un type que cette version de Pupitre ne connaît pas (code {type_code}). » |
 
-- [ ] **Étape 1 : écrire les tests.** `tests/messages.rs` : `chaque_erreur_a_son_message_en_francais`, une ligne par variante d'`Erreur`, de `LectureSeule`, d'`Avertissement`, d'`Echec` et de `synchro::Erreur`, son texte attendu en entier, chaque chemin relatif et de plusieurs composants (`Path::new("documents").join("fonds").join("ajouts").join(…)`, donc `\` sous Windows, `/` dans le texte attendu), une `io::Error::new(ErrorKind::PermissionDenied, "Access is denied. (os error 5)")` comprise, dont le texte anglais ne paraît pas ; `aucun_message_n_est_un_ordre` : aucun de ces textes, ni ceux d'`Impossible`, d'`Inapplicable`, de `Difference` et d'`ErreurDeTeneur`, ne contient « il faut », « veuillez », « vous devez », ni l'un des impératifs « mettez », « essayez », « réessayez », « vérifiez », « relancez », « choisissez », « ouvrez », « fermez », en casse indifférente. `tests/application.rs` des services : le texte de chaque variante d'`Inapplicable`, en entier. Au noyau, `tests/donnees.rs` : celui de chaque `Difference` ; `tests/teneur.rs` : celui de chaque `ErreurDeTeneur`. Dans `commandes_sur_fichiers.rs`, `une_commande_coupee_avant_le_renommage_est_refusee` (tâche 6) vérifie que le message de son refus nomme le fichier par un chemin relatif, qu'il contient « documents/fonds/ », et pas le texte de `racine.chemin()`. Le message de `une_commande_sur_un_fonds_plus_recent_est_refusee_et_le_nomme` (tâche 5) s'y ajoute, en assertion de la suite.
+- [ ] **Étape 1 : écrire les tests.** `tests/messages.rs` : `chaque_erreur_a_son_message_en_francais`, une ligne par variante d'`Erreur`, de `LectureSeule`, d'`Avertissement`, d'`Echec` et de `synchro::Erreur`, son texte attendu en entier, chaque chemin relatif et de plusieurs composants (`Path::new("documents").join("fonds").join("ajouts").join(…)`, donc `\` sous Windows, `/` dans le texte attendu), une `io::Error::new(ErrorKind::PermissionDenied, "Access is denied. (os error 5)")` comprise, dont le texte anglais ne paraît pas, et une ligne par genre de la table ; dont le refus d'une lecture à l'ouverture, `Erreur::Disque` sur `documents/fonds/complet.automerge` avec `io::Error::new(ErrorKind::Other, "read failed")`, qui rend « documents/fonds/complet.automerge, le disque l'a refusé. », sans « s'écrire » ; `aucun_message_n_est_un_ordre` : aucun de ces textes, ni ceux d'`Impossible`, d'`Inapplicable`, de `Difference` et d'`ErreurDeTeneur`, ne contient « il faut », « veuillez », « vous devez », ni l'un des impératifs « mettez », « essayez », « réessayez », « vérifiez », « relancez », « choisissez », « ouvrez », « fermez », en casse indifférente. `tests/application.rs` des services : le texte de chaque variante d'`Inapplicable`, en entier. Au noyau, `tests/donnees.rs` : celui de chaque `Difference` ; `tests/teneur.rs` : celui de chaque `ErreurDeTeneur`. Dans `commandes_sur_fichiers.rs`, `une_commande_coupee_avant_le_renommage_est_refusee` (tâche 6) vérifie que le message de son refus nomme le fichier par un chemin relatif, qu'il contient « documents/fonds/ », et pas le texte de `racine.chemin()`. Le message de `une_commande_sur_un_fonds_plus_recent_est_refusee_et_le_nomme` (tâche 5) s'y ajoute, en assertion de la suite.
 - [ ] **Étape 2 : voir le rouge.** Committer, pousser ; attendu à « Lint » : `Erreur doesn't implement std::fmt::Display`.
 - [ ] **Étape 3 : écrire le code** ; la doc de `stockage::Erreur` (`crates/stockage/src/lib.rs:35-36`) ne dit plus « vient avec les commandes ».
 - [ ] **Étape 4 : voir le vert**, dans `verifier` et `windows` (le même texte sous Linux et sous Windows : la table et les chemins joints par `/` le garantissent) ; `mutants`, sur le diff, tue les mutants des deux `Display` du noyau, sans `MISSED`.
@@ -1441,7 +1606,7 @@ aucune source échoue.
 - **Le noyau** (`crates/noyau/src/`, récursif) : ni `SystemTime`, `Instant`, `std::time`, `time::`, `getrandom`,
   `rand::`, `random`, `OsRng`, `std::fs`, `fs::`, `File`, `std::io`, `io::`, `std::env`, `env::`, `env!`,
   `std::thread`, `thread::`, `std::net`, `net::`, `std::process`, `process::` ; et `crates/noyau/Cargo.toml` porte
-  `ulid = { version = "3.0.0", default-features = false }`, sans `features =`. Les chemins courts attrapent un
+  `ulid = { version = "3.0.0", default-features = false }`, cette ligne entière, égale à l'octet, et aucune clé `features` (hors `default-features`) : la sous-chaîne `features =` paraît dans `default-features = false`, et un contrôle qui la refuserait refuserait le dépôt sain. Les chemins courts attrapent un
   import groupé (`use std::{fs, path::Path};` puis `fs::read`) ; aucun ne paraît aujourd'hui dans le noyau
   (`grep -rnE "fs::|env::|process::|thread::|net::|io::|time::" crates/noyau/src`, vide sur `main`).
 - **Les services** (`crates/services/src/`) : ni `std::fs`, `fs::`, `File`, `std::thread`, `thread::`, `spawn`,
@@ -1477,7 +1642,7 @@ L'étape de CI :
           done
 ```
 
-- [ ] **Étape 1 : écrire les tests** : pour chaque contrôle, `chaque_controle_refuse_ce_qu_on_y_plante` (une source inventée qui porte `tx.put(` dans `crates/interface_essai/src/lib.rs`, un `use std::fs;` dans le noyau, puis un import groupé, `use std::{fs, path::Path}; fn f() { let _ = fs::read("x"); }`, dans le noyau et dans les services, un `std::thread::spawn` dans les services, un second `uuid_v4(` : chacun nommé dans le `Err`), puis le contrôle sur le dépôt : `Ok(())`.
+- [ ] **Étape 1 : écrire les tests** : pour chaque contrôle, `chaque_controle_refuse_ce_qu_on_y_plante` (une source inventée qui porte `tx.put(` dans `crates/interface_essai/src/lib.rs`, un `use std::fs;` dans le noyau, puis un import groupé, `use std::{fs, path::Path}; fn f() { let _ = fs::read("x"); }`, dans le noyau et dans les services, un `std::thread::spawn` dans les services, un second `uuid_v4(`, un `Cargo.toml` du noyau dont la ligne d'`ulid` porte aussi `features = ["std"]` : chacun nommé dans le `Err` ; la ligne exigée seule, `default-features = false` compris, admise), puis le contrôle sur le dépôt : `Ok(())`.
 - [ ] **Étape 2 : voir le rouge**, sur l'essai planté (le contrôle n'existe pas encore : `cannot find function controler`), puis le vert ; l'étape « Le graphe de l'interface » verte, puis rouge à l'essai : `services` ajouté à `app/ui/Cargo.toml`, un envoi rouge à « Cargo.lock à jour », l'artefact `cargo-lock` committé, un envoi rouge à « Le graphe de l'interface » (`services v` et `automerge v` imprimés) ; puis `services` retiré et le `Cargo.lock` remis, vert (les journaux liés dans la description).
 - [ ] **Étape 3 : committer** par chemins (`test: les contrôles statiques du noyau, des services et d'I28`, `ci: le graphe de l'interface, sans automerge, services ni stockage`).
 
@@ -1512,7 +1677,7 @@ séparés d'une espace, ajoutés tant que le texte fait moins de 200 octets : ch
 en moyenne (calculé sur le poste, 200 000 tirages ; la règle « jusqu'à 180 octets » donnait 183,3 en moyenne,
 jamais plus de 189, sous les « 200 octets de texte en moyenne » du test 13) ; les étiquettes, trois distinctes de
 deux syllabes ; les octets d'une prise, seize octets de l'aléa ; la durée, de 5 000 à 600 000 ms ; le format, `wav`
-ou `flac`.
+(une prise `flac` n'aurait pas de durée à INC-1, voir la tâche 10).
 
 - [ ] **Étape 1 : écrire le test** (`crates/stockage/tests/mesure.rs`) :
 
@@ -1548,14 +1713,14 @@ pousse plus rien.
 - [ ] **Étape 2 : les pistes.** `docs/pistes.md` : « Deux regroupements croisés, ou un même fichier importé sur deux appareils, laissent une idée vide visible, ou deux idées retirées qui portent une prise (`deux_regroupements_croises_retirent_les_deux_idees`, `une_prise_nee_sur_deux_repliques_ne_cache_aucun_de_ses_faits`) : le relevé des conflits du lot 3 les montre ; la tranche 5 dit le sort de l'idée laissée par l'import. » Et : « Une étiquette ou un lien posés des deux côtés, ou un fait d'une captation versée des deux côtés, laissent deux valeurs égales sous une clé (`une_etiquette_posee_des_deux_cotes_n_en_fait_qu_une`, `cap02_7_…`) : le relevé des conflits du lot 3 ne les présente pas « à trancher » (Éc-9). »
 - [ ] **Étape 3 : `CLAUDE.md` et `CONVENTIONS.md`.** « Commandes » : `cargo test -p stockage --release --test mesure -- --ignored --nocapture`, la mesure du test 13 ; la ligne `verifier` : l'étape du graphe de l'interface et celle du fonds de mesure, et, parmi ce qu'elle refuse, une écriture hors des deux adaptateurs (I28), un champ engendré (I01), une horloge, un aléa ou un fichier au noyau, un fichier, un fil, un réseau ou une horloge dans les services. `node scripts/verif-liens.mjs` et `node scripts/verif-faits.mjs` verts après le `git add`. Committer par chemins (`docs: le refus d'un fonds plus récent, un constat ; les pistes des regroupements croisés`), pousser.
 - [ ] **Étape 4 : remesurer, à froid.** Les délais de `verifier` (l'étape du fonds de mesure comprise, et sa construction en `--release`) et de `windows` se ramènent à deux fois un passage mesuré à froid (`.github/workflows/ci.yml:72-75`, LE-29 de modele-projet) : `gh cache delete` des clés `v0-rust-verifier` et `v0-rust-windows` de `main` et de la branche, puis un passage de `ci` (`gh run rerun <n>`, qui rejoue l'événement d'origine, sans dommage pour `ci` ; jamais pour `texte-pr`) ; « No cache found. » dans le journal de rust-cache de chaque job ; `gh run view <n> --json jobs` : les deux durées. Si deux fois l'une dépasse son `timeout-minutes`, il passe à deux fois la mesure, arrondie à la minute au-dessus, et son commentaire dit « à froid », la mesure, la date et la PR ; sinon, la description donne les deux mesures. Committer par chemins, s'il le faut (`ci: les délais remesurés à froid avec la suite des commandes et la mesure`), pousser.
-- [ ] **Étape 5 : le registre.** LE-14, colonne « État » : « clos le AAAA-MM-JJ : les PR (a) #NN et (b) #NN fusionnées, et (c) #NN, qui le clôt ; corrigés : § 40 · 3 (a), § 41 · 6 (c), § 31 · 2 et 2.3, § 30 · 1, 9.3 et 11, et CAP-02 (b), § 31 · 2.4, 2.6 et CAP-01 (c) ; les questions 1 à 5 tranchées le AAAA-MM-JJ ». `node scripts/verif-liens.mjs` et `node scripts/verif-faits.mjs` verts après le `git add`. Le corps final de la PR écrit (voir la tâche 20), committer par chemins (`docs: LE-14 clos avec la tranche 2`), pousser.
+- [ ] **Étape 5 : le registre.** LE-14, colonne « État » : « clos le AAAA-MM-JJ : les PR (a) #NN et (b) #NN fusionnées, et (c) #NN, qui le clôt ; corrigés : § 40 · 3 (a), § 41 · 6 (c), § 31 · 2 et 2.3, § 30 · 1, 9.3 et 11, et CAP-02 (b), § 31 · 2.4, 2.6 et CAP-01 (c) ; les questions 1 à 7 tranchées le AAAA-MM-JJ ». `node scripts/verif-liens.mjs` et `node scripts/verif-faits.mjs` verts après le `git add`. Le corps final de la PR écrit (voir la tâche 20), committer par chemins (`docs: LE-14 clos avec la tranche 2`), pousser.
 - [ ] **Étape 6 : la revue de la PR (c) entière**, sur sa tête, LE-14 et les délais compris ; ses retours traités, poussés ; puis la relecture des corrections, sur la tête qui part, dont le SHA complet est celui que la tâche 20 passe à `--match-head-commit`. Un commit poussé après cette relecture la relance.
 
 ### Tâche 20 : la clôture de la tranche
 
 **Fichiers :** aucun : la tâche ne pousse rien. Un commit qu'elle demanderait ramène à la tâche 19, étape 6.
 
-- [ ] **Étape 1 : vérifier la fin.** **Fin de la PR (c), et de la tranche :** tous les jobs verts sur la tête relue ; la description relève, dans `verifier`, les lignes `test result: ok.` de `identifiants.rs`, `gestes.rs`, `idee.rs`, `statique.rs` (noyau), `donnees.rs` et `teneur.rs` (noyau), `serialisation.rs`, `application.rs`, `commandes_en_memoire.rs`, `statique.rs` (services), et, dans `verifier` et `windows`, celles de `commandes_sur_fichiers.rs`, `repliques.rs`, `messages.rs`, `genese.rs`, `references.rs`, `demarrage.rs` et de `Doc-tests stockage` ; le poids et la durée de la mesure, une borne basse (Éc-4 : ni noms d'origine, ni stems, ni origines déclarées, ni 3 000 acteurs) ; les écarts 7 (`--release`) et 10 (tâche 15) ; les délais remesurés à froid ; I01, I10 et I28 verts ; LE-14 clos. Une retouche du corps ne relance que `texte-pr`, jamais par `gh run rerun`.
+- [ ] **Étape 1 : vérifier la fin.** **Fin de la PR (c), et de la tranche :** tous les jobs verts sur la tête relue ; la description relève, dans `verifier`, les lignes `test result: ok.` de `identifiants.rs`, `gestes.rs`, `idee.rs`, `statique.rs` (noyau), `donnees.rs` et `teneur.rs` (noyau), `serialisation.rs`, `application.rs`, `commandes_en_memoire.rs`, `statique.rs` (services), et, dans `verifier` et `windows`, celles de `commandes_sur_fichiers.rs`, `repliques.rs`, `messages.rs`, `genese.rs`, `references.rs`, `demarrage.rs` et de `Doc-tests stockage` ; le poids et la durée de la mesure, une borne basse (Éc-4 : ni noms d'origine, ni stems, ni origines déclarées, ni 3 000 acteurs) ; les écarts 7 (`--release`) et 10 (tâche 15) ; les délais remesurés à froid ; I01, I10 et I28 verts ; LE-14 clos ; le tableau du § 70 · 4.1 porte, de la tranche, CAP-01 · 6 et CAP-02 · 7, 8, et rien d'autre, chacun avec la phrase de sa tâche (5, 11, 13), et les parts de CAP-02 · 3, 4, 5 et 6 ont leurs tests nommés, sans inscription. Une retouche du corps ne relance que `texte-pr`, jamais par `gh run rerun`.
 - [ ] **Étape 2 : fusionner.** `gh pr ready <n>`, puis la fusion depuis le clone principal, avec `--squash` et `--match-head-commit <SHA complet de la tête relue à la tâche 19>` (contraintes générales).
 
 ---
@@ -1611,7 +1776,9 @@ tâche 5 ; test 11, tâches 8 et 13 ; test 13, tâche 18. Ce qui part ailleurs :
 suite (5) en 6, 11 à 15, la suite incluse par `commandes_sur_fichiers.rs` (6), `repliques.rs` et `references.rs`
 (13), le stockage recevant `commandes` en dépendance de test (6) ; `Impossible::HorsDeLImport` (10) en 11 ;
 `AutreLignee` (13) ; `FondsSurFichiers` (6) en 13, 15 et 18 ; `CONTENEURS_DE_LA_GENESE` (8) en 14 ; `Engendre`,
-`engendrer_le_fonds_de_mesure_selon` (18). Les types de même nom, `Appareil`, `Provenance`, `Sorte`, s'écrivent
+`engendrer_le_fonds_de_mesure_selon` (18) ; `commandes::ENTIER_SUR` (3) et `gestes::ENTIER_SUR` (10), égaux, chacun
+comparé à `(1 << 53) - 1` par un test de sa crate, avec `Impossible::DureeTropLongue` (10), seul refus d'une valeur
+qu'une réponse ne transmettrait pas telle quelle. Les types de même nom, `Appareil`, `Provenance`, `Sorte`, s'écrivent
 qualifiés (`gestes::`, `commandes::`), aux signatures (5, 11) comme dans la suite.
 
 **La proportion :** vingt tâches pour deux crates neuves, quatre modules du noyau, la réalisation des contrats par
@@ -1626,7 +1793,11 @@ longueur des trois titres de PR (87, 81, 90). Puis, à la relecture : la teneur 
 sérialiseur qui redonne la première, `13b6086f…`) ; les ULID `01HF7YAT00ZZZZZZZZZZZZZZZZ` et `01HF7YAT00000G000000000002` ;
 la longueur des textes du générateur (183,3 octets en moyenne avec un arrêt à 180, 203,3 avec un arrêt à 200) ; les
 mutants binaires de `date_du_message`, simulés sur les cas de la tâche 2 (deux survivants sans 2000 et 2100, aucun
-avec).
+avec). Puis, après la relecture par une session neuve : la teneur du témoin sans les deux faits de la prise et au
+vocabulaire de `format` (`291a0df2…`, 1 708 octets, par le même sérialiseur, qui redonne d'abord `ae625f61…` sur
+la teneur d'avant, lue dans ce plan, et `73565774…`, la valeur de la relecture, sans le vocabulaire de `format`) ;
+l'ULID borné de la tâche 1 (`7ZZZZZZZZZ0000000000000000` pour 2⁴⁸ − 1 ms, `7ZZZZZZZBG0000000000000000` juste sous la
+borne, `00000000AR0000000000000000` masqué sans elle) et les deux mutants de la borne, qui meurent.
 
 **La relecture de trois relecteurs** (couverture, exécution, faisabilité ; le 2026-11-12), constat par constat
 vérifié dans les sources et le code, a levé : un test d'intégration ne voit pas une fonction `pub(crate)` (le
@@ -1640,3 +1811,16 @@ par `+` et deux dates de fin d'ère, contre les mutants qui survivraient ; la pu
 l'étape du graphe avant les lints, et son essai sur une dépendance ; les imports groupés aux contrôles statiques ;
 la lignée du témoin, changée par le seul deuxième tirage ; la revue de la PR (c) sur la tête qui part, et la
 relecture des corrections ; la remesure à froid ; la réduction de `proptest` bornée.
+
+**La relecture par une session neuve** (le 2026-11-12), dix-sept constats, tous retenus (« Ce que les passages ont
+levé », N1 à N17), chacun cherché aussi ailleurs dans le plan, a levé : une prise qui portait sous `le` et `par`
+l'heure et l'appareil du versement, des faits faux de sa captation (C3, tâches 2, 10, 11, 13, 14 et 15, la teneur
+du témoin recalculée) ; CAP-02 · 6 inscrit contre le § 70 · 4.1, et chaque critère relu (C30 : CAP-01 · 6,
+CAP-02 · 7 et 8 inscrits, chacun avec sa phrase ; CAP-02 · 3 à 6, des parts) ; « n'a pas pu s'écrire » pour une
+lecture refusée ; l'heure d'un ULID bornée ; la durée d'une fiche bornée sous 2⁵³, et la source de chaque autre
+entier d'une réponse ; `cle_du_lien` sans mutant équivalent ; deux règles de produit devenues les questions 6 et 7 ;
+`format` au vocabulaire du § 30 · 9.2, jamais l'extension ; les raisons de chaque refus du stockage et de la paire
+en mémoire ; la plage de la migration de test ; les imports gardés par `pannes` ; les deux mentions du nombre de
+modules de `.cargo/mutants.toml` ; la clé `features` du contrôle du noyau ; le texte de chaque variante d'`Erreur`,
+de `LectureSeule` et d'`Avertissement` ; une plantation par contrôle de la tâche 14, et les formes fermées de
+`message_connu`.
