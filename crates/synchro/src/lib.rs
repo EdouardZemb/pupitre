@@ -3,7 +3,7 @@
 //! lit aussi les conflits et les relève, selon la règle du noyau (§ 70 · 1). Il n'a aucun
 //! transport : le réseau se branche dessus, ou à côté.
 
-use automerge::sync::{Message, State, SyncDoc};
+use automerge::sync::{ChunkList, Message, State, SyncDoc};
 use automerge::{Automerge, AutomergeError};
 use noyau::donnees::copie::comparer;
 
@@ -42,6 +42,34 @@ impl Echange {
             .map(Message::encode)
     }
 
+    /// Le prochain message, sans aucune modification (§ 31 · 2.4) : celui de
+    /// `generate_sync_message`, `changes` remplacé par `ChunkList::empty()` et `heads` par celles
+    /// de l'autre copie (`State::their_heads`, champ public d'automerge 0.12.0, vide tant qu'elle
+    /// n'a rien dit). Sans ces heads, l'autre copie redemanderait sans fin ce qu'elle voit
+    /// annoncé, et l'échange ne finirait pas ; vides, elles la font répondre par son document
+    /// entier. `generate_sync_message` compte comme envoyé (`State::sent_hashes`) ce que le
+    /// message aurait porté : un échange qui a préparé un tel message ne revient pas à
+    /// `prochain_message`, il se rouvre, sinon les modifications de la copie, comptées comme
+    /// envoyées, ne partiraient jamais.
+    ///
+    /// Quand l'autre copie a annoncé des heads vides : `None`, avant `generate_sync_message`.
+    /// Seule une copie qui envoie sans modification, avant d'avoir rien entendu, en annonce : un
+    /// fonds né porte toujours sa genèse, et une copie qui reprend l'échange après une réception
+    /// refusée (`reprendre`) a déjà reçu un message de l'autre copie, qui dit connaître le
+    /// drapeau `SYNC_RESET` : elle porte ce drapeau, et non des heads vides. Deux copies qui ne
+    /// transmettent aucune modification n'ont rien à se dire. Sans cet arrêt, chacune prendrait
+    /// les heads vides de l'autre pour une copie qui a tout perdu, lui répondrait par des heads
+    /// vides, et l'échange ne finirait pas.
+    pub fn prochain_message_sans_modification(&mut self, doc: &Automerge) -> Option<Vec<u8>> {
+        if self.etat.their_heads.as_ref().is_some_and(Vec::is_empty) {
+            return None;
+        }
+        let mut message = doc.generate_sync_message(&mut self.etat)?;
+        message.changes = ChunkList::empty();
+        message.heads = self.etat.their_heads.clone().unwrap_or_default();
+        Some(message.encode())
+    }
+
     /// `Message::decode`, puis `SyncDoc::receive_sync_message`. Un message illisible est
     /// refusé avant toute réception.
     pub fn recevoir(&mut self, doc: &mut Automerge, message: &[u8]) -> Result<(), Erreur> {
@@ -54,8 +82,14 @@ impl Echange {
     /// § 31 · 2.1 : la copie locale a perdu ce qu'elle avait reçu (une réception dont l'écriture
     /// est refusée, puis la relecture du disque). Son prochain message demande à l'autre copie
     /// d'oublier ce qu'elle croit avoir envoyé (`State::needs_reset`, champ public d'automerge
-    /// 0.12.0 : le drapeau `SYNC_RESET`, ou des heads vides devant une copie qui ne le connaît
-    /// pas), et l'autre copie le renvoie.
+    /// 0.12.0), et l'autre copie le renvoie. Devant une copie qui connaît le drapeau
+    /// `SYNC_RESET`, ce message le porte, avec les heads de la copie locale, que
+    /// `prochain_message_sans_modification` remplace par celles de l'autre copie : le drapeau
+    /// reste. Devant une copie qui ne le connaît pas, il porte à sa place des heads vides, sans
+    /// drapeau : `prochain_message` les envoie, et l'autre copie croit que la copie locale a tout
+    /// perdu ; `prochain_message_sans_modification` les remplacerait, et la demande se perdrait.
+    /// Ce cas ne se présente pas entre deux copies d'automerge 0.12.0 : `reprendre` suit une
+    /// réception, et chaque message d'automerge 0.12.0 dit connaître le drapeau.
     pub fn reprendre(&mut self) {
         self.etat.needs_reset = true;
     }

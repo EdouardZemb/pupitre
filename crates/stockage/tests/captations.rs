@@ -22,6 +22,7 @@ fn l_empreinte_est_le_sha_256_en_hexadecimal() {
     );
 }
 
+// § 31 · 10, test 4 : l'empreinte de chaque objet égale son nom
 #[test]
 fn une_captation_se_range_sous_son_empreinte() {
     let d = commun::dossier_jetable("captation-rangee");
@@ -67,6 +68,7 @@ fn une_captation_se_range_sous_son_empreinte() {
     }
 }
 
+// § 31 · 10, test 4 : aucun objet modifié après écriture
 #[test]
 fn verser_deux_fois_ne_fait_qu_un_objet() {
     // L'objet est mis en lecture seule avant le second versement : s'il était réécrit, ou
@@ -103,6 +105,7 @@ fn verser_deux_fois_ne_fait_qu_un_objet() {
     );
 }
 
+// § 31 · 10, test 4 : l'empreinte de chaque objet égale son nom
 #[test]
 fn une_captation_alteree_ou_absente_se_nomme() {
     let d = commun::dossier_jetable("captation-alteree");

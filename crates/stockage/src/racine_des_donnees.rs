@@ -7,6 +7,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use automerge::AutomergeError;
 use automerge::transaction::Transaction;
+use noyau::donnees::fonds::MIGRATIONS;
+#[cfg(feature = "pannes")]
+use noyau::donnees::version::Migration;
 
 use crate::{Captations, Document, Erreur, Naissance, disque, documents};
 
@@ -121,9 +124,25 @@ impl RacineDesDonnees {
     /// Le fonds est né quand son `complet.automerge` existe, ou un voisin lisible de celui-ci.
     /// Le fichier complet se lit, puis chaque voisin du fichier complet, puis chaque fichier
     /// d'ajout, chacun dans l'ordre des noms (`load_incremental`) ; chaque ouverture tire un
-    /// acteur neuf (`set_actor(ActorId::random())`) ; puis le fonds se compacte quand
-    /// `a_l_ouverture` le dit, c'est-à-dire dès qu'il a un fichier d'ajout ou un voisin du
-    /// fichier complet, s'il écrit, et la compaction retire le voisin qu'elle absorbe.
+    /// acteur neuf (`set_actor(ActorId::random())`).
+    ///
+    /// Lu entier, le fonds lit sa version de schéma (§ 31 · 2.4), un entier non signé à la racine
+    /// du document, et la compare à celle que connaît l'application, celle des migrations
+    /// (`MIGRATIONS`, `noyau::donnees::version::lecture`). La même : il s'ouvre entier. Plus
+    /// ancienne : les migrations au-delà de la sienne s'appliquent, dans l'ordre, puis s'écrivent
+    /// ensemble en un seul fichier d'ajout, avec les issues d'une écriture : refusée, le fonds ne
+    /// s'ouvre pas, et [`Erreur::Disque`] se rend ; en place, mais non durable, il s'ouvre avec
+    /// [`Avertissement::NonDurable`](crate::Avertissement::NonDurable). Plus récente : il s'ouvre
+    /// en lecture seule
+    /// ([`LectureSeule::VersionPlusRecente`](crate::LectureSeule::VersionPlusRecente)), se lit
+    /// sans écrire ni se compacter, et échange encore. Absente, nulle, ou d'un autre type : en
+    /// lecture seule ([`LectureSeule::VersionIllisible`](crate::LectureSeule::VersionIllisible)),
+    /// sans écrire ni échanger. Un fonds illisible ne migre pas.
+    ///
+    /// Puis le fonds se compacte quand `a_l_ouverture` le dit, c'est-à-dire dès qu'il a un
+    /// fichier d'ajout ou un voisin du fichier complet, lus avant la migration, s'il écrit, et la
+    /// compaction retire le voisin qu'elle absorbe : un fonds qui avait déjà des fichiers d'ajout
+    /// fond aussi celui de sa migration.
     ///
     /// Enfin, même en lecture seule, chaque nom provisoire de `captations/` dont le contenu
     /// entier donne une empreinte que le fonds nomme, tel qu'il se lit, et qu'aucune captation
@@ -151,7 +170,18 @@ impl RacineDesDonnees {
     /// vivant : [`Erreur::FondsDejaOuvert`], avant toute lecture. La garde se prend avant la
     /// lecture et se rend si elle rend `Err` ou `None` ; le `Document` la rend à sa fin.
     pub fn fonds(&self) -> Result<Option<Document<'_>>, Erreur> {
-        documents::rouvrir_le_fonds(self)
+        documents::rouvrir_le_fonds(self, MIGRATIONS)
+    }
+
+    /// L'ouverture de [`RacineDesDonnees::fonds`], selon les migrations `migrations` qu'un test
+    /// lui donne, au lieu de `MIGRATIONS` : un point d'entrée des tests, hors de l'API livrée, sous
+    /// la fonction `pannes`. La garde se prend et se rend comme pour `fonds()`.
+    #[cfg(feature = "pannes")]
+    pub fn fonds_selon(
+        &self,
+        migrations: &[Migration<'_>],
+    ) -> Result<Option<Document<'_>>, Erreur> {
+        documents::rouvrir_le_fonds(self, migrations)
     }
 
     /// § 31 · 2.3 : `GENESE`, la naissance (`MESSAGE_DE_LA_NAISSANCE`, qui écrit `IDENTIFIANT`,

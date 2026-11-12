@@ -16,7 +16,7 @@ Ce dépôt porte la conception d'une application d'aide à la composition, écri
 - Les crates :
   - `noyau` (`crates/noyau`) : la théorie, les pages SVG et les règles des données, sans entrée-sortie ;
   - `cahier` (`crates/cahier`) : le PDF et sa commande en ligne ;
-  - `stockage` (`crates/stockage`) : la racine des données, les documents et les captations sur fichiers, côté natif ; sa fonction de Cargo `pannes`, que seuls ses tests activent, coupe une écriture à l'étape voulue ;
+  - `stockage` (`crates/stockage`) : la racine des données, les documents et les captations sur fichiers, côté natif ; sa fonction de Cargo `pannes`, que seuls ses tests activent, coupe une écriture à l'étape voulue, et ouvre le fonds selon les migrations qu'un test lui donne (`fonds_selon`) ;
   - `synchro` (`crates/synchro`) : le cœur de la couche de synchronisation, sans réseau ;
   - `interface` (`app/ui`) : l'interface Leptos ;
   - `etabli` (`app/src-tauri`) : l'application Tauri.

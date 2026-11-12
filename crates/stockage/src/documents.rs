@@ -7,9 +7,12 @@
 //! À chaque ouverture, la garde prise, le démarrage donne son sort à chaque `.partiel` de
 //! `documents/` (§ 31 · 2.1) : le voisin d'un fichier d'ajout dont le contenu donne l'empreinte
 //! prend sa place, ou se lit où il est ; le voisin lisible du fichier complet se lit, puis la
-//! compaction le fond ; tout autre se retire. Après la lecture du fonds et sa compaction
-//! d'ouverture, chaque nom provisoire de `captations/` dont le contenu donne une empreinte que le
-//! fonds nomme prend ce nom (§ 31 · 6.1).
+//! compaction le fond ; tout autre se retire. Lu entier, le fonds lit sa version de schéma
+//! (§ 31 · 2.4) : plus ancienne que celle que connaît l'application, il migre, et ses migrations
+//! s'écrivent ensemble en un seul fichier d'ajout ; plus récente, il se lit sans écrire, et
+//! reçoit, sans transmettre aucune modification ; absente ou illisible, il s'ouvre en lecture
+//! seule. Après sa compaction d'ouverture, chaque nom provisoire de `captations/` dont le contenu
+//! donne une empreinte que le fonds nomme prend ce nom (§ 31 · 6.1).
 //!
 //! Une écriture est faite ; faite, avec un avertissement, quand son renommage n'est pas rendu
 //! durable ou que la compaction qui la suit échoue ; ou refusée, avant la fin de son renommage,
@@ -26,14 +29,16 @@ use std::path::{Path, PathBuf};
 use automerge::transaction::{CommitOptions, Transactable, Transaction};
 use automerge::{
     ActorId, Automerge, AutomergeError, Change, ChangeHash, LoadOptions, ObjType, OnPartialLoad,
-    ROOT, ReadDoc, Value,
+    ROOT, ReadDoc, ScalarValue, Value,
 };
 use noyau::donnees::acces::Acces;
 use noyau::donnees::compaction::{self, Lu};
 use noyau::donnees::demarrage::{self, Sort};
 use noyau::donnees::fonds::{
-    GENESE, IDENTIFIANT, LIGNEE, MESSAGE_DE_LA_NAISSANCE, PRISES, PROPRIETAIRE,
+    GENESE, IDENTIFIANT, LIGNEE, MESSAGE_DE_LA_NAISSANCE, MIGRATIONS, PRISES, PROPRIETAIRE,
+    VERSION_DE_SCHEMA,
 };
+use noyau::donnees::version::{self, Lecture, Migration};
 use synchro::{Copie, Echange};
 
 use crate::demarrage::{
@@ -68,6 +73,10 @@ pub struct Document<'r> {
     /// Les avertissements de la naissance ou de l'ouverture, et ceux que des réceptions refusées
     /// en chemin n'ont pu rendre.
     avertissements: Vec<Avertissement>,
+    /// La version de schéma que connaît l'application qui l'a ouvert, ou fait naître : celle des
+    /// migrations de l'ouverture (§ 31 · 2.4). La relecture du disque et la réception la relisent
+    /// (`raison_de_la_memoire`).
+    version_connue: u64,
 }
 
 impl Drop for Document<'_> {
@@ -106,14 +115,21 @@ impl Document<'_> {
         })
     }
 
-    /// Le prochain message de l'échange pour l'autre copie (`Echange::prochain_message`), ou
-    /// `None` quand il n'y a plus rien à dire. Un document en lecture seule que son accès prive
-    /// d'échange n'envoie rien : `None` aussi.
+    /// Le prochain message de l'échange pour l'autre copie, ou `None` quand il n'y a plus rien à
+    /// dire. Un document entier transmet ses modifications (`Echange::prochain_message`) ; un
+    /// document de version de schéma plus récente n'en transmet aucune (§ 31 · 2.4,
+    /// `Echange::prochain_message_sans_modification`). Un document en lecture seule que son accès
+    /// prive d'échange n'envoie rien : `None` aussi.
     pub fn prochain_message(&self, echange: &mut Echange) -> Option<Vec<u8>> {
-        if !self.acces().echange() {
+        let acces = self.acces();
+        if !acces.echange() {
             return None;
         }
-        echange.prochain_message(&self.automerge)
+        if acces.ecrit() {
+            echange.prochain_message(&self.automerge)
+        } else {
+            echange.prochain_message_sans_modification(&self.automerge)
+        }
     }
 
     /// § 31 · 2.1 : ce que la synchronisation reçoit ne l'est qu'une fois écrit. Le message
@@ -128,7 +144,16 @@ impl Document<'_> {
     /// que l'échange refuse, rend `Erreur::Synchro`, ce qu'elle a apporté écrit ; l'avertissement
     /// de cette écriture, s'il en vient un, rejoint [`Document::avertissements`]. Un document en
     /// lecture seule que son accès prive d'échange : `Erreur::LectureSeule`, et le message ne
-    /// s'applique pas.
+    /// s'applique pas. Un document de version de schéma plus récente (§ 31 · 2.4) reçoit, et ce
+    /// qu'il reçoit s'écrit, sans compaction. Un document entier, ou de version de schéma plus
+    /// récente, relit sa version de schéma à chaque réception qui change ses heads, avant que ce
+    /// qu'il a reçu ne s'écrive : plus récente que la version de schéma connue, il est en lecture
+    /// seule (`VersionPlusRecente`, qui dit la version de schéma relue), et ne se compacte pas ;
+    /// illisible, il passe en lecture seule (`VersionIllisible`), sans échange. Devant la version
+    /// de schéma connue, ou une plus ancienne, son accès ne change pas : un document plus récent
+    /// le reste, et ne redevient entier qu'à sa réouverture ; son échange n'envoie, jusque-là,
+    /// aucune modification. Une relecture du disque, si l'écriture est refusée, relit la version
+    /// de schéma du disque.
     pub fn recevoir(
         &mut self,
         echange: &mut Echange,
@@ -144,6 +169,21 @@ impl Document<'_> {
             // Seule une panne injectée rend ce cas : la réception a changé le document, ce que ne
             // fait pas un message illisible.
             reception = reception.and(Err(synchro::Erreur::Automerge(AutomergeError::Fail)));
+        }
+        // § 31 · 2.4 : ce qui est reçu peut porter une version de schéma plus récente que la
+        // version de schéma connue, ou illisible : la mémoire la lit comme la relecture du disque,
+        // avant que l'écriture de ce qui est reçu ne décide de compacter, chez un document entier
+        // comme chez un document plus récent. Un document devenu plus récent ne se compacte pas,
+        // et ce qu'il a reçu s'écrit quand même ; une version de schéma illisible le prive
+        // d'échange. Seule une raison remplace celle d'un document plus récent : il le reste
+        // devant la version de schéma connue, ou une plus ancienne, jusqu'à sa réouverture, son
+        // échange ne passant pas, en chemin, à `Echange::prochain_message`.
+        if matches!(
+            self.lecture_seule,
+            None | Some(LectureSeule::VersionPlusRecente { .. })
+        ) && let Some(raison) = self.raison_de_la_memoire()
+        {
+            self.lecture_seule = Some(raison);
         }
         // Une réception refusée en chemin peut avoir appliqué une part du message : ce que porte
         // la mémoire s'écrit.
@@ -299,40 +339,74 @@ impl Document<'_> {
         Ok(())
     }
 
-    /// `save_after` des heads `avant`, sous `ajouts/<empreinte>.automerge`, écrit à côté puis
-    /// renommé, `ajouts/` recréé d'abord s'il manque (`recreer_les_ajouts`) ; puis la compaction,
+    /// Le fichier d'ajout des heads `avant` (`ecrire_le_fichier_d_ajout`) ; puis la compaction,
     /// quand `apres_une_ecriture` le dit (§ 31 · 2.2). Ses trois issues sont dites à
-    /// [`Document::ecrire`], qui l'appelle comme [`Document::recevoir`]. Un refus de recréer
-    /// `ajouts/` est une écriture refusée : la mémoire porte déjà la modification, et se relit.
+    /// [`Document::ecrire`], qui l'appelle comme [`Document::recevoir`]. Un refus, de recréer
+    /// `ajouts/` comme du voisin, est une écriture refusée : la mémoire porte déjà la
+    /// modification, et se relit.
     fn ecrire_l_ajout(&mut self, avant: &[ChangeHash]) -> Result<Option<Avertissement>, Erreur> {
-        if let Err(refus) = self.recreer_les_ajouts() {
-            self.relire_du_disque(avant);
-            return Err(refus);
+        match self.ecrire_le_fichier_d_ajout(avant) {
+            // Rien n'est en place : la mémoire porte ce que le disque n'a pas, et se relit.
+            Err(refus) => {
+                self.relire_du_disque(avant);
+                Err(refus)
+            }
+            // Le fichier est en place : l'écriture est faite. La compaction, due, réécrira à
+            // l'écriture suivante un fichier complet qui porte ce fichier d'ajout.
+            Ok(Some(avertissement)) => Ok(Some(avertissement)),
+            // L'écriture est faite : ni une compaction qui échoue, ni la pesée des fichiers qui la
+            // précède, ne la défont.
+            Ok(None) => Ok(self
+                .compacter_apres_une_ecriture()
+                .err()
+                .map(Avertissement::Compaction)),
         }
+    }
+
+    /// `save_after` des heads `avant`, sous `ajouts/<empreinte>.automerge`, écrit à côté puis
+    /// renommé, `ajouts/` recréé d'abord s'il manque (`recreer_les_ajouts`), sans relecture du
+    /// disque ni compaction : `ecrire_l_ajout` et la migration à l'ouverture l'appellent. Refusé
+    /// avant la fin du renommage, le voisin est ôté, et `Erreur::Disque` se rend ; en place, mais
+    /// son renommage non rendu durable, `Avertissement::NonDurable`, et la compaction est due ;
+    /// sinon `Ok(None)`.
+    fn ecrire_le_fichier_d_ajout(
+        &mut self,
+        avant: &[ChangeHash],
+    ) -> Result<Option<Avertissement>, Erreur> {
+        self.recreer_les_ajouts()?;
         let octets = self.automerge.save_after(avant);
         let chemin = self
             .dossier
             .join("ajouts")
             .join(format!("{}.automerge", empreinte(&octets)));
         match ecrire_a_cote(&chemin, &octets) {
-            // Le voisin est ôté : la mémoire porte ce que le disque n'a pas, et se relit.
-            Err(Echec::Refusee(erreur)) => {
-                self.relire_du_disque(avant);
-                Err(disque(&chemin, erreur))
-            }
-            // Le fichier est en place : l'écriture est faite. La compaction, due, réécrira à
-            // l'écriture suivante un fichier complet qui porte ce fichier d'ajout.
+            Err(Echec::Refusee(erreur)) => Err(disque(&chemin, erreur)),
             Err(Echec::NonDurable(erreur)) => {
                 self.compaction_due = true;
                 Ok(Some(Avertissement::NonDurable { chemin, erreur }))
             }
-            // L'écriture est faite : ni une compaction qui échoue, ni la pesée des fichiers qui la
-            // précède, ne la défont.
-            Ok(()) => Ok(self
-                .compacter_apres_une_ecriture()
-                .err()
-                .map(Avertissement::Compaction)),
+            Ok(()) => Ok(None),
         }
+    }
+
+    /// § 31 · 2.4 : applique les migrations `a_appliquer`, dans l'ordre de la suite des
+    /// migrations (`Change::try_from`, puis `apply_changes`), puis écrit `save_after` des heads
+    /// d'avant en un seul fichier d'ajout (`ecrire_le_fichier_d_ajout`), comme une écriture :
+    /// refusé, `Erreur::Disque` se rend, et le fonds ne s'ouvre pas ; en place, mais non durable,
+    /// l'avertissement rejoint ceux du document, et la compaction est due. Les migrations sont du
+    /// code, que ses tests éprouvent : une migration qui ne se lit pas, ou ne s'applique pas, est
+    /// un défaut du code (`expect`).
+    fn migrer(&mut self, a_appliquer: &[Migration<'_>]) -> Result<(), Erreur> {
+        let avant = self.automerge.get_heads();
+        let modifications = a_appliquer.iter().map(|migration| {
+            Change::try_from(migration.octets).expect("une migration écrite d'avance se lit")
+        });
+        self.automerge
+            .apply_changes(modifications)
+            .expect("une migration écrite d'avance s'applique");
+        let avertissement = self.ecrire_le_fichier_d_ajout(&avant)?;
+        self.avertissements.extend(avertissement);
+        Ok(())
     }
 
     /// Recrée `ajouts/` dans le dossier du document s'il manque (`fs::create_dir`) : l'ouverture
@@ -362,8 +436,13 @@ impl Document<'_> {
     }
 
     /// La compaction qui suit une écriture faite, quand `apres_une_ecriture` la dit. Une pesée
-    /// des fichiers qui échoue la rend due, comme une compaction qui échoue.
+    /// des fichiers qui échoue la rend due, comme une compaction qui échoue. Un document qui
+    /// n'écrit pas ne se compacte jamais (`apres_une_ecriture`) : rien ne se pèse, et le disque
+    /// n'est pas lu.
     fn compacter_apres_une_ecriture(&mut self) -> Result<(), Erreur> {
+        if !self.acces().ecrit() {
+            return Ok(());
+        }
         match self.faut_il_compacter() {
             Ok(true) => self.compacter(),
             Ok(false) => Ok(()),
@@ -402,10 +481,12 @@ impl Document<'_> {
     /// § 31 · 2.1 : après une écriture refusée, la mémoire se relit du disque (`complet_present`,
     /// puis `lire_le_dossier`, sans démarrage : rien n'est retiré ni renommé), sans toucher à la
     /// garde, et tire un acteur neuf ; une raison de lecture seule que la relecture trouve devient
-    /// celle du document, sur ce qui se lit. Une relecture qui échoue laisse la mémoire d'avant
-    /// l'écriture refusée (`fork_at` des heads `avant`), en lecture seule `RelectureManquee`, sur
-    /// le fichier qu'elle n'a pu lire, ou sur le dossier du document si son erreur n'en nomme
-    /// aucun.
+    /// celle du document, sur ce qui se lit. Lue entière, la mémoire relue lit sa version de
+    /// schéma comme l'ouverture, devant la version de schéma connue du document, sans migrer
+    /// (`raison_de_la_memoire`, § 31 · 2.4) : une copie plus récente le reste. Une relecture qui
+    /// échoue laisse la mémoire d'avant l'écriture refusée (`fork_at` des heads `avant`), en
+    /// lecture seule `RelectureManquee`, sur le fichier qu'elle n'a pu lire, ou sur le dossier du
+    /// document si son erreur n'en nomme aucun.
     fn relire_du_disque(&mut self, avant: &[ChangeHash]) {
         let relu = complet_present(&self.dossier)
             .and_then(|present| lire_le_dossier(&self.dossier, present));
@@ -413,6 +494,7 @@ impl Document<'_> {
             Ok((mut automerge, lecture_seule, _, _)) => {
                 automerge.set_actor(ActorId::random());
                 self.automerge = automerge;
+                let lecture_seule = lecture_seule.or_else(|| self.raison_de_la_memoire());
                 self.lecture_seule = lecture_seule;
             }
             Err(erreur) => {
@@ -427,6 +509,13 @@ impl Document<'_> {
                 self.lecture_seule = Some(LectureSeule::RelectureManquee { chemin });
             }
         }
+    }
+
+    /// § 31 · 2.4 : la raison de lecture seule que donne la version de schéma de la mémoire,
+    /// devant la version de schéma connue du document, sans migrer (`raison_de_la_version`). La
+    /// relecture du disque et la réception la lisent ainsi, quand la mémoire se lit entière.
+    fn raison_de_la_memoire(&self) -> Option<LectureSeule> {
+        raison_de_la_version(version_de_schema(&self.automerge), self.version_connue)
     }
 
     /// Ce que permet le document : tout, s'il est entier ; sinon, l'accès de sa raison de lecture
@@ -458,21 +547,33 @@ impl Document<'_> {
     }
 }
 
-/// Le fonds de `racine`, la garde prise : d'abord le démarrage (`demarrer`), puis, s'il est né,
-/// sa lecture (`lire_le_dossier`), avec un acteur neuf, en lecture seule si un fichier ne se lit
-/// pas, puis sa compaction quand `a_l_ouverture` le dit : un fichier d'ajout lu, ou un voisin du
-/// fichier complet. Pupitre neuf (`pupitre_neuf` : ni fichier complet, ni voisin du fichier
-/// complet lu) : `None`. Les avertissements du démarrage (`VoisinRestant`, `NonDurable`) sont
-/// ceux du document ; un renommage du démarrage non rendu durable rend la compaction due. Une
-/// compaction qui échoue n'empêche pas d'ouvrir : son erreur vient en avertissement
-/// (`Avertissement::Compaction`), rien n'est perdu, et la compaction est due : l'écriture
-/// suivante retire ce qu'elle n'a pas retiré. Enfin, même en lecture seule, chaque nom provisoire
-/// de `captations/` dont le contenu donne une empreinte que nomme le document lu
-/// (`empreintes_nommees`) prend ce nom (`Captations::ranger_les_noms_provisoires`, § 31 · 6.1) ;
-/// ses avertissements (`NomProvisoireRestant`, `NonDurable`) rejoignent ceux du document, sans
-/// empêcher d'ouvrir. Une erreur du démarrage ou de la lecture rend la garde, avant tout
-/// document.
-pub(crate) fn rouvrir_le_fonds(racine: &RacineDesDonnees) -> Result<Option<Document<'_>>, Erreur> {
+/// Le fonds de `racine`, la garde prise, selon les migrations `migrations` : d'abord le démarrage
+/// (`demarrer`), puis, s'il est né, sa lecture (`lire_le_dossier`), avec un acteur neuf, en
+/// lecture seule si un fichier ne se lit pas ; puis, s'il se lit entier, sa version de schéma
+/// devant celle que donnent les migrations (`version::connue`, § 31 · 2.4) : la même, il est
+/// entier ; plus ancienne, il migre (`Document::migrer`, les migrations de
+/// `version::a_appliquer`), et une migration refusée rend `Erreur::Disque`, sans document ; plus
+/// récente, absente ou illisible, il est en lecture seule (`raison_de_la_version`) ; un fonds
+/// illisible ne migre pas. Puis sa compaction, quand `a_l_ouverture` le dit, sur l'accès qui suit
+/// la lecture de la version de schéma et sur ce que la lecture a lu, avant la migration : un
+/// fichier d'ajout lu, ou un voisin du fichier complet. Pupitre neuf (`pupitre_neuf` : ni
+/// fichier complet, ni voisin du fichier complet lu) : `None`. Les avertissements du démarrage
+/// (`VoisinRestant`, `NonDurable`) sont ceux du document ; un renommage du démarrage non rendu
+/// durable rend la compaction due. Une compaction qui échoue n'empêche pas d'ouvrir : son erreur
+/// vient en avertissement (`Avertissement::Compaction`), rien n'est perdu, et la compaction est
+/// due : l'écriture suivante retire ce qu'elle n'a pas retiré. Enfin, même en lecture seule,
+/// chaque nom provisoire de `captations/` dont le contenu donne une empreinte que nomme le
+/// document lu (`empreintes_nommees`) prend ce nom (`Captations::ranger_les_noms_provisoires`,
+/// § 31 · 6.1) ; ses avertissements (`NomProvisoireRestant`, `NonDurable`) rejoignent ceux du
+/// document, sans empêcher d'ouvrir. Une erreur du démarrage, de la lecture ou de la migration
+/// rend la garde : le document qui n'est pas rendu la rend à sa fin.
+///
+/// `fonds()` l'appelle avec `MIGRATIONS`, et `fonds_selon`, sous la fonction `pannes`, avec les
+/// migrations que lui donne un test.
+pub(crate) fn rouvrir_le_fonds<'r>(
+    racine: &'r RacineDesDonnees,
+    migrations: &[Migration<'_>],
+) -> Result<Option<Document<'r>>, Erreur> {
     let garde = racine.prendre_la_garde()?;
     let dossier = dossier_du_fonds(racine);
     let avertissements = demarrer(&racine.chemin().join("documents"), &dossier)?;
@@ -482,11 +583,13 @@ pub(crate) fn rouvrir_le_fonds(racine: &RacineDesDonnees) -> Result<Option<Docum
         return Ok(None);
     }
     automerge.set_actor(ActorId::random());
-    // Le document né rend la garde à sa fin, même si la compaction qui suit échoue.
+    // Le document né rend la garde à sa fin, même si la migration ou la compaction qui suivent
+    // échouent.
     garde.passer_au_document();
     let compaction_due = avertissements
         .iter()
         .any(|avertissement| matches!(avertissement, Avertissement::NonDurable { .. }));
+    let connue = version::connue(migrations);
     let mut document = Document {
         racine,
         dossier,
@@ -494,7 +597,19 @@ pub(crate) fn rouvrir_le_fonds(racine: &RacineDesDonnees) -> Result<Option<Docum
         lecture_seule,
         compaction_due,
         avertissements,
+        version_connue: connue,
     };
+    // Un document illisible ne migre pas : sa version de schéma ne se lit que s'il se lit entier.
+    if document.lecture_seule.is_none() {
+        let lue = version_de_schema(&document.automerge);
+        match version::lecture(lue, connue) {
+            Lecture::Migrer { de, .. } => document.migrer(version::a_appliquer(migrations, de))?,
+            Lecture::Ecrire | Lecture::LireSansEcrire | Lecture::Illisible => {
+                document.lecture_seule = raison_de_la_version(lue, connue);
+            }
+        }
+    }
+    // Les fichiers lus avant la migration : celui de la migration ne compte pas.
     if compaction::a_l_ouverture(document.acces(), ajouts, voisins > 0)
         && let Err(erreur) = document.compacter()
     {
@@ -517,6 +632,32 @@ fn empreintes_nommees(automerge: &Automerge) -> BTreeSet<String> {
     match automerge.get(ROOT, PRISES) {
         Ok(Some((Value::Object(ObjType::Map), prises))) => automerge.keys(&prises).collect(),
         _ => BTreeSet::new(),
+    }
+}
+
+/// § 31 · 2.4 : la version de schéma que porte la racine du document `automerge`
+/// (`VERSION_DE_SCHEMA`), un entier non signé (`ScalarValue::Uint`) ; absente, ou de tout autre
+/// type, `None`.
+fn version_de_schema(automerge: &Automerge) -> Option<u64> {
+    match automerge.get(ROOT, VERSION_DE_SCHEMA) {
+        Ok(Some((Value::Scalar(valeur), _))) => match *valeur {
+            ScalarValue::Uint(version) => Some(version),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// La raison de lecture seule que donne la version de schéma lue `lue`, devant la version de
+/// schéma connue `connue` (`version::lecture`, § 31 · 2.4) : une version de schéma plus récente,
+/// `VersionPlusRecente` ; une version de schéma absente, nulle ou d'un autre type,
+/// `VersionIllisible` ; la version de schéma connue, ou une version de schéma plus ancienne,
+/// aucune (l'ouverture migre celle-ci, la relecture du disque et la réception non).
+fn raison_de_la_version(lue: Option<u64>, connue: u64) -> Option<LectureSeule> {
+    match version::lecture(lue, connue) {
+        Lecture::Ecrire | Lecture::Migrer { .. } => None,
+        Lecture::LireSansEcrire => lue.map(|version| LectureSeule::VersionPlusRecente { version }),
+        Lecture::Illisible => Some(LectureSeule::VersionIllisible),
     }
 }
 
@@ -868,6 +1009,11 @@ pub(crate) fn faire_naitre_le_fonds<'r>(
         // La compaction réécrira un fichier complet, et rendra la naissance durable.
         compaction_due: !avertissements.is_empty(),
         avertissements,
+        // § 31 · 2.4 : la naissance ne migre pas. Le fonds naît à la version de schéma de la
+        // genèse, 1, qui n'est la version de schéma connue que tant que `MIGRATIONS` est vide :
+        // le jour où `MIGRATIONS` reçoit sa première migration, la naissance doit migrer, et
+        // `le_fonds_nait_a_la_version_de_schema_connue` (`tests/version.rs`) devient rouge.
+        version_connue: version::connue(MIGRATIONS),
     })
 }
 

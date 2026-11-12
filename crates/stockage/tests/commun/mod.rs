@@ -1,14 +1,15 @@
 //! Les aides des tests du stockage, écrites une seule fois : la naissance, l'heure et le message
 //! des tests, le dossier jetable de chaque test, ce que contient un dossier et l'empreinte de
 //! chacun de ses fichiers, des octets engendrés au lieu d'un fichier, un texte long, la copie d'un
-//! arbre de fichiers, l'ouverture de la racine des données et du fonds, entier ou tel qu'il
-//! s'ouvre, la naissance du fonds et ses deux copies, un fonds bâti sans racine des données,
-//! l'écriture des tests, avec ou sans son message et son heure, l'écriture faite sans
-//! avertissement, les chemins du fonds et des captations, les échanges de deux copies et leur
-//! réunion, la relecture du dossier du fonds, l'objet à clés que porte une clé, l'idée que porte
-//! le fonds, les noms nouveaux d'un dossier, le fichier d'ajout qu'une écriture ou une réception
-//! ajoute, l'octet du milieu d'un fichier changé, ce que refuse un document en lecture seule, et
-//! les gestes de test sur le fonds.
+//! arbre de fichiers, l'ouverture de la racine des données et du fonds, entier, selon des
+//! migrations ou tel qu'il s'ouvre, la naissance du fonds et ses deux copies, un fonds bâti sans
+//! racine des données, la migration de test et les migrations qui la portent, l'écriture des
+//! tests, avec ou sans son message et son heure, l'écriture faite sans avertissement, les chemins
+//! du fonds et des captations, les échanges de deux copies et leur réunion, la relecture du
+//! dossier du fonds, l'objet à clés que porte une clé, l'idée que porte le fonds, les noms
+//! nouveaux d'un dossier, le fichier d'ajout qu'une écriture ou une réception ajoute, l'octet du
+//! milieu d'un fichier changé, ce que refuse un document en lecture seule, l'écriture et la
+//! compaction d'abord, et les gestes de test sur le fonds.
 
 // Chaque fichier de test n'emploie qu'une partie des aides.
 #![allow(dead_code)]
@@ -23,8 +24,10 @@ use automerge::{
     ActorId, Automerge, AutomergeError, Change, ChangeHash, ObjId, ObjType, ROOT, ReadDoc, Value,
 };
 use noyau::donnees::fonds::{
-    ETIQUETTES, FORMAT, GENESE, IDEE, IDEES, MESSAGE_DE_LA_NAISSANCE, PRISES, TEXTE,
+    ACTEUR_DE_LA_GENESE, ETIQUETTES, FORMAT, GENESE, IDEE, IDEES, MESSAGE_DE_LA_NAISSANCE, PRISES,
+    TEXTE, VERSION_DE_SCHEMA,
 };
+use noyau::donnees::version::{Migration, message_de_la_migration};
 use stockage::{
     Avertissement, Document, Erreur, LectureSeule, Naissance, RacineDesDonnees, empreinte,
 };
@@ -166,7 +169,26 @@ pub fn ouvrir(chemin: &Path) -> RacineDesDonnees {
 /// Le fonds de `racine`, rouvert entier : ni en lecture seule, ni avec un avertissement. Un test
 /// qui attend l'un ou l'autre l'ouvre par `ouvrir_le_fonds_tel_quel`.
 pub fn ouvrir_le_fonds(racine: &RacineDesDonnees) -> Document<'_> {
-    let fonds = ouvrir_le_fonds_tel_quel(racine);
+    entier(ouvrir_le_fonds_tel_quel(racine))
+}
+
+/// Le fonds de `racine`, rouvert selon les migrations `migrations` (`fonds_selon`), au lieu de
+/// `MIGRATIONS`, entier comme par `ouvrir_le_fonds`. Un test qui attend la lecture seule ou un
+/// avertissement ouvre par `fonds_selon` lui-même.
+pub fn ouvrir_le_fonds_selon<'r>(
+    racine: &'r RacineDesDonnees,
+    migrations: &[Migration<'_>],
+) -> Document<'r> {
+    let fonds = racine
+        .fonds_selon(migrations)
+        .expect("rouvrir le fonds selon les migrations")
+        .expect("le fonds est né");
+    entier(fonds)
+}
+
+/// `fonds`, rouvert, s'il est entier : ni en lecture seule, ni avec un avertissement ; sinon,
+/// panique.
+fn entier(fonds: Document<'_>) -> Document<'_> {
     assert_eq!(
         fonds.lecture_seule(),
         None,
@@ -238,6 +260,46 @@ pub fn batir_un_fonds(acteur: ActorId, champs: &[(&str, &str)]) -> Automerge {
             .with_time(HEURE),
     );
     bati
+}
+
+/// Le conteneur de la racine du document que crée la migration de test : un objet à clés, où la
+/// donnée nouvelle d'un objet s'écrit en valeurs simples, sous `<objet>/<élément>` (§ 31 · 2.4).
+pub const CONTENEUR_DE_LA_MIGRATION: &str = "elements_de_test";
+
+/// La migration de test vers la version de schéma 2, engendrée à l'exécution depuis `GENESE`, de
+/// façon déterministe, comme la recette de la genèse (`genese_par_la_recette`, dans
+/// `tests/genese.rs`) : l'acteur `ACTEUR_DE_LA_GENESE`, qui pose `VERSION_DE_SCHEMA` à 2 et crée
+/// `CONTENEUR_DE_LA_MIGRATION`, un objet à clés, à la racine du document, sous le message
+/// `message_de_la_migration(2)`, à l'heure 0. Rend les octets de sa modification
+/// (`raw_bytes()`), qui ne dépend que de la genèse.
+pub fn migration_de_test() -> Vec<u8> {
+    let mut doc = Automerge::new().with_actor(ActorId::from(ACTEUR_DE_LA_GENESE));
+    doc.apply_changes([Change::try_from(GENESE).expect("lire la genèse")])
+        .expect("appliquer la genèse");
+    let mut tx = doc.transaction();
+    tx.put(ROOT, VERSION_DE_SCHEMA, 2u64)
+        .expect("poser la version de schéma 2");
+    tx.put_object(ROOT, CONTENEUR_DE_LA_MIGRATION, ObjType::Map)
+        .expect("créer le conteneur de la migration");
+    let message = message_de_la_migration(2);
+    let options = CommitOptions::default()
+        .with_message(message.as_str())
+        .with_time(0);
+    let (h, _) = tx.commit_with(options);
+    doc.get_change_by_hash(&h.expect("la migration est une modification"))
+        .expect("la modification de la migration")
+        .raw_bytes()
+        .to_vec()
+}
+
+/// Les migrations de test, une seule : `octets`, vers la version de schéma 2, apportée par la
+/// version de Pupitre `0.0.0-essai`.
+pub fn migrations_de_test(octets: &[u8]) -> [Migration<'_>; 1] {
+    [Migration {
+        vers: 2,
+        octets,
+        version_de_pupitre: "0.0.0-essai",
+    }]
 }
 
 /// Le chemin d'écriture des tests nouveaux du stockage, avec `ecrire_a` qu'il appelle : quand
@@ -459,18 +521,9 @@ pub fn alterer_l_octet_du_milieu(chemin: &Path) -> Vec<u8> {
     octets
 }
 
-/// Ce que refuse `document`, en lecture seule pour la raison `raison` (§ 31 · 2.1) : `ecrire` et
-/// `compacter` rendent `Erreur::LectureSeule(raison)`, `prochain_message` rend `None`, et
-/// `recevoir` rend `Erreur::LectureSeule(_)`. Ces quatre appels faits, chaque fichier sous
-/// `dossier`, le dossier du fonds, a encore son empreinte d'`avant`, prise avant l'ouverture, ou
-/// dès que le document est en lecture seule.
-/// L'échange s'ouvre sur la copie de `NAISSANCE`, qu'un document illisible peut ne plus porter.
-pub fn constater_la_lecture_seule(
-    document: &mut Document<'_>,
-    raison: &LectureSeule,
-    dossier: &Path,
-    avant: &BTreeMap<PathBuf, String>,
-) {
+/// Ce que refuse `document`, en lecture seule pour la raison `raison` (§ 31 · 2.1), qu'il écrive
+/// une opération ou se compacte : `ecrire` et `compacter` rendent `Erreur::LectureSeule(raison)`.
+pub fn constater_le_refus_d_ecrire(document: &mut Document<'_>, raison: &LectureSeule) {
     match ecrire(document, |tx| noter(tx, "idee-9", "Une phrase refusée")) {
         Err(Erreur::LectureSeule(rendue)) => assert_eq!(
             &rendue, raison,
@@ -485,6 +538,21 @@ pub fn constater_la_lecture_seule(
         ),
         autre => panic!("attendu LectureSeule à la compaction, rendu {autre:?}"),
     }
+}
+
+/// Ce que refuse `document`, en lecture seule pour la raison `raison` (§ 31 · 2.1) : `ecrire` et
+/// `compacter` rendent `Erreur::LectureSeule(raison)` (`constater_le_refus_d_ecrire`),
+/// `prochain_message` rend `None`, et `recevoir` rend `Erreur::LectureSeule(_)`. Ces quatre
+/// appels faits, chaque fichier sous `dossier`, le dossier du fonds, a encore son empreinte
+/// d'`avant`, prise avant l'ouverture, ou dès que le document est en lecture seule.
+/// L'échange s'ouvre sur la copie de `NAISSANCE`, qu'un document illisible peut ne plus porter.
+pub fn constater_la_lecture_seule(
+    document: &mut Document<'_>,
+    raison: &LectureSeule,
+    dossier: &Path,
+    avant: &BTreeMap<PathBuf, String>,
+) {
+    constater_le_refus_d_ecrire(document, raison);
     let copie = Copie {
         proprietaire: NAISSANCE.proprietaire.to_owned(),
         document: NAISSANCE.identifiant.to_owned(),

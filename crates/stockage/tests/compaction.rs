@@ -20,7 +20,7 @@ use commun::{
 };
 use noyau::donnees::fonds::{GENESE, MESSAGE_DE_LA_GENESE, MESSAGE_DE_LA_NAISSANCE};
 use stockage::pannes::{Etape, alterer_la_relecture, couper};
-use stockage::{Avertissement, Document, Erreur, LectureSeule, RacineDesDonnees};
+use stockage::{Avertissement, Document, Erreur, LectureSeule, RacineDesDonnees, teneur};
 
 #[test]
 fn rouvrir_compacte_les_ajouts() {
@@ -464,6 +464,12 @@ fn une_compaction_coupee_a_chaque_etape_ne_perd_rien() {
             doc.hydrate(None),
             memoire.hydrate(None),
             "{etape:?} : le fonds rouvert n'a pas la valeur d'avant"
+        );
+        // § 31 · 10, test 9, échoue si : la teneur ou l'historique change
+        assert_eq!(
+            teneur(doc).expect("la teneur du fonds rouvert"),
+            teneur(&memoire).expect("la teneur de la mémoire d'avant"),
+            "{etape:?} : la teneur du fonds rouvert n'est pas celle d'avant"
         );
         for modification in doc.get_changes(&[]) {
             let hash = modification.hash();

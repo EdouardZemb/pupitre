@@ -5,6 +5,8 @@
 //!
 //! La fonction `pannes`, que seuls ses tests demandent, rend public le module `pannes`, qui
 //! injecte une panne à chaque étape d'une écriture ; sans elle, ses points laissent tout passer.
+//! Elle compile aussi `RacineDesDonnees::fonds_selon`, qui ouvre le fonds selon les migrations
+//! qu'un test lui donne.
 
 mod captations;
 mod demarrage;
@@ -16,12 +18,14 @@ pub mod pannes;
 mod pannes;
 mod racine_des_donnees;
 
+use std::collections::BTreeMap;
 use std::fmt::Write;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use automerge::AutomergeError;
+use automerge::{Automerge, AutomergeError, ObjId, ObjType, ROOT, ReadDoc, ScalarValue, Value};
 use noyau::donnees::acces::Acces;
+use noyau::donnees::teneur::{ErreurDeTeneur, Valeur, ecrire_la_teneur};
 use sha2::{Digest, Sha256};
 
 pub use captations::Captations;
@@ -70,8 +74,9 @@ pub enum Erreur {
     Synchro(synchro::Erreur),
 }
 
-/// Pourquoi un document est en lecture seule (§ 31 · 2.1) : il montre ce qui se lit, n'écrit
-/// d'opération ni ne se compacte, n'envoie ni ne reçoit.
+/// Pourquoi un document est en lecture seule (§ 31 · 2.1, § 31 · 2.4) : il montre ce qui se lit,
+/// n'écrit d'opération ni ne se compacte ; sauf devant une version de schéma plus récente, il
+/// n'envoie ni ne reçoit.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LectureSeule {
     /// La relecture du disque, après une écriture refusée, a échoué sur `chemin` : le document
@@ -94,18 +99,32 @@ pub enum LectureSeule {
     /// une modification qui manque au document lu, ni chargée ni en attente, ou, à défaut, le
     /// fichier complet : le fichier qui manque ne se nomme pas, celui qui l'attend, si.
     DependancesManquantes { chemin: PathBuf },
+    /// Le document, qui se lit entier, porte une version de schéma plus récente que celle que
+    /// connaît l'application (§ 31 · 2.4), dès son ouverture ou depuis qu'il l'a reçue : il se
+    /// lit sans écrire, reçoit, et n'envoie que des messages sans aucune modification ; ce qu'il
+    /// reçoit s'écrit en fichiers d'ajout, sans compaction. Il ne redevient entier qu'à sa
+    /// réouverture, même s'il reçoit la version de schéma connue. `version` : la version de
+    /// schéma qu'il porte, plus récente que celle que connaît l'application, relue à chaque
+    /// réception qui change ses heads, tant qu'elle reste plus récente.
+    VersionPlusRecente { version: u64 },
+    /// Le document, qui se lit entier, porte une version de schéma absente, nulle, ou qui n'est
+    /// pas un entier non signé (§ 31 · 2.4) : il se lit, sans écrire ni échanger.
+    VersionIllisible,
 }
 
 impl LectureSeule {
-    /// Ce que permet un document en lecture seule pour cette raison : un fichier illisible, ou
-    /// une relecture manquée, le laisse illisible, sans écriture ni échange.
+    /// Ce que permet un document en lecture seule pour cette raison : une version de schéma plus
+    /// récente le laisse échanger (`PlusRecent`) ; un fichier illisible, une relecture manquée ou
+    /// une version de schéma illisible le laissent illisible, sans écriture ni échange.
     pub fn acces(&self) -> Acces {
         match self {
+            LectureSeule::VersionPlusRecente { .. } => Acces::PlusRecent,
             LectureSeule::RelectureManquee { .. }
             | LectureSeule::AjoutAltere { .. }
             | LectureSeule::AjoutIllisible { .. }
             | LectureSeule::CompletIllisible { .. }
-            | LectureSeule::DependancesManquantes { .. } => Acces::Illisible,
+            | LectureSeule::DependancesManquantes { .. }
+            | LectureSeule::VersionIllisible => Acces::Illisible,
         }
     }
 }
@@ -128,6 +147,64 @@ pub enum Avertissement {
     /// l'ouverture suivante le relit, puis le range si le fonds le nomme (§ 31 · 6.1). Un dossier
     /// `captations/` qui ne se liste pas se nomme de même, et rien ne s'y range.
     NomProvisoireRestant { chemin: PathBuf, erreur: io::Error },
+}
+
+/// La teneur de `doc` (§ 31 · 2.6) : son arbre, lu sur la valeur que présente Automerge
+/// (`ReadDoc`, jamais `get_all`), puis écrit par le noyau, sans la lignée ni les lignées qu'elle
+/// remplace.
+pub fn teneur(doc: &Automerge) -> Result<String, ErreurDeTeneur> {
+    ecrire_la_teneur(&objet_a_cles(doc, &ROOT))
+}
+
+/// Un objet `Map` ou `Table` : une seule sorte.
+fn objet_a_cles(doc: &Automerge, objet: &ObjId) -> BTreeMap<String, Valeur> {
+    doc.keys(objet)
+        .map(|cle| {
+            let (valeur, id) = doc
+                .get(objet, cle.as_str())
+                .expect("lire une clé que le document vient de nommer")
+                .expect("une clé nommée a une valeur");
+            let valeur = valeur_de(doc, valeur, &id);
+            (cle, valeur)
+        })
+        .collect()
+}
+
+fn valeur_de(doc: &Automerge, valeur: Value<'_>, id: &ObjId) -> Valeur {
+    match valeur {
+        // En automerge 0.12.0, une `Table` n'est jamais indexée : `put` y rend `NotAnObject`, et
+        // `keys` avale cette erreur. Une `Table` non vide, chargée d'un document d'une autre
+        // implémentation, se lit donc vide, sans erreur.
+        Value::Object(ObjType::Map | ObjType::Table) => Valeur::ObjetACles(objet_a_cles(doc, id)),
+        Value::Object(ObjType::List) => Valeur::Liste(
+            (0..doc.length(id))
+                .map(|indice| {
+                    let (valeur, id) = doc
+                        .get(id, indice)
+                        .expect("lire un indice que le document vient de compter")
+                        .expect("un indice compté a une valeur");
+                    valeur_de(doc, valeur, &id)
+                })
+                .collect(),
+        ),
+        Value::Object(ObjType::Text) => {
+            Valeur::Texte(doc.text(id).expect("lire un objet texte du document"))
+        }
+        Value::Scalar(scalaire) => match scalaire.as_ref() {
+            ScalarValue::Str(texte) => Valeur::Str(texte.to_string()),
+            ScalarValue::Int(n) => Valeur::Int(*n),
+            ScalarValue::Uint(n) => Valeur::Uint(*n),
+            ScalarValue::F64(x) => Valeur::F64(*x),
+            ScalarValue::Counter(compteur) => Valeur::Counter(i64::from(compteur)),
+            ScalarValue::Timestamp(n) => Valeur::Timestamp(*n),
+            ScalarValue::Boolean(b) => Valeur::Boolean(*b),
+            ScalarValue::Bytes(octets) => Valeur::Bytes(octets.clone()),
+            ScalarValue::Null => Valeur::Null,
+            ScalarValue::Unknown { type_code, .. } => Valeur::Inconnu {
+                type_code: *type_code,
+            },
+        },
+    }
 }
 
 /// Le SHA-256 de `octets`, en 64 caractères hexadécimaux minuscules (`Sha256::digest`).
