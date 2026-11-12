@@ -221,7 +221,8 @@ de tête (§ 2.4) : le [glossaire](80-glossaire.md#les-données) les distingue.
   nom déjà pris reçoit un suffixe (`<nom>.<processus>-2.partiel`, `-3`…). Tout autre
   `.partiel` de `documents/` est retiré, qu'il porte un autre nom ou un autre contenu ; un
   fichier qui n'est pas un `.partiel` est laissé tel quel, et le démarrage ne crée aucun
-  dossier. Le nom provisoire d'une captation suit le § 6.1 : il n'est jamais retiré d'office.
+  dossier dans `documents/`. Le nom provisoire d'une captation suit le § 6.1 : il n'est jamais
+  retiré d'office.
   Une opération refusée ôte son voisin avant de dire son refus : elle le vide, rend ce vide
   durable (`sync_all`, sous chaque système), puis le retire ; l'export du cahier, lui, retire
   le sien sans le vider. Un retrait qui échoue, ou qu'une coupure perd, laisse ainsi un voisin

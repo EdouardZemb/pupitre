@@ -111,12 +111,12 @@ impl RacineDesDonnees {
     /// [`Avertissement::VoisinRestant`](crate::Avertissement::VoisinRestant) ; un renommage du
     /// démarrage non rendu durable, avec
     /// [`Avertissement::NonDurable`](crate::Avertissement::NonDurable). Un retrait refusé est tu,
-    /// et se retente à l'ouverture suivante. Le démarrage ne crée aucun dossier, et laisse tel
-    /// quel un fichier qui n'est pas un `.partiel` ; un `ajouts/` absent se recrée à la première
-    /// écriture ou réception. Un refus du disque à la lecture d'un dossier qui n'est pas absent,
-    /// ou d'un `.partiel` du dossier du fonds ou de `ajouts/` (ceux de `documents/` ne se lisent
-    /// pas), rend [`Erreur::Disque`] : un voisin non lu peut porter une opération dite faite, ou
-    /// le premier fichier complet.
+    /// et se retente à l'ouverture suivante. Le démarrage ne crée aucun dossier dans
+    /// `documents/`, et laisse tel quel un fichier qui n'est pas un `.partiel` ; un `ajouts/`
+    /// absent se recrée à la première écriture ou réception. Un refus du disque à la lecture d'un
+    /// dossier qui n'est pas absent, ou d'un `.partiel` du dossier du fonds ou de `ajouts/` (ceux
+    /// de `documents/` ne se lisent pas), rend [`Erreur::Disque`] : un voisin non lu peut porter
+    /// une opération dite faite, ou le premier fichier complet.
     ///
     /// Le fonds est né quand son `complet.automerge` existe, ou un voisin lisible de celui-ci.
     /// Le fichier complet se lit, puis chaque voisin du fichier complet, puis chaque fichier

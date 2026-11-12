@@ -333,12 +333,12 @@ impl Document<'_> {
     }
 
     /// Recrée `ajouts/` dans le dossier du document s'il manque (`fs::create_dir`) : l'ouverture
-    /// ne crée aucun dossier, et un fonds peut s'ouvrir sans lui (un voisin du fichier complet
-    /// seul, ou une copie qui ne garde pas un dossier vide). Créé, hors de Windows, il ne survit à
-    /// une coupure qu'une fois le dossier du document synchronisé (`fichier::rendre_durable`),
-    /// comme à la naissance ; un dossier ne se synchronise pas sous Windows. Présent, ou
-    /// remplacé par un fichier, il est laissé tel quel : l'écriture à côté refusera alors son
-    /// voisin. Un refus du disque rend `Erreur::Disque`.
+    /// ne crée aucun dossier dans `documents/`, et un fonds peut s'ouvrir sans lui (un voisin du
+    /// fichier complet seul, ou une copie qui ne garde pas un dossier vide). Créé, hors de
+    /// Windows, il ne survit à une coupure qu'une fois le dossier du document synchronisé
+    /// (`fichier::rendre_durable`), comme à la naissance ; un dossier ne se synchronise pas sous
+    /// Windows. Présent, ou remplacé par un fichier, il est laissé tel quel : l'écriture à côté
+    /// refusera alors son voisin. Un refus du disque rend `Erreur::Disque`.
     fn recreer_les_ajouts(&self) -> Result<(), Erreur> {
         let ajouts = self.dossier.join("ajouts");
         match fs::create_dir(&ajouts) {
@@ -526,12 +526,12 @@ fn empreintes_nommees(automerge: &Automerge) -> BTreeSet<String> {
 /// - `Lire` : rien ; `lire_le_dossier` le lit.
 /// - `Retirer` : `fichier::retirer` ; un refus est tu, et l'ouverture suivante le retente.
 ///
-/// Un dossier absent ne contient aucun `.partiel`, et le démarrage ne crée aucun dossier : un
-/// `ajouts/` absent se recrée à la première écriture. Toute autre erreur de lecture d'un dossier,
-/// ou un refus du disque à la lecture d'un `.partiel` du dossier du fonds ou de `ajouts/` (ceux de
-/// `documents/` ne se lisent pas), rend `Erreur::Disque` : un voisin non lu peut porter une
-/// opération dite faite, ou le premier fichier complet. Un fichier qui n'est pas un `.partiel`
-/// n'est ni lu ni retiré.
+/// Un dossier absent ne contient aucun `.partiel`, et le démarrage ne crée aucun dossier dans
+/// `documents/` : un `ajouts/` absent se recrée à la première écriture. Toute autre erreur de
+/// lecture d'un dossier, ou un refus du disque à la lecture d'un `.partiel` du dossier du fonds ou
+/// de `ajouts/` (ceux de `documents/` ne se lisent pas), rend `Erreur::Disque` : un voisin non lu
+/// peut porter une opération dite faite, ou le premier fichier complet. Un fichier qui n'est pas
+/// un `.partiel` n'est ni lu ni retiré.
 fn demarrer(documents: &Path, dossier: &Path) -> Result<Vec<Avertissement>, Erreur> {
     let mut avertissements = Vec::new();
     for chemin in partiels(documents)? {
