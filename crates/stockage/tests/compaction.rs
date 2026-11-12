@@ -14,7 +14,7 @@ use std::path::Path;
 
 use automerge::{Automerge, Change};
 use commun::{
-    HEURE, MESSAGE_DU_GESTE, NAISSANCE, dossier_des_ajouts, dossier_du_fonds, faire_naitre,
+    HEURE, MESSAGE_DU_GESTE, NAISSANCE, dossier_des_ajouts, dossier_du_fonds, faire_naitre, faite,
     lire_le_complet, ouvrir, ouvrir_le_fonds, ouvrir_le_fonds_tel_quel, poids, porte_l_idee,
     texte_long,
 };
@@ -27,11 +27,12 @@ fn rouvrir_compacte_les_ajouts() {
     let chemin = commun::dossier_jetable("compaction-rouvrir").join("donnees");
     let racine = RacineDesDonnees::ouvrir(&chemin).expect("ouvrir la racine des données");
     let mut fonds = faire_naitre(&racine);
-    fonds
-        .ecrire("Étiquette posée", HEURE + 1, |tx| {
+    faite(
+        fonds.ecrire("Étiquette posée", HEURE + 1, |tx| {
             commun::etiqueter(tx, "idee-1", "refrain")
-        })
-        .expect("écrire");
+        }),
+        "écrire",
+    );
     let heads = fonds.automerge().get_heads();
     let valeur = fonds.automerge().hydrate(None);
     let ajouts = dossier_des_ajouts(&chemin);
@@ -79,11 +80,12 @@ fn les_ajouts_ne_pesent_jamais_plus_que_le_complet() {
     let mut compactions = 0;
 
     for n in 1..=120_i64 {
-        fonds
-            .ecrire("Étiquette posée", HEURE + n, |tx| {
+        faite(
+            fonds.ecrire("Étiquette posée", HEURE + n, |tx| {
                 commun::etiqueter(tx, "idee-1", &format!("etiquette-{n}"))
-            })
-            .unwrap_or_else(|e| panic!("l'écriture {n} : {e:?}"));
+            }),
+            &format!("l'écriture {n}"),
+        );
 
         let noms = commun::entrees(&ajouts);
         if noms.is_empty() {
@@ -123,21 +125,24 @@ fn la_compaction_garde_toute_l_histoire() {
     let racine =
         RacineDesDonnees::ouvrir(&d.join("donnees")).expect("ouvrir la racine des données");
     let mut fonds = faire_naitre(&racine);
-    fonds
-        .ecrire("Étiquette posée", HEURE + 1, |tx| {
+    faite(
+        fonds.ecrire("Étiquette posée", HEURE + 1, |tx| {
             commun::etiqueter(tx, "idee-1", "refrain")
-        })
-        .expect("la première écriture");
-    fonds
-        .ecrire("Idée notée", HEURE + 2, |tx| {
+        }),
+        "la première écriture",
+    );
+    faite(
+        fonds.ecrire("Idée notée", HEURE + 2, |tx| {
             commun::noter(tx, "idee-2", "Un pont en mineur")
-        })
-        .expect("la deuxième écriture");
-    fonds
-        .ecrire("Texte changé", HEURE + 3, |tx| {
+        }),
+        "la deuxième écriture",
+    );
+    faite(
+        fonds.ecrire("Texte changé", HEURE + 3, |tx| {
             commun::changer_le_texte(tx, "idee-2", "Un pont plus court")
-        })
-        .expect("la troisième écriture");
+        }),
+        "la troisième écriture",
+    );
     let ajouts = dossier_des_ajouts(racine.chemin());
     assert_eq!(
         commun::entrees(&ajouts).len(),
@@ -187,22 +192,24 @@ fn la_compaction_garde_un_ajout_altere() {
         RacineDesDonnees::ouvrir(&d.join("donnees")).expect("ouvrir la racine des données");
     let mut fonds = faire_naitre(&racine);
     let ajouts = dossier_des_ajouts(racine.chemin());
-    fonds
-        .ecrire("Étiquette posée", HEURE + 1, |tx| {
+    faite(
+        fonds.ecrire("Étiquette posée", HEURE + 1, |tx| {
             commun::etiqueter(tx, "idee-1", "refrain")
-        })
-        .expect("la première écriture");
+        }),
+        "la première écriture",
+    );
     let premier = commun::entrees(&ajouts);
     assert_eq!(
         premier.len(),
         1,
         "une écriture, un fichier d'ajout : {premier:?}"
     );
-    fonds
-        .ecrire("Idée notée", HEURE + 2, |tx| {
+    faite(
+        fonds.ecrire("Idée notée", HEURE + 2, |tx| {
             commun::noter(tx, "idee-2", "Un pont en mineur")
-        })
-        .expect("la seconde écriture");
+        }),
+        "la seconde écriture",
+    );
     let noms = commun::entrees(&ajouts);
     assert_eq!(
         noms.len(),

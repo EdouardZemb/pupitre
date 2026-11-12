@@ -12,8 +12,8 @@
 mod commun;
 
 use commun::{
-    HEURE, NAISSANCE, deux_copies, dossier_des_ajouts, dossier_du_fonds, faire_naitre, ouvrir,
-    ouvrir_le_fonds, porte_l_idee,
+    HEURE, NAISSANCE, deux_copies, dossier_des_ajouts, dossier_du_fonds, faire_naitre, faite,
+    ouvrir, ouvrir_le_fonds, porte_l_idee,
 };
 use stockage::pannes::{Etape, couper};
 use stockage::{Avertissement, Erreur, RacineDesDonnees};
@@ -43,14 +43,18 @@ fn ce_qui_est_recu_se_relit_du_disque() {
     let racine_b = RacineDesDonnees::ouvrir(&chemin_b).expect("ouvrir la racine des données de B");
     let mut a = ouvrir_le_fonds(&racine_a);
     let mut b = ouvrir_le_fonds(&racine_b);
-    b.ecrire("Étiquette posée", HEURE + 1, |tx| {
-        commun::etiqueter(tx, "idee-1", "refrain")
-    })
-    .expect("la première écriture de B");
-    b.ecrire("Idée notée", HEURE + 2, |tx| {
-        commun::noter(tx, "idee-2", "Un pont en mineur")
-    })
-    .expect("la seconde écriture de B");
+    faite(
+        b.ecrire("Étiquette posée", HEURE + 1, |tx| {
+            commun::etiqueter(tx, "idee-1", "refrain")
+        }),
+        "la première écriture de B",
+    );
+    faite(
+        b.ecrire("Idée notée", HEURE + 2, |tx| {
+            commun::noter(tx, "idee-2", "Un pont en mineur")
+        }),
+        "la seconde écriture de B",
+    );
     let ajouts_a = dossier_des_ajouts(&chemin_a);
 
     // Le disque d'A se relit après chaque réception.

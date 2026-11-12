@@ -3,11 +3,12 @@
 //! chacun de ses fichiers, des octets engendrés au lieu d'un fichier, un texte long, la copie d'un
 //! arbre de fichiers, l'ouverture de la racine des données et du fonds, entier ou tel qu'il
 //! s'ouvre, la naissance du fonds et ses deux copies, un fonds bâti sans racine des données,
-//! l'écriture des tests, avec ou sans son message et son heure, les chemins du fonds et des
-//! captations, les échanges de deux copies et leur réunion, la relecture du dossier du
-//! fonds, l'objet à clés que porte une clé, l'idée que porte le fonds, les noms nouveaux d'un
-//! dossier, le fichier d'ajout qu'une écriture ou une réception ajoute, l'octet du milieu d'un
-//! fichier changé, ce que refuse un document en lecture seule, et les gestes de test sur le fonds.
+//! l'écriture des tests, avec ou sans son message et son heure, l'écriture faite sans
+//! avertissement, les chemins du fonds et des captations, les échanges de deux copies et leur
+//! réunion, la relecture du dossier du fonds, l'objet à clés que porte une clé, l'idée que porte
+//! le fonds, les noms nouveaux d'un dossier, le fichier d'ajout qu'une écriture ou une réception
+//! ajoute, l'octet du milieu d'un fichier changé, ce que refuse un document en lecture seule, et
+//! les gestes de test sur le fonds.
 
 // Chaque fichier de test n'emploie qu'une partie des aides.
 #![allow(dead_code)]
@@ -265,6 +266,17 @@ pub fn ecrire_a(
     geste: impl FnOnce(&mut Transaction<'_>) -> Result<(), AutomergeError>,
 ) -> Result<Option<Avertissement>, Erreur> {
     document.ecrire(message, heure, geste)
+}
+
+/// L'écriture `quoi`, que `rendu` dit, est faite sans avertissement : `Ok(None)`. Les écritures
+/// des tests d'H07 l'exigent : aucune panne n'y est armée, et un avertissement y est un verdict à
+/// instruire, comme un refus.
+#[track_caller]
+pub fn faite(rendu: Result<Option<Avertissement>, Erreur>, quoi: &str) {
+    assert!(
+        matches!(rendu, Ok(None)),
+        "{quoi} : attendu l'écriture faite, sans avertissement ; rendu {rendu:?}"
+    );
 }
 
 /// `documents/fonds/`, dans la racine des données `racine_des_donnees`.

@@ -15,8 +15,8 @@ use automerge::transaction::CommitOptions;
 use automerge::{ActorId, Automerge, AutomergeError, LoadOptions, OnPartialLoad, ReadDoc};
 use commun::{
     HEURE, MESSAGE_DU_GESTE, NAISSANCE, alterer_l_octet_du_milieu, constater_la_lecture_seule,
-    deux_copies, dossier_des_ajouts, dossier_du_fonds, faire_naitre, lire_le_complet, ouvrir,
-    ouvrir_le_fonds, ouvrir_le_fonds_tel_quel, poids, porte_l_idee, texte_long,
+    deux_copies, dossier_des_ajouts, dossier_du_fonds, faire_naitre, faite, lire_le_complet,
+    ouvrir, ouvrir_le_fonds, ouvrir_le_fonds_tel_quel, poids, porte_l_idee, texte_long,
 };
 use noyau::donnees::compaction::AJOUTS_AU_PLUS;
 use noyau::donnees::fonds::{IDENTIFIANT, LIGNEE, PROPRIETAIRE};
@@ -31,11 +31,12 @@ fn chaque_ecriture_ajoute_un_fichier_nomme_par_son_empreinte() {
     let mut fonds = faire_naitre(&racine);
     let avant = fonds.automerge().get_heads();
 
-    fonds
-        .ecrire("Étiquette posée", HEURE + 1, |tx| {
+    faite(
+        fonds.ecrire("Étiquette posée", HEURE + 1, |tx| {
             commun::etiqueter(tx, "idee-1", "refrain")
-        })
-        .expect("écrire");
+        }),
+        "écrire",
+    );
 
     let ajouts = dossier_des_ajouts(racine.chemin());
     let noms = commun::entrees(&ajouts);
@@ -79,16 +80,18 @@ fn rouvrir_relit_le_complet_puis_les_ajouts() {
     let chemin = commun::dossier_jetable("ajouts-rouvrir").join("donnees");
     let racine = RacineDesDonnees::ouvrir(&chemin).expect("ouvrir la racine des données");
     let mut fonds = faire_naitre(&racine);
-    fonds
-        .ecrire("Étiquette posée", HEURE + 1, |tx| {
+    faite(
+        fonds.ecrire("Étiquette posée", HEURE + 1, |tx| {
             commun::etiqueter(tx, "idee-1", "refrain")
-        })
-        .expect("la première écriture");
-    fonds
-        .ecrire("Idée notée", HEURE + 2, |tx| {
+        }),
+        "la première écriture",
+    );
+    faite(
+        fonds.ecrire("Idée notée", HEURE + 2, |tx| {
             commun::noter(tx, "idee-2", "Un pont en mineur")
-        })
-        .expect("la seconde écriture");
+        }),
+        "la seconde écriture",
+    );
     let heads = fonds.automerge().get_heads();
     let valeur = fonds.automerge().hydrate(None);
     // Le voisin d'une écriture qu'un processus n'a pas finie.
@@ -120,11 +123,12 @@ fn une_ecriture_sans_modification_n_ecrit_rien() {
     let avant = fonds.automerge().get_heads();
 
     // Ôter une étiquette que l'idée ne porte pas ne modifie rien.
-    fonds
-        .ecrire("Étiquette ôtée", HEURE + 1, |tx| {
+    faite(
+        fonds.ecrire("Étiquette ôtée", HEURE + 1, |tx| {
             commun::oter_l_etiquette(tx, "idee-1", "refrain")
-        })
-        .expect("écrire");
+        }),
+        "écrire",
+    );
 
     assert_eq!(
         commun::entrees(&dossier_des_ajouts(racine.chemin())),
@@ -167,11 +171,12 @@ fn un_geste_refuse_n_ecrit_rien_et_le_document_reste_ouvert() {
         "ce que le geste refusé a écrit reste en mémoire"
     );
 
-    fonds
-        .ecrire("Idée notée", HEURE + 2, |tx| {
+    faite(
+        fonds.ecrire("Idée notée", HEURE + 2, |tx| {
             commun::noter(tx, "idee-2", "Un pont en mineur")
-        })
-        .expect("l'écriture suivante");
+        }),
+        "l'écriture suivante",
+    );
     assert_eq!(
         commun::entrees(&ajouts).len(),
         1,
@@ -187,22 +192,24 @@ fn un_ajout_manquant_ouvre_en_lecture_seule() {
     let heads_de_la_naissance = fonds.automerge().get_heads();
     let valeur_de_la_naissance = fonds.automerge().hydrate(None);
     let ajouts = dossier_des_ajouts(&chemin);
-    fonds
-        .ecrire("Étiquette posée", HEURE + 1, |tx| {
+    faite(
+        fonds.ecrire("Étiquette posée", HEURE + 1, |tx| {
             commun::etiqueter(tx, "idee-1", "refrain")
-        })
-        .expect("la première écriture");
+        }),
+        "la première écriture",
+    );
     let premier = commun::entrees(&ajouts);
     assert_eq!(
         premier.len(),
         1,
         "une écriture, un fichier d'ajout : {premier:?}"
     );
-    fonds
-        .ecrire("Idée notée", HEURE + 2, |tx| {
+    faite(
+        fonds.ecrire("Idée notée", HEURE + 2, |tx| {
             commun::noter(tx, "idee-2", "Un pont en mineur")
-        })
-        .expect("la seconde écriture");
+        }),
+        "la seconde écriture",
+    );
     let second = commun::nouveaux(&premier, &commun::entrees(&ajouts));
     assert_eq!(
         second.len(),
@@ -248,11 +255,12 @@ fn chaque_ouverture_tire_un_acteur_neuf() {
     let chemin = commun::dossier_jetable("ajouts-acteur-neuf").join("donnees");
     let racine = RacineDesDonnees::ouvrir(&chemin).expect("ouvrir la racine des données");
     let mut fonds = faire_naitre(&racine);
-    fonds
-        .ecrire("Étiquette posée", HEURE + 1, |tx| {
+    faite(
+        fonds.ecrire("Étiquette posée", HEURE + 1, |tx| {
             commun::etiqueter(tx, "idee-1", "refrain")
-        })
-        .expect("écrire avant de rouvrir");
+        }),
+        "écrire avant de rouvrir",
+    );
     drop(fonds);
     drop(racine);
 
@@ -271,11 +279,12 @@ fn chaque_ouverture_tire_un_acteur_neuf() {
         ajouts_avant.is_empty(),
         "la réouverture compacte : ajouts/ est vide, aucun fichier parasite : {ajouts_avant:?}"
     );
-    fonds
-        .ecrire("Étiquette posée", HEURE + 2, |tx| {
+    faite(
+        fonds.ecrire("Étiquette posée", HEURE + 2, |tx| {
             commun::etiqueter(tx, "idee-1", "couplet")
-        })
-        .expect("écrire après avoir rouvert");
+        }),
+        "écrire après avoir rouvert",
+    );
 
     let doc = fonds.automerge();
     let premiere = doc
@@ -311,22 +320,24 @@ fn un_ajout_altere_ouvre_en_lecture_seule_et_se_nomme() {
     let racine = ouvrir(&chemin);
     let mut fonds = faire_naitre(&racine);
     let ajouts = dossier_des_ajouts(&chemin);
-    fonds
-        .ecrire("Idée notée", HEURE + 1, |tx| {
+    faite(
+        fonds.ecrire("Idée notée", HEURE + 1, |tx| {
             commun::noter(tx, "idee-2", "Un pont en mineur")
-        })
-        .expect("la première écriture");
+        }),
+        "la première écriture",
+    );
     let premier = commun::entrees(&ajouts);
     assert_eq!(
         premier.len(),
         1,
         "une écriture, un fichier d'ajout : {premier:?}"
     );
-    fonds
-        .ecrire("Idée notée", HEURE + 2, |tx| {
+    faite(
+        fonds.ecrire("Idée notée", HEURE + 2, |tx| {
             commun::noter(tx, "idee-3", "Une coda en suspens")
-        })
-        .expect("la seconde écriture");
+        }),
+        "la seconde écriture",
+    );
     let second = commun::nouveaux(&premier, &commun::entrees(&ajouts));
     assert_eq!(
         second.len(),

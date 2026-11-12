@@ -166,9 +166,8 @@ impl Document<'_> {
     ///   retente à l'écriture suivante, qui retire ce qu'elle n'a pas retiré ;
     /// - refusée, avant la fin du renommage : le voisin est ôté, vidé puis retiré
     ///   ([`fichier::ecrire_a_cote`]), le document se relit du disque, avec un acteur neuf, et
-    ///   `Erreur::Disque` se rend. Une relecture qui échoue met le
-    ///   document en lecture seule (`LectureSeule::RelectureManquee`), sur sa mémoire d'avant
-    ///   l'écriture refusée.
+    ///   `Erreur::Disque` se rend. Une relecture qui échoue met le document en lecture seule
+    ///   (`LectureSeule::RelectureManquee`), sur sa mémoire d'avant l'écriture refusée.
     ///
     /// Aucun message ne se prépare pendant une écriture : `ecrire` tient le document emprunté en
     /// écriture jusqu'à son retour, et le geste ne peut pas l'emprunter pour l'échange. Le premier

@@ -15,10 +15,10 @@ use std::fs;
 use std::path::PathBuf;
 
 use automerge::{Automerge, ChangeHash, ObjId, ROOT, ReadDoc, hydrate};
-use commun::{HEURE, NAISSANCE, objet, ouvrir, ouvrir_le_fonds, rangee};
+use commun::{HEURE, NAISSANCE, faite, objet, ouvrir, ouvrir_le_fonds, rangee};
 use noyau::donnees::fonds::{ETIQUETTES, IDEES, PRISES, TEXTE};
 use proptest::prelude::*;
-use stockage::{Avertissement, Document, Erreur};
+use stockage::{Document, Erreur};
 use synchro::Copie;
 
 /// Le format des prises des tests, dont les captations sont des octets engendrés.
@@ -117,15 +117,6 @@ fn jouer(fonds: &mut Document<'_>, replique: &str, rang: usize, ecriture: &Ecrit
             rang + 1
         ),
     }
-}
-
-/// L'écriture `quoi` est faite, sans avertissement : aucune panne ne s'arme dans l'essai, et un
-/// avertissement y est un verdict à instruire, comme un refus.
-fn faite(rendu: Result<Option<Avertissement>, Erreur>, quoi: &str) {
-    assert!(
-        matches!(rendu, Ok(None)),
-        "{quoi} : attendu l'écriture faite, sans avertissement ; rendu {rendu:?}"
-    );
 }
 
 /// Le fonds `fonds`, né de la réplique `nom`, est né sans avertissement.
