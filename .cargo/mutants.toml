@@ -1,7 +1,7 @@
 # Le test de mutation du noyau (famille 3 des garde-fous de la méthode).
 # Treize modules sont examinés : la théorie (hauteurs, tonalités, accords, table), la palette, le
 # clavier et la guitare, et les règles des données (la compaction, l'accès d'un document, le
-# démarrage, la version de schéma et la comparaison des copies).
+# démarrage, la version de schéma, la teneur et la comparaison des copies).
 # Le rendu (`rendu/`) n'est pas examiné.
 examine_globs = [
     "crates/noyau/src/hauteur.rs",

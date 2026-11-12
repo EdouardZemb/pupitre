@@ -145,7 +145,7 @@ pub enum Avertissement {
 }
 
 /// La teneur de `doc` (§ 31 · 2.6) : son arbre, lu sur la valeur que présente Automerge
-/// (`ReadDoc`, jamais `get_all`), puis écrit par le noyau, sans la lignée.
+/// (`ReadDoc`, jamais `get_all`), puis écrit par le noyau, sans la lignée ni les lignées qu'elle remplace.
 pub fn teneur(doc: &Automerge) -> Result<String, ErreurDeTeneur> {
     ecrire_la_teneur(&objet_a_cles(doc, &ROOT))
 }
@@ -153,25 +153,31 @@ pub fn teneur(doc: &Automerge) -> Result<String, ErreurDeTeneur> {
 /// Un objet `Map` ou `Table` : une seule sorte.
 fn objet_a_cles(doc: &Automerge, objet: &ObjId) -> BTreeMap<String, Valeur> {
     doc.keys(objet)
-        .filter_map(|cle| {
+        .map(|cle| {
             let (valeur, id) = doc
                 .get(objet, cle.as_str())
-                .expect("lire une clé que le document vient de nommer")?;
-            Some((cle, valeur_de(doc, valeur, &id)))
+                .expect("lire une clé que le document vient de nommer")
+                .expect("une clé nommée a une valeur");
+            let valeur = valeur_de(doc, valeur, &id);
+            (cle, valeur)
         })
         .collect()
 }
 
 fn valeur_de(doc: &Automerge, valeur: Value<'_>, id: &ObjId) -> Valeur {
     match valeur {
+        // En automerge 0.12.0, une `Table` n'est jamais indexée : `put` y rend `NotAnObject`, et
+        // `keys` avale cette erreur. Une `Table` non vide, chargée d'un document d'une autre
+        // implémentation, se lit donc vide, sans erreur.
         Value::Object(ObjType::Map | ObjType::Table) => Valeur::ObjetACles(objet_a_cles(doc, id)),
         Value::Object(ObjType::List) => Valeur::Liste(
             (0..doc.length(id))
-                .filter_map(|indice| {
+                .map(|indice| {
                     let (valeur, id) = doc
                         .get(id, indice)
-                        .expect("lire un indice que le document vient de compter")?;
-                    Some(valeur_de(doc, valeur, &id))
+                        .expect("lire un indice que le document vient de compter")
+                        .expect("un indice compté a une valeur");
+                    valeur_de(doc, valeur, &id)
                 })
                 .collect(),
         ),
