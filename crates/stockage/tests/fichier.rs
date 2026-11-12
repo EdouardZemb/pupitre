@@ -72,6 +72,7 @@ fn ecrire_a_cote_remplace_un_fichier_existant() {
     assert_eq!(entrees(&d), ["complet.automerge"], "rien d'autre ne reste");
 }
 
+// § 31 · 10, test 8 : renommage refusé, le voisin est retiré
 #[test]
 fn un_renommage_refuse_retire_le_voisin() {
     // Le chemin est celui d'un dossier qui porte un fichier : le voisin, écrit, ne peut en

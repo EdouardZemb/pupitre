@@ -534,6 +534,7 @@ proptest! {
     }
 }
 
+// § 31 · 10, test 4 : l'empreinte de chaque objet égale son nom
 #[test]
 fn une_copie_restauree_relit_chaque_captation_contre_son_empreinte() {
     let (chemin, releve) = une_copie_restauree("h07-copie-restauree");
@@ -598,6 +599,7 @@ fn une_copie_restauree_relit_chaque_captation_contre_son_empreinte() {
     );
 }
 
+// § 31 · 10, test 4 : l'empreinte de chaque objet égale son nom
 #[test]
 fn une_captation_alteree_ou_absente_de_la_copie_se_nomme() {
     let (chemin, releve) = une_copie_restauree("h07-copie-alteree");
