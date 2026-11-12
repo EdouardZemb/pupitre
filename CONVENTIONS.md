@@ -154,10 +154,11 @@ dans un dépôt privé, aujourd'hui `pupitre-donnees`, où GitHub refusait cette
 abonnement payant.
 
 La règle du dépôt, `branche-principale`, ne vit que sur GitHub : ce paragraphe la dit dans le
-dépôt, et la porte `documentation` l'y compare. Depuis le 2026-11-03, après INC-0, elle
-requiert cinq contrôles : `socle / secrets`, `socle / confidentialite`, `verifier`, `windows`
-et `mutants`. `contenu`, `documentation` et `texte-pr` n'y sont pas requis. La règle du
-modèle, d'où elle vient, requiert les deux contrôles du socle et `texte-pr`.
+dépôt, et la porte `documentation` l'y compare. Depuis le 2026-11-12, après la mise à jour
+vers la v0.10.0 du modèle, elle requiert six contrôles : `socle / secrets`,
+`socle / confidentialite`, `texte-pr`, `verifier`, `windows` et `mutants`. `contenu` et
+`documentation` n'y sont pas requis. La règle du modèle, d'où elle vient, requiert les deux
+contrôles du socle et `texte-pr`.
 
 S'y ajoutent les deux garde-fous du modèle
 ([`docs/modele/methode.md`](docs/modele/methode.md), « Les garde-fous ») :
