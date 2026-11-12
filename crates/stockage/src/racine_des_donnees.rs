@@ -130,8 +130,8 @@ impl RacineDesDonnees {
     /// rangée ne porte encore, prend ce nom (§ 31 · 6.1) ; de deux noms provisoires du même
     /// contenu, le premier dans l'ordre des noms. Aucun nom provisoire n'est retiré. Un nom
     /// provisoire qui ne se lit pas, ou ne peut prendre ce nom, reste, et le fonds s'ouvre avec
-    /// [`Avertissement::NomProvisoireRestant`](crate::Avertissement::NomProvisoireRestant) ; il
-    /// se range à l'ouverture suivante.
+    /// [`Avertissement::NomProvisoireRestant`](crate::Avertissement::NomProvisoireRestant) ;
+    /// l'ouverture suivante le relit, puis le range si le fonds le nomme.
     ///
     /// Un fichier illisible ouvre le fonds en lecture seule ([`Document::lecture_seule`]), en se
     /// nommant : le fonds montre ce qui se lit, n'écrit ni ne se compacte, n'envoie ni ne reçoit.

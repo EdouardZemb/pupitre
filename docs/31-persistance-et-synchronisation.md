@@ -202,7 +202,7 @@ de tête (§ 2.4) : le [glossaire](80-glossaire.md#les-données) les distingue.
   (`app/src-tauri/src/lib.rs`) : un fichier voisin, `<nom>.<processus>.partiel`, est écrit,
   synchronisé sur le disque, fermé, relu, puis renommé. Relu, il doit rendre les octets
   écrits ; sinon, il ne prend pas la place. L'export du cahier, lui, ne relit pas son
-  voisin. Hors de Windows, le dossier est synchronisé
+  voisin, et ne lui donne aucun suffixe. Hors de Windows, le dossier est synchronisé
   à son tour, pour que le renommage survive à une coupure. Un fichier est donc entier, ou
   absent. Sous Windows, où un dossier ne se synchronise pas, le fichier est renommé par
   `std::fs::rename`, qui remplace au besoin un fichier complet existant, puis rouvert en
@@ -674,8 +674,8 @@ l'ouverture du fonds, un nom provisoire de `captations/` dont le contenu entier 
 empreinte que le fonds nomme, et qu'aucun fichier ne porte encore, prend ce nom ; de deux noms
 provisoires du même contenu, le premier dans l'ordre des noms. En lecture seule, le fonds nomme
 ce qui s'en lit. Un nom provisoire qui ne se lit pas, ou que le disque refuse de renommer,
-reste, avec un avertissement, et se range au démarrage suivant. Les autres restent, pour la
-reprise d'une capture interrompue.
+reste, avec un avertissement, et le démarrage suivant le relit, puis le range si le fonds le
+nomme. Les autres restent, pour la reprise d'une capture interrompue.
 
 | Propriété | Conséquence | Testée par |
 |---|---|---|

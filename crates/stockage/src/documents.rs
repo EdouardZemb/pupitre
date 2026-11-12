@@ -228,7 +228,7 @@ impl Document<'_> {
     /// § 31 · 2.2 : les octets de `save()`, relus en mémoire par `Automerge::load`, puis écrits
     /// dans un fichier complet neuf par `ecrire_a_cote`, qui relit son voisin du disque avant de
     /// le renommer ; puis chaque voisin du fichier complet que le dossier du document garde
-    /// (`complet.automerge.<processus>.partiel`), et chaque fichier d'ajout, se lit par
+    /// (`complet.automerge.<processus>[-<n>].partiel`), et chaque fichier d'ajout, se lit par
     /// `fichier::lire`, et ceux que désigne `a_retirer` sont retirés par `fichier::retirer`. Un
     /// document en lecture seule ne se compacte pas : `Erreur::LectureSeule`, et rien ne s'écrit.
     ///

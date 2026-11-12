@@ -31,7 +31,7 @@ pub fn apres_une_ecriture(
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Lu {
     /// Son chemin relatif au dossier du document, `/` pour séparateur, tel que l'adaptateur le
-    /// retirera : `ajouts/<empreinte>.automerge`, ou `complet.automerge.<processus>.partiel`.
+    /// retirera : `ajouts/<empreinte>.automerge`, ou `complet.automerge.<processus>[-<n>].partiel`.
     pub nom: String,
     /// Lisible : un fichier d'ajout dont le contenu donne l'empreinte de son nom et que
     /// `load_incremental` charge, ou un voisin du fichier complet non vide que `load` relit sans
