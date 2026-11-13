@@ -61,7 +61,7 @@ Les commandes de Rust, telles que la CI les lance. Deux usages du poste : chaque
 Les invariants communs sont dans `docs/modele/methode.md`. Ceux-ci sont propres au projet.
 
 - Le persona est Sacha, jamais une personne réelle : la conception décrit un profil, pas quelqu'un.
-- Rien de personnel dans le dépôt : ni paroles, ni audio, ni prénom, ni chemin de machine. Le dépôt est public : une fuite y serait lue de tous, et l'historique la garderait.
+- Rien de personnel dans le dépôt : ni paroles, ni audio, ni prénom, ni chemin de machine ; les fichiers gérés par le modèle et le nom du compte `EdouardZemb` en sont exceptés. Le dépôt est public : une fuite y serait lue de tous, et l'historique la garderait.
 - Les exemples sont inventés, jamais tirés de chansons réelles.
 - Un mot pour une chose : le glossaire tranche, et un second mot sème le doute.
 - Un identifiant retiré n'est jamais réattribué : un numéro qui change de sens casse tous les renvois.

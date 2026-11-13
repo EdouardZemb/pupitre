@@ -94,7 +94,8 @@ Sous « Vérifications », chaque PR de pupitre reprend en plus trois contrôles
 dont les règles sont plus haut (« Écrire la documentation ») et plus bas (« Ce qui n'entre
 jamais dans ce dépôt ») :
 
-- [ ] Rien de personnel n'entre dans le dépôt (paroles réelles, audio, e-mail, prénom, clé, chemin de machine).
+- [ ] Rien de personnel n'entre dans le dépôt (paroles réelles, audio, e-mail, prénom, clé, chemin de machine),
+  hors des fichiers gérés par le modèle et du nom du compte `EdouardZemb`.
 - [ ] La documentation parle du persona, jamais d'une personne réelle ; les exemples sont inventés.
 - [ ] Si une décision est prise ici, elle est écrite en ADR, pas seulement dans la PR.
 
@@ -174,7 +175,10 @@ S'y ajoutent les deux garde-fous du modèle
 
 Paroles réelles, audio, MIDI, exports de mémoire, adresses e-mail, prénoms de proches,
 noms d'artistes de référence, jetons et clés, chemins absolus d'une machine — et le nom
-d'une personne réelle, nulle part dans le dépôt.
+d'une personne réelle, nulle part dans le dépôt. Deux exceptions, que le dépôt ne choisit pas : les
+fichiers gérés par le modèle (`docs/modele/methode.md`, « Les fichiers gérés par le modèle »), qui
+nomment la maîtrise d'ouvrage et que chaque mise à jour réécrit, et le nom du compte `EdouardZemb`,
+que portent `LICENSE` et chaque adresse du dépôt.
 
 Les règles musicales et la doctrine esthétique entrent ici **sous forme de règles**, avec
 des exemples inventés, jamais sous forme d'extraits de chansons réelles.
