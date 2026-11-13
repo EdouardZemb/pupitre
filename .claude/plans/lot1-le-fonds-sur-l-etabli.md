@@ -1,6 +1,6 @@
 # Lot 1 d'INC-1 · le fonds sur l'établi — plan maître
 
-> **Pour les agents :** ce plan n'est pas un plan tâche par tâche. Il fixe les huit tranches du lot, leur ordre, ce
+> **Pour les agents :** ce plan n'est pas un plan tâche par tâche. Il fixe les neuf tranches du lot, leur ordre, ce
 > que chacune livre et prouve, et ce qui est reporté. Chaque tranche a son plan détaillé, écrit juste avant elle par
 > `superpowers:writing-plans`, ajouté dans `.claude/plans/` par sa propre PR de plan, relu par une session neuve,
 > puis exécuté par `superpowers:subagent-driven-development`. Un plan de tranche qui contredit ce plan maître le dit
@@ -37,7 +37,9 @@ I17, I18, I28 à I31), 7 et 8 ; M-0001 ; au registre, AM-3, AM-4 et LE-10 ; le p
 
 1. **Un plan maître, puis un plan par tranche.** La maîtrise d'ouvrage relit ce plan ; un plan de tranche est relu
    par une session neuve, et par elle seulement s'il change ce plan.
-2. **Huit tranches**, dans l'ordre des sections qui suivent.
+2. **Neuf tranches**, dans l'ordre des sections qui suivent. Le plan en comptait huit ; la maîtrise d'ouvrage a
+   scindé la huitième, « la revue finale et la clôture », le 2026-11-13 : « la revue finale » (tranche 8) et « la
+   clôture » (tranche 9), comme la méthode le veut (`docs/modele/methode.md`, « Un lot en tranches »).
 3. **AM-4, point 7, au lot 4**, la sauvegarde ; l'archive complète lit la racine des données depuis Pupitre.
 4. **La mutation reste sur le noyau seul**, où vont toutes les règles qui décident. Un module de règle entre dans
    `.cargo/mutants.toml`, avec ses tests, dans la PR qui l'écrit, qui remesure les deux délais à froid (§ 70 · 1) ;
@@ -193,6 +195,401 @@ I17, I18, I28 à I31), 7 et 8 ; M-0001 ; au registre, AM-3, AM-4 et LE-10 ; le p
   chaque PR compare le tableau aux critères que la tranche dit livrer.
 
 ---
+
+## Mécanismes annoncés
+
+- `rust-toolchain.toml:2` — `channel = "1.99.1"` — la chaîne Rust 1.99.1, épinglée, que chaque job Rust installe
+  (`verifier`, `windows`, `mutants`, et `mutants-complet.yml`) ; `socle`, `contenu`, `documentation` et `texte-pr`
+  ne l'installent pas (Pile).
+- `Cargo.toml:6` — `edition = "2024"` — l'édition 2024, que chaque crate hérite de l'espace de travail (Pile ;
+  `rustfmt --edition 2024`, contraintes générales).
+- `crates/stockage/Cargo.toml:9` — `automerge = "0.12.0"` — automerge 0.12.0, dans `stockage` et dans `synchro`
+  (`crates/synchro/Cargo.toml:9`), jamais au noyau (Pile ; décision 8).
+- `crates/noyau/Cargo.toml:9` — `sha2 = { version = "0.11.1", default-features = false }` — sha2 0.11.1, au noyau
+  comme au stockage (Pile).
+- `app/src-tauri/Cargo.toml:18` — `tauri = { version = "2.12.5"` — tauri 2.12.5 (Pile).
+- `app/src-tauri/Cargo.toml:19` — `tauri-plugin-dialog = "2.8.4"` — tauri-plugin-dialog 2.8.4, déjà dépendance de
+  l'établi (Pile ; décision 17).
+- `app/ui/Cargo.toml:10` — `leptos = { version = "0.8.23"` — leptos 0.8.23, rendu côté client (`csr`) (Pile).
+- `crates/noyau/Cargo.toml:13` — `proptest = "1.12.0"` — proptest 1.12.0, dépendance de test du noyau et du stockage
+  (Pile).
+- `.github/workflows/ci.yml:197` — `cargo-mutants --version 27.1.0` — cargo-mutants 27.1.0, installé par `mutants`, et
+  par `mutants-complet.yml` à la même version (Pile).
+- `.github/workflows/ci.yml:148` — `trunk --version 0.22.1` — trunk 0.22.1, installé par `windows` avant
+  l'installateur (Pile).
+- `.github/workflows/ci.yml:150` — `tauri-cli --version 2.12.4` — tauri-cli 2.12.4, de même (Pile).
+- `.copier-answers.yml:8` — `fusion: session` — le mode de fusion du dépôt : la session fusionne sa PR quand tout est
+  vert (décision 5).
+- `scripts/modele/garde_claude.py:127-129` — `envoi d'une étiquette ou écriture de publication` — le garde de Claude
+  refuse à la session l'envoi d'une étiquette : `v0.3.0` est à la maîtrise d'ouvrage (décision 6 ; tranche 9).
+- `app/src-tauri/tauri.conf.json:21` — `"targets": ["nsis"]` — l'établi se construit en un installateur NSIS, et en
+  lui seul (décision 6).
+- `.github/workflows/ci.yml:159-163` — `name: etabli-installateur` — le job `windows` dépose l'installateur en
+  artefact, et échoue sans lui (`if-no-files-found: error`) : chaque tranche le laisse (décision 6 ; le déroulé,
+  point 3).
+- `.github/workflows/ci.yml:151-153` — `run: cargo tauri build` — l'installateur se construit sans être lancé, et
+  aucun test n'ouvre la fenêtre (`app/ui/tests/encre_statique.rs:2-3`) : une fenêtre blanche due à la CSP ne se voit
+  qu'installée (décision 6).
+- `app/src-tauri/tauri.conf.json:5` — `"identifier": "app.pupitre.etabli"` — l'identifiant des essais, que Tauri
+  ajoute au dossier local de l'utilisateur pour former le dossier de l'application : à la clôture, `app.pupitre` prend
+  un autre dossier, et les essais restent intacts (décision 6 ; tranche 9).
+- `crates/stockage/Cargo.toml:9-12` — `synchro = { path = "../synchro" }` — le stockage dépend déjà du noyau, de
+  `synchro`, d'`automerge` et de `sha2` ; le lot lui ajoute `services` (décision 7).
+- `app/src-tauri/Cargo.toml:15-19` — `cahier = { path = "../../crates/cahier" }` — l'établi dépend déjà du cahier, du
+  noyau, de `tauri` et de `tauri-plugin-dialog` ; le lot lui ajoute `stockage`, `services`, `commandes` et `getrandom`
+  (décision 7).
+- `app/ui/Cargo.toml:8-13` — `noyau = { path = "../../crates/noyau" }` — l'interface dépend aujourd'hui du noyau, de
+  Leptos et des liaisons de WebAssembly (`js-sys`, `wasm-bindgen`), sans `automerge`, `services` ni `stockage`
+  (décision 7, l'étape `cargo tree`).
+- `crates/synchro/Cargo.toml:8-10` — `noyau = { path = "../noyau" }` — `synchro` ne dépend que d'`automerge` et du
+  noyau, et le lot ne lui ajoute aucune dépendance (décision 7).
+- `Cargo.toml:3` — `resolver = "3"` — une fonction qu'active une dépendance de test ne gagne pas la construction
+  ordinaire : `etabli` peut activer `en-memoire` ou `pannes` dans ses tests sans les livrer (décision 7).
+- `crates/noyau/src/lib.rs:1` — `pur, sans entrée-sortie` — le noyau est pur aujourd'hui, sans fichier, horloge ni
+  aléa : il le reste, et le contrôle statique de la tranche 2 le fige (décision 8 ; contraintes générales).
+- `crates/noyau/Cargo.toml:8-10` — `ttf-parser = "0.25.1"` — le noyau ne dépend ni d'`automerge` ni d'une crate
+  d'horloge ou d'aléa : `sha2`, sans ses fonctions par défaut, et `ttf-parser` (décision 8).
+- `crates/stockage/src/documents.rs:259-264` — `tx.commit_with(a_l_heure(message, heure))` — une modification
+  s'applique en une transaction, avec son message et son heure : l'adaptateur `Documents` appliquera ainsi les
+  écritures du noyau, en une opération nommée (décision 8 ; tranche 2).
+- `crates/synchro/src/lib.rs:75-79` — `doc.receive_sync_message(&mut self.etat, message)` — la réception écrit dans un
+  document les modifications d'une autre copie, hors des adaptateurs `Documents` : I28 la compte comme une reprise,
+  non comme une écriture (décision 8 ; tranche 2).
+- `crates/noyau/src/donnees/fonds.rs:11-14` — `pub const PRISES: &str = "prises";` — la genèse d'aujourd'hui crée les
+  conteneurs des idées et des prises, « déjà là » (décision 9).
+- `crates/noyau/src/donnees/fonds.rs:41-44` — `pub const GENESE: &[u8]` — la genèse vit au noyau, en octets : la
+  tranche 2 la récrit, puis elle se fige à la `v0.3.0` (décision 9).
+- `crates/stockage/src/documents.rs:585` — `automerge.set_actor(ActorId::random());` — chaque ouverture tire un acteur
+  neuf par Automerge, dans `stockage` : l'exception que cite le contrôle statique de l'aléa ; la relecture du disque
+  en tire un aussi (`:495`) (décision 10).
+- `app/ui/src/export.rs:44-47` — `fn date_du_jour()` — la date du cahier se lit dans l'interface, à l'heure de
+  l'ordinateur, et passe en argument à la commande : le décalage horaire d'un message viendra de l'interface de même
+  (décision 10).
+- `app/src-tauri/tauri.conf.json:13` — `"withGlobalTauri": true` — l'API de Tauri est posée sur `window.__TAURI__`, où
+  l'interface prend `invoke` (`app/ui/src/export.rs:51-55`) : elle reste posée (décision 11).
+- `app/ui/src/export.rs:86` — `JsValue::from_str("exporter_cahier")` — l'interface écrit en toutes lettres le nom de
+  la commande qu'elle invoque : elle le prendra dans `commandes` (décision 11).
+- `app/src-tauri/build.rs:2` — `tauri_build::build();` — aucun manifeste de l'application : la tranche 3 l'y tire de
+  la liste des noms de `commandes` (décision 11).
+- `app/src-tauri/src/lib.rs:130` — `tauri::generate_handler![exporter_cahier]` — les commandes servies, une seule
+  aujourd'hui, que le test d'I31 comparera à la liste de `commandes` et aux droits (décision 11).
+- `app/src-tauri/src/lib.rs:85-86` — `async fn exporter_cahier(` — la commande d'INC-0, que les droits de la tranche 3
+  permettent par son nom (décision 11 ; tranche 3).
+- `app/src-tauri/capabilities/default.json:4` — `faute de manifeste dans build.rs` — `exporter_cahier` est permise par
+  défaut, sans droit qui la nomme, et la boîte d'enregistrement s'ouvre en Rust, sans droit du greffon (décision 11).
+- `app/src-tauri/capabilities/default.json:5-6` — `"permissions": ["core:default"]` — le seul fichier de droits, sans
+  `platforms`, donne `core:default` à la fenêtre `main` : `windows.json` le remplace, et `default.json` disparaît
+  (décision 11).
+- `app/src-tauri/src/lib.rs:113-114` — `blocking_save_file` — `tauri-plugin-dialog` sert déjà, côté natif, à la
+  destination du cahier : il servira aussi au dossier à verser et à la destination de l'archive (décision 17 ;
+  tranches 5 et 6).
+- `.github/workflows/ci.yml:110` — `cargo clippy -p interface --target wasm32-unknown-unknown` — la CI construit en
+  `wasm32-unknown-unknown` par deux voies, ce lint de l'interface et `trunk build --release`, que lance
+  `cargo tauri build` dans `windows` : l'une et l'autre passent par l'interface seule, qui compile le noyau, donc
+  `ulid` dès qu'il y entre (décision 10), mais ne dépend pas de `services` : une dépendance de cible `wasm32` de
+  `services` n'y serait pas éprouvée (décision 13).
+- `app/src-tauri/tauri.conf.json:7` — `"script": "trunk build --release"` — `cargo tauri build` construit d'abord
+  l'interface en WebAssembly par trunk, dans `app/ui` : la seconde construction en `wasm32-unknown-unknown` de la
+  CI, dans `windows` (`.github/workflows/ci.yml:151-153`) (décision 13).
+- `CONVENTIONS.md:156-161` — `requiert six contrôles` — la règle de protection ne vit que sur GitHub, et requiert
+  `verifier`, `windows` et `mutants` avec le socle et `texte-pr` ; `contenu` et `documentation` n'y sont pas requis :
+  requérir un job nouveau changerait la règle sur GitHub, un geste de la maîtrise d'ouvrage (décision 14).
+- `scripts/verif-faits.mjs:32-33` — `la liste est comparée à la règle de protection` — en CI, la porte `documentation`
+  compare la liste de « Protection de `main` » à la règle réelle : un contrôle requis de plus s'y écrirait aussi
+  (décision 14).
+- `scripts/verif-faits.mjs:24-26` — `CLAUDE.md nomme les jobs` — un job nouveau se nommerait aussi dans le tableau des
+  portes de `CONVENTIONS.md` et dans `CLAUDE.md` (décision 14).
+- `app/ui/tests/encre_statique.rs:1-2` — `le mode encre tient (I17)` — un garde-fou de l'interface est un test Rust
+  qui lit les sources, lancé par `verifier` (`cargo test -p interface`, `.github/workflows/ci.yml:112`) : le modèle
+  des garde-fous du lot (décision 14).
+- `.github/workflows/ci.yml:199-201` — `BASE_REF: ${{ github.base_ref }}` — `mutants` prend la branche de base de
+  `github.base_ref`, par `BASE_REF`, et ne tourne que sur une PR (`:179`) : l'étape du gel prend `BASE_REF` de même
+  (décision 16).
+- `.cargo/mutants.toml:6-20` — `examine_globs = [` — la mutation examine des modules du noyau nommés un à un : un
+  module de règle y entre dans la PR qui l'écrit (décision 4).
+- `.cargo/mutants.toml:26-27` — `Un nouveau fichier de tests de ces modules s'ajoute à cette liste` — ses fichiers de
+  tests entrent avec lui dans `additional_cargo_test_args` (décision 4).
+- `.github/workflows/ci.yml:203` — `cargo mutants -p noyau --in-diff pr.diff` — la mutation porte sur le noyau seul,
+  et, sur une PR, sur les seules lignes qu'elle change (décision 4).
+- `.github/workflows/ci.yml:181-185` — `À remesurer quand le périmètre de la mutation s'étend` — le délai de `mutants`
+  vaut deux fois un passage complet mesuré à froid, comme celui de `mutants-complet.yml` : la PR qui étend
+  `.cargo/mutants.toml` les remesure (décision 4).
+- `.github/workflows/ci.yml:72-75` — `mesuré à froid` — le délai de `verifier` est à ramener à deux fois un passage
+  mesuré à froid, et celui de `windows` vaut deux fois son premier passage (`:123-128`) : une tranche qui alourdit les
+  tests les remesure (le déroulé, point 3).
+- `.github/workflows/ci.yml:96-97` — `cargo fmt --all --check` — le format se vérifie dans `verifier` ; sans cargo sur
+  le poste, `rustfmt --edition 2024` formate les fichiers touchés (contraintes générales).
+- `.github/workflows/ci.yml:99` — `cargo clippy -p noyau -p cahier -p stockage -p synchro --all-targets` — le lint de
+  `verifier` nomme chaque crate : `-p commandes -p services` s'y ajoutent (contraintes générales ; tranche 2).
+- `.github/workflows/ci.yml:112` — `cargo test -p noyau -p cahier -p interface -p stockage -p synchro` — les tests de
+  `verifier` nomment de même chaque crate (contraintes générales ; tranche 2).
+- `.github/workflows/ci.yml:146` — `cargo test -p stockage -p synchro` — `windows` teste déjà le stockage : la suite
+  des commandes sur la paire de fichiers, qui y vit, y tourne sans étape de plus (tranche 2).
+- `.github/workflows/ci.yml:156-158` — `cargo test -p etabli` — l'établi ne se teste que dans `windows`, après
+  l'installateur, dont ses tests demandent `app/ui/dist` : I31 pour `etabli` et le second test d'I30 y tournent
+  (tranches 3 et 7).
+- `scripts/verif-confidentialite.sh:19` — `suivis() { git ls-files -z` — la porte `contenu` ne lit que les fichiers
+  indexés : les vérifications du poste se lancent après le `git add` (LE-7 ; contraintes générales).
+- `scripts/verif-confidentialite.sh:46-48` — `mid|midi` — la porte `contenu` refuse tout fichier suivi dont le nom
+  finit, sans égard à la casse, par une extension de sa liste fermée,
+  `mp3|m4a|wav|aif|aiff|flac|ogg|mid|midi|musicxml|mxl` : un fichier audio d'une autre extension, ou un WAV sous un
+  autre nom, passe ; les fichiers des tests de l'import et les captations du jeu factice s'engendrent à l'exécution,
+  et le plan de la tranche 5 ajoute à la liste chaque extension audio ou MIDI que son import reconnaît (contraintes
+  générales ; tranches 5 et 7).
+- `scripts/verif-faits.mjs:696-697` — `est inscrit, sans test qui le nomme` — un critère inscrit au § 70 · 4.1 sans
+  test qui le nomme, marqué `#[test]` et non `#[ignore]`, est refusé ; la porte ne lit que les critères inscrits
+  (`:683`) (contraintes générales ; décision 21, question 3).
+- `scripts/verif-faits.mjs:643-644` — `export function fonctionsNommeesCritere` — un test de critère se nomme comme
+  ceux d'INC-0, `cap06_7_…`, le code de la fonction collé à son numéro (contraintes générales).
+- `scripts/verif-faits.mjs:47-48` — `en calcule l'exemple, c'est la revue de la PR qui le vérifie` — la porte vérifie
+  qu'un test nomme le critère, non qu'il en calcule l'exemple (contraintes générales ; LE-6).
+- `scripts/verif-faits.mjs:35` — `CLAUDE.md nomme les membres de l'espace de travail` — `CLAUDE.md` nomme chaque crate
+  de l'espace de travail : `commandes` et `services` y entrent avec leur membre (tranche 2).
+- `app/ui/tests/encre_statique.rs:349` — `racine().join("style.css")` — I17 et le contrôle des couleurs ne lisent que
+  `style.css`, et I18 `style.css`, `index.html` et `src/` (`:323-331`) : la feuille d'un écran neuf y entre, ou les
+  tests la lisent aussi (contraintes générales).
+- `app/ui/src/vue_table.rs:65-72` — `pub(crate) fn style_du_recouvrement(r: Rect) -> String` — la place d'une case se
+  calcule en une chaîne de quatre propriétés, posée dans l'attribut `style` (`:162`) : la tranche 3 la pose propriété
+  par propriété.
+- `app/ui/src/vue_table.rs:95-96` — `pub(crate) fn style_de_la_palette(r: Rect) -> String` — de même pour le bouton
+  « Palette » (`:176`) (tranche 3).
+- `app/ui/src/panneau_palette.rs:47` — `style=format!("width: calc({largeur} * var(--mm))")` — la largeur de la fiche,
+  le troisième style calculé, dans l'attribut `style` (tranche 3).
+- `app/ui/src/vue_table.rs:321` — `fn le_recouvrement_se_place_en_pour_cent_de_la_page()` — le test compare la chaîne
+  entière du style : il se réécrit (tranche 3).
+- `app/ui/src/vue_table.rs:335` — `fn palette_se_pose_au_bas_de_la_case_touchee()` — le test compare la chaîne de
+  `style_de_la_palette` (`:347-350`) : il se réécrit (tranche 3).
+- `app/ui/src/vue_table.rs:126` — `inner_html=svg` — la page du noyau entre par `inner_html`, comme la fiche
+  (`app/ui/src/panneau_palette.rs:48`) : ce sont les SVG du noyau qu'admet le contrôle statique de l'interface
+  (tranche 3).
+- `app/src-tauri/tauri.conf.json:17` — `"csp": null` — l'établi n'a aucune CSP (AM-3) : la tranche 3 pose celle du
+  § 40 · 7.5, et la revue finale cherche le mot périmé (tranche 8).
+- `crates/stockage/src/racine_des_donnees.rs:66-67` — `TryLockError::WouldBlock => Erreur::RacineDesDonneesTenue` —
+  `RacineDesDonnees::ouvrir` rend `Erreur::RacineDesDonneesTenue` quand un autre processus tient le verrou, après
+  une ouverture de `verrou` qui ne tronque ni n'écrit rien (`:60-64`), et avant de créer `documents/` et
+  `captations/` (`:70-73`) : un second processus devant une racine des données tenue s'arrête sans rien écrire
+  (tranche 3).
+- `crates/stockage/src/racine_des_donnees.rs:21-23` — `_verrou: File` — le verrou est le fichier `verrou`, tenu
+  ouvert : il se lève quand ce fichier se ferme, avec la racine des données ; un `Document` et les `Captations`
+  l'empruntent (`crates/stockage/src/documents.rs:63-64`, `crates/stockage/src/captations.rs:21-22`), et se ferment
+  donc avant elle : la reprise ferme chaque fichier tenu, le verrou en dernier (vigilance 5 ; tranche 6).
+- `crates/stockage/src/captations.rs:47` — `pub fn verser(&self, octets: &[u8])` — une captation se verse depuis des
+  octets tenus en mémoire (vigilance 3 ; tranches 5 et 6).
+- `crates/stockage/src/captations.rs:48-57` — `voisin(&self.dossier().join(&e))` — son nom provisoire se tire de
+  l'empreinte, calculée avant toute écriture (vigilance 3).
+- `crates/stockage/src/documents.rs:944-947` — `let mut avec = relu.fork();` — la compaction charge chaque fichier
+  d'ajout dans un `fork()` du fichier complet relu (`charger_contre`, appelé par `lu_contre`, `:931-932`) : le coût
+  que la tranche 5 mesure sur cent ajouts (mineur d'H07).
+- `crates/synchro/src/lib.rs:3` — `lit aussi les conflits et les relève` — le relevé des conflits attend le lot 3 (Ce
+  qui est reporté).
+- `crates/synchro/src/lib.rs:4` — `transport : le réseau se branche dessus` — `synchro` n'a aucun transport, reporté
+  au lot 3 (Ce qui est reporté).
+- `crates/synchro/src/lib.rs:40` — `pub fn prochain_message(&mut self, doc: &Automerge)` — l'échange de deux copies
+  par le protocole d'Automerge, sans réseau, sur lequel s'appuient les preuves à deux et à trois répliques (I10, test
+  3 ; tranche 2).
+- `scripts/modele/commits.py:35` — `LONGUEUR_MAX = 100` — l'en-tête d'un commit a 100 caractères au plus (le déroulé,
+  point 3).
+- `.github/workflows/modele-texte-pr.yml:45` — `commits.py --titre` — `texte-pr` vérifie le titre de la PR à la même
+  limite de 100 : rien ne garde le titre de 93 au plus avant la fusion, et, le squash ajoutant « (#NN) », un titre de
+  plus de 94 caractères (93 dès la PR #100) donnerait un en-tête de plus de 100, que le socle refuse au push sur `main`
+  (`.github/workflows/modele-socle.yml:60`, `commits.py --plage`) (le déroulé, point 3).
+- `app/src-tauri/tauri.conf.json:4` — `"version": "0.0.0"` — la version de l'application, que Tauri sert par
+  `package_info()` et que l'installateur montre : la clôture y écrit `0.3.0`, seule (tranche 9 ; tranche 6, le
+  `LISEZMOI.md`).
+- `Cargo.toml:7` — `version = "0.0.0"` — chaque crate hérite de la version `0.0.0` (`version.workspace = true`), que
+  la clôture garde : `CARGO_PKG_VERSION` y reste, et ne dit pas la version de Pupitre (§ 40 · 8 ; tranches 6 et 9).
+
+## Outils et cas limites
+
+- `cargo tree` — sans `--target`, seules les dépendances de l'hôte paraissent ; une erreur ne laisse rien sur la
+  sortie, qu'un `grep` lirait comme une absence ; la première ligne est le paquet racine, qu'un motif qui le nomme
+  trouve toujours — tranche 2 (tâche 17) : l'étape « Le graphe de l'interface », en natif puis avec
+  `--target wasm32-unknown-unknown`, la sortie capturée sous `bash -e`, et son essai sur `stockage`, qui doit trouver
+  `^automerge v` et `^services v` (décision 7)
+- `cargo tree` — il montre par défaut les dépendances de test (`--edges normal,build,dev`), et une fonction activée
+  n'y paraît que par `--edges features`, ou par `--format` avec `{f}` — tranche 3 : l'étape `cargo tree` d'`etabli`,
+  sans les dépendances de test et avec les fonctions, et son essai : `pannes` activée par une dépendance ordinaire la
+  fait rougir, par une dépendance de test non (décision 7)
+- les fonctions de `tauri`, lues dans le `Cargo.toml` d'`etabli` — `protocol-asset` peut s'activer par une autre
+  dépendance, que ce fichier ne nomme pas — tranche 3 : le test d'I31 qui relit le `Cargo.toml`, et l'étape
+  `cargo tree` d'`etabli`, avec les fonctions, qui ne doit pas y trouver `protocol-asset`
+- `SHGetKnownFolderPath`, par où Tauri (`dirs`) lit le dossier de l'application — `APPDATA` et `LOCALAPPDATA`
+  redirigées ne le déplacent pas ; sous `USERPROFILE` redirigé, il échoue si la sentinelle n'a pas ses sous-dossiers
+  `AppData\Roaming` et `AppData\Local` — tranche 3 : le garde-fou d'I30, étape de `windows`, qui vérifie d'abord que
+  le dossier que résout Tauri tombe dans la sentinelle, sinon échoue (vigilance 2 ; § 70 · 3)
+- `cargo` et `rustup` sous `USERPROFILE` redirigé — sans `CARGO_HOME` ni `RUSTUP_HOME`, ils tirent leurs dossiers de
+  `USERPROFILE`, et chercheraient la chaîne dans la sentinelle — tranche 3 : l'étape de la sentinelle, `CARGO_HOME` et
+  `RUSTUP_HOME` posés à leurs vrais dossiers, qui trouve la chaîne et lance les tests (vigilance 2)
+- `git fetch --depth=1` — une histoire d'un seul commit n'a pas de base commune :
+  `git diff "origin/$BASE_REF...HEAD"`, à trois points comme dans `mutants`, échoue — tranche 9 : l'étape du gel
+  compare `origin/$BASE_REF` à la tête, à deux points, et la PR d'essai qui n'ajoute qu'une ligne passe (décision 16)
+- la comparaison à deux points de `origin/$BASE_REF` et de la tête, sur une PR — la tête est le commit de fusion
+  d'essai de l'événement, et `git fetch` prend la pointe actuelle de la base : une ligne qu'une autre PR, fusionnée
+  entre-temps, a ajoutée au fichier des références paraît retirée, et le gel refuse à tort ; une relance rejoue le
+  même commit de fusion, et le même refus — tranche 9 : son plan choisit entre la comparaison au premier parent du
+  commit de fusion (`HEAD^1`, avec `fetch-depth: 2`) et la limite dite, levée par un nouvel envoi sur la branche ;
+  l'essai : sur une branche jetable, une ligne ajoutée à la base après l'ouverture de la PR d'essai, puis la relance
+  de son `verifier`
+- `git diff` sur le fichier des références — une ligne ajoutée ne donne qu'un `+`, une ligne changée un `-` et un
+  `+` ; rustfmt, qui recoupe une liste quand une ligne s'y ajoute, change aussi une ligne voisine — tranche 9 : sur
+  une branche jetable, une PR d'essai qui change une référence du gel, refusée, et une qui n'ajoute qu'une ligne,
+  admise (critères de sortie)
+- `github.base_ref` — vide hors d'une PR : `verifier` tourne aussi à l'envoi sur `main` et à la demande, où
+  `origin/$BASE_REF` ne nomme aucune branche — tranche 9 : l'étape du gel, sur une PR seulement, comme `mutants`
+  (`if: github.event_name == 'pull_request'`), et le passage vert de `verifier` à l'envoi de la fusion
+- `sha256sum -c` — sans `--strict`, une ligne mal formée n'est qu'un avertissement ; un fichier de l'archive absent
+  d'`empreintes.txt` n'est jamais relu — tranche 6 : l'étape de `verifier` qui relit une archive de test, avec
+  `--strict`, et le test du noyau sur la forme d'`empreintes.txt`, une ligne par fichier écrit
+- `Get-FileHash`, dans PowerShell, le shell par défaut de `windows` — il rend l'empreinte en majuscules, quand
+  `empreintes.txt` l'écrit en minuscules, au format de `sha256sum` : une comparaison sensible à la casse (`-ceq`,
+  `.Equals`) refuse tout ; son chemin (`Path`) est entier, à barres obliques inverses, quand l'archive écrit chaque
+  chemin relatif, séparé par `/` — tranche 6 : l'étape de `windows` qui suit les lignes du `LISEZMOI.md` sur une
+  archive de test, admise intacte, ce qui éprouve la casse et les chemins, et refusée altérée d'un octet
+- `GetDiskFreeSpaceExW`, déclaré à la main — un dossier absent échoue, au lieu de rendre 0 ; un chemin de plus de 260
+  caractères demande le préfixe `\\?\`, que `std::fs` pose de lui-même et qu'un appel déclaré à la main ne pose pas —
+  tranche 5 : un test de `systeme`, dans `windows`, sur la place d'un dossier jetable, positive, puis d'un dossier
+  jetable au chemin de plus de 260 caractères, positive aussi, et d'un dossier absent, une erreur dite, jamais 0 ;
+  tranche 6, où l'utilisateur choisit la destination de l'archive par la boîte de dialogue : un test de `systeme`,
+  dans `windows`, sur la place d'une destination d'archive au chemin de plus de 260 caractères, positive, et d'une
+  destination absente, une erreur dite. Seule la place offerte à l'appelant (`lpFreeBytesAvailableToCaller`, quotas
+  compris) se lit : aucun job n'a de quota, limite que la PR de la tranche 5 dit. Une destination sur un partage
+  réseau, dont le nom UNC doit finir, d'après la documentation de Microsoft (non éprouvé ici), par une barre oblique
+  inverse : le plan de la tranche 6 dit ce qu'il en fait (décision 17)
+- les droits de Tauri et `generate_handler!` — sans manifeste de l'application dans `build.rs`, toute commande de
+  `generate_handler!` est permise ; avec lui, une commande sans droit n'est refusée qu'à l'appel, à l'exécution —
+  tranche 3 : le test d'I31, qui compare la liste de `commandes` à `generate_handler!`, au manifeste de `build.rs` et
+  aux droits, et l'essai installé (décision 11)
+- les fichiers de droits de Tauri — chaque fichier de `capabilities/` s'applique, faute de liste dans
+  `app > security > capabilities` : un `default.json` resté en place garderait ses droits — tranche 3 : le test d'I31,
+  qui relit chaque fichier de `capabilities/` et n'y admet que `windows.json` (décision 11)
+- la CSP de Tauri — à la construction, Tauri ajoute à la CSP de `tauri.conf.json` les nonces et les empreintes de ce
+  qu'il sert, dont le chargeur de Trunk : la CSP qu'applique la fenêtre n'est pas celle que relisent les tests —
+  tranche 3 : l'essai installé de la maîtrise d'ouvrage, seul à voir une fenêtre blanche, à côté de la comparaison de
+  la CSP au § 40 · 7.5 par `verif-faits.mjs` (décision 6)
+- la CSP que `verif-faits.mjs` lit dans `tauri.conf.json` — Tauri y admet `csp` sous deux formes, une chaîne ou un
+  objet de directives (`tauri-utils` 2.10.2, l'énumération `Csp`), et fusionne par-dessus un
+  `tauri.windows.conf.json` s'il existe (JSON Merge Patch) : une comparaison de chaînes sur le seul
+  `tauri.conf.json` passe à côté de l'objet comme du fichier de Windows — tranche 3 : un test de
+  `scripts/verif-faits.test.mjs` qui plante une CSP en objet, puis un `tauri.windows.conf.json`, refusés tous deux
+- `style-src 'self'` — il refuse un attribut `style`, posé par `setAttribute` ou par `cssText`, mais non une propriété
+  posée seule (`style.setProperty`, la directive `style:` de Leptos) — tranche 3 : les styles d'INC-0 posés propriété
+  par propriété (PR (a)), et le contrôle statique de l'interface, qui refuse un attribut `style` et `cssText`
+- le protocole `captation` sous Windows — WebView2 le sert à `http://captation.localhost/`, non à
+  `captation://localhost/` — tranche 3 : la comparaison de la CSP au bloc du § 40 · 7.5 ; tranche 5 : le test d'I31
+  pour le protocole, dans `windows`
+- `JSON.parse`, qui lit dans l'interface ce qu'écrit `serde_json` — un entier au-delà de 2⁵³ − 1 s'y arrondit, sans
+  erreur — tranche 2 : `les_entiers_d_une_reponse_restent_sous_2_puissance_53` (tâche 3) et
+  `verser_une_duree_au_dela_d_entier_sur_est_refusee` (tâche 10) (décision 11)
+- `git ls-files`, par où la porte `contenu` lit les fichiers suivis — un fichier indexé de force (`git add -f`), que le
+  `.gitignore` masque, reste suivi et listé ; sans `-z`, git met entre guillemets un nom à accent, et `xargs` coupe un
+  nom à espace et s'arrête à une apostrophe (LE-13) — tranche 1 : l'essai de sa tâche 2, `essai.automerge` et
+  `pupitre-archive-2026-11-09/LISEZMOI.md` indexés de force, refusés par le contrôle 6
+  (`.claude/plans/lot1-tranche1-stockage-durci.md`, « Outils et cas limites »), et celui de LE-13, un nom à accent, à
+  espace et à apostrophe suivi d'un autre nom, les deux portant un motif refusé
+- `cargo-mutants` — un mutant qui boucle sans fin, pris par le délai (TIMEOUT), le fait sortir en 3, et `mutants`
+  échoue — tranche 1 : `le_voisin_prend_le_premier_nom_libre` (tâche 9), sur une recherche bornée ; un mutant de
+  boucle sans fin s'exclut nommément dans `.cargo/mutants.toml`, avec sa raison (décision 4)
+- `cargo-mutants` — un module examiné dont un fichier de tests manque à `additional_cargo_test_args` laisse ses
+  mutants survivre (`MISSED`) ; sur une PR, `--in-diff` ne mute que les lignes changées — la remesure à froid de
+  chaque PR qui étend `.cargo/mutants.toml`, par le passage complet (`mutants-complet.yml`, à la demande), qui mute
+  chaque module entier : tranche 2 (tâches 7 et 13), puis les tranches 3 à 6 (décision 4)
+- `rustdoc` — sur la chaîne stable du dépôt (1.99.1, `rust-toolchain.toml`), un doctest `compile_fail` passe sur
+  toute erreur de compilation : le numéro qu'il porte (`compile_fail,E0502`) n'est vérifié que sur nightly —
+  tranche 1 : le doctest `compile_fail,E0502` de `Document::ecrire`, que garde son jumeau qui compile (`apres`,
+  `crates/stockage/src/documents.rs:245-250`), le même code, l'appel déplacé après l'écriture ; tranche 2 : celui de
+  `Document::appliquer` (tâche 6), gardé de même par son second doctest, qui prépare le message après `appliquer`
+- la lecture d'une signature (`Read::read`) — elle peut rendre moins d'octets que demandé sans être à la fin ; un
+  fichier peut être plus court que la signature ; `fs::read` lit tout — tranche 5 : le contrat de lecture qui compte
+  les octets lus, sur un fichier ignoré lu de ses seuls premiers octets, un fichier plus court que la signature et une
+  lecture qui ne rend qu'un octet à la fois (décision 19)
+- les noms de fichier sous Windows (`std::fs`, `OsStr`) — NTFS garde un nom en Unicode composé et le même décomposé
+  pour deux noms distincts ; un nom UTF-16 mal formé n'a pas de `&str` (`to_str` rend `None`, `to_string_lossy`
+  l'altère) — tranche 5 : les tests de `windows` sur un chemin de plus de 260 caractères, les deux formes d'un même
+  nom et un nom intraduisible, que le rapport compte (vigilance 4)
+- les réponses partielles (`Range`) du protocole `captation` — `bytes=N-`, `bytes=-N`, plusieurs plages, une plage
+  au-delà de la fin (416) — tranche 5 : les tests du gestionnaire, sur chaque forme, et une empreinte inconnue,
+  refusée
+- `pannes`, l'injection de la tranche 1 — elle ne coupe qu'aux étapes que nomme `Etape` (voisin écrit, `sync_all`,
+  renommage, `rendre_durable`, retrait, `save`, relecture, réception), et un voisin s'écrit en un seul `write_all` ;
+  une copie en flux écrit par tronçons, l'empreinte calculée en chemin — tranches 5 et 6 : I14 et le test 4 rejoués
+  sur la copie en flux, une coupure après un tronçon écrit comprise, puis la reprise au démarrage
+- `cargo test -- --ignored` — une étape dont aucun test ne passe le filtre sort en 0 (« 0 passed ») — tranche 2
+  (tâche 18) : l'étape du fonds de mesure, dont la PR recopie la mesure imprimée (`--nocapture`) ; tranche 5 : le test
+  13 entier, qui échoue au-delà de 4,5 Mo
+- `f64::sin`, que le jeu factice n'appelle jamais, et les fonctions de `f64` qui passent comme lui par la
+  bibliothèque mathématique de la plateforme (`cos`, `sin_cos`, `tan`, `powf`, `exp`) — leur résultat peut différer
+  d'un bit entre Linux et Windows ; un test d'empreintes ne le voit que si les deux bibliothèques diffèrent sur les
+  valeurs calculées, et ne dit rien d'une autre plateforme ni d'une autre chaîne — tranche 7 : un contrôle statique du
+  module du jeu factice, qui refuse `sin(`, `cos(`, `sin_cos(`, `tan(`, `powf(` et `exp(`, en méthode comme en chemin
+  (`x.sin()`, `f64::sin(x)`), avec une plantation de chaque forme, refusée ; à côté, le test de `stockage`, lancé par
+  `verifier` et `windows`, qui compare les empreintes des captations du jeu factice à celles qu'il écrit, garde le
+  résultat, aux mêmes octets, sur ces deux plateformes seulement
+- `HashMap` et `HashSet` de std, sous leur hacheur par défaut (`RandomState`) — `new()`, `default()` et `collect()`
+  tirent leur graine du système sans qu'aucun mot de l'aléa ne paraisse : l'ordre d'itération change d'un passage à
+  l'autre, et une règle qui en dépendrait ne serait plus déterministe — tranche 2 (tâche 17) : les contrôles du noyau
+  et de `services` refusent `HashMap`, `HashSet` et `RandomState` (`BTreeMap` et `BTreeSet` admis), et
+  `chaque_controle_refuse_ce_qu_on_y_plante` y plante un `HashMap::new()`, refusé ; ils restent permis dans les tests,
+  hors de `src/` (`crates/noyau/tests/guitare.rs:1` s'en sert), et dans les autres crates, où le contrôle d'I30
+  (tranche 3) ne les cherche pas : limite que la PR de la tranche 2 dit
+- la recherche en sous-chaîne des contrôles statiques de la tranche 2 (le noyau, `services`, I28) — un import groupé
+  (`use std::{fs, path::Path};`) laisse `fs::read` sans `std::fs` ; un mot interdit cité dans un commentaire ou une
+  chaîne la fait échouer ; `.insert(` est aussi celui d'un `BTreeSet` — tranche 2 (tâche 17) :
+  `chaque_controle_refuse_ce_qu_on_y_plante`, qui y plante un import groupé, les chemins courts (`fs::`, `env::`…)
+  cherchés aussi ; le contrôle d'I28 cherche `Transactable` et `automerge::transaction`, non `.insert(`
+- `std::fs::read_dir`, par où chaque contrôle statique lit ses sources — un dossier vide, ou qui ne se lit pas,
+  laisserait passer le contrôle sans rien lire — tranche 2 (tâche 17) : `assert!(!sources.is_empty(), …)` dans
+  chaque contrôle, puis de même dans ceux des tranches 3 et 6
+- `proptest` — un cas qui échoue ne se rejoue pas à l'identique : chaque ouverture tire l'acteur d'Automerge au
+  hasard, hors de la graine ; sa réduction, sans borne utile par défaut, peut passer le délai du job — tranche 2
+  (tâche 15) : `trois_repliques_convergent`, seize cas, la réduction bornée (`max_shrink_iters`, `max_shrink_time`),
+  aucun fichier de régression suivi, le commentaire du test disant qu'un échec se rejoue sans garantie (I10, test 3)
+- `get` d'Automerge — d'une clé que deux répliques ont changée, il ne présente qu'une valeur, et tait l'autre —
+  tranche 2 (tâche 15) : `un_texte_change_des_deux_cotes_garde_ses_deux_valeurs`, qui lit les deux par `get_all`
+- `put` d'Automerge — sur une clé en conflit, il écrit et ôte les autres valeurs ; la même valeur posée sur deux
+  répliques en fait deux, qu'Automerge ne fusionne pas — tranche 2 (tâche 15) :
+  `l_inverse_d_un_texte_en_conflit_rend_la_valeur_presentee`, `une_etiquette_posee_des_deux_cotes_n_en_fait_qu_une`
+  et `une_prise_nee_sur_deux_repliques_ne_cache_aucun_de_ses_faits`
+- `commit_with` d'Automerge — une transaction dont aucun changement ne change rien rend `None`, sans modification ni
+  message, et `Document::ecrire` rend alors `Ok(None)`, le message perdu
+  (`crates/stockage/src/documents.rs:264-267`) — tranche 2 (tâche 4) : `une_operation_sans_effet_est_inapplicable`
+- le contrôle statique de l'aléa, une recherche en sous-chaîne — Automerge tire aussi un acteur au hasard sans que
+  `random` paraisse : `Automerge::new()`, `fork()`, `fork_at` et `load` (automerge 0.12.0) ; le stockage les appelle
+  (`crates/stockage/src/documents.rs:696`, `:766`, `:854` et `:1046`, d'où naît le fonds ; `:945` ; `:507` ; `:307`,
+  `:758`, `:762` ; `crates/stockage/src/demarrage.rs:103`), et `services` lira des octets par `Automerge::load` dès
+  la tranche 2 — tranche 3 : le contrôle d'I30, qui range ces appels avec `ActorId::random()` dans l'exception de
+  l'acteur d'Automerge, et sa plantation d'un `Automerge::new()` et d'un `.fork()` dans un module hors de
+  l'exception, refusée (décision 10)
+- le contrôle statique d'I30, « ni chemin deviné » — le module de tests d'une crate peut vivre dans `src/` : celui
+  d'`etabli` prend son dossier jetable par `std::env::temp_dir()` (`app/src-tauri/src/lib.rs:170`) ; un import
+  groupé (`use std::{env, path::Path};`) laisse `env::temp_dir()` sans `std::env` — tranche 3 : le contrôle, qui
+  n'admet que la fonction de dossier jetable de chaque crate et cherche aussi les chemins courts (`env::`), et ses
+  plantations d'un second `temp_dir()` dans le code et d'un import groupé, refusées
+- le contrôle statique de l'interface — un stockage du navigateur s'atteint aussi par `Reflect::get` d'un nom écrit en
+  chaîne, comme l'interface atteint `__TAURI__` (`app/ui/src/export.rs:52`) ; un `inner_html` ne dit pas d'où vient
+  son texte — tranche 3 : le contrôle, qui cherche le nom en chaîne comme l'appel de `web_sys`, et n'admet
+  `inner_html` qu'aux deux lieux du SVG du noyau, avec une plantation de chaque forme
+- `app.package_info().version` et `CARGO_PKG_VERSION` — avant la clôture, l'un et l'autre valent `0.0.0` : un test ne
+  distingue pas lequel le `LISEZMOI.md` a lu — tranche 6 : le test du `LISEZMOI.md`, qui reçoit la version en
+  argument, une valeur que ni l'un ni l'autre ne porte, et le contrôle statique qui refuse `CARGO_PKG_VERSION`
+- `verif-faits.mjs`, point 8 — un critère livré que la PR n'inscrit pas au § 70 · 4.1 n'est pas lu, ni le calcul de
+  son exemple — aucun test ne le peut, limite de la porte que la PR dit : la revue de chaque PR compare le tableau aux
+  critères que la tranche dit livrer, et lit le calcul de chaque exemple (contraintes générales)
+- `verif-faits.mjs`, point 8 (`fonctionsNommeesCritere`) — un `#[test]` sous `#[cfg(windows)]`, ou dans une crate
+  qu'aucun job ne teste encore, compte comme un test qui tourne ; seuls `#[ignore]` et un `#[cfg_attr(…, ignore)]`
+  l'écartent, ce dernier même quand le test tourne dans `verifier` — le test « fonctionsNommeesCritere relève les
+  fonctions nommées d'après un critère, et leurs attributs » (`scripts/verif-faits.test.mjs`), qui lit
+  `cap06_15_ignore_sous_windows`, sous `#[cfg_attr(windows, ignore = …)]`, comme écarté ; pour `#[cfg(windows)]` et
+  la crate sans job, aucun test, limite que la PR dit : la revue de chaque PR lit dans quel job tourne le test de
+  chaque critère inscrit, contre le job que nomme le critère de sortie
+- `git grep -n -i -w`, la recherche de LE-2 — `-i` ne replie pas les accents, et `-w` prend une lettre accentuée pour
+  une borne de mot (« tri » trouvé dans « trié ») — aucun test ne le peut, limite que la PR dit : la revue de chaque
+  PR qui ajoute un mot au glossaire relit la recherche citée, faite aussi sans accent et sur la majuscule accentuée
+
+## Revues
+
+- la revue de chaque plan de tranche, par une session neuve : Tranche 1, Tranche 2, Tranche 3, Tranche 4, Tranche 5, Tranche 6, Tranche 7, Tranche 8
+- la revue de chaque tâche, dans le plan de sa tranche : Tranche 1, Tranche 2, Tranche 3, Tranche 4, Tranche 5, Tranche 6, Tranche 7, Tranche 8
+- la revue finale du lot et la relecture de ses corrections : Tranche 8
 
 ## Les tranches
 
@@ -461,9 +858,9 @@ Linux et sous Windows ; les délais dans la PR. **PR :** (a) la démonstration e
 mesure en démonstration et la durée d'une recherche. **Documents :** § 31 · 1 ; § 40 · 7.5 ; `CONVENTIONS.md`
 (délais).
 
-### Tranche 8 · la revue finale et la clôture
+### Tranche 8 · la revue finale
 
-**But :** éprouver le lot dans l'application installée, puis le clore avant la première donnée réelle.
+**But :** éprouver le lot dans l'application installée.
 
 **Elle livre :**
 - La PR de revue finale. 👤 La maîtrise d'ouvrage passe sur l'installateur les contrôles à l'œil que le § 70 · 7
@@ -477,6 +874,17 @@ mesure en démonstration et la durée d'une recherche. **Documents :** § 31 · 
   de vérifier « le même journal » ; AM-3 se clôt s'il ne l'est pas. La revue vérifie qu'il ne reste ni mot périmé
   par le lot (`"csp": null`, `default.json`, « à relire »), ni second sens d'un mot ajouté au glossaire (LE-2,
   LE-3) ; le § 70 · 8 et `CONVENTIONS.md` disent ce que chaque porte refuse.
+
+**Elle dépend des** tranches 1 à 7. **Critères de sortie :** chaque passage à l'œil consigné au tableau des relevés
+du § 70 · 7, avec la façon de vérifier « le même journal » ; AM-3 clos ; aucun mot périmé par le lot, ni second sens
+d'un mot ajouté au glossaire ; les corrections de la revue relues ; `verif-liens.mjs` et `verif-faits.mjs` verts.
+**Documents :** § 70 · 7 et 8 ; `CONVENTIONS.md`.
+
+### Tranche 9 · la clôture
+
+**But :** clore le lot avant la première donnée réelle.
+
+**Elle livre :**
 - La PR de clôture : `app.pupitre` et la version `0.3.0`, dans `tauri.conf.json` seul, les `Cargo.toml` gardant
   `0.0.0` (§ 40 · 8), `app.pupitre.etabli` cherché dans tout le dépôt ; l'étape du gel (décision 16) ; le § 40 · 9
   nomme `verifier` et `windows` pour H07 (mineur d'H07) ; ce plan, les plans de tranche et celui d'H07 retirés, une
@@ -489,10 +897,10 @@ mesure en démonstration et la durée d'une recherche. **Documents :** § 31 · 
 - 👤 L'étiquette `v0.3.0`, par la maîtrise d'ouvrage, après la fusion de la clôture. Avant elle, aucune construction
   ne reçoit de donnée réelle.
 
-**Elle dépend des** tranches 1 à 7. **Critères de sortie :** l'issue se clôt avec la PR de clôture ; sur une branche
+**Elle dépend des** tranches 1 à 8. **Critères de sortie :** l'issue se clôt avec la PR de clôture ; sur une branche
 jetable, une PR d'essai qui change une référence du gel est refusée, et une qui n'ajoute qu'une ligne passe ;
-`verif-liens.mjs` et `verif-faits.mjs` verts. **Documents :** § 70 · 7 et 8 ; § 40 · 9 ; `CONVENTIONS.md` ;
-`CLAUDE.md` ; README.
+`verif-liens.mjs` et `verif-faits.mjs` verts. **Documents :** § 70 · 7 (le relevé de l'installation) ; § 31 · 10 (le
+test 11, le gel) ; § 70 · 8 (la porte du gel) ; § 40 · 9 ; `CONVENTIONS.md` (l'étape du gel) ; `CLAUDE.md` ; README.
 
 ---
 
@@ -510,7 +918,7 @@ jetable, une PR d'essai qui change une référence du gel est refusée, et une q
 
 Le reste d'H07 : **LE-10** et **la décision 8 de son plan**, en tranche 1 ; **les trois mineurs de sa revue
 finale** : le fichier reçu en tranche 1, le `fork()` d'`est_absorbe` en tranche 5, la phrase du § 40 · 9 en
-tranche 8 ; **les aides de tests recopiées**, en tranche 1.
+tranche 9 ; **les aides de tests recopiées**, en tranche 1.
 
 ---
 
@@ -600,7 +1008,7 @@ Le plan est retiré à la clôture du lot. Ce qu'il décide s'écrit avant, par 
 | La liste des noms dans `commandes`, la CSP et les droits | § 40 · 7.5 | 3 |
 | Le module `systeme`, seul endroit qui reçoit les chemins du système ; I30 et les garde-fous | § 70 · 3 et 8 ; `CONVENTIONS.md` | 3 |
 | Le mode démonstration par argument | § 31 · 1 | 7 |
-| Le gel | § 31 · 10 (test 11) ; `CONVENTIONS.md` (`verifier`) | 8 |
-| Les relevés à l'œil, et la façon de vérifier « le même journal » | § 70 · 7 | 3, 8 |
-| Les reports aux lots 2 à 4 qui n'y sont pas encore | § 40 · 9, « Avant chacun des lots suivants » | 8 |
-| Les reports à INC-2 et au-delà qui n'y sont pas encore | `docs/pistes.md`, une piste par report, avec son incrément et sa raison ; pour PRO-02 · 6, que cite l'ADR-024, une phrase de plus au § 40 · 9 (INC-1, « Il ne contient pas ») : il s'éprouve en INC-2 | 8 |
+| Le gel | § 31 · 10 (test 11) ; `CONVENTIONS.md` (`verifier`) | 9 |
+| Les relevés à l'œil, et la façon de vérifier « le même journal » | § 70 · 7 | 3, 8, 9 |
+| Les reports aux lots 2 à 4 qui n'y sont pas encore | § 40 · 9, « Avant chacun des lots suivants » | 9 |
+| Les reports à INC-2 et au-delà qui n'y sont pas encore | `docs/pistes.md`, une piste par report, avec son incrément et sa raison ; pour PRO-02 · 6, que cite l'ADR-024, une phrase de plus au § 40 · 9 (INC-1, « Il ne contient pas ») : il s'éprouve en INC-2 | 9 |

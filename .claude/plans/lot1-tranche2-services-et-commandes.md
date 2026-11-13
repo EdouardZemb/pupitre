@@ -131,7 +131,7 @@ clôt.
 | Éc-20. Trois répliques dans un ordre aléatoire | Réunions tirées, puis une réunion finale A–B, B–C, A–B | 15 |
 | Éc-21. « La même étiquette » | Octet pour octet, sans normalisation ; le § 31 · 2 le dit ; question 7 (le choix contraire ne se rattraperait pas sans migration après la `v0.3.0`) | 10, 13 |
 | Éc-22. Une note au texte vide | Refusée ; question 1 | 2 |
-| Éc-23. La décision 16 | Hors tranche 2 (tranche 8) | — |
+| Éc-23. La décision 16 | Hors tranche 2 (tranche 9) | — |
 | Éc-24. « 40 Go » | Hors tranche 2 (tranches 5, 6) | — |
 
 Les tensions que le relevé des exigences a trouvées, et leur sort :
