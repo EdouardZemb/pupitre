@@ -38,8 +38,10 @@ impl DocumentsEnMemoire {
     }
 
     /// Ouvre les octets d'un fonds selon `migrations` : `version::lecture(version_de_schema, connue)`
-    /// décide ; `Lecture::Migrer` applique `a_appliquer` par `application::migrer` ;
-    /// `Lecture::LireSansEcrire` met en lecture seule (`Raison::VersionPlusRecente { version }`) ;
+    /// décide ; `Lecture::Migrer` applique `a_appliquer` par `application::migrer`, et une
+    /// migration refusée, qui n'a pas fait migrer le fonds, met en lecture seule
+    /// (`Raison::Illisible`) ; `Lecture::LireSansEcrire` met en lecture seule
+    /// (`Raison::VersionPlusRecente { version }`, ou `Raison::Illisible` sans version lue) ;
     /// `Lecture::Illisible` aussi (`Raison::Illisible`). Des octets qu'`Automerge::load` refuse :
     /// `Err`, `Raison::Illisible`.
     pub fn de(octets: &[u8], migrations: &[Migration<'_>]) -> Result<Self, Refus> {
@@ -49,17 +51,20 @@ impl DocumentsEnMemoire {
             Lecture::Ecrire => None,
             Lecture::Migrer { de, .. } => {
                 let a_appliquer = version::a_appliquer(migrations, de);
-                application::migrer(&mut automerge, a_appliquer).map_err(refus_illisible)?;
-                None
+                application::migrer(&mut automerge, a_appliquer)
+                    .err()
+                    .map(refus_illisible)
             }
-            Lecture::LireSansEcrire => lue.map(|version| Refus {
-                raison: Raison::VersionPlusRecente { version },
-                message: VERSION_PLUS_RECENTE.to_string(),
+            // `version::lecture` ne rend `LireSansEcrire` que d'une version lue ; sans elle, le
+            // fonds n'écrit pas non plus.
+            Lecture::LireSansEcrire => Some(match lue {
+                Some(version) => Refus {
+                    raison: Raison::VersionPlusRecente { version },
+                    message: VERSION_PLUS_RECENTE.to_string(),
+                },
+                None => version_illisible(),
             }),
-            Lecture::Illisible => Some(Refus {
-                raison: Raison::Illisible,
-                message: VERSION_ILLISIBLE.to_string(),
-            }),
+            Lecture::Illisible => Some(version_illisible()),
         };
         Ok(DocumentsEnMemoire {
             automerge: Some(automerge),
@@ -148,6 +153,14 @@ fn refus_illisible(erreur: AutomergeError) -> Refus {
     Refus {
         raison: Raison::Illisible,
         message: format!("{erreur:?}"),
+    }
+}
+
+/// Le refus d'un fonds dont la version de schéma ne se lit pas : `Raison::Illisible`.
+fn version_illisible() -> Refus {
+    Refus {
+        raison: Raison::Illisible,
+        message: VERSION_ILLISIBLE.to_string(),
     }
 }
 

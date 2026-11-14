@@ -63,13 +63,21 @@ pub fn faire_naitre(naissance: &Operation, geste: &Operation) -> Result<Automerg
 }
 
 /// Les octets de chaque migration (`Change::try_from`, puis `apply_changes`), dans l'ordre de
-/// `a_appliquer`.
+/// `a_appliquer`. `apply_changes` garde en attente, sans erreur, une modification dont une
+/// dépendance manque au document, comme une migration bâtie sur une autre genèse : une
+/// modification encore en attente après lui (`get_missing_deps(&[])` non vide) rend
+/// `AutomergeError::MissingDeps`, et le document n'a pas migré.
 pub fn migrer(doc: &mut Automerge, a_appliquer: &[Migration<'_>]) -> Result<(), AutomergeError> {
     let modifications = a_appliquer
         .iter()
         .map(|migration| Change::try_from(migration.octets))
         .collect::<Result<Vec<_>, _>>()?;
-    doc.apply_changes(modifications)
+    doc.apply_changes(modifications)?;
+    if doc.get_missing_deps(&[]).is_empty() {
+        Ok(())
+    } else {
+        Err(AutomergeError::MissingDeps)
+    }
 }
 
 /// `changement`, dans la transaction `tx` : `Poser` par `put`, `Creer` par `put_object`, un objet
