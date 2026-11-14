@@ -96,7 +96,11 @@ fn cap02_7_deux_liens_poses_en_sens_contraires_n_en_font_qu_un() {
             .automerge();
         let liens = commun::objet(fonds, &ROOT, LIENS);
         let cles: Vec<String> = fonds.keys(&liens).collect();
-        assert_eq!(cles, [cle.clone()], "les clés des liens de la {nom} copie");
+        assert_eq!(
+            cles,
+            vec![cle.clone()],
+            "les clés des liens de la {nom} copie"
+        );
         let valeurs: Vec<Option<bool>> = fonds
             .get_all(&liens, cle.as_str())
             .expect("lire le lien")
