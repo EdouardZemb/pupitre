@@ -151,12 +151,12 @@ impl Captations for CaptationsEnMemoire {
     }
 }
 
-/// Le refus d'octets qu'Automerge ne charge pas : `Raison::Illisible`, son message le `Debug` de
-/// l'erreur.
-fn refus_illisible(erreur: AutomergeError) -> Refus {
+/// Le refus d'octets qu'Automerge ne charge pas : `Raison::Illisible`, son message un constat,
+/// sans le texte de l'erreur d'Automerge.
+fn refus_illisible(_: AutomergeError) -> Refus {
     Refus {
         raison: Raison::Illisible,
-        message: format!("{erreur:?}"),
+        message: "Le document ne se lit pas.".to_string(),
     }
 }
 
@@ -177,11 +177,11 @@ fn migration_refusee() -> Refus {
     }
 }
 
-/// Le refus d'une opération inapplicable : `Raison::Impossible`, son message le `Debug` de
-/// l'erreur.
+/// Le refus d'une opération inapplicable : `Raison::Impossible`, son message le texte de
+/// l'erreur, celui que rend aussi la paire sur fichiers.
 fn refus_inapplicable(erreur: Inapplicable) -> Refus {
     Refus {
         raison: Raison::Impossible,
-        message: format!("{erreur:?}"),
+        message: erreur.to_string(),
     }
 }

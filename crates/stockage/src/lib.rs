@@ -21,8 +21,9 @@ pub mod pannes;
 mod pannes;
 mod racine_des_donnees;
 
+use std::fmt;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use automerge::AutomergeError;
 use noyau::donnees::acces::Acces;
@@ -36,8 +37,9 @@ pub use noyau::donnees::identifiants::empreinte;
 pub use racine_des_donnees::RacineDesDonnees;
 pub use services::lecture::teneur;
 
-/// Ce que le stockage refuse, ou ce que le disque lui refuse. Le texte en français de chaque
-/// cas vient avec les commandes, au lot 1.
+/// Ce que le stockage refuse, ou ce que le disque lui refuse. Son texte (`Display`) le dit en
+/// français, par un constat, jamais par un ordre (§ 50 · 5) ; chaque chemin s'y écrit par ses
+/// composants joints par `/`, et le texte d'une erreur du système ou d'Automerge n'y paraît pas.
 #[derive(Debug)]
 pub enum Erreur {
     /// `TryLockError::WouldBlock` : un autre processus tient la racine des données.
@@ -173,4 +175,197 @@ pub(crate) fn disque(chemin: &Path, erreur: io::Error) -> Erreur {
         chemin: chemin.to_path_buf(),
         erreur,
     }
+}
+
+impl fmt::Display for Erreur {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.ecrire(f, None)
+    }
+}
+
+impl fmt::Display for LectureSeule {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.ecrire(f, None)
+    }
+}
+
+impl fmt::Display for Avertissement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.ecrire(f, None)
+    }
+}
+
+/// `Relatif(valeur, racine)` : le texte de `valeur`, une erreur ou un avertissement du stockage,
+/// chaque chemin qu'elle porte dit relatif à `racine`, le chemin de la racine des données, quand
+/// il commence par lui (`Path::strip_prefix`). L'adaptateur sur fichiers, qui connaît la racine
+/// des données, en forme le message d'un refus ou d'un avertissement : le fichier s'y nomme
+/// `documents/fonds/ajouts/<empreinte>.automerge`, sans le chemin de la machine.
+pub(crate) struct Relatif<'a, T>(pub(crate) &'a T, pub(crate) &'a Path);
+
+impl fmt::Display for Relatif<'_, Erreur> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.ecrire(f, Some(self.1))
+    }
+}
+
+impl fmt::Display for Relatif<'_, Avertissement> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.ecrire(f, Some(self.1))
+    }
+}
+
+impl Erreur {
+    /// Le texte de l'erreur, chaque chemin dit relatif à `racine`, s'il en est une.
+    fn ecrire(&self, f: &mut fmt::Formatter<'_>, racine: Option<&Path>) -> fmt::Result {
+        match self {
+            Erreur::RacineDesDonneesTenue => {
+                f.write_str("Un autre processus tient la racine des données.")
+            }
+            Erreur::Disque { chemin, erreur } => {
+                let sujet = chemin_dit(chemin, racine);
+                write!(f, "{}.", constat_du_disque(&sujet, erreur.kind()))
+            }
+            Erreur::CaptationAlteree { empreinte } => write!(
+                f,
+                "Le contenu relu de la captation {empreinte} ne donne pas son empreinte."
+            ),
+            Erreur::CaptationAbsente { empreinte } => {
+                write!(f, "Aucune captation ne porte l'empreinte {empreinte}.")
+            }
+            Erreur::FondsDejaOuvert => f.write_str("Le fonds est déjà ouvert dans ce processus."),
+            Erreur::FondsDejaNe => f.write_str("Le fonds est déjà né : il ne naît qu'une fois."),
+            Erreur::Automerge(_) => {
+                f.write_str("Le document a refusé ce geste, ou sa racine ne se lit pas.")
+            }
+            Erreur::LectureSeule(lecture_seule) => lecture_seule.ecrire(f, racine),
+            Erreur::CompactionInfidele => f.write_str(
+                "Le fichier complet de la compaction, relu, ne mène pas au document en mémoire : \
+                 aucun fichier d'ajout n'est retiré.",
+            ),
+            Erreur::ChampAbsent { champ } => write!(
+                f,
+                "La racine du document ne porte pas de chaîne sous « {champ} » : la copie ne se \
+                 situe pas."
+            ),
+            Erreur::Synchro(erreur) => write!(f, "{erreur}"),
+            Erreur::Inapplicable(inapplicable) => write!(f, "{inapplicable}"),
+        }
+    }
+}
+
+impl LectureSeule {
+    /// Le texte de la raison, chaque chemin dit relatif à `racine`, s'il en est une.
+    fn ecrire(&self, f: &mut fmt::Formatter<'_>, racine: Option<&Path>) -> fmt::Result {
+        match self {
+            LectureSeule::RelectureManquee { chemin } => write!(
+                f,
+                "La relecture de {}, après une écriture refusée, a échoué : le document montre \
+                 ce qu'il était avant elle, et se lit sans écrire ni échanger.",
+                chemin_dit(chemin, racine)
+            ),
+            LectureSeule::AjoutAltere { chemin } => write!(
+                f,
+                "Le contenu de {} ne donne pas l'empreinte que porte son nom : il n'est pas \
+                 chargé, et le document se lit sans écrire ni échanger.",
+                chemin_dit(chemin, racine)
+            ),
+            LectureSeule::AjoutIllisible { chemin } => write!(
+                f,
+                "{} donne l'empreinte de son nom, mais ne se charge pas : le document se lit \
+                 sans lui, sans écrire ni échanger.",
+                chemin_dit(chemin, racine)
+            ),
+            LectureSeule::CompletIllisible { chemin } => write!(
+                f,
+                "{} ne se lit pas en entier : le document montre ce qui s'en lit, sans écrire ni \
+                 échanger.",
+                chemin_dit(chemin, racine)
+            ),
+            LectureSeule::DependancesManquantes { chemin } => write!(
+                f,
+                "{} attend une modification qu'aucun fichier lu ne porte : un fichier d'ajout \
+                 manque, et le document se lit sans écrire ni échanger.",
+                chemin_dit(chemin, racine)
+            ),
+            LectureSeule::VersionPlusRecente { .. } => f.write_str(
+                "Ce fonds vient d'une version plus récente de Pupitre ; celle-ci le lit sans y \
+                 écrire.",
+            ),
+            LectureSeule::VersionIllisible => f.write_str(
+                "La version de schéma du document ne se lit pas : il se lit sans écrire ni \
+                 échanger.",
+            ),
+            LectureSeule::MigrationRefusee => f.write_str(
+                "Une migration de ce fonds ne s'applique pas : il se lit sans écrire ni échanger.",
+            ),
+        }
+    }
+}
+
+impl Avertissement {
+    /// Le texte de l'avertissement, chaque chemin dit relatif à `racine`, s'il en est une.
+    fn ecrire(&self, f: &mut fmt::Formatter<'_>, racine: Option<&Path>) -> fmt::Result {
+        match self {
+            Avertissement::NonDurable { chemin, .. } => write!(
+                f,
+                "{} est en place, mais son renommage n'est pas rendu durable.",
+                chemin_dit(chemin, racine)
+            ),
+            Avertissement::Compaction(erreur) => {
+                f.write_str(
+                    "La compaction a échoué, sans rien perdre, et se retente à l'écriture \
+                     suivante : ",
+                )?;
+                erreur.ecrire(f, racine)
+            }
+            Avertissement::VoisinRestant { chemin, .. } => write!(
+                f,
+                "Le voisin {} n'a pas pris la place de son fichier : il se lit où il est, et la \
+                 prend à l'ouverture suivante.",
+                chemin_dit(chemin, racine)
+            ),
+            Avertissement::NomProvisoireRestant { chemin, .. } => write!(
+                f,
+                "{} n'a pas pu se lire, ou prendre le nom de son empreinte : il reste, et \
+                 l'ouverture suivante le relit.",
+                chemin_dit(chemin, racine)
+            ),
+        }
+    }
+}
+
+/// Le constat du disque sur `sujet`, un chemin ou « Le fichier écrit à côté », selon le genre de
+/// son erreur ; le texte de l'erreur, celui du système, n'est jamais recopié. Le constat d'un
+/// autre genre est neutre quant au geste : le disque a pu refuser une lecture, une écriture, une
+/// création, un renommage, un retrait, ou le renommage rendu durable.
+pub(crate) fn constat_du_disque(sujet: &str, genre: io::ErrorKind) -> String {
+    match genre {
+        io::ErrorKind::NotFound => format!("{sujet} est absent"),
+        io::ErrorKind::PermissionDenied => format!("{sujet} est refusé par le système"),
+        io::ErrorKind::StorageFull => format!("{sujet} ne tient plus sur le disque"),
+        io::ErrorKind::InvalidData => format!("{sujet} ne se relit pas tel qu'il a été écrit"),
+        _ => format!("{sujet}, le disque l'a refusé"),
+    }
+}
+
+/// `chemin`, relatif à `racine` s'il en est une et qu'il commence par elle, ses composants joints
+/// par `/` : le même texte sous Linux et sous Windows. La racine du système de fichiers d'un
+/// chemin absolu s'écrit `/`.
+fn chemin_dit(chemin: &Path, racine: Option<&Path>) -> String {
+    let chemin = racine
+        .and_then(|racine| chemin.strip_prefix(racine).ok())
+        .unwrap_or(chemin);
+    let mut texte = String::new();
+    for composant in chemin.components() {
+        match composant {
+            Component::RootDir => texte.push('/'),
+            autre => {
+                if !texte.is_empty() && !texte.ends_with('/') {
+                    texte.push('/');
+                }
+                texte.push_str(&autre.as_os_str().to_string_lossy());
+            }
+        }
+    }
+    texte
 }

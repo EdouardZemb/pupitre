@@ -4,6 +4,8 @@
 //! en une seule modification Automerge, avec son message et son heure, ou ne laisse rien ; la
 //! genèse et les migrations, écrites d'avance, s'appliquent en octets.
 
+use std::fmt;
+
 use automerge::transaction::{CommitOptions, Transactable, Transaction};
 use automerge::{
     Automerge, AutomergeError, Change, ChangeHash, ObjId, ObjType, ROOT, ReadDoc, ScalarValue,
@@ -13,7 +15,8 @@ use noyau::donnees::changement::{Changement, Operation, Simple};
 use noyau::donnees::fonds::GENESE;
 use noyau::donnees::version::Migration;
 
-/// Pourquoi une opération ne s'applique pas ; elle ne laisse alors rien dans le document.
+/// Pourquoi une opération ne s'applique pas ; elle ne laisse alors rien dans le document. Son
+/// texte (`Display`) le dit en français, par un constat, sans recopier celui d'Automerge.
 #[derive(Debug)]
 pub enum Inapplicable {
     /// Un objet que traverse le chemin d'un changement manque, ou n'est pas un objet à clés :
@@ -24,6 +27,20 @@ pub enum Inapplicable {
     Vide,
     /// Automerge a refusé un changement, ou une modification écrite d'avance.
     Automerge(AutomergeError),
+}
+
+impl fmt::Display for Inapplicable {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Inapplicable::ObjetAbsent { chemin } => write!(
+                f,
+                "L'opération vise un objet absent du fonds : {}.",
+                chemin.join("/")
+            ),
+            Inapplicable::Vide => f.write_str("L'opération ne change rien au fonds."),
+            Inapplicable::Automerge(_) => f.write_str("Le document ne se lit pas."),
+        }
+    }
 }
 
 /// Une transaction : chaque changement, dans l'ordre, puis `commit_with(message, heure)`. Un objet

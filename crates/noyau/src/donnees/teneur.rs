@@ -3,7 +3,7 @@
 //! document ; il l'écrit sans l'altérer, octet pour octet, les clés dans l'ordre de leurs octets.
 
 use std::collections::BTreeMap;
-use std::fmt::Write;
+use std::fmt::{self, Write};
 
 use crate::donnees::fonds::{LIGNEE, LIGNEES_REMPLACEES};
 
@@ -42,7 +42,7 @@ pub enum Valeur {
 }
 
 /// Ce que la teneur refuse d'écrire, avec le chemin de la valeur : chaque clé, et l'indice
-/// décimal dans une liste.
+/// décimal dans une liste. Son texte (`Display`) le dit, par un constat, le chemin joint par `/`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ErreurDeTeneur {
     /// Un flottant qui n'est pas un nombre.
@@ -57,6 +57,24 @@ pub enum ErreurDeTeneur {
         /// Son code de type.
         type_code: u8,
     },
+}
+
+impl fmt::Display for ErreurDeTeneur {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ErreurDeTeneur::NaN { chemin } => write!(
+                f,
+                "La teneur ne s'écrit pas : la valeur {} n'est pas un nombre.",
+                chemin.join("/")
+            ),
+            ErreurDeTeneur::Inconnu { chemin, type_code } => write!(
+                f,
+                "La teneur ne s'écrit pas : la valeur {} est d'un type que cette version de \
+                 Pupitre ne connaît pas (code {type_code}).",
+                chemin.join("/")
+            ),
+        }
+    }
 }
 
 /// Le texte déterministe de la teneur de la racine du document, sans `LIGNEE` ni
