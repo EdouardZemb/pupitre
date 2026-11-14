@@ -26,6 +26,12 @@ impl<'r> Captations<'r> {
     pub(crate) fn de(racine: &'r RacineDesDonnees) -> Captations<'r> {
         Captations { racine }
     }
+
+    /// La racine des données de ces captations : l'adaptateur dit chaque chemin d'un refus
+    /// relatif à elle.
+    pub(crate) fn racine(&self) -> &'r RacineDesDonnees {
+        self.racine
+    }
 }
 
 impl Captations<'_> {

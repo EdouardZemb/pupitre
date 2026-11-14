@@ -8,15 +8,18 @@
 //! versements des captations, le démarrage des documents et le rangement des noms provisoires
 //! passent par elles.
 
+use std::fmt;
 use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use noyau::donnees::demarrage::voisin_libre;
 
+use crate::constat_du_disque;
 use crate::pannes::{self, Etape};
 
-/// Pourquoi une écriture à côté n'est pas faite, ou pas tout à fait.
+/// Pourquoi une écriture à côté n'est pas faite, ou pas tout à fait. Son texte (`Display`) le dit
+/// en français, sans recopier celui de l'erreur du système.
 #[derive(Debug)]
 pub enum Echec {
     /// Avant la fin du renommage : `chemin` garde ce qu'il portait, et le voisin est ôté, vidé
@@ -24,6 +27,21 @@ pub enum Echec {
     Refusee(io::Error),
     /// Après le renommage : le fichier est en place, mais `rendre_durable` a échoué.
     NonDurable(io::Error),
+}
+
+impl fmt::Display for Echec {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Echec::Refusee(erreur) => write!(
+                f,
+                "{} : celui qu'il devait remplacer n'a pas changé.",
+                constat_du_disque("Le fichier écrit à côté", erreur.kind())
+            ),
+            Echec::NonDurable(_) => {
+                f.write_str("Le fichier est en place, mais son renommage n'est pas rendu durable.")
+            }
+        }
+    }
 }
 
 /// Le premier nom libre de `<nom>.<processus>.partiel`, `-2`, `-3`…, dans le dossier de `chemin`,

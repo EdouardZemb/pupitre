@@ -3,6 +3,8 @@
 //! lit aussi les conflits et les relève, selon la règle du noyau (§ 70 · 1). Il n'a aucun
 //! transport : le réseau se branche dessus, ou à côté.
 
+use std::fmt;
+
 use automerge::sync::{ChunkList, Message, State, SyncDoc};
 use automerge::{Automerge, AutomergeError};
 use noyau::donnees::copie::comparer;
@@ -17,7 +19,8 @@ pub struct Echange {
     etat: State,
 }
 
-/// Ce que l'échange refuse.
+/// Ce que l'échange refuse. Son texte (`Display`) le dit en français, sans recopier celui
+/// d'Automerge.
 #[derive(Debug)]
 pub enum Erreur {
     /// Les octets reçus ne se décodent pas en message de synchronisation ; le texte est celui
@@ -25,6 +28,17 @@ pub enum Erreur {
     MessageIllisible(String),
     /// Automerge a refusé ce que le message apporte.
     Automerge(AutomergeError),
+}
+
+impl fmt::Display for Erreur {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Erreur::MessageIllisible(_) => {
+                f.write_str("Le message reçu ne se lit pas : le document n'a pas changé.")
+            }
+            Erreur::Automerge(_) => f.write_str("Le message reçu ne s'applique pas au document."),
+        }
+    }
 }
 
 impl Echange {

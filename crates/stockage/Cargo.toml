@@ -20,7 +20,7 @@ synchro = { path = "../synchro" }
 pannes = []
 
 [dev-dependencies]
-# `services` avec `en-memoire` : le fonds de mesure s'y engendrera sur la paire en mémoire, avant
+# `services` avec `en-memoire` : le fonds de mesure s'y engendre sur la paire en mémoire, avant
 # de se rouvrir sur fichiers ; `commandes` : la suite des commandes, que les tests incluent
 # (`tests/commandes_sur_fichiers.rs`), nomme ses types, et un test ne voit que les dépendances et
 # les dépendances de test du stockage.

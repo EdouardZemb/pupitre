@@ -172,8 +172,9 @@ pub enum Raison {
     Illisible,
     /// Le fonds porte une version de schéma plus récente que celle que connaît l'application.
     /// `version` : la version de schéma du document, que la genèse pose à 1 et que seules les
-    /// migrations font monter, chacune d'un de plus (`noyau::donnees::version::connue` : 1 + le nombre de migrations), et que
-    /// borne donc le nombre de migrations que l'application publiera.
+    /// migrations font monter, chacune d'un de plus (`noyau::donnees::version::connue` : 1 + le
+    /// nombre de migrations), et que borne donc le nombre de migrations que l'application
+    /// publiera.
     VersionPlusRecente { version: u64 },
     /// Le disque a refusé une lecture ou une écriture, ou rend des octets altérés.
     Disque,

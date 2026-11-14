@@ -17,7 +17,7 @@ use crate::{Captations, Documents, Ecriture, Raison, Refus};
 
 /// Le message d'un fonds de version de schéma plus récente que celle que connaît l'application.
 const VERSION_PLUS_RECENTE: &str =
-    "Ce fonds vient d'une version plus récente de Pupitre ; celle-ci le lit sans y écrire.";
+    "Ce fonds vient d'une version plus récente de Pupitre ; cette version-ci le lit sans y écrire.";
 /// Le message d'un fonds dont la version de schéma ne se lit pas.
 const VERSION_ILLISIBLE: &str =
     "La version de schéma du document ne se lit pas : il se lit sans écrire ni échanger.";
@@ -40,14 +40,14 @@ impl DocumentsEnMemoire {
         }
     }
 
-    /// Ouvre les octets d'un fonds selon `migrations` : `version::lecture(version_de_schema, connue)`
-    /// décide ; `Lecture::Migrer` applique `a_appliquer` par `application::migrer`, et une
-    /// migration refusée, qui n'a pas fait migrer le fonds, met en lecture seule
-    /// (`Raison::Illisible`, son message celui d'une migration qui ne s'applique pas, comme
-    /// `LectureSeule::MigrationRefusee` sur fichiers) ; `Lecture::LireSansEcrire` met en lecture seule
-    /// (`Raison::VersionPlusRecente { version }`, ou `Raison::Illisible` sans version lue) ;
-    /// `Lecture::Illisible` aussi (`Raison::Illisible`). Des octets qu'`Automerge::load` refuse :
-    /// `Err`, `Raison::Illisible`.
+    /// Ouvre les octets d'un fonds selon `migrations` :
+    /// `version::lecture(version_de_schema, connue)` décide ; `Lecture::Migrer` applique
+    /// `a_appliquer` par `application::migrer`, et une migration refusée, qui n'a pas fait migrer
+    /// le fonds, met en lecture seule (`Raison::Illisible`, son message celui d'une migration qui
+    /// ne s'applique pas, comme `LectureSeule::MigrationRefusee` sur fichiers) ;
+    /// `Lecture::LireSansEcrire` met en lecture seule (`Raison::VersionPlusRecente { version }`,
+    /// ou `Raison::Illisible` sans version lue) ; `Lecture::Illisible` aussi
+    /// (`Raison::Illisible`). Des octets qu'`Automerge::load` refuse : `Err`, `Raison::Illisible`.
     pub fn de(octets: &[u8], migrations: &[Migration<'_>]) -> Result<Self, Refus> {
         let mut automerge = Automerge::load(octets).map_err(refus_illisible)?;
         let lue = lecture::version_de_schema(&automerge);
@@ -151,12 +151,12 @@ impl Captations for CaptationsEnMemoire {
     }
 }
 
-/// Le refus d'octets qu'Automerge ne charge pas : `Raison::Illisible`, son message le `Debug` de
-/// l'erreur.
-fn refus_illisible(erreur: AutomergeError) -> Refus {
+/// Le refus d'octets qu'Automerge ne charge pas : `Raison::Illisible`, son message un constat,
+/// sans le texte de l'erreur d'Automerge.
+fn refus_illisible(_: AutomergeError) -> Refus {
     Refus {
         raison: Raison::Illisible,
-        message: format!("{erreur:?}"),
+        message: "Le document ne se lit pas.".to_string(),
     }
 }
 
@@ -177,11 +177,11 @@ fn migration_refusee() -> Refus {
     }
 }
 
-/// Le refus d'une opération inapplicable : `Raison::Impossible`, son message le `Debug` de
-/// l'erreur.
+/// Le refus d'une opération inapplicable : `Raison::Impossible`, son message le texte de
+/// l'erreur, celui que rend aussi la paire sur fichiers.
 fn refus_inapplicable(erreur: Inapplicable) -> Refus {
     Refus {
         raison: Raison::Impossible,
-        message: format!("{erreur:?}"),
+        message: erreur.to_string(),
     }
 }

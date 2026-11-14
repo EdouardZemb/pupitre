@@ -4,8 +4,10 @@
 //! l'heure et l'aléa des tests, l'identifiant de l'import des fiches qu'ils versent, la prise de
 //! test, les commandes des gestes de tri, les gestes du témoin du test 11 (§ 31 · 10), que
 //! joue le test des empreintes de référence (`crates/stockage/tests/references.rs`), la
-//! migration de test, les migrations qui la portent, et une migration qui attend ses
-//! dépendances. Le fichier s'inclut par `mod suite;` dans les tests des services, et par
+//! migration de test, les migrations qui la portent, une migration qui attend ses
+//! dépendances, le fonds de chaque geste, et les aides qui refusent ce qu'I28, I01 et les types
+//! interdisent (`une_modification`, `message_connu`, `parcourir`, `parcourir_les_types`). Le
+//! fichier s'inclut par `mod suite;` dans les tests des services, et par
 //! `#[path = "../../services/tests/suite/mod.rs"]` dans ceux du stockage : il ne nomme que ce
 //! que les deux voient, les services, les commandes, le noyau et `automerge`.
 
@@ -15,19 +17,25 @@
 use std::collections::BTreeSet;
 
 use automerge::transaction::{CommitOptions, Transactable};
-use automerge::{ActorId, Automerge, Change, ObjType, ROOT, ReadDoc};
+use automerge::{
+    ActorId, Automerge, Change, ChangeHash, ObjId, ObjType, Prop, ROOT, ReadDoc, ScalarValue, Value,
+};
 use commandes::{
     Captation, Completer, EntreeDuJournal, Etiqueter, Faite, Notee, Noter, Raison, Refus,
     Regrouper, Relier, Reponse, Viser, VueDUneIdee,
 };
 use noyau::donnees::changement::{Changement, Operation, Simple};
 use noyau::donnees::fonds::{
-    ACTEUR_DE_LA_GENESE, GENESE, IDENTIFIANT, LIENS, LIGNEE, PROPRIETAIRE, VERSION_DE_SCHEMA,
+    ACTEUR_DE_LA_GENESE, APPARENTE, CONTENEURS_DE_LA_GENESE, DEPUIS, DUREE, ETIQUETTES, FORMAT,
+    GENESE, IDEE as IDEE_D_UNE_CAPTATION, IDEES, IDENTIFIANT, LE, LIENS, LIGNEE,
+    MESSAGE_DE_LA_GENESE, MESSAGE_DE_LA_NAISSANCE, MIDI_VERSES, PAR, PHOTOS, PRISES, PROPRIETAIRE,
+    PROVENANCE, RETIREE, TEXTE, TEXTES_VERSES, VERSION_DE_SCHEMA,
 };
 use noyau::donnees::gestes;
 use noyau::donnees::idee::cle_du_lien;
 use noyau::donnees::identifiants::empreinte;
 use noyau::donnees::version::{Migration, message_de_la_migration};
+use services::application;
 use services::lecture::{lire_l_idee, teneur, version_de_schema};
 use services::{Alea, Captations, Contexte, Documents, Services, Versee};
 
@@ -39,6 +47,9 @@ pub const LENDEMAIN: i64 = HEURE + 86_400;
 
 /// Les octets de la prise de test.
 pub const PRISE_DE_TEST: &[u8] = b"une prise de test";
+
+/// Les octets de la prise que verse le témoin (`temoin`).
+pub const PRISE_DU_TEMOIN: &[u8] = b"une prise du temoin";
 
 /// L'identifiant de l'import d'où viennent les fiches que versent les tests :
 /// `ulid(HEURE, [0xFF; 10])`.
@@ -285,63 +296,148 @@ fn verser_sans_avertissement<D: Documents, C: Captations>(
     versee.empreinte
 }
 
-/// Les gestes du témoin du test 11 (§ 31 · 10), écrits une seule fois, à l'heure et sous l'aléa
-/// de `contexte`, au décalage local nul, chacun fait sans avertissement : noter « Un refrain qui
-/// monte, en ré », A, qui fait naître le fonds s'il n'est pas né ; poser `refrain` sur A ; noter
-/// « Un pont en mi mineur », B ; relier A et B ; verser une prise WAV de 30 000 ms, un MIDI
-/// `smf1`, puis un texte `brut`, chacun importé (`importee`), sous l'idée qui naît avec lui ;
-/// regrouper le MIDI dans A, ce qui retire l'idée née avec lui.
+/// Les gestes du témoin du test 11 (§ 31 · 10), écrits une seule fois (`temoin_suivi`, que le
+/// témoin joue ici sans suivi), à l'heure et sous l'aléa de `contexte`, au décalage local nul,
+/// chacun fait sans avertissement : noter « Un refrain qui monte, en ré », A, qui fait naître le
+/// fonds s'il n'est pas né ; poser `refrain` sur A ; noter « Un pont en mi mineur », B ; relier A
+/// et B ; verser une prise WAV de 30 000 ms (`PRISE_DU_TEMOIN`), un MIDI `smf1`, puis un texte
+/// `brut`, chacun importé (`importee`), sous l'idée qui naît avec lui ; regrouper le MIDI dans A,
+/// ce qui retire l'idée née avec lui.
 pub fn temoin<D: Documents, C: Captations>(
     services: &mut Services<D, C>,
     contexte: &mut Contexte<'_>,
 ) {
-    let fait = Ok(Faite {
-        avertissement: None,
-    });
-    let a = services
-        .noter(&une_note("Un refrain qui monte, en ré"), contexte)
-        .expect("le témoin note A");
+    temoin_suivi(services, contexte, &mut |_, _, _| {});
+}
+
+/// Ce que reçoit le suivi des commandes, après chacune (`suivre`) : le fonds, ses heads d'avant
+/// la commande, aucune avant celle qui le fait naître, et le message attendu, celui que doit rendre
+/// le noyau.
+pub type Suivi<'s> = dyn FnMut(&Automerge, &[ChangeHash], &str) + 's;
+
+/// Fait `commande` sur `services`, puis montre à `suivi` le fonds, qui doit être né, ses heads
+/// d'avant la commande, et `message`, le message attendu, celui que doit rendre le noyau. Rend ce
+/// que rend la commande.
+fn suivre<D: Documents, C: Captations, R>(
+    services: &mut Services<D, C>,
+    suivi: &mut Suivi<'_>,
+    message: &str,
+    commande: impl FnOnce(&mut Services<D, C>) -> R,
+) -> R {
+    let avant = services
+        .documents()
+        .fonds()
+        .map(Automerge::get_heads)
+        .unwrap_or_default();
+    let rendu = commande(services);
+    suivi(
+        services.documents().fonds().expect("le fonds est né"),
+        avant.as_slice(),
+        message,
+    );
+    rendu
+}
+
+/// `suivre`, pour un geste de tri ou une annulation, qui doit être fait sans avertissement.
+fn faire_sans_avertissement<D: Documents, C: Captations>(
+    services: &mut Services<D, C>,
+    suivi: &mut Suivi<'_>,
+    message: &str,
+    commande: impl FnOnce(&mut Services<D, C>) -> Reponse<Faite>,
+) {
+    let rendu = suivre(services, suivi, message, commande);
+    assert_eq!(
+        rendu,
+        Ok(Faite {
+            avertissement: None
+        }),
+        "« {message} »"
+    );
+}
+
+/// Les gestes du témoin (`temoin`), chacun montré à `suivi` (`suivre`), avec le message que rend
+/// le noyau : chaque idée du témoin naît à l'heure du contexte, dont ce message dit le jour.
+fn temoin_suivi<D: Documents, C: Captations>(
+    services: &mut Services<D, C>,
+    contexte: &mut Contexte<'_>,
+    suivi: &mut Suivi<'_>,
+) {
+    let jour = gestes::date_du_message(contexte.heure, 0);
+    let a = suivre(
+        services,
+        suivi,
+        &format!("Idée du {jour} notée"),
+        |services| services.noter(&une_note("Un refrain qui monte, en ré"), contexte),
+    )
+    .expect("le témoin note A");
     assert_eq!(a.avertissement, None, "la note A du témoin");
-    assert_eq!(
-        services.poser_une_etiquette(&etiquetage(&a.idee, "refrain"), contexte),
-        fait,
-        "l'étiquette du témoin"
+    faire_sans_avertissement(
+        services,
+        suivi,
+        &format!("Idée du {jour} : étiquette #refrain posée"),
+        |services| services.poser_une_etiquette(&etiquetage(&a.idee, "refrain"), contexte),
     );
-    let b = services
-        .noter(&une_note("Un pont en mi mineur"), contexte)
-        .expect("le témoin note B");
+    let b = suivre(
+        services,
+        suivi,
+        &format!("Idée du {jour} notée"),
+        |services| services.noter(&une_note("Un pont en mi mineur"), contexte),
+    )
+    .expect("le témoin note B");
     assert_eq!(b.avertissement, None, "la note B du témoin");
-    assert_eq!(
-        services.relier(&lien(&a.idee, &b.idee), contexte),
-        fait,
-        "le lien du témoin"
-    );
-    verser_sans_avertissement(
+    faire_sans_avertissement(
         services,
-        gestes::Sorte::Prise,
-        b"une prise du temoin",
-        &fiche_wav(30_000),
-        contexte,
+        suivi,
+        &format!("Idée du {jour} reliée à l'idée du {jour}"),
+        |services| services.relier(&lien(&a.idee, &b.idee), contexte),
     );
-    let midi = verser_sans_avertissement(
+    suivre(
         services,
-        gestes::Sorte::MidiVerseSeul,
-        b"un midi du temoin",
-        &gestes::Fiche {
-            format: "smf1".to_string(),
-            duree_ms: None,
+        suivi,
+        &format!("Idée du {jour} : prise versée"),
+        |services| {
+            verser_sans_avertissement(
+                services,
+                gestes::Sorte::Prise,
+                PRISE_DU_TEMOIN,
+                &fiche_wav(30_000),
+                contexte,
+            )
         },
-        contexte,
     );
-    verser_sans_avertissement(
+    let midi = suivre(
         services,
-        gestes::Sorte::TexteVerse,
-        b"un texte du temoin",
-        &gestes::Fiche {
-            format: "brut".to_string(),
-            duree_ms: None,
+        suivi,
+        &format!("Idée du {jour} : MIDI versé"),
+        |services| {
+            verser_sans_avertissement(
+                services,
+                gestes::Sorte::MidiVerseSeul,
+                b"un midi du temoin",
+                &gestes::Fiche {
+                    format: "smf1".to_string(),
+                    duree_ms: None,
+                },
+                contexte,
+            )
         },
-        contexte,
+    );
+    suivre(
+        services,
+        suivi,
+        &format!("Idée du {jour} : texte versé"),
+        |services| {
+            verser_sans_avertissement(
+                services,
+                gestes::Sorte::TexteVerse,
+                b"un texte du temoin",
+                &gestes::Fiche {
+                    format: "brut".to_string(),
+                    duree_ms: None,
+                },
+                contexte,
+            )
+        },
     );
     let regroupement_du_midi = Regrouper {
         captation: Captation {
@@ -351,11 +447,405 @@ pub fn temoin<D: Documents, C: Captations>(
         cible: a.idee,
         decalage_minutes: 0,
     };
-    assert_eq!(
-        services.regrouper(&regroupement_du_midi, contexte),
-        fait,
-        "le regroupement du MIDI dans A"
+    faire_sans_avertissement(
+        services,
+        suivi,
+        &format!("Idée du {jour} : MIDI versé regroupé, idée du {jour} retirée"),
+        |services| services.regrouper(&regroupement_du_midi, contexte),
     );
+}
+
+/// Le fonds où chaque geste est fait une fois, sur des services neufs de `paire`, sous
+/// `AleaDeTest { graine: 0, appels: 0 }` : les gestes du témoin (`temoin`), à `HEURE` ; puis, au
+/// lendemain (`LENDEMAIN`), sur les idées A et B qu'il note (`IDEE` et `SECONDE_IDEE`) et sa
+/// prise (`PRISE_DU_TEMOIN`) : compléter A, poser `#pont` sur A, l'ôter, délier A et B, que le
+/// témoin a reliées, les relier de nouveau, regrouper la prise dans A, ce qui retire l'idée née
+/// avec elle, retirer B, rétablir B ; puis annuler ce rétablissement. Chaque commande, faite
+/// sans avertissement, se montre à `suivi` (`suivre`). Rend les services.
+pub fn le_fonds_de_chaque_geste<P: Paire>(
+    paire: &mut P,
+    suivi: &mut Suivi<'_>,
+) -> Services<P::D, P::C> {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    temoin_suivi(&mut services, &mut contexte, suivi);
+    contexte.heure = LENDEMAIN;
+    let jour = gestes::date_du_message(HEURE, 0);
+    let prise = empreinte(PRISE_DU_TEMOIN);
+    faire_sans_avertissement(
+        &mut services,
+        suivi,
+        &format!("Idée du {jour} : texte complété"),
+        |services| {
+            services.completer(
+                &completion(IDEE, "Un refrain qui monte, puis retombe"),
+                &mut contexte,
+            )
+        },
+    );
+    faire_sans_avertissement(
+        &mut services,
+        suivi,
+        &format!("Idée du {jour} : étiquette #pont posée"),
+        |services| services.poser_une_etiquette(&etiquetage(IDEE, "pont"), &mut contexte),
+    );
+    faire_sans_avertissement(
+        &mut services,
+        suivi,
+        &format!("Idée du {jour} : étiquette #pont ôtée"),
+        |services| services.oter_une_etiquette(&etiquetage(IDEE, "pont"), &mut contexte),
+    );
+    faire_sans_avertissement(
+        &mut services,
+        suivi,
+        &format!("Idée du {jour} déliée de l'idée du {jour}"),
+        |services| services.delier(&lien(IDEE, SECONDE_IDEE), &mut contexte),
+    );
+    faire_sans_avertissement(
+        &mut services,
+        suivi,
+        &format!("Idée du {jour} reliée à l'idée du {jour}"),
+        |services| services.relier(&lien(IDEE, SECONDE_IDEE), &mut contexte),
+    );
+    faire_sans_avertissement(
+        &mut services,
+        suivi,
+        &format!("Idée du {jour} : prise regroupée, idée du {jour} retirée"),
+        |services| services.regrouper(&regroupement(&prise, IDEE), &mut contexte),
+    );
+    faire_sans_avertissement(
+        &mut services,
+        suivi,
+        &format!("Idée du {jour} retirée"),
+        |services| services.retirer(&visee(SECONDE_IDEE), &mut contexte),
+    );
+    faire_sans_avertissement(
+        &mut services,
+        suivi,
+        &format!("Idée du {jour} rétablie"),
+        |services| services.retablir(&visee(SECONDE_IDEE), &mut contexte),
+    );
+    faire_sans_avertissement(
+        &mut services,
+        suivi,
+        &format!("Annulé : Idée du {jour} rétablie"),
+        |services| services.annuler(&mut contexte),
+    );
+    services
+}
+
+/// Un document de test, né par `application::faire_naitre` : la naissance du document, à
+/// `HEURE`, puis la note de l'idée `IDEE`. Les plantations des tests s'y posent à la main.
+fn un_document_de_test() -> Automerge {
+    let naissance = gestes::naissance(
+        ULID_DU_DOCUMENT,
+        ULID_DE_LA_LIGNEE,
+        IDENTIFIANT_DE_PROPRIETAIRE,
+        HEURE,
+    );
+    let note = gestes::noter(
+        IDEE,
+        "Un refrain qui monte, en ré",
+        gestes::Appareil::Etabli,
+        HEURE,
+        0,
+    )
+    .expect("la note du document de test se calcule");
+    application::faire_naitre(&naissance, &note).expect("le document de test naît")
+}
+
+/// L'objet à clés au bout de `chemin`, depuis la racine du document, chaque pas un objet à clés.
+fn objet_au_bout(doc: &Automerge, chemin: &[&str]) -> ObjId {
+    let mut objet = ROOT;
+    for cle in chemin {
+        objet = match doc.get(&objet, *cle) {
+            Ok(Some((Value::Object(ObjType::Map), id))) => id,
+            autre => panic!("{cle} n'est pas un objet à clés : {autre:?}"),
+        };
+    }
+    objet
+}
+
+/// Les messages des modifications que `doc` porte depuis `heads`, dans l'ordre de
+/// `get_changes` ; une modification sans message en a un vide.
+fn messages_depuis(doc: &Automerge, heads: &[ChangeHash]) -> Vec<String> {
+    doc.get_changes(heads)
+        .iter()
+        .map(|modification| modification.message().unwrap_or_default().to_string())
+        .collect()
+}
+
+/// I28 (§ 70 · 3) : depuis `heads_d_avant`, `doc` porte une seule modification, de message
+/// `message` ; sinon, le refus nomme le message de chaque modification qu'il porte depuis.
+pub fn une_modification(
+    doc: &Automerge,
+    heads_d_avant: &[ChangeHash],
+    message: &str,
+) -> Result<(), String> {
+    let messages = messages_depuis(doc, heads_d_avant);
+    if matches!(messages.as_slice(), [seul] if seul == message) {
+        Ok(())
+    } else {
+        Err(format!(
+            "attendu une seule modification, « {message} », depuis les heads d'avant ; \
+             écrites : {messages:?}"
+        ))
+    }
+}
+
+/// Les douze mois que nomme une date de `gestes::date_du_message`.
+const MOIS: [&str; 12] = [
+    "janvier",
+    "février",
+    "mars",
+    "avril",
+    "mai",
+    "juin",
+    "juillet",
+    "août",
+    "septembre",
+    "octobre",
+    "novembre",
+    "décembre",
+];
+
+/// Ce qui suit la date qui ouvre `texte`, une date de `gestes::date_du_message` : « 1er », ou un
+/// jour de 2 à 31, écrit sans zéro ni signe devant, puis une espace et l'un des douze mois ;
+/// `None` si `texte` ne s'ouvre pas sur une date.
+fn apres_une_date(texte: &str) -> Option<&str> {
+    let (jour, reste) = texte.split_once(' ')?;
+    let jour_du_mois = jour
+        .parse::<u8>()
+        .is_ok_and(|n| (2..=31).contains(&n) && n.to_string() == jour);
+    if jour != "1er" && !jour_du_mois {
+        return None;
+    }
+    MOIS.into_iter().find_map(|mois| reste.strip_prefix(mois))
+}
+
+/// `message` est celui d'une migration, `message_de_la_migration(v)`, vers une version de schéma
+/// `v` de 2 au moins : la genèse porte la version de schéma 1.
+fn est_une_migration(message: &str) -> bool {
+    message
+        .rsplit_once(' ')
+        .and_then(|(_, version)| version.parse::<u64>().ok())
+        .is_some_and(|version| version >= 2 && message_de_la_migration(version) == message)
+}
+
+/// `message` est celui d'une note ou d'un versement : `Idée du <date> notée`, ou
+/// `Idée du <date> : ` suivi de `prise versée`, `MIDI versé` ou `texte versé`.
+fn est_une_note_ou_un_versement(message: &str) -> bool {
+    message
+        .strip_prefix("Idée du ")
+        .and_then(apres_une_date)
+        .is_some_and(|reste| {
+            matches!(
+                reste,
+                " notée" | " : prise versée" | " : MIDI versé" | " : texte versé"
+            )
+        })
+}
+
+/// `message` est celui d'un geste de tri, `Idée du <date>` suivi de l'une de ses formes
+/// fermées : ` : texte complété` ; ` : étiquette #<e> posée` ou ` : étiquette #<e> ôtée`,
+/// l'étiquette non vide ; ` reliée à l'idée du <date>` ou ` déliée de l'idée du <date>` ;
+/// ` : prise regroupée`, ` : MIDI versé regroupé` ou ` : texte versé regroupé`, suivi au besoin
+/// de `, idée du <date> retirée` ; ` retirée` ou ` rétablie`. Aucune ne finit par une suite
+/// libre.
+fn est_un_geste_de_tri(message: &str) -> bool {
+    let Some(reste) = message.strip_prefix("Idée du ").and_then(apres_une_date) else {
+        return false;
+    };
+    if matches!(reste, " : texte complété" | " retirée" | " rétablie") {
+        return true;
+    }
+    if let Some(etiquette) = reste.strip_prefix(" : étiquette #") {
+        return etiquette
+            .strip_suffix(" posée")
+            .or_else(|| etiquette.strip_suffix(" ôtée"))
+            .is_some_and(|nom| !nom.is_empty());
+    }
+    if let Some(autre) = reste
+        .strip_prefix(" reliée à l'idée du ")
+        .or_else(|| reste.strip_prefix(" déliée de l'idée du "))
+    {
+        return apres_une_date(autre).is_some_and(str::is_empty);
+    }
+    [
+        " : prise regroupée",
+        " : MIDI versé regroupé",
+        " : texte versé regroupé",
+    ]
+    .into_iter()
+    .any(|regroupee| {
+        reste.strip_prefix(regroupee).is_some_and(|fin| {
+            fin.is_empty()
+                || fin.strip_prefix(", idée du ").and_then(apres_une_date) == Some(" retirée")
+        })
+    })
+}
+
+/// I28 (§ 70 · 3) : `message` est celui d'une opération connue : la genèse, la naissance, une
+/// migration, ou l'une des formes fermées d'une note, d'un versement ou d'un geste de tri, ou
+/// « Annulé : » suivi d'une forme d'un geste de tri.
+pub fn message_connu(message: &str) -> bool {
+    message == MESSAGE_DE_LA_GENESE
+        || message == MESSAGE_DE_LA_NAISSANCE
+        || est_une_migration(message)
+        || est_une_note_ou_un_versement(message)
+        || est_un_geste_de_tri(message)
+        || message
+            .strip_prefix("Annulé : ")
+            .is_some_and(est_un_geste_de_tri)
+}
+
+/// Chaque valeur du document, avec les clés qui y mènent depuis la racine du document : chaque
+/// valeur de chaque clé d'un objet à clés et de chaque indice d'une liste, les valeurs en conflit
+/// comprises (`get_all`), et, d'une valeur qui est un objet, les siennes ; un objet texte n'en a
+/// pas.
+fn chaque_valeur(doc: &Automerge) -> Vec<(Vec<String>, Value<'_>)> {
+    let mut valeurs = Vec::new();
+    descendre(doc, &ROOT, ObjType::Map, &[], &mut valeurs);
+    valeurs
+}
+
+/// Ajoute à `valeurs` chaque valeur de `objet`, de sorte `sorte`, au bout de `chemin`, puis celles
+/// de chaque objet qu'il porte (`chaque_valeur`).
+fn descendre<'d>(
+    doc: &'d Automerge,
+    objet: &ObjId,
+    sorte: ObjType,
+    chemin: &[String],
+    valeurs: &mut Vec<(Vec<String>, Value<'d>)>,
+) {
+    let cles: Vec<(String, Prop)> = match sorte {
+        ObjType::Map | ObjType::Table => doc
+            .keys(objet)
+            .map(|cle| (cle.clone(), Prop::Map(cle)))
+            .collect(),
+        ObjType::List => (0..doc.length(objet))
+            .map(|indice| (indice.to_string(), Prop::Seq(indice)))
+            .collect(),
+        ObjType::Text => Vec::new(),
+    };
+    for (segment, cle) in cles {
+        let mut sous = chemin.to_vec();
+        sous.push(segment);
+        let valeurs_de_la_cle = doc
+            .get_all(objet, cle)
+            .expect("lire une clé que le document vient de nommer");
+        for (valeur, id) in valeurs_de_la_cle {
+            if let Value::Object(sorte) = valeur {
+                descendre(doc, &id, sorte, &sous, valeurs);
+            }
+            valeurs.push((sous.clone(), valeur));
+        }
+    }
+}
+
+/// Les clés de la racine du document hors de ses conteneurs : la version de schéma,
+/// l'identifiant, la lignée et l'identifiant de propriétaire.
+const CHAMPS_DE_LA_RACINE: [&str; 4] = [VERSION_DE_SCHEMA, IDENTIFIANT, LIGNEE, PROPRIETAIRE];
+/// Les clés d'une idée.
+const CHAMPS_D_UNE_IDEE: [&str; 7] = [TEXTE, ETIQUETTES, PROVENANCE, PAR, LE, DEPUIS, RETIREE];
+/// Les faits d'une prise, sous `<empreinte>/<fait>`.
+const FAITS_D_UNE_PRISE: [&str; 3] = [IDEE_D_UNE_CAPTATION, FORMAT, DUREE];
+/// Les faits d'un MIDI versé ou d'un texte versé, sous `<empreinte>/<fait>`.
+const FAITS_D_UN_MIDI_OU_D_UN_TEXTE: [&str; 2] = [IDEE_D_UNE_CAPTATION, FORMAT];
+/// Les noms qu'une idée ne porte jamais (§ 30 · 13) : sa durée, son état « reliée », ses prises,
+/// ses photos, ses MIDI versés et ses textes versés, tous engendrés.
+const INTERDITS_SOUS_UNE_IDEE: [&str; 6] =
+    [DUREE, "reliee", PRISES, PHOTOS, MIDI_VERSES, TEXTES_VERSES];
+/// Les noms qu'aucune clé ne porte (§ 30 · 13) : un compte, un total, l'état « à envoyer ».
+const INTERDITS_PARTOUT: [&str; 3] = ["compte", "total", "a_envoyer"];
+
+/// `cle` est `<empreinte>/<fait>`, coupée au premier `/`, l'empreinte non vide et le fait l'un de
+/// `faits`.
+fn fait_d_une_captation(cle: &str, faits: &[&str]) -> bool {
+    cle.split_once('/')
+        .is_some_and(|(nom, fait)| !nom.is_empty() && faits.contains(&fait))
+}
+
+/// `cle` est celle d'un lien « apparenté », `apparente:<a>:<b>`, ses deux bouts non vides.
+fn cle_d_un_lien(cle: &str) -> bool {
+    cle.strip_prefix(APPARENTE)
+        .and_then(|reste| reste.strip_prefix(':'))
+        .and_then(|bouts| bouts.split_once(':'))
+        .is_some_and(|(a, b)| !a.is_empty() && !b.is_empty())
+}
+
+/// La liste blanche, tirée des clés du schéma : à la racine du document, ses champs et ses neuf
+/// conteneurs ; sous `idees`, chaque idée, ses champs, et chaque étiquette sous `etiquettes` ;
+/// sous `prises`, `<empreinte>/` suivi de `idee`, `format` ou `duree` ; sous `midi_verses` et
+/// `textes_verses`, `<empreinte>/` suivi de `idee` ou `format` ; sous `liens`, la clé d'un lien.
+fn permis(chemin: &[String]) -> bool {
+    match chemin {
+        [cle] => {
+            CHAMPS_DE_LA_RACINE.contains(&cle.as_str())
+                || CONTENEURS_DE_LA_GENESE.contains(&cle.as_str())
+        }
+        [conteneur, _] if conteneur == IDEES => true,
+        [conteneur, _, champ] if conteneur == IDEES => CHAMPS_D_UNE_IDEE.contains(&champ.as_str()),
+        [conteneur, _, sous, _] if conteneur == IDEES && sous == ETIQUETTES => true,
+        [conteneur, cle] if conteneur == PRISES => fait_d_une_captation(cle, &FAITS_D_UNE_PRISE),
+        [conteneur, cle] if conteneur == MIDI_VERSES || conteneur == TEXTES_VERSES => {
+            fait_d_une_captation(cle, &FAITS_D_UN_MIDI_OU_D_UN_TEXTE)
+        }
+        [conteneur, cle] if conteneur == LIENS => cle_d_un_lien(cle),
+        _ => false,
+    }
+}
+
+/// Un nom interdit (§ 30 · 13) : `etiquettes` à la racine du document ; sous une idée, l'un de
+/// `INTERDITS_SOUS_UNE_IDEE` ; partout, chaque clé coupée à chaque `/`, l'un de
+/// `INTERDITS_PARTOUT`, une étiquette ou un identifiant de ce nom compris.
+fn interdit(chemin: &[String]) -> bool {
+    let sous_son_parent = match chemin {
+        [cle] => cle == ETIQUETTES,
+        [conteneur, _, champ] if conteneur == IDEES => {
+            INTERDITS_SOUS_UNE_IDEE.contains(&champ.as_str())
+        }
+        _ => false,
+    };
+    sous_son_parent
+        || chemin
+            .iter()
+            .flat_map(|cle| cle.split('/'))
+            .any(|segment| INTERDITS_PARTOUT.contains(&segment))
+}
+
+/// I01 (§ 70 · 3) : les chemins du document dont la clé sort de la liste blanche que tirent les
+/// clés du schéma (`noyau::donnees::fonds`), ou porte un nom interdit (§ 30 · 13), chacun une
+/// fois, ses clés jointes par `/`, dans l'ordre de leurs octets.
+pub fn parcourir(doc: &Automerge) -> Vec<String> {
+    let fautifs: BTreeSet<String> = chaque_valeur(doc)
+        .into_iter()
+        .filter(|(chemin, _)| !permis(chemin) || interdit(chemin))
+        .map(|(chemin, _)| chemin.join("/"))
+        .collect();
+    fautifs.into_iter().collect()
+}
+
+/// Les chemins du document dont la valeur est un compteur (`ScalarValue::Counter`) ou un objet
+/// texte (`ObjType::Text`), que Pupitre n'écrit pas (§ 31 · 2.6), ou une table ou une liste
+/// (`ObjType::Table`, `ObjType::List`), que le schéma de la `v0.3.0` n'a pas (§ 31 · 2), chacun
+/// une fois, ses clés jointes par `/`, dans l'ordre de leurs octets.
+pub fn parcourir_les_types(doc: &Automerge) -> Vec<String> {
+    let fautifs: BTreeSet<String> = chaque_valeur(doc)
+        .into_iter()
+        .filter(|(_, valeur)| match valeur {
+            Value::Object(sorte) => {
+                matches!(sorte, ObjType::Text | ObjType::Table | ObjType::List)
+            }
+            Value::Scalar(scalaire) => matches!(**scalaire, ScalarValue::Counter(_)),
+        })
+        .map(|(chemin, _)| chemin.join("/"))
+        .collect();
+    fautifs.into_iter().collect()
 }
 
 /// Le refus d'une commande qui ne se fait pas sur le fonds tel qu'il est : `Raison::Impossible`,
@@ -636,9 +1126,10 @@ pub fn une_empreinte_qu_aucune_captation_ne_porte_ne_se_relit_pas<P: Paire>(pair
 /// version de schéma 1 : il se lit, son journal, la liste des idées et la vue de l'idée notée
 /// montrés, cette vue entière la même qu'avant la migration ; une note, deux gestes de tri,
 /// « annuler » et la fiche d'une prise sont refusés du refus que rend `lecture_seule()`, qui nomme
-/// la version de schéma 2, avant tout constat du noyau, sans rien tirer, et le journal ne change
-/// pas ; la captation de la fiche refusée est versée, et une captation se verse encore, et se
-/// relit.
+/// la version de schéma 2 et dit que ce fonds vient d'une version plus récente de Pupitre, que
+/// cette version-ci le lit sans y écrire, avant tout constat du noyau, sans rien tirer, et le
+/// journal ne change pas ; la captation de la fiche refusée est versée, et une captation se verse
+/// encore, et se relit.
 pub fn une_commande_sur_un_fonds_plus_recent_est_refusee_et_le_nomme<P: Paire>(paire: &mut P) {
     let mut services = paire.neufs();
     let mut alea = AleaDeTest {
@@ -680,6 +1171,12 @@ pub fn une_commande_sur_un_fonds_plus_recent_est_refusee_et_le_nomme<P: Paire>(p
         .lecture_seule()
         .expect("le fonds se lit sans écrire");
     assert_eq!(refus.raison, Raison::VersionPlusRecente { version: 2 });
+    // Un constat, jamais un ordre (§ 50 · 5), le même sur les deux paires.
+    assert_eq!(
+        refus.message,
+        "Ce fonds vient d'une version plus récente de Pupitre ; cette version-ci le lit sans y \
+         écrire."
+    );
     assert_eq!(
         services.noter(
             &une_note("Un pont en mi mineur"),
@@ -1735,5 +2232,202 @@ pub fn une_annulation_ne_s_annule_pas<P: Paire>(paire: &mut P) {
     assert_eq!(
         services.vue_d_une_idee(&a).map(|vue| vue.etiquettes),
         Ok(Vec::new())
+    );
+}
+
+/// I28 sur l'historique (§ 70 · 3) : sur le fonds de chaque geste (`le_fonds_de_chaque_geste`),
+/// la naissance compte à part, la première note écrivant la genèse, la naissance, puis son
+/// message ; chaque autre commande faite ajoute une seule modification à `get_changes`, au message
+/// que rend le noyau (`une_modification`). Sur un document de test, une seule modification, au
+/// message d'une autre commande que celle attendue, est refusée ; une commande plantée en deux
+/// modifications, deux `application::appliquer` de suite, est refusée, et le refus nomme les deux
+/// messages.
+pub fn chaque_operation_laisse_une_seule_modification_avec_son_message<P: Paire>(paire: &mut P) {
+    let mut naissances = 0;
+    let mut autres = 0;
+    let services = le_fonds_de_chaque_geste(paire, &mut |fonds, avant, message| {
+        if avant.is_empty() {
+            naissances += 1;
+            assert_eq!(
+                messages_depuis(fonds, avant),
+                vec![
+                    MESSAGE_DE_LA_GENESE.to_string(),
+                    MESSAGE_DE_LA_NAISSANCE.to_string(),
+                    message.to_string(),
+                ]
+            );
+        } else {
+            autres += 1;
+            assert_eq!(une_modification(fonds, avant, message), Ok(()));
+        }
+    });
+    // La note qui fait naître le fonds ; puis les sept autres commandes du témoin, les huit gestes
+    // de tri et l'annulation.
+    assert_eq!((naissances, autres), (1, 16));
+    let fonds = services.documents().fonds().expect("le fonds est né");
+    assert_eq!(fonds.get_changes(&[]).len(), 19);
+
+    let mut doc = un_document_de_test();
+    let lue = lire_l_idee(&doc, IDEE).expect("l'idée du document de test se lit");
+    let complement = gestes::completer(&lue, "Un refrain qui monte, puis retombe", HEURE, 0)
+        .expect("le complément se calcule")
+        .operation;
+    let pose = gestes::poser_une_etiquette(&lue, "pont", HEURE, 0)
+        .expect("la pose se calcule")
+        .operation;
+    let avant = doc.get_heads();
+    application::appliquer(&mut doc, &complement).expect("le complément s'applique");
+    // Une seule modification, celle du complément : attendue au message de la pose, elle est
+    // refusée, et le refus nomme le message écrit.
+    let refus = une_modification(&doc, &avant, &pose.message)
+        .expect_err("une modification au message d'une autre commande est refusée");
+    assert!(refus.contains(complement.message.as_str()), "{refus}");
+    application::appliquer(&mut doc, &pose).expect("la pose s'applique");
+    let refus = une_modification(&doc, &avant, &complement.message)
+        .expect_err("une commande en deux modifications est refusée");
+    for message in [&complement.message, &pose.message] {
+        assert!(refus.contains(message.as_str()), "{refus}");
+    }
+}
+
+/// I28 sur l'historique (§ 70 · 3) : sur le fonds de chaque geste, chaque message du journal est
+/// celui d'une opération connue (`message_connu`). `message_connu` refuse « Idée du 3 novembre :
+/// autre chose », une forme qu'aucune opération n'écrit, « Annulé : Idée du 3 novembre notée »,
+/// une note, qu'annuler ne vise pas, et des messages bien formés hors d'une date que le noyau
+/// n'écrit pas (un jour 0, 1, 01, 03 ou 32, un mois inconnu) ou d'une étiquette vide ; il
+/// reconnaît la genèse, la naissance, une migration, un exemple de chaque forme d'une note, d'un
+/// versement et d'un geste de tri, et « Annulé : » suivi de chaque forme d'un geste de tri.
+pub fn l_historique_ne_porte_que_des_operations_connues<P: Paire>(paire: &mut P) {
+    let services = le_fonds_de_chaque_geste(paire, &mut |_, _, _| {});
+    let journal = services.journal().expect("le journal se lit");
+    assert_eq!(journal.len(), 19, "{journal:?}");
+    for entree_du_journal in &journal {
+        assert!(
+            message_connu(&entree_du_journal.message),
+            "« {} » n'est le message d'aucune opération connue",
+            entree_du_journal.message
+        );
+    }
+
+    // Hors des deux premiers, chacun est bien formé, hors de sa date ou de son étiquette : un
+    // jour 0, 1 (le noyau écrit « 1er »), 01 ou 03 (aucun zéro devant), ou 32 ; un mois inconnu ;
+    // une étiquette vide.
+    for inconnu in [
+        "Idée du 3 novembre : autre chose",
+        "Annulé : Idée du 3 novembre notée",
+        "Idée du 0 novembre notée",
+        "Idée du 1 novembre notée",
+        "Idée du 01 novembre notée",
+        "Idée du 03 novembre notée",
+        "Idée du 32 novembre notée",
+        "Idée du 3 brumaire notée",
+        "Idée du 3 novembre : étiquette # posée",
+    ] {
+        assert!(!message_connu(inconnu), "« {inconnu} » est reconnu");
+    }
+    let notes_et_versements = [
+        "Idée du 3 novembre notée",
+        "Idée du 3 novembre : prise versée",
+        "Idée du 3 novembre : MIDI versé",
+        "Idée du 3 novembre : texte versé",
+    ];
+    let gestes_de_tri = [
+        "Idée du 3 novembre : texte complété",
+        "Idée du 1er janvier : étiquette #pont posée",
+        "Idée du 31 décembre : étiquette #refrain ôtée",
+        "Idée du 2 février reliée à l'idée du 29 février",
+        "Idée du 15 mars déliée de l'idée du 1er avril",
+        "Idée du 9 mai : prise regroupée",
+        "Idée du 10 juin : MIDI versé regroupé",
+        "Idée du 11 juillet : texte versé regroupé",
+        "Idée du 12 août : prise regroupée, idée du 13 septembre retirée",
+        "Idée du 14 octobre : MIDI versé regroupé, idée du 1er novembre retirée",
+        "Idée du 3 novembre : texte versé regroupé, idée du 4 novembre retirée",
+        "Idée du 5 novembre retirée",
+        "Idée du 6 novembre rétablie",
+    ];
+    let migration = message_de_la_migration(2);
+    let connus = [
+        MESSAGE_DE_LA_GENESE,
+        MESSAGE_DE_LA_NAISSANCE,
+        migration.as_str(),
+    ];
+    for connu in connus
+        .into_iter()
+        .chain(notes_et_versements)
+        .chain(gestes_de_tri)
+    {
+        assert!(message_connu(connu), "« {connu} » n'est pas reconnu");
+    }
+    for geste in gestes_de_tri {
+        let annulation = format!("Annulé : {geste}");
+        assert!(
+            message_connu(&annulation),
+            "« {annulation} » n'est pas reconnu"
+        );
+    }
+}
+
+// § 31 · 10, test 7 : chercher les champs interdits du § 30 · 13
+/// I01 (§ 70 · 3) : sur le fonds de chaque geste, chaque clé est dans la liste blanche que tirent
+/// les clés du schéma (`noyau::donnees::fonds`), et aucune ne porte un nom interdit (§ 30 · 13) :
+/// `parcourir` n'y trouve rien. Sur un document de test, une durée posée à la main sous l'idée,
+/// `idees/<i>/duree`, la durée d'une idée étant engendrée de ses prises, puis une date et un
+/// appareil sous une prise, `prises/<empreinte>/le` et `prises/<empreinte>/par`, qu'une prise ne
+/// porte pas, des faits de sa captation que rien ne lit encore sur elle (§ 30 · 9.2), sont les
+/// trois chemins qu'il rend.
+pub fn rien_d_engendre_n_est_stocke<P: Paire>(paire: &mut P) {
+    let services = le_fonds_de_chaque_geste(paire, &mut |_, _, _| {});
+    let fonds = services.documents().fonds().expect("le fonds est né");
+    assert_eq!(parcourir(fonds), Vec::<String>::new());
+
+    let mut doc = un_document_de_test();
+    let idee = objet_au_bout(&doc, &[IDEES, IDEE]);
+    let prises_du_document = objet_au_bout(&doc, &[PRISES]);
+    let prise = empreinte(PRISE_DE_TEST);
+    let mut tx = doc.transaction();
+    tx.put(&idee, DUREE, 30_000u64)
+        .expect("poser une durée sous l'idée");
+    tx.put(&prises_du_document, format!("{prise}/{LE}"), HEURE)
+        .expect("poser une date sous la prise");
+    tx.put(&prises_du_document, format!("{prise}/{PAR}"), "etabli")
+        .expect("poser un appareil sous la prise");
+    let (plantation, _) = tx.commit();
+    plantation.expect("la plantation est une modification");
+    assert_eq!(
+        parcourir(&doc),
+        vec![
+            format!("{IDEES}/{IDEE}/{DUREE}"),
+            format!("{PRISES}/{prise}/{LE}"),
+            format!("{PRISES}/{prise}/{PAR}"),
+        ]
+    );
+}
+
+/// Pupitre n'écrit ni compteur ni objet texte (§ 31 · 2.6), ni table ni liste : sur le fonds de
+/// chaque geste, `parcourir_les_types` ne rencontre ni `ScalarValue::Counter`, ni
+/// `ObjType::Text`, ni `ObjType::Table`, ni `ObjType::List`. Sur un document de test, un compteur
+/// et un objet texte posés à la main sous l'idée, `idees/<i>/compteur_de_test` et
+/// `idees/<i>/texte_de_test`, sont les deux chemins qu'il rend.
+pub fn aucun_counter_ni_objet_text_dans_un_document_des_operations<P: Paire>(paire: &mut P) {
+    let services = le_fonds_de_chaque_geste(paire, &mut |_, _, _| {});
+    let fonds = services.documents().fonds().expect("le fonds est né");
+    assert_eq!(parcourir_les_types(fonds), Vec::<String>::new());
+
+    let mut doc = un_document_de_test();
+    let idee = objet_au_bout(&doc, &[IDEES, IDEE]);
+    let mut tx = doc.transaction();
+    tx.put(&idee, "compteur_de_test", ScalarValue::counter(0))
+        .expect("poser un compteur sous l'idée");
+    tx.put_object(&idee, "texte_de_test", ObjType::Text)
+        .expect("créer un objet texte sous l'idée");
+    let (plantation, _) = tx.commit();
+    plantation.expect("la plantation est une modification");
+    assert_eq!(
+        parcourir_les_types(&doc),
+        vec![
+            format!("{IDEES}/{IDEE}/compteur_de_test"),
+            format!("{IDEES}/{IDEE}/texte_de_test"),
+        ]
     );
 }

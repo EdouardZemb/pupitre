@@ -65,15 +65,15 @@ jobs:
       - name: Vérification des diagrammes
         run: node scripts/verif-diagrammes.mjs
 
-  # Le code Rust : le Cargo.lock, le format, le lint et les tests du noyau, du cahier, du
-  # stockage, de la synchronisation, des commandes, des services et de l'interface. La chaîne
-  # vient de rust-toolchain.toml.
+  # Le code Rust : le Cargo.lock, le graphe de l'interface, le format, le lint et les tests du
+  # noyau, du cahier, du stockage, de la synchronisation, des commandes, des services et de
+  # l'interface, puis le fonds de mesure. La chaîne vient de rust-toolchain.toml.
   verifier:
     runs-on: ubuntu-latest
-    # Provisoire : le premier passage complet après l'entrée d'automerge, PR #18, a duré 2 min 42 s ;
-    # il restaure le cache de main, et n'est froid que pour automerge et ses dépendances. À ramener
-    # à deux fois un passage mesuré à froid (LE-29 de modele-projet).
-    timeout-minutes: 15
+    # Deux fois le plus long passage complet mesuré à froid (« No cache found. ») : 4 min 47 s, le
+    # 2026-11-14, sur la PR #40 (exécution 43632252911), sans l'étape du fonds de mesure ; 3 min 51 s
+    # sur la PR #39 (exécution 43631355460), avec elle (LE-29 de modele-projet).
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -94,6 +94,21 @@ jobs:
         with:
           name: cargo-lock
           path: Cargo.lock
+      # L'interface ne tire ni automerge, ni les services, ni le stockage (§ 40 · 3 ; ADR-022) :
+      # en natif et en WebAssembly. La sortie se capture d'abord : une erreur de cargo tree fait
+      # échouer l'étape (bash -e), au lieu de passer pour une absence. L'essai sur le stockage
+      # prouve que la recherche trouve une dépendance, jamais la ligne du paquet racine, qui n'a
+      # pas de préfixe. Placée avant les lints : un graphe fautif les ferait échouer avant elle.
+      - name: Le graphe de l'interface
+        run: |
+          interdits='^(automerge|services|stockage) v'
+          sortie=$(cargo tree -p stockage -e no-dev --prefix none)
+          grep -Eq '^automerge v' <<<"$sortie"
+          grep -Eq '^services v' <<<"$sortie"
+          for cible in "" "--target wasm32-unknown-unknown"; do
+            sortie=$(cargo tree -p interface -e no-dev --prefix none $cible)
+            if grep -E "$interdits" <<<"$sortie"; then exit 1; fi
+          done
       - name: Format
         run: cargo fmt --all --check
       - name: Lint
@@ -116,6 +131,15 @@ jobs:
         run: cargo clippy -p interface --target wasm32-unknown-unknown -- -D warnings
       - name: Tests
         run: cargo test -p noyau -p cahier -p interface -p stockage -p synchro -p commandes -p services
+      # Une part du test 13 du § 31 · 10, une borne basse : le fonds de mesure, engendré par les
+      # opérations nommées puis rouvert sur fichiers, pèse moins de 4 500 000 octets ; il y manque
+      # encore les stems et leurs MIDI, les noms d'origine, les origines déclarées, la date,
+      # l'appareil et le diapason mesuré de chaque prise, et un acteur par ouverture. L'étape
+      # imprime son poids et la durée. Le test est ignoré : « Tests » le saute, et seule cette
+      # étape le lance, ici, hors du job windows ; en --release, pour tenir dans le délai de
+      # verifier.
+      - name: Le fonds de mesure
+        run: cargo test -p stockage --release --test mesure -- --ignored --nocapture
 
   # H10, la partie automatique : l'établi se construit en installateur Windows (NSIS), que
   # la maîtrise d'ouvrage installe ensuite sur un PC pour voir la page s'ouvrir. `trunk` et
@@ -126,12 +150,10 @@ jobs:
   # l'impression.
   windows:
     runs-on: windows-latest
-    # Deux fois le premier passage mesuré, à froid : 19 min 28 s le 2026-11-01, PR #3 (LE-29 de modele-projet).
-    # Le cahier, construit en --release, s'y ajoute depuis la PR #6 : 3 min 44 s pour tout le job, à chaud.
-    # Le stockage et la synchronisation, depuis la PR #18 : 4 min 49 s pour le premier passage complet
-    # après l'entrée d'automerge, qui restaure le cache de main et n'est froid que pour automerge et
-    # ses dépendances ; son double reste sous ces 40 minutes.
-    timeout-minutes: 40
+    # Deux fois le passage complet mesuré à froid (« No cache found. »), le stockage, la
+    # synchronisation, l'établi et le cahier compris : 29 min 42 s le 2026-11-14, PR #39, dont
+    # 17 min 36 s pour installer trunk et tauri-cli (LE-29 de modele-projet).
+    timeout-minutes: 60
     permissions:
       contents: read
     steps:

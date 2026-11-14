@@ -139,7 +139,9 @@ fn ecrire_a_cote_coupee_a_chaque_etape() {
     assert_eq!(entrees(&d), ["complet.automerge"], "un voisin reste");
 }
 
-// § 31 · 10, test 8 : renommage refusé, le voisin est retiré ; sa double panne le vide
+// § 31 · 10, test 8 : renommage refusé : le voisin est retiré
+/// Sa double panne : le renommage refusé, puis le retrait du voisin refusé ; le fichier garde ce
+/// qu'il portait, et le voisin qui ne se retire pas reste, vidé.
 #[test]
 fn un_voisin_qui_ne_se_retire_pas_se_vide() {
     let d = dossier_jetable("fichier-voisin-vide");

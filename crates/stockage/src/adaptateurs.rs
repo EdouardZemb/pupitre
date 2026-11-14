@@ -1,7 +1,8 @@
 //! Les adaptateurs du stockage (§ 40 · 3) : le fonds sur fichiers réalise le contrat `Documents`
 //! des services, et les captations de la racine des données, le contrat `Captations`. Chaque
-//! erreur du stockage s'y rend en refus, sa raison dite par `raison`, son message le `Debug` de
-//! l'erreur ; un avertissement, de même, en texte.
+//! erreur du stockage s'y rend en refus, sa raison dite par `raison`, son message le texte de
+//! l'erreur ; un avertissement, de même, en texte. Chaque chemin s'y dit relatif à la racine des
+//! données (`Relatif`).
 
 use automerge::Automerge;
 use noyau::donnees::changement::Operation;
@@ -9,7 +10,7 @@ use noyau::donnees::changement::Operation;
 use noyau::donnees::version::Migration;
 use services::{Documents, Ecriture, Raison, Refus};
 
-use crate::{Avertissement, Captations, Document, Erreur, LectureSeule, RacineDesDonnees};
+use crate::{Avertissement, Captations, Document, Erreur, LectureSeule, RacineDesDonnees, Relatif};
 
 /// Le fonds d'une racine des données, sur fichiers : son document, s'il est né, que les services
 /// lisent et écrivent par le contrat `Documents`.
@@ -22,7 +23,7 @@ impl<'r> FondsSurFichiers<'r> {
     /// Le fonds de `racine`, par [`RacineDesDonnees::fonds`] : son document, ou aucun tant que
     /// Pupitre est neuf. Une erreur d'ouverture se rend en refus.
     pub fn ouvrir(racine: &'r RacineDesDonnees) -> Result<Self, Refus> {
-        let document = racine.fonds().map_err(refus)?;
+        let document = racine.fonds().map_err(|erreur| refus(erreur, racine))?;
         Ok(FondsSurFichiers { racine, document })
     }
 
@@ -34,7 +35,9 @@ impl<'r> FondsSurFichiers<'r> {
         racine: &'r RacineDesDonnees,
         migrations: &[Migration<'_>],
     ) -> Result<Self, Refus> {
-        let document = racine.fonds_selon(migrations).map_err(refus)?;
+        let document = racine
+            .fonds_selon(migrations)
+            .map_err(|erreur| refus(erreur, racine))?;
         Ok(FondsSurFichiers { racine, document })
     }
 
@@ -59,15 +62,21 @@ impl Documents for FondsSurFichiers<'_> {
     /// naîtra.
     fn lecture_seule(&self) -> Option<Refus> {
         let raison = self.document.as_ref()?.lecture_seule()?;
-        Some(refus(Erreur::LectureSeule(raison.clone())))
+        Some(refus(Erreur::LectureSeule(raison.clone()), self.racine))
     }
 
     /// [`RacineDesDonnees::faire_naitre`] : le document né, et l'avertissement de sa naissance,
     /// s'il en vient un. Un document déjà ouvert ([`Erreur::FondsDejaOuvert`]), ou un fonds déjà
     /// né ([`Erreur::FondsDejaNe`]) : `Raison::Impossible`, et rien ne change.
     fn faire_naitre(&mut self, naissance: &Operation, geste: &Operation) -> Ecriture {
-        let document = self.racine.faire_naitre(naissance, geste).map_err(refus)?;
-        let avertissement = document.avertissements().first().map(texte_de);
+        let document = self
+            .racine
+            .faire_naitre(naissance, geste)
+            .map_err(|erreur| refus(erreur, self.racine))?;
+        let avertissement = document
+            .avertissements()
+            .first()
+            .map(|avertissement| texte_de(avertissement, self.racine));
         self.document = Some(document);
         Ok(avertissement)
     }
@@ -80,29 +89,35 @@ impl Documents for FondsSurFichiers<'_> {
                 message: "Aucun fonds n'est né.".to_string(),
             });
         };
-        let avertissement = document.appliquer(operation).map_err(refus)?;
-        Ok(avertissement.as_ref().map(texte_de))
+        let racine = self.racine;
+        let avertissement = document
+            .appliquer(operation)
+            .map_err(|erreur| refus(erreur, racine))?;
+        Ok(avertissement
+            .as_ref()
+            .map(|avertissement| texte_de(avertissement, racine)))
     }
 }
 
 impl services::Captations for Captations<'_> {
     /// [`Captations::verser`] ; une erreur se rend en refus.
     fn verser(&self, octets: &[u8]) -> Result<String, Refus> {
-        Captations::verser(self, octets).map_err(refus)
+        Captations::verser(self, octets).map_err(|erreur| refus(erreur, self.racine()))
     }
 
     /// [`Captations::relire`] ; une erreur se rend en refus, et une empreinte qu'aucune
     /// captation ne porte, en `Raison::Impossible`.
     fn relire(&self, empreinte: &str) -> Result<Vec<u8>, Refus> {
-        Captations::relire(self, empreinte).map_err(refus)
+        Captations::relire(self, empreinte).map_err(|erreur| refus(erreur, self.racine()))
     }
 }
 
-/// Le refus de `erreur` : sa raison (`raison`), et son message, le `Debug` de l'erreur.
-fn refus(erreur: Erreur) -> Refus {
+/// Le refus de `erreur` : sa raison (`raison`), et son message, le texte de l'erreur, chaque
+/// chemin dit relatif à `racine`.
+fn refus(erreur: Erreur, racine: &RacineDesDonnees) -> Refus {
     Refus {
         raison: raison(&erreur),
-        message: format!("{erreur:?}"),
+        message: Relatif(&erreur, racine.chemin()).to_string(),
     }
 }
 
@@ -144,7 +159,7 @@ fn raison(erreur: &Erreur) -> Raison {
     }
 }
 
-/// Le texte d'un avertissement : son `Debug`.
-fn texte_de(avertissement: &Avertissement) -> String {
-    format!("{avertissement:?}")
+/// Le texte d'un avertissement, chaque chemin dit relatif à `racine`.
+fn texte_de(avertissement: &Avertissement, racine: &RacineDesDonnees) -> String {
+    Relatif(avertissement, racine.chemin()).to_string()
 }

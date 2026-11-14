@@ -3,8 +3,10 @@
 //! cette paire seule, des commandes coupées par une panne, avant ou après le renommage de leur
 //! fichier, la première comprise, qui fait naître le fonds, une annulation refusée par le disque,
 //! qui se refait, un geste de tri refusé par le disque, qui ne change pas ce qu'annuler vise, un
-//! geste de tri et son annulation coupés après le renommage, faits avec un avertissement, et la
-//! migration de test, la même dans la suite et dans les aides du stockage.
+//! geste de tri et son annulation coupés après le renommage, faits avec un avertissement, un
+//! fichier d'ajout altéré et une captation coupée, chaque refus ou avertissement disant ses
+//! chemins relatifs à la racine des données, et la migration de test, la même dans la suite et
+//! dans les aides du stockage.
 
 #[path = "../../services/tests/suite/mod.rs"]
 mod suite;
@@ -253,6 +255,37 @@ fn une_annulation_ne_s_annule_pas() {
 }
 
 #[test]
+fn chaque_operation_laisse_une_seule_modification_avec_son_message() {
+    let racine = racine_jetable("commandes-une-modification-par-operation");
+    suite::chaque_operation_laisse_une_seule_modification_avec_son_message(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn l_historique_ne_porte_que_des_operations_connues() {
+    let racine = racine_jetable("commandes-operations-connues");
+    suite::l_historique_ne_porte_que_des_operations_connues(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+// § 31 · 10, test 7 : chercher les champs interdits du § 30 · 13
+#[test]
+fn rien_d_engendre_n_est_stocke() {
+    let racine = racine_jetable("commandes-rien-d-engendre");
+    suite::rien_d_engendre_n_est_stocke(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn aucun_counter_ni_objet_text_dans_un_document_des_operations() {
+    let racine = racine_jetable("commandes-ni-compteur-ni-texte");
+    suite::aucun_counter_ni_objet_text_dans_un_document_des_operations(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
 fn la_migration_de_test_est_la_meme_dans_les_deux_crates() {
     assert_eq!(suite::migration_de_test(), commun::migration_de_test());
 }
@@ -278,15 +311,24 @@ fn une_commande_coupee_avant_le_renommage_est_refusee() {
             &mut contexte_de_test(&mut alea),
         )
     };
+    let message = match rendu {
+        Err(Refus {
+            raison: Raison::Disque,
+            message,
+        }) => message,
+        autre => panic!("attendu le refus du disque ; rendu {autre:?}"),
+    };
+    // Le refus nomme le fichier d'ajout par son chemin relatif à la racine des données, ses
+    // composants joints par `/`, sous Linux comme sous Windows : le chemin de la racine des
+    // données n'y paraît pas.
+    assert!(message.starts_with("documents/fonds/ajouts/"), "{message}");
     assert!(
-        matches!(
-            rendu,
-            Err(Refus {
-                raison: Raison::Disque,
-                ..
-            })
-        ),
-        "attendu le refus du disque ; rendu {rendu:?}"
+        message.ends_with(".automerge, le disque l'a refusé."),
+        "{message}"
+    );
+    assert!(
+        !message.contains(&*racine.chemin().to_string_lossy()),
+        "{message}"
     );
 
     let services = paire.rouvrir(services, &[]);
@@ -321,13 +363,27 @@ fn une_commande_coupee_apres_le_renommage_est_faite_avec_un_avertissement() {
             &mut contexte_de_test(&mut alea),
         )
     };
-    match rendu {
+    let message = match rendu {
         Ok(Notee {
             idee,
-            avertissement: Some(_),
-        }) => assert_eq!(idee, SECONDE_IDEE),
+            avertissement: Some(message),
+        }) => {
+            assert_eq!(idee, SECONDE_IDEE);
+            message
+        }
         autre => panic!("attendu la note faite, avec un avertissement ; rendu {autre:?}"),
-    }
+    };
+    // L'avertissement nomme le fichier d'ajout par son chemin relatif à la racine des données,
+    // ses composants joints par `/` : le chemin de la racine des données n'y paraît pas.
+    assert!(message.starts_with("documents/fonds/ajouts/"), "{message}");
+    assert!(
+        message.ends_with(".automerge est en place, mais son renommage n'est pas rendu durable."),
+        "{message}"
+    );
+    assert!(
+        !message.contains(&*racine.chemin().to_string_lossy()),
+        "{message}"
+    );
 
     let services = paire.rouvrir(services, &[]);
     let vue = services
@@ -354,21 +410,123 @@ fn la_premiere_note_coupee_apres_le_renommage_fait_naitre_le_fonds_avec_un_avert
             &mut contexte_de_test(&mut alea),
         )
     };
-    match rendu {
+    let message = match rendu {
         Ok(Notee {
             idee,
-            avertissement: Some(_),
-        }) => assert_eq!(idee, IDEE),
+            avertissement: Some(message),
+        }) => {
+            assert_eq!(idee, IDEE);
+            message
+        }
         autre => {
             panic!("attendu la note faite, avec l'avertissement de la naissance ; rendu {autre:?}")
         }
-    }
+    };
+    // L'avertissement nomme le fichier complet par son chemin relatif à la racine des données :
+    // le chemin de la racine des données n'y paraît pas.
+    assert_eq!(
+        message,
+        "documents/fonds/complet.automerge est en place, mais son renommage n'est pas rendu durable."
+    );
+    assert!(
+        !message.contains(&*racine.chemin().to_string_lossy()),
+        "{message}"
+    );
 
     let services = paire.rouvrir(services, &[]);
     let vue = services
         .vue_d_une_idee(IDEE)
         .expect("l'idée de la première note se lit");
     assert_eq!(vue.texte.as_deref(), Some("Un refrain qui monte, en ré"));
+}
+
+/// Deux notes, puis un octet changé au milieu du fichier d'ajout de la seconde : rouvert, le fonds
+/// se lit sans écrire, et le refus de sa lecture seule nomme le fichier d'ajout par son chemin
+/// relatif à la racine des données, sans le chemin de la racine des données.
+#[test]
+fn la_lecture_seule_d_un_ajout_altere_le_nomme_par_son_chemin_relatif() {
+    let racine = racine_jetable("commandes-ajout-altere");
+    let mut paire = PaireSurFichiers { racine: &racine };
+    let mut services = paire.neufs();
+    let mut alea = alea_de_test();
+    let mut contexte = contexte_de_test(&mut alea);
+    services
+        .noter(&une_note("Un refrain qui monte, en ré"), &mut contexte)
+        .expect("la note A est faite");
+    services
+        .noter(&une_note("Un pont en mi mineur"), &mut contexte)
+        .expect("la note B est faite");
+    drop(services);
+    let ajouts = commun::dossier_des_ajouts(racine.chemin());
+    let noms = commun::entrees(&ajouts);
+    assert_eq!(
+        noms.len(),
+        1,
+        "la note B, un seul fichier d'ajout : {noms:?}"
+    );
+    commun::alterer_l_octet_du_milieu(&ajouts.join(&noms[0]));
+
+    let documents = FondsSurFichiers::ouvrir(&racine).expect("rouvrir le fonds");
+    let refus = documents
+        .lecture_seule()
+        .expect("le fonds se lit sans écrire");
+    assert_eq!(refus.raison, Raison::Illisible);
+    let message = refus.message;
+    assert!(
+        message.starts_with("Le contenu de documents/fonds/ajouts/"),
+        "{message}"
+    );
+    assert!(
+        message.ends_with(
+            ".automerge ne donne pas l'empreinte que porte son nom : il n'est pas chargé, et le \
+             document se lit sans écrire ni échanger."
+        ),
+        "{message}"
+    );
+    assert!(
+        !message.contains(&*racine.chemin().to_string_lossy()),
+        "{message}"
+    );
+}
+
+/// Une prise versée, coupée avant le renommage de sa captation : le refus du disque nomme la
+/// captation par son chemin relatif à la racine des données (`Captations`), sans le chemin de la
+/// racine des données, et le fonds ne naît pas.
+#[test]
+fn une_captation_coupee_avant_le_renommage_est_refusee_par_son_chemin_relatif() {
+    let racine = racine_jetable("commandes-captation-coupee");
+    let mut paire = PaireSurFichiers { racine: &racine };
+    let mut services = paire.neufs();
+    let mut alea = alea_de_test();
+
+    let rendu = {
+        let _panne = couper(Etape::Renommage, 1);
+        services.verser_une_fiche(
+            gestes::Sorte::Prise,
+            suite::PRISE_DE_TEST,
+            &suite::fiche_wav(30_000),
+            &suite::importee(),
+            0,
+            &mut contexte_de_test(&mut alea),
+        )
+    };
+    let message = match rendu {
+        Err(Refus {
+            raison: Raison::Disque,
+            message,
+        }) => message,
+        autre => panic!("attendu le refus du disque ; rendu {autre:?}"),
+    };
+    let e = stockage::empreinte(suite::PRISE_DE_TEST);
+    assert_eq!(
+        message,
+        format!("captations/{}/{e}, le disque l'a refusé.", &e[..2])
+    );
+    assert!(
+        !message.contains(&*racine.chemin().to_string_lossy()),
+        "{message}"
+    );
+    assert!(services.documents().fonds().is_none());
 }
 
 #[test]

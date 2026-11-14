@@ -1,6 +1,8 @@
 //! Les copies d'un document qui s'échangent (§ 31 · 2.5, § 30 · 2) : la synchronisation les
 //! compare avant tout échange, et deux copies étrangères ne s'échangent rien.
 
+use std::fmt;
+
 /// Ce qui situe une copie d'un document : l'identifiant de propriétaire, l'identifiant du
 /// document et sa lignée, lus à la racine du document.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -10,12 +12,30 @@ pub struct Copie {
     pub lignee: String,
 }
 
-/// La première différence entre deux copies, qui ferme l'échange.
+/// La première différence entre deux copies, qui ferme l'échange. Son texte (`Display`) le dit,
+/// par un constat (§ 31 · 2.5 : « et Pupitre le dit »).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Difference {
     AutreProprietaire,
     AutreDocument,
     AutreLignee,
+}
+
+impl fmt::Display for Difference {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Difference::AutreProprietaire => {
+                "Ces deux copies n'ont pas le même identifiant de propriétaire : elles ne \
+                 s'échangent rien."
+            }
+            Difference::AutreDocument => {
+                "Ces deux copies ne sont pas du même document : elles ne s'échangent rien."
+            }
+            Difference::AutreLignee => {
+                "Ces deux copies ne sont pas de la même lignée : elles ne s'échangent rien."
+            }
+        })
+    }
 }
 
 /// Deux copies s'échangent si elles ont le même propriétaire, le même document et la même

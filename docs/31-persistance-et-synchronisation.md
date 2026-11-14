@@ -209,8 +209,8 @@ dans ces conteneurs, sous des clés ajoutées, sans conteneur ni migration de pl
 - la division d'un MIDI et les autres faits d'un en-tête, sous des clés `<empreinte>/<fait>`
   ajoutées.
 
-Chez une captation plus ancienne, une telle clé se lit absente, et le fait vaut `—`
-([ADR-006](adr/adr-006-le-partiel-est-normal.md)).
+Chez une captation plus ancienne, une clé ajoutée à ses faits se lit absente, et le fait vaut
+`—` ([ADR-006](adr/adr-006-le-partiel-est-normal.md)).
 
 ### 2.1 Sur le disque
 
@@ -318,8 +318,9 @@ de tête (§ 2.4) : le [glossaire](80-glossaire.md#les-données) les distingue.
   n'attend ses dépendances (`get_missing_deps(&[])` est vide). Sinon, le document s'ouvre en
   lecture seule, sur ce qui se lit, et un bandeau nomme le fichier. Les deux lectures seules
   se nomment : illisible, devant un fichier qui ne se lit pas, une relecture du disque
-  manquée (ci-dessus), ou une version de schéma absente, nulle, ou qui n'est pas un entier non
-  signé ; et plus récente, devant une version de schéma plus récente (§ 2.4). Ni l'une ni
+  manquée (ci-dessus), une version de schéma absente, nulle, ou qui n'est pas un entier non
+  signé, ou une migration qui ne s'applique pas ; et plus récente, devant une version de schéma
+  plus récente (§ 2.4). Ni l'une ni
   l'autre n'écrit d'opération ni ne se compacte. Illisible, le document n'envoie ni ne
   reçoit ; plus récent, il reçoit, et ne transmet aucune modification. La réparation vient du
   nœud ou, sans lui, de l'archive complète. Le bandeau du document en lecture seule propose
@@ -455,11 +456,12 @@ structure. La genèse pose la version de schéma 1.
   document plus ancien à son ouverture ; la migration est une opération nommée comme une
   autre, avec son message : « Fonds passé à la version de schéma 2 ». Une migration que le
   disque refuse laisse le document fermé : l'ouverture le dit, et la suivante migre à nouveau.
+  Une migration qui ne s'applique pas ouvre le document en lecture seule, sans échange.
 - **Devant une version de schéma plus récente, elle lit sans écrire.** Elle montre ce
   qu'elle connaît, laisse le reste intact, et refuse toute opération sur ce document en
   nommant la raison :
-  un bandeau dit qu'il vient d'une version plus récente de Pupitre, et qu'il faut mettre à
-  jour l'application pour y écrire. C'est l'impossibilité stricte que nomme l'ADR-006. Elle
+  un bandeau dit qu'il vient d'une version plus récente de Pupitre, que cette version-ci le lit
+  sans y écrire. C'est l'impossibilité stricte que nomme l'ADR-006. Elle
   en reçoit encore les modifications par la synchronisation, et ne lui transmet aucune
   modification : ses messages partent sans modification. Ce qu'elle reçoit s'écrit en
   fichiers d'ajout, sans compaction. Une captation n'est jamais refusée pour autant : elle
@@ -511,8 +513,8 @@ de l'archive complète (§ 9.1).
   `Text`, distinct
   d'une valeur `Str`. Un type inconnu (`Unknown`) fait échouer l'écriture de la teneur, qui
   le nomme. Pupitre n'écrit ni `Counter`, ni objet `Text` : un test le vérifie sur les
-  documents de test. Les identifiants, la version de schéma et l'identifiant de propriétaire
-  en font partie.
+  documents qu'écrivent les opérations nommées. Les identifiants, la version de schéma et
+  l'identifiant de propriétaire en font partie.
 - **Les textes sont pris octet pour octet**, sans aucune normalisation : une normalisation
   cacherait un miroir qui change un caractère.
 - **Pour une clé en conflit**, elle prend la valeur que présente Automerge.
