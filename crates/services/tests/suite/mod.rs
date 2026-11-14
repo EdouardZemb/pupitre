@@ -569,7 +569,7 @@ pub fn une_note_vide_refusee_ne_fait_rien_naitre<P: Paire>(paire: &mut P) {
         services.noter(&une_note(" \t\n "), &mut contexte_de_test(&mut alea)),
         Err(Refus {
             raison: Raison::Impossible,
-            message: "Le texte de la note est vide.".to_string(),
+            message: "Le texte est vide.".to_string(),
         })
     );
     assert!(services.documents().fonds().is_none());

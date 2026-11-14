@@ -192,10 +192,7 @@ fn une_note_vide_est_refusee() {
         noter("i", " \t\n", Appareil::Etabli, HEURE, 0),
         Err(Impossible::TexteVide)
     );
-    assert_eq!(
-        Impossible::TexteVide.to_string(),
-        "Le texte de la note est vide."
-    );
+    assert_eq!(Impossible::TexteVide.to_string(), "Le texte est vide.");
 }
 
 #[test]
@@ -590,10 +587,7 @@ fn completer_d_un_texte_vide_est_refuse() {
         completer(&idee(A), "", HEURE, 0),
         Err(Impossible::TexteVide)
     );
-    assert_eq!(
-        Impossible::TexteVide.to_string(),
-        "Le texte de la note est vide."
-    );
+    assert_eq!(Impossible::TexteVide.to_string(), "Le texte est vide.");
 }
 
 #[test]
