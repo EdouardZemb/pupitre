@@ -94,6 +94,21 @@ jobs:
         with:
           name: cargo-lock
           path: Cargo.lock
+      # L'interface ne tire ni automerge, ni les services, ni le stockage (§ 40 · 3 ; ADR-022) :
+      # en natif et en WebAssembly. La sortie se capture d'abord : une erreur de cargo tree fait
+      # échouer l'étape (bash -e), au lieu de passer pour une absence. L'essai sur le stockage
+      # prouve que la recherche trouve une dépendance, jamais la ligne du paquet racine, qui n'a
+      # pas de préfixe. Placée avant les lints : un graphe fautif les ferait échouer avant elle.
+      - name: Le graphe de l'interface
+        run: |
+          interdits='^(automerge|services|stockage) v'
+          sortie=$(cargo tree -p stockage -e no-dev --prefix none)
+          grep -Eq '^automerge v' <<<"$sortie"
+          grep -Eq '^services v' <<<"$sortie"
+          for cible in "" "--target wasm32-unknown-unknown"; do
+            sortie=$(cargo tree -p interface -e no-dev --prefix none $cible)
+            if grep -E "$interdits" <<<"$sortie"; then exit 1; fi
+          done
       - name: Format
         run: cargo fmt --all --check
       - name: Lint
