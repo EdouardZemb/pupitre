@@ -3,8 +3,9 @@
 //! ordinaire, né par les opérations, l'autre qui porte une valeur de chaque type que la teneur
 //! écrit ; et deux documents qui ne diffèrent que par leur lignée ont la même teneur (§ 31 · 2.6).
 //!
-//! Ce fichier est le seul des empreintes de référence. Le test ne lit aucune étiquette, que la
-//! CI ne récupère pas. Il inclut la suite des commandes, où les gestes du témoin sont écrits.
+//! Ce fichier est le seul des empreintes de référence. Le test ne lit aucune étiquette de git,
+//! que la CI ne récupère pas. Il inclut la suite des commandes, où les gestes du témoin sont
+//! écrits.
 
 #[path = "../../services/tests/suite/mod.rs"]
 mod suite;

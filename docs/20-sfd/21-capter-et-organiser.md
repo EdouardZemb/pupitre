@@ -116,8 +116,13 @@ la notice qu'Android impose pendant un enregistrement au premier plan (I29).
   ([§ 30 · 9.1](../30-modele-de-domaine.md#91-lidée)). La suppression définitive sera une
   opération destructrice explicite, conçue plus tard.
 - **Annuler** défait le dernier geste de tri, par l'opération inverse, nommée à son tour
-  ([§ 30 · 11](../30-modele-de-domaine.md#11-journal-décisions-questions)). Une capture
-  faite par erreur ne s'annule pas : elle se retire.
+  (« Annulé : Idée du 3 novembre : étiquette #pont posée »,
+  [§ 30 · 11](../30-modele-de-domaine.md#11-journal-décisions-questions)). Annuler ne vise
+  que le dernier geste de tri fait sur l'appareil depuis l'ouverture ; une note, une requête
+  enregistrée, un import ou une déclaration ne le visent ni ne le remplacent ; une
+  annulation faite, un second « annuler » est refusé, et le dit. Un geste refusé ne change
+  pas ce qu'annuler vise, et une clé en conflit avant le geste revient à sa seule valeur
+  présentée. Une capture faite par erreur ne s'annule pas : elle se retire.
 - Promouvoir crée l'objet, y verse la matière de l'idée (sa prise devient la première
   prise), et **garde l'idée**, reliée à ce qu'elle est devenue.
 - La boîte se trie par date, étiquette, durée, état (reliée ou non) et provenance (captée ou
