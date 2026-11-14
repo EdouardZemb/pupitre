@@ -30,6 +30,22 @@ pub const IMPORTS: &str = "imports";
 pub const ORIGINES_DECLAREES: &str = "origines_declarees";
 /// À la racine du document : l'objet à clés des photos.
 pub const PHOTOS: &str = "photos";
+/// Les conteneurs de la racine du document que crée la genèse (§ 31 · 2.3), dans l'ordre de sa
+/// recette, chacun un objet à clés, après la version de schéma.
+pub const CONTENEURS_DE_LA_GENESE: [&str; 9] = [
+    IDEES,
+    PRISES,
+    MIDI_VERSES,
+    TEXTES_VERSES,
+    LIENS,
+    REQUETES_ENREGISTREES,
+    IMPORTS,
+    ORIGINES_DECLAREES,
+    PHOTOS,
+];
+/// Les conteneurs dont les clés nomment une captation, `<empreinte>/<fait>` (§ 31 · 6.1) ; le
+/// lot 2 y ajoute les photos, avec le cas du test 4.
+pub const CONTENEURS_NOMMANT_UNE_CAPTATION: [&str; 3] = [PRISES, MIDI_VERSES, TEXTES_VERSES];
 /// À la racine du document : l'identifiant du document, une chaîne écrite à la naissance.
 pub const IDENTIFIANT: &str = "identifiant";
 /// À la racine du document : la lignée (§ 31 · 2.5), une chaîne écrite à la naissance.

@@ -1,16 +1,18 @@
 //! La lecture du fonds (§ 31 · 3) : le fonds lu, que le noyau reçoit (`IdeeLue`, `CaptationLue`),
-//! le journal et la version de schéma, tirés du document sans y écrire. Une valeur se reconnaît à
-//! sa variante, jamais par conversion : une idée dont une valeur n'a pas le type du schéma ne se
-//! lit pas. Un conteneur absent de la racine du document se lit vide.
+//! le journal, la version de schéma et les empreintes que nomme le document, tirés du document
+//! sans y écrire. Une valeur se reconnaît à sa variante, jamais par conversion : une idée dont une
+//! valeur n'a pas le type du schéma ne se lit pas. Un conteneur absent de la racine du document se
+//! lit vide.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use automerge::{Automerge, ObjId, ObjType, ROOT, ReadDoc, ScalarValue, Value};
 use noyau::donnees::fonds::{
-    CAPTEE, DEPUIS, DUREE, ETIQUETTES, IDEE, IDEES, IMPORTEE, LE, LIENS, PAR, PROVENANCE, RETIREE,
-    TEXTE, VERSION_DE_SCHEMA,
+    CAPTEE, CONTENEURS_NOMMANT_UNE_CAPTATION, DEPUIS, DUREE, ETIQUETTES, IDEE, IDEES, IMPORTEE, LE,
+    LIENS, PAR, PROVENANCE, RETIREE, TEXTE, VERSION_DE_SCHEMA,
 };
 use noyau::donnees::gestes::{Appareil, CaptationLue, IdeeLue, Provenance, Sorte};
+use noyau::donnees::idee;
 
 /// L'idée `id`, telle qu'elle se lit : son identifiant, sa provenance (`provenance`, `par`, et
 /// `depuis` d'une idée importée), sa date (`le`), son texte, ses étiquettes, la date de son
@@ -119,6 +121,20 @@ pub fn journal(doc: &Automerge) -> Vec<(String, i64)> {
 /// (`ScalarValue::Uint`) ; absente, ou de tout autre type, `None`.
 pub fn version_de_schema(doc: &Automerge) -> Option<u64> {
     valeur(doc, &ROOT, VERSION_DE_SCHEMA, naturel).flatten()
+}
+
+/// Les empreintes que nomme le document (§ 31 · 6.1) : les clés des
+/// `CONTENEURS_NOMMANT_UNE_CAPTATION`, par `idee::empreintes_nommees` ; un conteneur absent de la
+/// racine du document, ou qui n'est pas un objet à clés, se saute.
+pub fn empreintes_nommees(doc: &Automerge) -> BTreeSet<String> {
+    CONTENEURS_NOMMANT_UNE_CAPTATION
+        .into_iter()
+        .filter_map(|conteneur| objet(doc, &ROOT, conteneur))
+        .flat_map(|conteneur| {
+            let cles: Vec<String> = doc.keys(&conteneur).collect();
+            idee::empreintes_nommees(cles.iter().map(String::as_str))
+        })
+        .collect()
 }
 
 /// L'objet à clés que porte `cle` dans `parent` ; absent, ou de tout autre type, `None`.

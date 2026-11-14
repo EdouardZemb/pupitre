@@ -24,7 +24,6 @@
 //! en lecture seule, comme un fichier illisible à l'ouverture ; une compaction d'ouverture qui
 //! échoue vient en avertissement, et le document s'ouvre.
 
-use std::collections::BTreeSet;
 use std::ffi::OsStr;
 use std::fs;
 use std::io;
@@ -33,21 +32,20 @@ use std::path::{Path, PathBuf};
 #[cfg(feature = "pannes")]
 use automerge::transaction::{CommitOptions, Transaction};
 use automerge::{
-    ActorId, Automerge, AutomergeError, ChangeHash, LoadOptions, ObjType, OnPartialLoad, ROOT,
-    ReadDoc, Value,
+    ActorId, Automerge, AutomergeError, ChangeHash, LoadOptions, OnPartialLoad, ROOT, ReadDoc,
 };
 use noyau::donnees::acces::Acces;
 use noyau::donnees::changement::Operation;
 use noyau::donnees::compaction::{self, Lu};
 use noyau::donnees::demarrage::{self, Sort};
-use noyau::donnees::fonds::{IDENTIFIANT, LIGNEE, MIGRATIONS, PRISES, PROPRIETAIRE};
+use noyau::donnees::fonds::{IDENTIFIANT, LIGNEE, MIGRATIONS, PROPRIETAIRE};
 #[cfg(feature = "pannes")]
 use noyau::donnees::gestes;
 use noyau::donnees::version::{self, Lecture, Migration};
 use services::application;
-// La version de schéma se lit par la règle des services, la même pour les deux adaptateurs
-// `Documents` (§ 31 · 2.4).
-use services::lecture::version_de_schema;
+// La version de schéma et les empreintes que nomme le fonds se lisent par les règles des
+// services, les mêmes pour les deux adaptateurs `Documents` (§ 31 · 2.4, § 31 · 6.1).
+use services::lecture::{empreintes_nommees, version_de_schema};
 use synchro::{Copie, Echange};
 
 use crate::demarrage::{
@@ -654,15 +652,6 @@ pub(crate) fn rouvrir_le_fonds<'r>(
     let restants = racine.captations().ranger_les_noms_provisoires(&nommees);
     document.avertissements.extend(restants);
     Ok(Some(document))
-}
-
-/// Les empreintes que nomme le document `automerge`, tel qu'il se lit : les clés de ses prises
-/// (`PRISES`, à sa racine). Sans prises qui se lisent comme un objet à clés, aucune.
-fn empreintes_nommees(automerge: &Automerge) -> BTreeSet<String> {
-    match automerge.get(ROOT, PRISES) {
-        Ok(Some((Value::Object(ObjType::Map), prises))) => automerge.keys(&prises).collect(),
-        _ => BTreeSet::new(),
-    }
 }
 
 /// La raison de lecture seule que donne la version de schéma lue `lue`, devant la version de
