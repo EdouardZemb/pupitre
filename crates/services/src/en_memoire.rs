@@ -40,14 +40,14 @@ impl DocumentsEnMemoire {
         }
     }
 
-    /// Ouvre les octets d'un fonds selon `migrations` : `version::lecture(version_de_schema, connue)`
-    /// décide ; `Lecture::Migrer` applique `a_appliquer` par `application::migrer`, et une
-    /// migration refusée, qui n'a pas fait migrer le fonds, met en lecture seule
-    /// (`Raison::Illisible`, son message celui d'une migration qui ne s'applique pas, comme
-    /// `LectureSeule::MigrationRefusee` sur fichiers) ; `Lecture::LireSansEcrire` met en lecture seule
-    /// (`Raison::VersionPlusRecente { version }`, ou `Raison::Illisible` sans version lue) ;
-    /// `Lecture::Illisible` aussi (`Raison::Illisible`). Des octets qu'`Automerge::load` refuse :
-    /// `Err`, `Raison::Illisible`.
+    /// Ouvre les octets d'un fonds selon `migrations` :
+    /// `version::lecture(version_de_schema, connue)` décide ; `Lecture::Migrer` applique
+    /// `a_appliquer` par `application::migrer`, et une migration refusée, qui n'a pas fait migrer
+    /// le fonds, met en lecture seule (`Raison::Illisible`, son message celui d'une migration qui
+    /// ne s'applique pas, comme `LectureSeule::MigrationRefusee` sur fichiers) ;
+    /// `Lecture::LireSansEcrire` met en lecture seule (`Raison::VersionPlusRecente { version }`,
+    /// ou `Raison::Illisible` sans version lue) ; `Lecture::Illisible` aussi
+    /// (`Raison::Illisible`). Des octets qu'`Automerge::load` refuse : `Err`, `Raison::Illisible`.
     pub fn de(octets: &[u8], migrations: &[Migration<'_>]) -> Result<Self, Refus> {
         let mut automerge = Automerge::load(octets).map_err(refus_illisible)?;
         let lue = lecture::version_de_schema(&automerge);
