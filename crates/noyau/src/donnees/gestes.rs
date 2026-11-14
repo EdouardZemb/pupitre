@@ -182,7 +182,7 @@ pub enum Impossible {
 impl fmt::Display for Impossible {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Impossible::TexteVide => f.write_str("Le texte de la note est vide."),
+            Impossible::TexteVide => f.write_str("Le texte est vide."),
             Impossible::IdeeAbsente { idee } => {
                 write!(f, "Aucune idée ne porte l'identifiant {idee}.")
             }
