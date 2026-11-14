@@ -446,7 +446,7 @@ fn deux_regroupements_croises_retirent_les_deux_idees() {
 /// reste visible, vide : aucun geste ne l'a retirée.
 #[test]
 fn une_prise_nee_sur_deux_repliques_ne_cache_aucun_de_ses_faits() {
-    let r = repliques::<2, _>("repliques-vigilance", une_idee_notee);
+    let r = repliques::<2, _>("repliques-meme-prise", une_idee_notee);
     let a = &r.amorce;
     let [mut premiere, mut seconde] = r.services();
     let [mut alea_de_la_premiere, mut alea_de_la_seconde] = r.aleas();
