@@ -1,13 +1,16 @@
 //! Le stockage de pupitre, côté natif seulement (§ 40 · 3) : la racine des données et son
 //! verrou, puis les adaptateurs `Documents` et `Captations` sur fichiers, au format de
-//! l'ADR-023 (§ 31 · 2.1). Il ne devine aucun chemin : il reçoit celui de la racine des
-//! données (I30).
+//! l'ADR-023 (§ 31 · 2.1), qui réalisent les contrats des services (`FondsSurFichiers` et
+//! `Captations`). Il ne devine aucun chemin : il reçoit celui de la racine des données (I30).
 //!
-//! La fonction `pannes`, que seuls ses tests demandent, rend public le module `pannes`, qui
-//! injecte une panne à chaque étape d'une écriture ; sans elle, ses points laissent tout passer.
-//! Elle compile aussi `RacineDesDonnees::fonds_selon`, qui ouvre le fonds selon les migrations
-//! qu'un test lui donne.
+//! La fonction `pannes`, que seuls ses tests demandent, coupe une écriture à l'étape voulue : elle
+//! rend public le module `pannes`, qui injecte une panne à chaque étape d'une écriture ; sans
+//! elle, ses points laissent tout passer. Elle ouvre aussi le fonds selon les migrations qu'un
+//! test lui donne (`RacineDesDonnees::fonds_selon`, `FondsSurFichiers::ouvrir_selon`), et garde
+//! pour les tests l'écriture et la naissance par une fermeture (`Document::ecrire`,
+//! `RacineDesDonnees::faire_naitre_le_fonds`, `Naissance`).
 
+mod adaptateurs;
 mod captations;
 mod demarrage;
 mod documents;
@@ -26,8 +29,11 @@ use automerge::{Automerge, AutomergeError, ObjId, ObjType, ROOT, ReadDoc, Scalar
 use noyau::donnees::acces::Acces;
 use noyau::donnees::teneur::{ErreurDeTeneur, Valeur, ecrire_la_teneur};
 
+pub use adaptateurs::FondsSurFichiers;
 pub use captations::Captations;
-pub use documents::{Document, Naissance};
+pub use documents::Document;
+#[cfg(feature = "pannes")]
+pub use documents::Naissance;
 pub use noyau::donnees::identifiants::empreinte;
 pub use racine_des_donnees::RacineDesDonnees;
 
@@ -54,6 +60,10 @@ pub enum Erreur {
     FondsDejaNe,
     /// Automerge a refusé : le geste, une écriture du document, ou la lecture de sa racine.
     Automerge(AutomergeError),
+    /// L'opération ne s'applique pas au document (`services::application::appliquer`) : un
+    /// objet manque sur son chemin, elle ne change rien, ou Automerge l'a refusée ; rien ne
+    /// s'écrit.
+    Inapplicable(services::application::Inapplicable),
     /// Le document est en lecture seule, pour cette raison : il refuse ce que son accès ne
     /// permet pas (§ 31 · 2.1).
     LectureSeule(LectureSeule),
@@ -107,7 +117,11 @@ pub enum LectureSeule {
     /// réception qui change ses heads, tant qu'elle reste plus récente.
     VersionPlusRecente { version: u64 },
     /// Le document, qui se lit entier, porte une version de schéma absente, nulle, ou qui n'est
-    /// pas un entier non signé (§ 31 · 2.4) : il se lit, sans écrire ni échanger.
+    /// pas un entier non signé (§ 31 · 2.4) : il se lit, sans écrire ni échanger. De même d'une
+    /// version de schéma plus ancienne que les migrations de l'application ne font pas monter,
+    /// à l'ouverture : une migration qui ne se lit pas, ou qui attend ses dépendances
+    /// (`services::application::migrer` la refuse), comme une migration bâtie sur une autre
+    /// genèse ; rien ne s'écrit alors à l'ancienne version de schéma.
     VersionIllisible,
 }
 

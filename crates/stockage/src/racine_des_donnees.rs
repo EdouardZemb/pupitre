@@ -5,13 +5,18 @@ use std::mem;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 
+#[cfg(feature = "pannes")]
 use automerge::AutomergeError;
+#[cfg(feature = "pannes")]
 use automerge::transaction::Transaction;
+use noyau::donnees::changement::Operation;
 use noyau::donnees::fonds::MIGRATIONS;
 #[cfg(feature = "pannes")]
 use noyau::donnees::version::Migration;
 
-use crate::{Captations, Document, Erreur, Naissance, disque, documents};
+#[cfg(feature = "pannes")]
+use crate::Naissance;
+use crate::{Captations, Document, Erreur, disque, documents};
 
 /// Une racine des données ouverte, dont ce processus tient le verrou : il est seul à en écrire
 /// les documents tant qu'elle reste ouverte.
@@ -132,8 +137,11 @@ impl RacineDesDonnees {
     /// ancienne : les migrations au-delà de la sienne s'appliquent, dans l'ordre, puis s'écrivent
     /// ensemble en un seul fichier d'ajout, avec les issues d'une écriture : refusée, le fonds ne
     /// s'ouvre pas, et [`Erreur::Disque`] se rend ; en place, mais non durable, il s'ouvre avec
-    /// [`Avertissement::NonDurable`](crate::Avertissement::NonDurable). Plus récente : il s'ouvre
-    /// en lecture seule
+    /// [`Avertissement::NonDurable`](crate::Avertissement::NonDurable). Une migration qui ne
+    /// s'applique pas (`services::application::migrer` la refuse : elle ne se lit pas, ou attend
+    /// ses dépendances) l'ouvre en lecture seule
+    /// ([`LectureSeule::VersionIllisible`](crate::LectureSeule::VersionIllisible)), sans rien
+    /// écrire. Plus récente : il s'ouvre en lecture seule
     /// ([`LectureSeule::VersionPlusRecente`](crate::LectureSeule::VersionPlusRecente)), se lit
     /// sans écrire ni se compacter, et échange encore. Absente, nulle, ou d'un autre type : en
     /// lecture seule ([`LectureSeule::VersionIllisible`](crate::LectureSeule::VersionIllisible)),
@@ -184,18 +192,34 @@ impl RacineDesDonnees {
         documents::rouvrir_le_fonds(self, migrations)
     }
 
-    /// § 31 · 2.3 : `GENESE`, la naissance (`MESSAGE_DE_LA_NAISSANCE`, qui écrit `IDENTIFIANT`,
-    /// `LIGNEE` et `PROPRIETAIRE`), puis le premier geste, avec son message ; les trois en un
-    /// seul fichier, `documents/fonds/complet.automerge`, écrit à côté puis renommé, et
-    /// `documents/fonds/ajouts/` créé. Le geste refusé, rien ne s'écrit. Le fichier complet
-    /// refusé avant la fin de son renommage rend [`Erreur::Disque`], et seul `ajouts/` reste,
-    /// vide ; en place, mais son renommage non rendu durable, le fonds naît, avec cet
-    /// avertissement ([`Document::avertissements`]).
+    /// § 31 · 2.3 : `GENESE`, la naissance `naissance` (`noyau::donnees::gestes::naissance`,
+    /// sous `MESSAGE_DE_LA_NAISSANCE`, qui écrit `IDENTIFIANT`, `LIGNEE` et `PROPRIETAIRE`), puis
+    /// le premier geste `geste`, avec son message, appliqués par
+    /// `services::application::faire_naitre` ; les trois en un seul fichier,
+    /// `documents/fonds/complet.automerge`, écrit à côté puis renommé, et `documents/fonds/ajouts/`
+    /// créé. Une opération inapplicable rend [`Erreur::Inapplicable`], et rien ne s'écrit. Le
+    /// fichier complet refusé avant la fin de son renommage rend [`Erreur::Disque`], et seul
+    /// `ajouts/` reste, vide ; en place, mais son renommage non rendu durable, le fonds naît, avec
+    /// cet avertissement ([`Document::avertissements`]).
     ///
     /// Un fonds déjà né rend [`Erreur::FondsDejaNe`], sans que le geste soit fait : son
     /// `complet.automerge` existe, ou un voisin lisible de celui-ci, que la naissance ne retire
-    /// pas, et que l'ouverture lit. Un `Document` du fonds déjà vivant rend
+    /// pas, et que l'ouverture lit (`pupitre_neuf`). Un `Document` du fonds déjà vivant rend
     /// [`Erreur::FondsDejaOuvert`], avant toute lecture.
+    pub fn faire_naitre(
+        &self,
+        naissance: &Operation,
+        geste: &Operation,
+    ) -> Result<Document<'_>, Erreur> {
+        documents::faire_naitre(self, naissance, geste)
+    }
+
+    /// La naissance de [`RacineDesDonnees::faire_naitre`], avec les mêmes issues, sa naissance
+    /// posée par `noyau::donnees::gestes::naissance` de `naissance`, à l'heure `heure`, et son
+    /// premier geste donné par une fermeture sur la transaction, sous `message`, à `heure` : un
+    /// point d'entrée des tests, hors de l'API livrée, sous la fonction `pannes`. Le geste refusé,
+    /// [`Erreur::Automerge`], et rien ne s'écrit.
+    #[cfg(feature = "pannes")]
     pub fn faire_naitre_le_fonds(
         &self,
         naissance: &Naissance<'_>,
