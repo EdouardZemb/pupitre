@@ -193,3 +193,24 @@ fn la_reouverture_vide_ce_qu_annuler_vise() {
 fn une_annulation_ne_s_annule_pas() {
     suite::une_annulation_ne_s_annule_pas(&mut PaireEnMemoire);
 }
+
+#[test]
+fn chaque_operation_laisse_une_seule_modification_avec_son_message() {
+    suite::chaque_operation_laisse_une_seule_modification_avec_son_message(&mut PaireEnMemoire);
+}
+
+#[test]
+fn l_historique_ne_porte_que_des_operations_connues() {
+    suite::l_historique_ne_porte_que_des_operations_connues(&mut PaireEnMemoire);
+}
+
+// § 31 · 10, test 7 : chercher les champs interdits du § 30 · 13
+#[test]
+fn rien_d_engendre_n_est_stocke() {
+    suite::rien_d_engendre_n_est_stocke(&mut PaireEnMemoire);
+}
+
+#[test]
+fn aucun_counter_ni_objet_text_dans_un_document_des_operations() {
+    suite::aucun_counter_ni_objet_text_dans_un_document_des_operations(&mut PaireEnMemoire);
+}

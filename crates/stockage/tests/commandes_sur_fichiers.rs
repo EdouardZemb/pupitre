@@ -253,6 +253,37 @@ fn une_annulation_ne_s_annule_pas() {
 }
 
 #[test]
+fn chaque_operation_laisse_une_seule_modification_avec_son_message() {
+    let racine = racine_jetable("commandes-une-modification-par-operation");
+    suite::chaque_operation_laisse_une_seule_modification_avec_son_message(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn l_historique_ne_porte_que_des_operations_connues() {
+    let racine = racine_jetable("commandes-operations-connues");
+    suite::l_historique_ne_porte_que_des_operations_connues(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+// § 31 · 10, test 7 : chercher les champs interdits du § 30 · 13
+#[test]
+fn rien_d_engendre_n_est_stocke() {
+    let racine = racine_jetable("commandes-rien-d-engendre");
+    suite::rien_d_engendre_n_est_stocke(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn aucun_counter_ni_objet_text_dans_un_document_des_operations() {
+    let racine = racine_jetable("commandes-ni-compteur-ni-texte");
+    suite::aucun_counter_ni_objet_text_dans_un_document_des_operations(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
 fn la_migration_de_test_est_la_meme_dans_les_deux_crates() {
     assert_eq!(suite::migration_de_test(), commun::migration_de_test());
 }
