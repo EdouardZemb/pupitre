@@ -2,7 +2,8 @@
 //! fil, ni réseau, ni horloge, ni environnement, ni processus, ni table au hacheur tiré du
 //! système ; hors des trois fichiers qui appliquent les opérations nommées, aucun code n'écrit
 //! dans un document (I28, § 70 · 3) ; l'identifiant de propriétaire ne se forme qu'à un seul
-//! endroit. Les tests lisent sur le disque chaque `src/` de `crates/` et d'`app/`.
+//! endroit. Les tests lisent sur le disque chaque `src/` de `crates/` et d'`app/` ; une racine
+//! qu'ils doivent lire, et dont aucune source n'est lue, est une faute.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -46,12 +47,20 @@ const INTERDITS_AUX_SERVICES: &[&str] = &[
     "RandomState",
 ];
 
-/// Ce qui écrit dans un document Automerge, c'est-à-dire y crée une modification : une
-/// transaction, ce qu'elle pose ou retire, et son commit (I28). `.insert(` n'y est pas, puisque
-/// c'est aussi celui d'un `BTreeSet` ; mais aucune insertion ne s'écrit sans `Transactable` ou
-/// `automerge::transaction`, qui y sont. La synchronisation, elle, ne crée aucune modification :
-/// elle reprend celles nées d'opérations nommées (`receive_sync_message`, dans `synchro`), ce que
-/// le § 70 · 3 admet, et aucun de ces mots ne la nomme.
+/// Ce qui écrit dans un document Automerge, c'est-à-dire y crée une modification (I28), d'après
+/// l'API d'automerge 0.12.0 : une transaction, ouverte par l'une des méthodes que couvre le
+/// préfixe `.transact` (`transaction`, `transaction_log_patches`, `transaction_at`, `transact`,
+/// `transact_with`, puis `transact_and_log_patches` et sa forme `_with`, qui se committent
+/// d'elles-mêmes), ou celle qui possède le document (`OwnedTransaction`) ; ce qu'elle pose ou
+/// retire ; son commit ; `init_from_hydrate`, qui ouvre et committe une transaction sans aucun de
+/// ces mots ; et `AutoCommit`. `.insert(` n'y est pas, puisque c'est aussi celui d'un `BTreeSet` :
+/// une insertion passe par le trait `Transactable`, que nomment son nom, son module
+/// (`automerge::transaction`) ou, dans un import groupé, son glob (`transaction::*`). Le contrôle
+/// lit des mots : un appel par le chemin du type (`Automerge::init_from_hydrate(&mut doc, …)`), ou
+/// un module renommé dans un import groupé puis importé en glob, lui échappe. La synchronisation,
+/// elle, ne crée aucune modification : elle reprend celles nées d'opérations nommées
+/// (`receive_sync_message`, dans `synchro`), ce que le § 70 · 3 admet, et aucun de ces mots ne la
+/// nomme.
 const ECRITURES: &[&str] = &[
     ".put(",
     ".put_object(",
@@ -60,15 +69,16 @@ const ECRITURES: &[&str] = &[
     ".splice(",
     ".splice_text(",
     ".insert_object(",
-    ".transaction(",
-    ".transact(",
-    ".transact_with(",
+    ".transact",
+    ".init_from_hydrate(",
     ".empty_commit(",
     ".commit_with(",
     ".commit(",
     "AutoCommit",
+    "OwnedTransaction",
     "Transactable",
     "automerge::transaction",
+    "transaction::*",
     "Transaction<",
 ];
 
@@ -212,13 +222,31 @@ fn fautes_du_proprietaire(sources: &[(String, String)]) -> Vec<String> {
     fautes
 }
 
+/// Les fautes de lecture : une racine de `RACINES_LUES` sous laquelle aucune source n'est lue, ou
+/// un fichier d'`ECRIVENT` qui ne l'est pas ; chaque faute nomme la racine, ou le fichier.
+fn fautes_de_lecture(sources: &[(String, String)]) -> Vec<String> {
+    let mut fautes = Vec::new();
+    for racine in RACINES_LUES {
+        if !sources.iter().any(|(chemin, _)| chemin.starts_with(racine)) {
+            fautes.push(format!("aucune source lue sous {racine}"));
+        }
+    }
+    for fichier in ECRIVENT {
+        if !sources.iter().any(|(chemin, _)| chemin == fichier) {
+            fautes.push(format!("{fichier} n'est pas lu"));
+        }
+    }
+    fautes
+}
+
 /// Le contrôle des services, d'I28 et de l'identifiant de propriétaire, sur `sources`, des
-/// paires (chemin, texte), nommées depuis la racine du dépôt. Rend chaque faute, qui nomme son
-/// fichier et ce qu'il porte.
+/// paires (chemin, texte), nommées depuis la racine du dépôt, chaque racine lue comprise. Rend
+/// chaque faute, qui nomme son fichier et ce qu'il porte, ou la racine non lue.
 fn controler(sources: &[(String, String)]) -> Result<(), Vec<String>> {
     let mut fautes = fautes_des_services(sources);
     fautes.extend(fautes_d_i28(sources));
     fautes.extend(fautes_du_proprietaire(sources));
+    fautes.extend(fautes_de_lecture(sources));
     if fautes.is_empty() {
         Ok(())
     } else {

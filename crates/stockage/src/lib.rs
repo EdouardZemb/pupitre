@@ -288,8 +288,8 @@ impl LectureSeule {
                 chemin_dit(chemin, racine)
             ),
             LectureSeule::VersionPlusRecente { .. } => f.write_str(
-                "Ce fonds vient d'une version plus récente de Pupitre ; celle-ci le lit sans y \
-                 écrire.",
+                "Ce fonds vient d'une version plus récente de Pupitre ; cette version-ci le lit \
+                 sans y écrire.",
             ),
             LectureSeule::VersionIllisible => f.write_str(
                 "La version de schéma du document ne se lit pas : il se lit sans écrire ni \

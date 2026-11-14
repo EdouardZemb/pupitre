@@ -460,8 +460,8 @@ structure. La genèse pose la version de schéma 1.
 - **Devant une version de schéma plus récente, elle lit sans écrire.** Elle montre ce
   qu'elle connaît, laisse le reste intact, et refuse toute opération sur ce document en
   nommant la raison :
-  un bandeau dit qu'il vient d'une version plus récente de Pupitre, que celle-ci le lit sans y
-  écrire. C'est l'impossibilité stricte que nomme l'ADR-006. Elle
+  un bandeau dit qu'il vient d'une version plus récente de Pupitre, que cette version-ci le lit
+  sans y écrire. C'est l'impossibilité stricte que nomme l'ADR-006. Elle
   en reçoit encore les modifications par la synchronisation, et ne lui transmet aucune
   modification : ses messages partent sans modification. Ce qu'elle reçoit s'écrit en
   fichiers d'ajout, sans compaction. Une captation n'est jamais refusée pour autant : elle
