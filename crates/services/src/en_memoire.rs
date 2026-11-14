@@ -17,7 +17,7 @@ use crate::{Captations, Documents, Ecriture, Raison, Refus};
 
 /// Le message d'un fonds de version de schéma plus récente que celle que connaît l'application.
 const VERSION_PLUS_RECENTE: &str =
-    "Ce fonds vient d'une version plus récente de Pupitre ; celle-ci le lit sans y écrire.";
+    "Ce fonds vient d'une version plus récente de Pupitre ; cette version-ci le lit sans y écrire.";
 /// Le message d'un fonds dont la version de schéma ne se lit pas.
 const VERSION_ILLISIBLE: &str =
     "La version de schéma du document ne se lit pas : il se lit sans écrire ni échanger.";
