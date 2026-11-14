@@ -118,3 +118,78 @@ fn une_migration_qui_attend_ses_dependances_laisse_le_fonds_en_lecture_seule() {
         "Une migration de ce fonds ne s'applique pas : il se lit sans écrire ni échanger."
     );
 }
+
+#[test]
+fn cap02_4_chaque_geste_de_tri_parait_au_journal_comme_une_operation_nommee() {
+    suite::chaque_geste_de_tri_parait_au_journal(&mut PaireEnMemoire);
+}
+
+#[test]
+fn cap02_8_l_idee_videe_par_un_regroupement_est_retiree_et_l_annulation_la_retablit() {
+    suite::l_idee_videe_par_un_regroupement_est_retiree(&mut PaireEnMemoire);
+}
+
+#[test]
+fn cap02_3_deux_prises_regroupees_restent_deux_captations_d_empreinte_inchangee() {
+    suite::deux_prises_regroupees_restent_deux_captations(&mut PaireEnMemoire);
+}
+
+#[test]
+fn cap02_5_une_idee_retiree_quitte_la_liste_et_se_retablit_telle_qu_elle_etait() {
+    suite::une_idee_retiree_quitte_la_liste_et_se_retablit_telle_qu_elle_etait(&mut PaireEnMemoire);
+}
+
+#[test]
+fn un_geste_de_tri_sans_fonds_est_refuse_et_rien_ne_nait() {
+    suite::un_geste_de_tri_sans_fonds_est_refuse_et_rien_ne_nait(&mut PaireEnMemoire);
+}
+
+#[test]
+fn une_fiche_versee_deux_fois_est_refusee_et_rien_ne_change() {
+    suite::une_fiche_versee_deux_fois_est_refusee_et_rien_ne_change(&mut PaireEnMemoire);
+}
+
+#[test]
+fn un_geste_qui_touche_une_idee_retiree_est_refuse() {
+    suite::un_geste_qui_touche_une_idee_retiree_est_refuse(&mut PaireEnMemoire);
+}
+
+#[test]
+fn regrouper_une_empreinte_qu_aucune_captation_ne_porte_est_refuse() {
+    suite::regrouper_une_empreinte_qu_aucune_captation_ne_porte_est_refuse(&mut PaireEnMemoire);
+}
+
+#[test]
+fn une_cle_d_une_autre_forme_sous_les_liens_n_est_pas_un_lien() {
+    suite::une_cle_d_une_autre_forme_sous_les_liens_n_est_pas_un_lien(&mut PaireEnMemoire);
+}
+
+#[test]
+fn la_vue_tire_reliee_et_la_duree_des_regles_du_noyau() {
+    suite::la_vue_tire_reliee_et_la_duree_des_regles_du_noyau(&mut PaireEnMemoire);
+}
+
+#[test]
+fn cap02_6_annuler_rend_le_fonds_d_avant_et_le_journal_porte_le_geste_puis_son_annulation() {
+    suite::annuler_rend_le_fonds_d_avant(&mut PaireEnMemoire);
+}
+
+#[test]
+fn annuler_ne_vise_que_le_dernier_geste_de_tri_depuis_l_ouverture() {
+    suite::annuler_ne_vise_que_le_dernier_geste_de_tri_depuis_l_ouverture(&mut PaireEnMemoire);
+}
+
+#[test]
+fn un_geste_refuse_ne_change_pas_ce_qu_annuler_vise() {
+    suite::un_geste_refuse_ne_change_pas_ce_qu_annuler_vise(&mut PaireEnMemoire);
+}
+
+#[test]
+fn la_reouverture_vide_ce_qu_annuler_vise() {
+    suite::la_reouverture_vide_ce_qu_annuler_vise(&mut PaireEnMemoire);
+}
+
+#[test]
+fn une_annulation_ne_s_annule_pas() {
+    suite::une_annulation_ne_s_annule_pas(&mut PaireEnMemoire);
+}

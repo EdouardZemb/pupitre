@@ -628,7 +628,7 @@ pub fn oter_l_etiquette(
 }
 
 /// Pose, sous les prises, la prise d'empreinte `empreinte`, de l'idée `idee` et au format
-/// `format`.
+/// `format` : les clés à plat `<empreinte>/idee` et `<empreinte>/format`, sans objet.
 pub fn poser_une_prise(
     tx: &mut Transaction<'_>,
     empreinte: &str,
@@ -636,9 +636,8 @@ pub fn poser_une_prise(
     format: &str,
 ) -> Result<(), AutomergeError> {
     let prises = conteneur(tx, &ROOT, PRISES)?;
-    let prise = tx.put_object(&prises, empreinte, ObjType::Map)?;
-    tx.put(&prise, IDEE, idee)?;
-    tx.put(&prise, FORMAT, format)
+    tx.put(&prises, format!("{empreinte}/{IDEE}"), idee)?;
+    tx.put(&prises, format!("{empreinte}/{FORMAT}"), format)
 }
 
 /// L'objet de l'idée `idee`, sous les idées.

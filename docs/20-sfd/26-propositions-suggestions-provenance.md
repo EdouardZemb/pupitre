@@ -134,8 +134,8 @@ jugement.
 - Chaque demande a un identifiant, repris dans la provenance des éléments gardés.
 - Une demande en cours s'annule.
 
-**Ne fait pas** — ne propose rien sans demande ; n'étiquette aucune piste « meilleure » ou
-« recommandée » ; n'applique rien d'office ; n'engendre ni section, ni mélodie, ni texte
+**Ne fait pas** — ne propose rien sans demande ; ne qualifie aucune piste de « meilleure » ou
+de « recommandée » ; n'applique rien d'office ; n'engendre ni section, ni mélodie, ni texte
 entiers.
 
 **Critères d'acceptation**
@@ -144,7 +144,7 @@ entiers.
 2. *Étant donné* trente minutes d'édition sans demande, *alors* aucune piste ne s'est
    affichée.
 3. *Alors* chaque piste affiche sa raison.
-4. *Alors* aucune piste ne porte d'étiquette de qualité ni de rang ; quand des pistes sont
+4. *Alors* aucune piste ne porte de mention de qualité ni de rang ; quand des pistes sont
    ordonnées, le critère de l'ordre est affiché (« par mesures ajoutées »).
 5. *Quand* une demande est annulée, *alors* rien n'est écrit.
 

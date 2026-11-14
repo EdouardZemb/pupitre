@@ -21,13 +21,11 @@ pub mod pannes;
 mod pannes;
 mod racine_des_donnees;
 
-use std::collections::BTreeMap;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use automerge::{Automerge, AutomergeError, ObjId, ObjType, ROOT, ReadDoc, ScalarValue, Value};
+use automerge::AutomergeError;
 use noyau::donnees::acces::Acces;
-use noyau::donnees::teneur::{ErreurDeTeneur, Valeur, ecrire_la_teneur};
 
 pub use adaptateurs::FondsSurFichiers;
 pub use captations::Captations;
@@ -36,6 +34,7 @@ pub use documents::Document;
 pub use documents::Naissance;
 pub use noyau::donnees::identifiants::empreinte;
 pub use racine_des_donnees::RacineDesDonnees;
+pub use services::lecture::teneur;
 
 /// Ce que le stockage refuse, ou ce que le disque lui refuse. Le texte en français de chaque
 /// cas vient avec les commandes, au lot 1.
@@ -166,64 +165,6 @@ pub enum Avertissement {
     /// l'ouverture suivante le relit, puis le range si le fonds le nomme (§ 31 · 6.1). Un dossier
     /// `captations/` qui ne se liste pas se nomme de même, et rien ne s'y range.
     NomProvisoireRestant { chemin: PathBuf, erreur: io::Error },
-}
-
-/// La teneur de `doc` (§ 31 · 2.6) : son arbre, lu sur la valeur que présente Automerge
-/// (`ReadDoc`, jamais `get_all`), puis écrit par le noyau, sans la lignée ni les lignées qu'elle
-/// remplace.
-pub fn teneur(doc: &Automerge) -> Result<String, ErreurDeTeneur> {
-    ecrire_la_teneur(&objet_a_cles(doc, &ROOT))
-}
-
-/// Un objet `Map` ou `Table` : une seule sorte.
-fn objet_a_cles(doc: &Automerge, objet: &ObjId) -> BTreeMap<String, Valeur> {
-    doc.keys(objet)
-        .map(|cle| {
-            let (valeur, id) = doc
-                .get(objet, cle.as_str())
-                .expect("lire une clé que le document vient de nommer")
-                .expect("une clé nommée a une valeur");
-            let valeur = valeur_de(doc, valeur, &id);
-            (cle, valeur)
-        })
-        .collect()
-}
-
-fn valeur_de(doc: &Automerge, valeur: Value<'_>, id: &ObjId) -> Valeur {
-    match valeur {
-        // En automerge 0.12.0, une `Table` n'est jamais indexée : `put` y rend `NotAnObject`, et
-        // `keys` avale cette erreur. Une `Table` non vide, chargée d'un document d'une autre
-        // implémentation, se lit donc vide, sans erreur.
-        Value::Object(ObjType::Map | ObjType::Table) => Valeur::ObjetACles(objet_a_cles(doc, id)),
-        Value::Object(ObjType::List) => Valeur::Liste(
-            (0..doc.length(id))
-                .map(|indice| {
-                    let (valeur, id) = doc
-                        .get(id, indice)
-                        .expect("lire un indice que le document vient de compter")
-                        .expect("un indice compté a une valeur");
-                    valeur_de(doc, valeur, &id)
-                })
-                .collect(),
-        ),
-        Value::Object(ObjType::Text) => {
-            Valeur::Texte(doc.text(id).expect("lire un objet texte du document"))
-        }
-        Value::Scalar(scalaire) => match scalaire.as_ref() {
-            ScalarValue::Str(texte) => Valeur::Str(texte.to_string()),
-            ScalarValue::Int(n) => Valeur::Int(*n),
-            ScalarValue::Uint(n) => Valeur::Uint(*n),
-            ScalarValue::F64(x) => Valeur::F64(*x),
-            ScalarValue::Counter(compteur) => Valeur::Counter(i64::from(compteur)),
-            ScalarValue::Timestamp(n) => Valeur::Timestamp(*n),
-            ScalarValue::Boolean(b) => Valeur::Boolean(*b),
-            ScalarValue::Bytes(octets) => Valeur::Bytes(octets.clone()),
-            ScalarValue::Null => Valeur::Null,
-            ScalarValue::Unknown { type_code, .. } => Valeur::Inconnu {
-                type_code: *type_code,
-            },
-        },
-    }
 }
 
 /// Le refus du disque sur `chemin`.

@@ -1,46 +1,77 @@
 //! La genèse et la teneur figées (§ 31 · 10, test 11) : les octets de la genèse et la teneur de
 //! deux documents témoins, engendrés à l'exécution, à leurs empreintes de référence : l'un
-//! ordinaire, l'autre qui porte une valeur de chaque type que la teneur écrit ; et deux documents
-//! qui ne diffèrent que par leur lignée ont la même teneur (§ 31 · 2.6).
+//! ordinaire, né par les opérations, l'autre qui porte une valeur de chaque type que la teneur
+//! écrit ; et deux documents qui ne diffèrent que par leur lignée ont la même teneur (§ 31 · 2.6).
 //!
-//! Ce fichier est le seul des empreintes de référence. Le test ne lit aucune étiquette, que la
-//! CI ne récupère pas.
+//! Ce fichier est le seul des empreintes de référence. Le test ne lit aucune étiquette de git,
+//! que la CI ne récupère pas. Il inclut la suite des commandes, où les gestes du témoin sont
+//! écrits.
+
+#[path = "../../services/tests/suite/mod.rs"]
+mod suite;
 
 mod commun;
 
 use automerge::transaction::{CommitOptions, Transactable};
 use automerge::{Automerge, ObjType, ROOT, ReadDoc, ScalarValue, Value};
-use commun::{
-    HEURE, MESSAGE_DU_GESTE, NAISSANCE, dossier_jetable, ecrire, etiqueter, faite, noter, ouvrir,
-};
+use commun::{HEURE, dossier_jetable, ecrire, faite, ouvrir};
 use noyau::donnees::fonds::{GENESE, LIGNEE, LIGNEES_REMPLACEES};
-use stockage::{Document, Naissance, RacineDesDonnees, empreinte, teneur};
+use noyau::donnees::gestes;
+use services::{Alea, Contexte, Services};
+use stockage::{Captations, FondsSurFichiers, RacineDesDonnees, empreinte, teneur};
+use suite::AleaDeTest;
 
 /// Les empreintes de référence du test 11. Une ligne se change ou se retire avant la `v0.3.0`, et
 /// la PR le dit ; dès elle, seule une ligne ajoutée passe (§ 31 · 10, test 11 ; ADR-023).
-const GENESE_DU_FONDS: &str = "aa03e0cee230ee1aab90c1d53a6a00e51da250b8b5944b67560dd4f9b301c105";
-const TENEUR_DU_TEMOIN: &str = "a349d135957809fcbf348db20cfb69a8752fe5a32b28296f7b8d9744900a58a4";
+const GENESE_DU_FONDS: &str = "a02890acd15f12619da7f1f5abea9a8056db7188f909a467896ea50d4b5a6fc1";
+const TENEUR_DU_TEMOIN: &str = "291a0df280e2274fe96fc10d24a232a57213a0e938fa0a7b844be8f056657dbc";
 const TENEUR_DES_TYPES: &str = "35d51798213927730a9c636b9d6b72760400f3be0f674b9566b7d012ae7f5d30";
 
-/// Le document témoin, né dans `racine` sous `naissance` : la genèse, la naissance, puis, en un
-/// seul geste, l'idée `idee-1` notée, « Un refrain qui monte, en ré », et étiquetée `refrain`. Il
-/// naît sans avertissement.
+/// Les services de l'établi sur la paire de fichiers d'une racine des données.
+type ServicesSurFichiers<'r> = Services<FondsSurFichiers<'r>, Captations<'r>>;
+
+/// L'aléa d'un témoin d'une autre lignée : les tirages d'`AleaDeTest { graine: 0, appels: 0 }`,
+/// sauf le deuxième, celui de la lignée, dont l'octet 1 vaut 1.
+struct AutreLignee(AleaDeTest);
+
+impl Alea for AutreLignee {
+    fn remplir(&mut self, octets: &mut [u8]) {
+        self.0.remplir(octets);
+        if self.0.appels == 2 {
+            octets[1] = 1;
+        }
+    }
+}
+
+/// Le document témoin, né dans `racine` par les opérations : les services de l'établi, sur la
+/// paire de fichiers de `racine`, jouent les gestes du témoin (`suite::temoin`), à l'heure des
+/// tests, sous l'aléa `alea`, chacun fait sans avertissement. Rend les services, ouverts.
 fn faire_naitre_le_temoin<'r>(
     racine: &'r RacineDesDonnees,
-    naissance: &Naissance<'_>,
-) -> Document<'r> {
-    let temoin = racine
-        .faire_naitre_le_fonds(naissance, MESSAGE_DU_GESTE, HEURE, |tx| {
-            noter(tx, "idee-1", "Un refrain qui monte, en ré")?;
-            etiqueter(tx, "idee-1", "refrain")
-        })
-        .expect("faire naître le témoin");
-    assert!(
-        temoin.avertissements().is_empty(),
-        "le témoin est né avec des avertissements : {:?}",
-        temoin.avertissements()
+    alea: &mut dyn Alea,
+) -> ServicesSurFichiers<'r> {
+    let mut temoin = Services::new(
+        FondsSurFichiers::ouvrir(racine).expect("ouvrir le fonds"),
+        racine.captations(),
+        gestes::Appareil::Etabli,
+    );
+    suite::temoin(
+        &mut temoin,
+        &mut Contexte {
+            heure: suite::HEURE,
+            alea,
+        },
     );
     temoin
+}
+
+/// Le fonds du témoin `temoin`, qui est né.
+fn fonds<'a>(temoin: &'a ServicesSurFichiers<'_>) -> &'a Automerge {
+    temoin
+        .documents()
+        .document()
+        .expect("le témoin est né")
+        .automerge()
 }
 
 /// Le second document témoin, bâti par Automerge, en mémoire : une valeur de chaque type que la
@@ -104,13 +135,9 @@ fn batir_le_temoin_des_types() -> Automerge {
     temoin
 }
 
-/// La lignée que porte `document`, à la racine du document.
-fn lignee(document: &Document<'_>) -> String {
-    match document
-        .automerge()
-        .get(ROOT, LIGNEE)
-        .expect("lire la lignée")
-    {
+/// La lignée que porte le fonds `fonds`, à la racine du document.
+fn lignee(fonds: &Automerge) -> String {
+    match fonds.get(ROOT, LIGNEE).expect("lire la lignée") {
         Some((Value::Scalar(valeur), _)) => match valeur.as_ref() {
             ScalarValue::Str(texte) => texte.to_string(),
             autre => panic!("la lignée n'est pas une chaîne : {autre:?}"),
@@ -124,11 +151,38 @@ fn lignee(document: &Document<'_>) -> String {
 fn genese_et_teneur_figees() {
     assert_eq!(empreinte(GENESE), GENESE_DU_FONDS);
     let racine = ouvrir(&dossier_jetable("references-temoin"));
-    let temoin = faire_naitre_le_temoin(&racine, &NAISSANCE);
-    let teneur = teneur(temoin.automerge()).unwrap();
-    // {"idees":{"idee-1":{"etiquettes":{"refrain":b1},"texte":s"Un refrain qui monte, en ré"}},
-    //  "identifiant":s"fonds-1","prises":{},"proprietaire":s"proprietaire-1",
-    //  "version_de_schema":u1}
+    let temoin = faire_naitre_le_temoin(
+        &racine,
+        &mut AleaDeTest {
+            graine: 0,
+            appels: 0,
+        },
+    );
+    let teneur = teneur(fonds(&temoin)).unwrap();
+    // La teneur attendue, 1 708 octets sur une seule ligne, coupée ici après une virgule, une
+    // accolade ouvrante ou un deux-points :
+    // {"idees":{"01HF7YAT000000000000000004":{"etiquettes":{"refrain":b1},"le":i1700000000,
+    //  "par":s"etabli","provenance":s"captee","texte":s"Un refrain qui monte, en ré"},
+    //  "01HF7YAT000000000000000005":{"etiquettes":{},"le":i1700000000,"par":s"etabli",
+    //  "provenance":s"captee","texte":s"Un pont en mi mineur"},"01HF7YAT000000000000000006":{
+    //  "depuis":s"01HF7YAT00ZZZZZZZZZZZZZZZZ","etiquettes":{},"le":i1700000000,"par":s"etabli",
+    //  "provenance":s"importee"},"01HF7YAT000000000000000007":{"depuis":
+    //  s"01HF7YAT00ZZZZZZZZZZZZZZZZ","etiquettes":{},"le":i1700000000,"par":s"etabli",
+    //  "provenance":s"importee","retiree":i1700000000},"01HF7YAT000000000000000008":{"depuis":
+    //  s"01HF7YAT00ZZZZZZZZZZZZZZZZ","etiquettes":{},"le":i1700000000,"par":s"etabli",
+    //  "provenance":s"importee"}},"identifiant":s"01HF7YAT000000000000000001","imports":{},"liens":
+    //  {"apparente:01HF7YAT000000000000000004:01HF7YAT000000000000000005":b1},"midi_verses":{
+    //  "dee9bf9e8aaeb03dce938f41ee65b33989d3436072478a95514ca26df98f39d3/format":s"smf1",
+    //  "dee9bf9e8aaeb03dce938f41ee65b33989d3436072478a95514ca26df98f39d3/idee":
+    //  s"01HF7YAT000000000000000004"},"origines_declarees":{},"photos":{},"prises":{
+    //  "8c12b061b3b4734f4f62d617674f892c49cb31c9212878903601d7ca369a3299/duree":u30000,
+    //  "8c12b061b3b4734f4f62d617674f892c49cb31c9212878903601d7ca369a3299/format":s"wav",
+    //  "8c12b061b3b4734f4f62d617674f892c49cb31c9212878903601d7ca369a3299/idee":
+    //  s"01HF7YAT000000000000000006"},"proprietaire":s"00000000-0000-4000-8000-000000000003",
+    //  "requetes_enregistrees":{},"textes_verses":{
+    //  "05474c7f2b8f6390a4a215fa6edca1ac61a8f97aa9cad1e08652909008b565b8/format":s"brut",
+    //  "05474c7f2b8f6390a4a215fa6edca1ac61a8f97aa9cad1e08652909008b565b8/idee":
+    //  s"01HF7YAT000000000000000008"},"version_de_schema":u1}
     assert_eq!(
         empreinte(teneur.as_bytes()),
         TENEUR_DU_TEMOIN,
@@ -157,50 +211,63 @@ fn la_teneur_de_chaque_type_est_figee() {
 // § 31 · 10, test 11 : deux documents qui ne diffèrent que par leur lignée ont la même teneur
 #[test]
 fn la_lignee_ne_change_pas_la_teneur() {
-    // Le témoin sous `NAISSANCE`, et sous `NAISSANCE` dont la lignée est `lignee-2`, une écriture
-    // de plus y posant `LIGNEES_REMPLACEES = ["lignee-1"]` : deux teneurs égales.
+    // Le témoin sous `AleaDeTest { graine: 0, appels: 0 }`, et sous `AutreLignee`, dont seul le
+    // tirage de la lignée diffère, donc seule la lignée, une écriture de plus y posant
+    // `LIGNEES_REMPLACEES = ["01HF7YAT000000000000000002"]` : deux teneurs égales. Une autre
+    // graine changerait aussi l'identifiant du document, l'identifiant de propriétaire et chaque
+    // idée, que la teneur porte.
     let d = dossier_jetable("references-lignee");
     let racine_a = ouvrir(&d.join("a"));
     let racine_b = ouvrir(&d.join("b"));
-    let a = faire_naitre_le_temoin(&racine_a, &NAISSANCE);
-    let mut b = faire_naitre_le_temoin(
-        &racine_b,
-        &Naissance {
-            lignee: "lignee-2",
-            ..NAISSANCE
+    let a = faire_naitre_le_temoin(
+        &racine_a,
+        &mut AleaDeTest {
+            graine: 0,
+            appels: 0,
         },
     );
-    faite(
-        ecrire(&mut b, |tx| {
-            let remplacees = tx.put_object(ROOT, LIGNEES_REMPLACEES, ObjType::List)?;
-            tx.insert(&remplacees, 0, "lignee-1")?;
-            Ok(())
+    let mut b = faire_naitre_le_temoin(
+        &racine_b,
+        &mut AutreLignee(AleaDeTest {
+            graine: 0,
+            appels: 0,
         }),
+    );
+    faite(
+        ecrire(
+            b.documents_mut()
+                .document_mut()
+                .expect("le témoin B est né"),
+            |tx| {
+                let remplacees = tx.put_object(ROOT, LIGNEES_REMPLACEES, ObjType::List)?;
+                tx.insert(&remplacees, 0, "01HF7YAT000000000000000002")?;
+                Ok(())
+            },
+        ),
         "poser les lignées remplacées",
     );
 
-    assert_eq!(lignee(&a), "lignee-1");
-    assert_eq!(lignee(&b), "lignee-2");
+    assert_eq!(lignee(fonds(&a)), "01HF7YAT000000000000000002");
+    assert_eq!(lignee(fonds(&b)), "01HF7YAT00000G000000000002");
     assert!(
-        a.automerge()
+        fonds(&a)
             .get(ROOT, LIGNEES_REMPLACEES)
             .expect("lire les lignées remplacées d'A")
             .is_none(),
         "A porte des lignées remplacées"
     );
-    match b
-        .automerge()
+    match fonds(&b)
         .get(ROOT, LIGNEES_REMPLACEES)
         .expect("lire les lignées remplacées de B")
     {
         Some((Value::Object(ObjType::List), remplacees)) => {
-            assert_eq!(b.automerge().length(&remplacees), 1, "une lignée remplacée");
+            assert_eq!(fonds(&b).length(&remplacees), 1, "une lignée remplacée");
         }
         autre => panic!("B ne porte pas la liste des lignées remplacées : {autre:?}"),
     }
     assert_eq!(
-        teneur(a.automerge()).unwrap(),
-        teneur(b.automerge()).unwrap(),
+        teneur(fonds(&a)).unwrap(),
+        teneur(fonds(&b)).unwrap(),
         "deux documents qui ne diffèrent que par leur lignée ont des teneurs différentes"
     );
 }

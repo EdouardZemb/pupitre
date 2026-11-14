@@ -16,13 +16,14 @@ mod commun;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use automerge::transaction::CommitOptions;
-use automerge::{ActorId, Automerge};
+use automerge::transaction::{CommitOptions, Transactable, Transaction};
+use automerge::{ActorId, Automerge, AutomergeError, ROOT, ReadDoc, Value};
 use commun::{
     HEURE, MESSAGE_DU_GESTE, NAISSANCE, dossier_des_ajouts, dossier_du_fonds, empreintes, entrees,
     faire_naitre, faite, lire_le_complet, octets, ouvrir, ouvrir_le_fonds, porte_l_idee,
     relire_le_dossier_du_fonds, texte_long,
 };
+use noyau::donnees::fonds::{IDEE, MIDI_VERSES, TEXTES_VERSES};
 use stockage::pannes::{Etape, couper};
 use stockage::{Avertissement, Document, Erreur, LectureSeule, RacineDesDonnees, empreinte};
 
@@ -156,6 +157,22 @@ fn pas_rangee(racine: &RacineDesDonnees, e: &str, quoi: &str) {
         Err(Erreur::CaptationAbsente { .. }) => {}
         autre => panic!("{quoi} : attendu la captation absente, rendu {autre:?}"),
     }
+}
+
+/// Pose, sous le conteneur `conteneur` de la racine du document, la clé à plat `<e>/idee`, qui
+/// nomme la captation `e`, de l'idée `idee`. Un conteneur absent rend
+/// `AutomergeError::NotAnObject`.
+fn nommer_sous(
+    tx: &mut Transaction<'_>,
+    conteneur: &str,
+    e: &str,
+    idee: &str,
+) -> Result<(), AutomergeError> {
+    let objet = match tx.get(ROOT, conteneur)? {
+        Some((Value::Object(_), objet)) => objet,
+        _ => return Err(AutomergeError::NotAnObject),
+    };
+    tx.put(&objet, format!("{e}/{IDEE}"), idee)
 }
 
 // § 31 · 10, test 8 : renommage perdu après la réponse, le voisin entier reste
@@ -1097,7 +1114,7 @@ fn un_ajouts_recree_non_rendu_durable_se_retire() {
     );
 }
 
-// § 31 · 10, test 4 : renommage perdu après la réponse, la captation nommée par un document prend son nom au démarrage
+// § 31 · 10, test 4 : renommage perdu après la réponse : la captation nommée par un document prend son nom au démarrage
 #[test]
 fn une_captation_nommee_prend_son_nom_au_demarrage() {
     let chemin = commun::dossier_jetable("demarrage-nom-provisoire-range").join("donnees");
@@ -1157,6 +1174,56 @@ fn une_captation_nommee_prend_son_nom_au_demarrage() {
         Vec::<PathBuf>::new(),
         "une captation rangée trahit son nom"
     );
+    drop(fonds);
+}
+
+// § 31 · 10, test 4 : renommage perdu après la réponse : la captation nommée par un document prend son nom au démarrage
+#[test]
+fn un_midi_ou_un_texte_verse_nomme_prend_son_nom_au_demarrage() {
+    let chemin = commun::dossier_jetable("demarrage-midi-et-texte-ranges").join("donnees");
+    let racine = ouvrir(&chemin);
+    let versees = [
+        (MIDI_VERSES, octets(6, 300)),
+        (TEXTES_VERSES, octets(7, 300)),
+    ];
+    let mut fonds = naitre_avec_les_prises(&racine, &[]);
+    for (conteneur, contenu) in &versees {
+        let e = empreinte(contenu);
+        faite(
+            commun::ecrire(&mut fonds, |tx| nommer_sous(tx, conteneur, &e, "idee-1")),
+            &format!("nommer {e} sous {conteneur}"),
+        );
+    }
+    drop(fonds);
+    let mut provisoires = Vec::new();
+    for (conteneur, contenu) in &versees {
+        let e = empreinte(contenu);
+        provisoires.push(deposer_un_nom_provisoire(&chemin, &e, contenu));
+        pas_rangee(
+            &racine,
+            &e,
+            &format!("avant le démarrage, la captation nommée sous {conteneur}"),
+        );
+    }
+
+    let fonds = ouvrir_le_fonds(&racine);
+
+    for ((conteneur, contenu), provisoire) in versees.iter().zip(&provisoires) {
+        assert_eq!(
+            racine
+                .captations()
+                .relire(&empreinte(contenu))
+                .unwrap_or_else(|erreur| {
+                    panic!("relire la captation nommée sous {conteneur} : {erreur:?}")
+                }),
+            *contenu,
+            "la captation nommée sous {conteneur} n'a pas pris son nom"
+        );
+        assert!(
+            !provisoire.exists(),
+            "le nom provisoire de la captation nommée sous {conteneur} reste"
+        );
+    }
     drop(fonds);
 }
 

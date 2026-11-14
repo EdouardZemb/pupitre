@@ -1474,7 +1474,7 @@ pub fn teneur(doc: &Automerge) -> Result<String, ErreurDeTeneur>;
 - [ ] **Étape 1 : écrire les tests.** Dans la suite :
   - `annuler_rend_le_fonds_d_avant` (enveloppe `cap02_6_annuler_rend_le_fonds_d_avant_et_le_journal_porte_le_geste_puis_son_annulation`, une part, non inscrite : « le dernier geste de tri » est aussi relier à un motif ou à un morceau (INC-2), et regrouper des photos (lot 2), que la tranche n'annule pas) : pour chacun des huit gestes de tri, la teneur d'avant le geste égale celle d'après l'annulation, et les deux dernières entrées du journal sont le message du geste puis `Annulé : ` suivi de lui ;
   - la seconde moitié de `l_idee_videe_par_un_regroupement_est_retiree` : annuler rend P2 à V, rétablie, et un second annuler rend `Raison::RienAAnnuler` ;
-  - `la_suite_de_la_decision_18` : la table du passage de LE-6, § 3.9, rejouée pas à pas (noter A ; annuler refusé ; étiqueter A `#pont` ; noter B ; annuler, « Annulé : Idée du 14 novembre : étiquette #pont posée » ; annuler refusé ; relier A–B ; retirer B ; étiqueter A `#pont` ; reposer `#pont`, refusé ; annuler ; annuler refusé), puis le lien A–B présent, B retirée, A sans étiquette ;
+  - `annuler_ne_vise_que_le_dernier_geste_de_tri_depuis_l_ouverture` : la table du passage de LE-6, § 3.9, rejouée pas à pas (noter A ; annuler refusé ; étiqueter A `#pont` ; noter B ; annuler, « Annulé : Idée du 14 novembre : étiquette #pont posée » ; annuler refusé ; relier A–B ; retirer B ; étiqueter A `#pont` ; reposer `#pont`, refusé ; annuler ; annuler refusé), puis le lien A–B présent, B retirée, A sans étiquette ;
   - `un_geste_refuse_ne_change_pas_ce_qu_annuler_vise` (point de revue 4) ; `la_reouverture_vide_ce_qu_annuler_vise` (point de revue 5) ;
   - `une_annulation_ne_s_annule_pas` : annuler, puis annuler, `RienAAnnuler`.
 
@@ -1486,7 +1486,10 @@ pub fn teneur(doc: &Automerge) -> Result<String, ErreurDeTeneur>;
 
 ### Tâche 13 : CAP-02 · 7, le témoin du test 11 par les opérations, les documents de la PR (b), la mutation remesurée
 
-**Fichiers :** créer `crates/stockage/tests/repliques.rs` ; modifier `crates/services/tests/suite/mod.rs` (`temoin`),
+**Fichiers :** créer `crates/stockage/tests/repliques.rs` ; modifier `crates/services/tests/suite/mod.rs` (`temoin` ; `la_suite_de_la_decision_18`, nommé ainsi à la tâche 12,
+renommé `annuler_ne_vise_que_le_dernier_geste_de_tri_depuis_l_ouverture`, ici et dans ses deux enveloppes,
+`crates/services/tests/commandes_en_memoire.rs` et `crates/stockage/tests/commandes_sur_fichiers.rs` : un nom de test
+ne cite pas un plan, que la clôture supprime ; revue de la tâche 12),
 `crates/stockage/tests/references.rs` (le
 témoin, :22, son commentaire, :25-44 ; la lignée, :157-206), `docs/31-persistance-et-synchronisation.md` (§ 2,
 :125-164 ; § 2.3, :344-376), `docs/30-modele-de-domaine.md` (§ 1, la classe `Lien`, :59-63 ; § 9.3, :666-671 ; § 11,
@@ -1669,7 +1672,17 @@ aucune source échoue.
   `crates/stockage/src/documents.rs` et `crates/stockage/src/racine_des_donnees.rs` : ailleurs, aucun de
   `application::appliquer(`, `application::naitre(`, `application::faire_naitre(`, `application::migrer(`, qui portent
   une parenthèse que les docs qui les nomment n'ont pas (revue de la PR (a) : I28 statique ne voit pas un appel de
-  l'API publique).
+  l'API publique) ; ni aucune ligne `use` qui porte `application`, quel que soit l'import : nommé (`use
+  services::application::appliquer;`, puis `appliquer(`, que la forme qualifiée laisserait passer), groupé
+  (`use services::{application, lecture};`), en glob (`use services::application::*;`, puis `appliquer(`) ou
+  renommé (`use services::application as w;`, puis `w::appliquer(`) (revue de la PR (b) : la décision de la revue
+  de la PR (a) refuse toute mention de `services::application`, un `use` compris, et un import en glob ou renommé
+  passerait une règle qui chercherait aussi l'un des quatre noms). Le chemin en ligne
+  `services::application::Inapplicable`, que nomme `crates/stockage/src/lib.rs`, reste admis : ce n'est pas une
+  ligne `use`. Un `use` écrit sur plusieurs lignes, dont la ligne qui porte `application` ne commence pas par
+  `use`, échappe au contrôle, et son commentaire le dit. Aujourd'hui, hors de `crates/services/src/`, seule
+  `crates/stockage/src/documents.rs:45` porte une telle ligne, permise
+  (`git grep -nE "^\s*(pub\s+)?use\b.*application" -- 'crates/*/src/**' 'app/*/src/**'`).
 - **Pourquoi `HashMap`, `HashSet` et `RandomState`** (plan maître, « Outils et cas limites », ajouté le
   2026-11-13) : sous leur hacheur par défaut, `new()`, `default()` et `collect()` tirent leur graine du système
   sans qu'aucun mot de l'aléa ne paraisse, et l'ordre d'itération change d'un passage à l'autre ; une règle qui
@@ -1700,7 +1713,7 @@ L'étape de CI :
           done
 ```
 
-- [ ] **Étape 1 : écrire les tests** : pour chaque contrôle, `chaque_controle_refuse_ce_qu_on_y_plante` (une source inventée qui porte `tx.put(` dans `crates/interface_essai/src/lib.rs`, puis une autre qui y appelle `services::application::appliquer(&mut doc, &operation)`, un `use std::fs;` dans le noyau, puis un import groupé, `use std::{fs, path::Path}; fn f() { let _ = fs::read("x"); }`, dans le noyau et dans les services, un `std::thread::spawn` dans les services, un `HashMap::new()` dans le noyau et dans les services, un second
+- [ ] **Étape 1 : écrire les tests** : pour chaque contrôle, `chaque_controle_refuse_ce_qu_on_y_plante` (une source inventée qui porte `tx.put(` dans `crates/interface_essai/src/lib.rs`, puis une autre qui y appelle `services::application::appliquer(&mut doc, &operation)`, une autre qui porte `use services::application::appliquer;` puis `appliquer(&mut doc, &operation)`, une autre qui porte `use services::application::*;` puis `appliquer(&mut doc, &operation)`, un `use std::fs;` dans le noyau, puis un import groupé, `use std::{fs, path::Path}; fn f() { let _ = fs::read("x"); }`, dans le noyau et dans les services, un `std::thread::spawn` dans les services, un `HashMap::new()` dans le noyau et dans les services, un second
 `uuid_v4(`, un `Cargo.toml` du noyau dont la ligne d'`ulid` porte aussi `features = ["std"]` : chacun nommé dans le `Err` ; la ligne exigée seule, `default-features = false` compris, admise), puis le contrôle sur le dépôt : `Ok(())`.
 - [ ] **Étape 2 : voir le rouge**, sur l'essai planté (le contrôle n'existe pas encore : `cannot find function controler`), puis le vert ; l'étape « Le graphe de l'interface » verte, puis rouge à l'essai : `services` ajouté à `app/ui/Cargo.toml`, un envoi rouge à « Cargo.lock à jour », l'artefact `cargo-lock` committé, un envoi rouge à « Le graphe de l'interface » (`services v` et `automerge v` imprimés) ; puis `services` retiré et le `Cargo.lock` remis, vert (les journaux liés dans la description).
 - [ ] **Étape 3 : committer** par chemins (`test: les contrôles statiques du noyau, des services et d'I28`, `ci: le graphe de l'interface, sans automerge, services ni stockage`).
@@ -1761,14 +1774,15 @@ fn le_fonds_de_mesure_pese_moins_de_4_500_000_octets() {
 ### Tâche 19 : les documents de la PR (c), LE-14, les délais, et la revue de la PR (c)
 
 **Fichiers :** modifier `docs/31-persistance-et-synchronisation.md` (§ 2.4, :377-422, :410-411 ; § 2.6, :445-484),
-`docs/20-sfd/21-capter-et-organiser.md` (CAP-01, cas limite, :68-69), `docs/pistes.md`, `CLAUDE.md`
+`docs/20-sfd/21-capter-et-organiser.md` (CAP-01, cas limite, :68-69), `docs/80-glossaire.md` (« Lecture seule (d'un
+document) »), `docs/pistes.md`, `CLAUDE.md`
 (« Commandes »), `CONVENTIONS.md` (ligne `verifier`, bloc « Les lancer »), `docs/registre.md` (LE-14),
 `.github/workflows/ci.yml` (`verifier`, `windows`, si la mesure le demande).
 
 Tout ce qui part avec la PR (c) se pousse ici, avant sa revue : la revue lit la tête qui part, et la tâche 20 ne
 pousse plus rien.
 
-- [ ] **Étape 1 : le § 31 · 2.4 et CAP-01.** « un bandeau dit qu'il vient d'une version plus récente de Pupitre, que celle-ci le lit sans y écrire » ; CAP-01 : « Pupitre dit que ce fonds vient d'une version plus récente, qu'il lit sans y écrire » : des constats (Éc-12). Le § 31 · 2.4 gagne aussi : « Une migration qui ne s'applique pas ouvre le document en lecture seule, sans échange. » (`LectureSeule::MigrationRefusee`, revue de la PR (a)). La recherche de LE-3 : `git grep -n -i -E "faut mettre|mettre (à|l'application)" -- .`, chaque sortie relue (le § 31 · 2.4 coupe aujourd'hui la phrase sur deux lignes, « il faut mettre à » / « jour l'application », qu'une recherche de la phrase entière ne trouve pas ; `docs/90-questions-ouvertes.md:117`, « le mettre à jour quand l'outil change », est d'un autre sujet) : aucune ligne du sujet hors du registre et des plans. **Le § 31 · 2.6** : « Pupitre n'écrit ni `Counter`, ni objet `Text` : un test le vérifie sur les documents qu'écrivent les opérations nommées » (Éc-18).
+- [ ] **Étape 1 : le § 31 · 2.4 et CAP-01.** « un bandeau dit qu'il vient d'une version plus récente de Pupitre, que celle-ci le lit sans y écrire » ; CAP-01 : « Pupitre dit que ce fonds vient d'une version plus récente, qu'il lit sans y écrire » : des constats (Éc-12). Le § 31 · 2.4 gagne aussi : « Une migration qui ne s'applique pas ouvre le document en lecture seule, sans échange. » (`LectureSeule::MigrationRefusee`, revue de la PR (a)) ; le glossaire, à l'entrée « Lecture seule (d'un document) », range de même « une migration qui ne s'applique pas » parmi ce qui fait qu'il n'envoie ni ne reçoit. La recherche de LE-3 : `git grep -n -i -E "faut mettre|mettre (à|l'application)" -- .`, chaque sortie relue (le § 31 · 2.4 coupe aujourd'hui la phrase sur deux lignes, « il faut mettre à » / « jour l'application », qu'une recherche de la phrase entière ne trouve pas ; `docs/90-questions-ouvertes.md:117`, « le mettre à jour quand l'outil change », est d'un autre sujet) : aucune ligne du sujet hors du registre et des plans. **Le § 31 · 2.6** : « Pupitre n'écrit ni `Counter`, ni objet `Text` : un test le vérifie sur les documents qu'écrivent les opérations nommées » (Éc-18).
 - [ ] **Étape 2 : les pistes.** `docs/pistes.md` : « Deux regroupements croisés, ou un même fichier importé sur deux appareils, laissent une idée vide visible, ou deux idées retirées qui portent une prise (`deux_regroupements_croises_retirent_les_deux_idees`, `une_prise_nee_sur_deux_repliques_ne_cache_aucun_de_ses_faits`) : le relevé des conflits du lot 3 les montre ; la tranche 5 dit le sort de l'idée laissée par l'import. » Et : « Une étiquette ou un lien posés des deux côtés, ou un fait d'une captation versée des deux côtés, laissent deux valeurs égales sous une clé (`une_etiquette_posee_des_deux_cotes_n_en_fait_qu_une`, `cap02_7_…`) : le relevé des conflits du lot 3 ne les présente pas « à trancher » (Éc-9). »
 - [ ] **Étape 3 : `CLAUDE.md` et `CONVENTIONS.md`.** « Commandes » : `cargo test -p stockage --release --test mesure -- --ignored --nocapture`, la mesure du test 13 ; la ligne `verifier` : l'étape du graphe de l'interface et celle du fonds de mesure, et, parmi ce qu'elle refuse, une écriture hors des deux adaptateurs (I28), un champ engendré (I01), une horloge, un aléa ou un fichier au noyau, un fichier, un fil, un réseau ou une horloge dans les services. `node scripts/verif-liens.mjs` et `node scripts/verif-faits.mjs` verts après le `git add`. Committer par chemins (`docs: le refus d'un fonds plus récent, un constat ; les pistes des regroupements croisés`), pousser.
 - [ ] **Étape 4 : remesurer, à froid.** Les délais de `verifier` (l'étape du fonds de mesure comprise, et sa construction en `--release`) et de `windows` se ramènent à deux fois un passage mesuré à froid (`.github/workflows/ci.yml:72-75`, LE-29 de modele-projet) : `gh cache delete` des clés `v0-rust-verifier` et `v0-rust-windows` de `main` et de la branche, puis un passage de `ci` (`gh run rerun <n>`, qui rejoue l'événement d'origine, sans dommage pour `ci` ; jamais pour `texte-pr`) ; « No cache found. » dans le journal de rust-cache de chaque job ; `gh run view <n> --json jobs` : les deux durées. Si deux fois l'une dépasse son `timeout-minutes`, il passe à deux fois la mesure, arrondie à la minute au-dessus, et son commentaire dit « à froid », la mesure, la date et la PR ; sinon, la description donne les deux mesures. Committer par chemins, s'il le faut (`ci: les délais remesurés à froid avec la suite des commandes et la mesure`), pousser.

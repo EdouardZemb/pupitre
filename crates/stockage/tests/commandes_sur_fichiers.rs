@@ -1,15 +1,17 @@
 //! La suite des commandes sur la paire d'adaptateurs sur fichiers : chaque test de la suite,
 //! rejoué sur `FondsSurFichiers` et les `Captations` d'une racine des données jetable ; puis, sur
 //! cette paire seule, des commandes coupées par une panne, avant ou après le renommage de leur
-//! fichier, la première comprise, qui fait naître le fonds, et la migration de test, la même dans
-//! la suite et dans les aides du stockage.
+//! fichier, la première comprise, qui fait naître le fonds, une annulation refusée par le disque,
+//! qui se refait, un geste de tri refusé par le disque, qui ne change pas ce qu'annuler vise, un
+//! geste de tri et son annulation coupés après le renommage, faits avec un avertissement, et la
+//! migration de test, la même dans la suite et dans les aides du stockage.
 
 #[path = "../../services/tests/suite/mod.rs"]
 mod suite;
 
 mod commun;
 
-use commandes::Notee;
+use commandes::{EntreeDuJournal, Faite, Notee};
 use noyau::donnees::acces::Acces;
 use noyau::donnees::gestes;
 use noyau::donnees::version::Migration;
@@ -135,6 +137,119 @@ fn une_migration_qui_attend_ses_dependances_laisse_le_fonds_en_lecture_seule() {
         .expect("le document se lit sans écrire");
     assert_eq!(raison, &LectureSeule::MigrationRefusee);
     assert_eq!(raison.acces(), Acces::Illisible);
+}
+
+#[test]
+fn cap02_4_chaque_geste_de_tri_parait_au_journal_comme_une_operation_nommee() {
+    let racine = racine_jetable("commandes-cap02-4");
+    suite::chaque_geste_de_tri_parait_au_journal(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn cap02_8_l_idee_videe_par_un_regroupement_est_retiree_et_l_annulation_la_retablit() {
+    let racine = racine_jetable("commandes-cap02-8");
+    suite::l_idee_videe_par_un_regroupement_est_retiree(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn cap02_3_deux_prises_regroupees_restent_deux_captations_d_empreinte_inchangee() {
+    let racine = racine_jetable("commandes-cap02-3");
+    suite::deux_prises_regroupees_restent_deux_captations(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn cap02_5_une_idee_retiree_quitte_la_liste_et_se_retablit_telle_qu_elle_etait() {
+    let racine = racine_jetable("commandes-cap02-5");
+    suite::une_idee_retiree_quitte_la_liste_et_se_retablit_telle_qu_elle_etait(
+        &mut PaireSurFichiers { racine: &racine },
+    );
+}
+
+#[test]
+fn un_geste_de_tri_sans_fonds_est_refuse_et_rien_ne_nait() {
+    let racine = racine_jetable("commandes-tri-sans-fonds");
+    suite::un_geste_de_tri_sans_fonds_est_refuse_et_rien_ne_nait(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+    // Le trait `Paire` ne donne aucun chemin : l'enveloppe, qui connaît la racine des données,
+    // voit que le dossier du fonds n'est pas né.
+    assert!(!racine.chemin().join("documents").join("fonds").exists());
+}
+
+#[test]
+fn une_fiche_versee_deux_fois_est_refusee_et_rien_ne_change() {
+    let racine = racine_jetable("commandes-fiche-versee-deux-fois");
+    suite::une_fiche_versee_deux_fois_est_refusee_et_rien_ne_change(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn un_geste_qui_touche_une_idee_retiree_est_refuse() {
+    let racine = racine_jetable("commandes-idee-retiree-touchee");
+    suite::un_geste_qui_touche_une_idee_retiree_est_refuse(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn regrouper_une_empreinte_qu_aucune_captation_ne_porte_est_refuse() {
+    let racine = racine_jetable("commandes-empreinte-sans-captation");
+    suite::regrouper_une_empreinte_qu_aucune_captation_ne_porte_est_refuse(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn une_cle_d_une_autre_forme_sous_les_liens_n_est_pas_un_lien() {
+    let racine = racine_jetable("commandes-cle-d-une-autre-forme-sous-les-liens");
+    suite::une_cle_d_une_autre_forme_sous_les_liens_n_est_pas_un_lien(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn la_vue_tire_reliee_et_la_duree_des_regles_du_noyau() {
+    let racine = racine_jetable("commandes-reliee-et-duree");
+    suite::la_vue_tire_reliee_et_la_duree_des_regles_du_noyau(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn cap02_6_annuler_rend_le_fonds_d_avant_et_le_journal_porte_le_geste_puis_son_annulation() {
+    let racine = racine_jetable("commandes-cap02-6");
+    suite::annuler_rend_le_fonds_d_avant(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn annuler_ne_vise_que_le_dernier_geste_de_tri_depuis_l_ouverture() {
+    let racine = racine_jetable("commandes-suite-des-annulations");
+    suite::annuler_ne_vise_que_le_dernier_geste_de_tri_depuis_l_ouverture(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn un_geste_refuse_ne_change_pas_ce_qu_annuler_vise() {
+    let racine = racine_jetable("commandes-geste-refuse-et-annuler");
+    suite::un_geste_refuse_ne_change_pas_ce_qu_annuler_vise(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn la_reouverture_vide_ce_qu_annuler_vise() {
+    let racine = racine_jetable("commandes-reouverture-et-annuler");
+    suite::la_reouverture_vide_ce_qu_annuler_vise(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn une_annulation_ne_s_annule_pas() {
+    let racine = racine_jetable("commandes-annulation-non-annulee");
+    suite::une_annulation_ne_s_annule_pas(&mut PaireSurFichiers { racine: &racine });
 }
 
 #[test]
@@ -289,4 +404,196 @@ fn le_premier_geste_refuse_laisse_la_racine_des_donnees_sans_document() {
 
     let services = paire.rouvrir(services, &[]);
     assert!(services.documents().fonds().is_none());
+}
+
+/// `#pont` posée sur A ; « annuler », coupé avant le renommage de son fichier d'ajout, est refusé
+/// par le disque : A garde `#pont`, et le journal ne change pas ; la panne levée, « annuler » vise
+/// encore la pose, et la défait ; rouvert, le fonds montre A sans étiquette.
+#[test]
+fn une_annulation_refusee_par_le_disque_se_refait() {
+    let racine = racine_jetable("commandes-annulation-refusee-par-le-disque");
+    let mut paire = PaireSurFichiers { racine: &racine };
+    let mut services = paire.neufs();
+    let mut alea = alea_de_test();
+    let mut contexte = contexte_de_test(&mut alea);
+    services
+        .noter(&une_note("Un refrain qui monte, en ré"), &mut contexte)
+        .expect("la note A est faite");
+    services
+        .poser_une_etiquette(&suite::etiquetage(IDEE, "pont"), &mut contexte)
+        .expect("l'étiquette est posée sur A");
+    let journal = services.journal().expect("le journal se lit");
+
+    let rendu = {
+        let _panne = couper(Etape::Renommage, 1);
+        services.annuler(&mut contexte)
+    };
+    assert!(
+        matches!(
+            rendu,
+            Err(Refus {
+                raison: Raison::Disque,
+                ..
+            })
+        ),
+        "attendu le refus du disque ; rendu {rendu:?}"
+    );
+    assert_eq!(
+        services.vue_d_une_idee(IDEE).map(|vue| vue.etiquettes),
+        Ok(vec!["pont".to_string()])
+    );
+    assert_eq!(services.journal(), Ok(journal.clone()));
+
+    assert_eq!(
+        services.annuler(&mut contexte),
+        Ok(Faite {
+            avertissement: None
+        })
+    );
+    let mut attendu = journal;
+    attendu.push(EntreeDuJournal {
+        message: "Annulé : Idée du 14 novembre : étiquette #pont posée".to_string(),
+        heure: suite::HEURE,
+    });
+    assert_eq!(services.journal(), Ok(attendu));
+    assert_eq!(
+        services.vue_d_une_idee(IDEE).map(|vue| vue.etiquettes),
+        Ok(Vec::new())
+    );
+
+    let services = paire.rouvrir(services, &[]);
+    assert_eq!(
+        services.vue_d_une_idee(IDEE).map(|vue| vue.etiquettes),
+        Ok(Vec::new())
+    );
+}
+
+/// `#pont` posée sur A ; compléter A, coupé avant le renommage de son fichier d'ajout, est refusé
+/// par le disque : A garde son texte, et le journal ne change pas. Le geste refusé ne devient pas
+/// ce qu'annuler vise : « annuler » défait encore la pose ; rouvert, le fonds montre A de son
+/// premier texte, sans étiquette.
+#[test]
+fn un_geste_de_tri_refuse_par_le_disque_ne_change_pas_ce_qu_annuler_vise() {
+    let racine = racine_jetable("commandes-geste-de-tri-refuse-par-le-disque");
+    let mut paire = PaireSurFichiers { racine: &racine };
+    let mut services = paire.neufs();
+    let mut alea = alea_de_test();
+    let mut contexte = contexte_de_test(&mut alea);
+    services
+        .noter(&une_note("Un refrain qui monte, en ré"), &mut contexte)
+        .expect("la note A est faite");
+    services
+        .poser_une_etiquette(&suite::etiquetage(IDEE, "pont"), &mut contexte)
+        .expect("l'étiquette est posée sur A");
+    let journal = services.journal().expect("le journal se lit");
+
+    let rendu = {
+        let _panne = couper(Etape::Renommage, 1);
+        services.completer(
+            &suite::completion(IDEE, "Un refrain qui monte, puis retombe"),
+            &mut contexte,
+        )
+    };
+    assert!(
+        matches!(
+            rendu,
+            Err(Refus {
+                raison: Raison::Disque,
+                ..
+            })
+        ),
+        "attendu le refus du disque ; rendu {rendu:?}"
+    );
+    assert_eq!(
+        services.vue_d_une_idee(IDEE).map(|vue| vue.texte),
+        Ok(Some("Un refrain qui monte, en ré".to_string()))
+    );
+    assert_eq!(services.journal(), Ok(journal.clone()));
+
+    assert_eq!(
+        services.annuler(&mut contexte),
+        Ok(Faite {
+            avertissement: None
+        })
+    );
+    let mut attendu = journal;
+    attendu.push(EntreeDuJournal {
+        message: "Annulé : Idée du 14 novembre : étiquette #pont posée".to_string(),
+        heure: suite::HEURE,
+    });
+    assert_eq!(services.journal(), Ok(attendu));
+
+    let services = paire.rouvrir(services, &[]);
+    let vue = services.vue_d_une_idee(IDEE).expect("l'idée A se lit");
+    assert_eq!(vue.texte.as_deref(), Some("Un refrain qui monte, en ré"));
+    assert_eq!(vue.etiquettes, Vec::<String>::new());
+}
+
+/// Compléter A, coupé après le renommage de son fichier d'ajout, est fait, avec un avertissement,
+/// et devient ce qu'annuler vise : « annuler », coupé de même, le défait, avec un avertissement ;
+/// rouvert, le fonds montre A de son premier texte.
+#[test]
+fn un_geste_de_tri_et_son_annulation_coupes_apres_le_renommage_rendent_un_avertissement() {
+    let racine = racine_jetable("commandes-geste-de-tri-coupe-apres-le-renommage");
+    let mut paire = PaireSurFichiers { racine: &racine };
+    let mut services = paire.neufs();
+    let mut alea = alea_de_test();
+    let mut contexte = contexte_de_test(&mut alea);
+    services
+        .noter(&une_note("Un refrain qui monte, en ré"), &mut contexte)
+        .expect("la note A est faite");
+
+    let rendu = {
+        let _panne = couper(Etape::RendreDurable, 1);
+        services.completer(
+            &suite::completion(IDEE, "Un refrain qui monte, puis retombe"),
+            &mut contexte,
+        )
+    };
+    assert!(
+        matches!(
+            rendu,
+            Ok(Faite {
+                avertissement: Some(_)
+            })
+        ),
+        "attendu le geste fait, avec un avertissement ; rendu {rendu:?}"
+    );
+    assert_eq!(
+        services.vue_d_une_idee(IDEE).map(|vue| vue.texte),
+        Ok(Some("Un refrain qui monte, puis retombe".to_string()))
+    );
+
+    let rendu = {
+        let _panne = couper(Etape::RendreDurable, 1);
+        services.annuler(&mut contexte)
+    };
+    assert!(
+        matches!(
+            rendu,
+            Ok(Faite {
+                avertissement: Some(_)
+            })
+        ),
+        "attendu l'annulation faite, avec un avertissement ; rendu {rendu:?}"
+    );
+    let journal = services.journal().expect("le journal se lit");
+    assert_eq!(
+        journal.last(),
+        Some(&EntreeDuJournal {
+            message: "Annulé : Idée du 14 novembre : texte complété".to_string(),
+            heure: suite::HEURE,
+        }),
+        "{journal:?}"
+    );
+    assert_eq!(
+        services.vue_d_une_idee(IDEE).map(|vue| vue.texte),
+        Ok(Some("Un refrain qui monte, en ré".to_string()))
+    );
+
+    let services = paire.rouvrir(services, &[]);
+    assert_eq!(
+        services.vue_d_une_idee(IDEE).map(|vue| vue.texte),
+        Ok(Some("Un refrain qui monte, en ré".to_string()))
+    );
 }

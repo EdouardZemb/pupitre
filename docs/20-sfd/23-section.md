@@ -38,7 +38,7 @@ flowchart LR
 - La métrique par défaut est celle du morceau ; une mesure peut en changer.
 - **Le type n'est jamais déduit.** Pupitre peut proposer des **répétitions** (« ces deux
   passages sont le même bloc »), jamais des noms : le refrain est ce que Sacha appelle
-  refrain, pas ce qu'un détecteur étiquette.
+  refrain, pas ce qu'un détecteur nomme ainsi.
 
 **Ne fait pas** — ne type pas un bloc de lui-même ; ne refuse pas une forme sans refrain.
 

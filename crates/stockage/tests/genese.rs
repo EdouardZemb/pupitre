@@ -5,17 +5,21 @@
 use automerge::transaction::{CommitOptions, Transactable};
 use automerge::{ActorId, Automerge, Change, ObjType, ROOT, ReadDoc, ScalarValue, Value};
 use noyau::donnees::fonds::{
-    ACTEUR_DE_LA_GENESE, GENESE, IDEES, MESSAGE_DE_LA_GENESE, PRISES, VERSION_DE_SCHEMA,
+    ACTEUR_DE_LA_GENESE, CONTENEURS_DE_LA_GENESE, GENESE, IDEES, IMPORTS, LIENS,
+    MESSAGE_DE_LA_GENESE, MIDI_VERSES, ORIGINES_DECLAREES, PHOTOS, PRISES, REQUETES_ENREGISTREES,
+    TEXTES_VERSES, VERSION_DE_SCHEMA,
 };
 
-/// La recette de la genèse : les octets de `GENESE` en dépendent, et elle ne change plus après
-/// la `v0.3.0`.
+/// La recette de la genèse : la version de schéma 1, puis chaque conteneur de
+/// `CONTENEURS_DE_LA_GENESE`, un objet à clés, dans l'ordre. Les octets de `GENESE` en dépendent,
+/// et elle ne change plus après la `v0.3.0`.
 fn genese_par_la_recette() -> Vec<u8> {
     let mut doc = Automerge::new().with_actor(ActorId::from(ACTEUR_DE_LA_GENESE));
     let mut tx = doc.transaction();
     tx.put(ROOT, VERSION_DE_SCHEMA, 1u64).unwrap();
-    tx.put_object(ROOT, IDEES, ObjType::Map).unwrap();
-    tx.put_object(ROOT, PRISES, ObjType::Map).unwrap();
+    for conteneur in CONTENEURS_DE_LA_GENESE {
+        tx.put_object(ROOT, conteneur, ObjType::Map).unwrap();
+    }
     let options = CommitOptions::default()
         .with_message(MESSAGE_DE_LA_GENESE)
         .with_time(0);
@@ -98,7 +102,21 @@ fn la_genese_pose_la_version_de_schema_1_et_les_conteneurs() {
     doc.apply_changes([genese]).expect("appliquer la genèse");
     let mut cles: Vec<String> = doc.keys(ROOT).collect();
     cles.sort();
-    assert_eq!(cles, [IDEES, PRISES, VERSION_DE_SCHEMA]);
+    assert_eq!(
+        cles,
+        [
+            IDEES,
+            IMPORTS,
+            LIENS,
+            MIDI_VERSES,
+            ORIGINES_DECLAREES,
+            PHOTOS,
+            PRISES,
+            REQUETES_ENREGISTREES,
+            TEXTES_VERSES,
+            VERSION_DE_SCHEMA
+        ]
+    );
     match doc
         .get(ROOT, VERSION_DE_SCHEMA)
         .expect("lire la racine du document")
@@ -106,7 +124,7 @@ fn la_genese_pose_la_version_de_schema_1_et_les_conteneurs() {
         Some((Value::Scalar(version), _)) => assert_eq!(*version, ScalarValue::Uint(1)),
         autre => panic!("la version de schéma n'est pas un scalaire : {autre:?}"),
     }
-    for conteneur in [IDEES, PRISES] {
+    for conteneur in CONTENEURS_DE_LA_GENESE {
         match doc
             .get(ROOT, conteneur)
             .expect("lire la racine du document")

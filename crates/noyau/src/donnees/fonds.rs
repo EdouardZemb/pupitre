@@ -10,14 +10,14 @@ use crate::donnees::version::Migration;
 pub const VERSION_DE_SCHEMA: &str = "version_de_schema";
 /// À la racine du document : l'objet à clés des idées, de l'identifiant d'idée à l'idée.
 pub const IDEES: &str = "idees";
-/// À la racine du document : l'objet à clés des prises, les clés à plat, de `<empreinte>/<fait>`
+/// À la racine du document : l'objet à clés des prises, les clés à plat, de `<empreinte>/<clé>`
 /// à sa valeur.
 pub const PRISES: &str = "prises";
 /// À la racine du document : l'objet à clés des MIDI versés seuls, les clés à plat, de
-/// `<empreinte>/<fait>` à sa valeur.
+/// `<empreinte>/<clé>` à sa valeur.
 pub const MIDI_VERSES: &str = "midi_verses";
 /// À la racine du document : l'objet à clés des textes versés, les clés à plat, de
-/// `<empreinte>/<fait>` à sa valeur.
+/// `<empreinte>/<clé>` à sa valeur.
 pub const TEXTES_VERSES: &str = "textes_verses";
 /// À la racine du document : l'objet à clés des liens, de la clé d'un lien à `true`.
 pub const LIENS: &str = "liens";
@@ -30,6 +30,22 @@ pub const IMPORTS: &str = "imports";
 pub const ORIGINES_DECLAREES: &str = "origines_declarees";
 /// À la racine du document : l'objet à clés des photos.
 pub const PHOTOS: &str = "photos";
+/// Les conteneurs de la racine du document que crée la genèse (§ 31 · 2.3), dans l'ordre de sa
+/// recette, chacun un objet à clés, après la version de schéma.
+pub const CONTENEURS_DE_LA_GENESE: [&str; 9] = [
+    IDEES,
+    PRISES,
+    MIDI_VERSES,
+    TEXTES_VERSES,
+    LIENS,
+    REQUETES_ENREGISTREES,
+    IMPORTS,
+    ORIGINES_DECLAREES,
+    PHOTOS,
+];
+/// Les conteneurs dont les clés nomment une captation, `<empreinte>/<clé>` (§ 31 · 6.1) ; le
+/// lot 2 y ajoute les photos, avec le cas du test 4.
+pub const CONTENEURS_NOMMANT_UNE_CAPTATION: [&str; 3] = [PRISES, MIDI_VERSES, TEXTES_VERSES];
 /// À la racine du document : l'identifiant du document, une chaîne écrite à la naissance.
 pub const IDENTIFIANT: &str = "identifiant";
 /// À la racine du document : la lignée (§ 31 · 2.5), une chaîne écrite à la naissance.
@@ -83,9 +99,9 @@ pub const ACTEUR_DE_LA_GENESE: [u8; 16] = *b"pupitre-genese-1";
 /// La genèse du fonds (§ 31 · 2.3) : une modification Automerge, en octets, sur une ligne,
 /// telle que le test l'imprime.
 #[rustfmt::skip]
-pub const GENESE: &[u8] = &[133, 111, 74, 131, 232, 226, 103, 51, 1, 96, 0, 16, 112, 117, 112, 105, 116, 114, 101, 45, 103, 101, 110, 101, 115, 101, 45, 49, 1, 1, 0, 16, 71, 101, 110, 195, 168, 115, 101, 32, 100, 117, 32, 102, 111, 110, 100, 115, 0, 6, 21, 32, 52, 1, 66, 4, 86, 4, 87, 1, 112, 2, 125, 17, 118, 101, 114, 115, 105, 111, 110, 95, 100, 101, 95, 115, 99, 104, 101, 109, 97, 5, 105, 100, 101, 101, 115, 6, 112, 114, 105, 115, 101, 115, 3, 127, 1, 2, 0, 127, 19, 2, 0, 1, 3, 0];
+pub const GENESE: &[u8] = &[133, 111, 74, 131, 169, 221, 153, 100, 1, 184, 1, 0, 16, 112, 117, 112, 105, 116, 114, 101, 45, 103, 101, 110, 101, 115, 101, 45, 49, 1, 1, 0, 16, 71, 101, 110, 195, 168, 115, 101, 32, 100, 117, 32, 102, 111, 110, 100, 115, 0, 6, 21, 120, 52, 1, 66, 4, 86, 4, 87, 1, 112, 2, 118, 17, 118, 101, 114, 115, 105, 111, 110, 95, 100, 101, 95, 115, 99, 104, 101, 109, 97, 5, 105, 100, 101, 101, 115, 6, 112, 114, 105, 115, 101, 115, 11, 109, 105, 100, 105, 95, 118, 101, 114, 115, 101, 115, 13, 116, 101, 120, 116, 101, 115, 95, 118, 101, 114, 115, 101, 115, 5, 108, 105, 101, 110, 115, 21, 114, 101, 113, 117, 101, 116, 101, 115, 95, 101, 110, 114, 101, 103, 105, 115, 116, 114, 101, 101, 115, 7, 105, 109, 112, 111, 114, 116, 115, 18, 111, 114, 105, 103, 105, 110, 101, 115, 95, 100, 101, 99, 108, 97, 114, 101, 101, 115, 6, 112, 104, 111, 116, 111, 115, 10, 127, 1, 9, 0, 127, 19, 9, 0, 1, 10, 0];
 
 /// Les migrations du fonds (§ 31 · 2.4), dans l'ordre : la n-ième mène à la version de schéma
 /// n + 1. Aucune : l'application ne connaît que la version de schéma 1, celle de la genèse.
-/// Une migration publiée, portée par une étiquette, ne change plus.
+/// Une migration publiée, portée par une étiquette `vX.Y.Z`, ne change plus.
 pub const MIGRATIONS: &[Migration<'static>] = &[];

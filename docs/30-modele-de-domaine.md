@@ -59,7 +59,6 @@ classDiagram
   class Lien {
     type
     bouts
-    le
   }
   class Morceau {
     id
@@ -666,9 +665,12 @@ Trois relations partent d'une idée, et chacune n'a qu'un mécanisme.
 - **Un lien se nomme par son type et ses deux bouts** (§ 2) : pour « apparenté à », non
   orienté, les deux identifiants rangés dans l'ordre de leurs octets ; pour « devenue »,
   l'idée, puis ce qu'elle est devenue. Deux appareils qui posent hors ligne le même lien, dans
-  un sens ou dans l'autre, n'en font qu'un, et le même lien ne s'écrit jamais deux fois. Il vit
+  un sens ou dans l'autre, n'en font qu'un : une seule clé, où chacun a posé `true`
+  ([§ 31 · 2](31-persistance-et-synchronisation.md#2-les-documents)) ; sur un appareil, un
+  lien déjà posé ne se repose pas. Il vit
   dans le document du fonds, même quand un bout est un morceau : c'est une référence par
-  identifiant, pas un lien vivant entre documents (§ 5.4).
+  identifiant, pas un lien vivant entre documents (§ 5.4). Un lien ne porte pas de date :
+  celle du geste qui l'a posé se lit dans le journal du fonds.
 - **Un lien ne regroupe rien, et regrouper ne lie rien** : « versions d'une même idée »
   n'est pas un type de lien.
 - Relier une idée à elle-même est refusé, et Pupitre le dit.
@@ -712,11 +714,14 @@ lu par aucun diagnostic ([ADR-006](adr/adr-006-le-partiel-est-normal.md)).
   ([ADR-023](adr/adr-023-stockage-des-documents.md)). Le fonds n'a ni décisions ni
   questions : elles vivent par morceau et par album.
 - **Annuler** le dernier geste de tri écrit l'opération inverse, elle-même nommée
-  (« Annulé : étiquette #pont posée ») : l'historique n'est jamais réécrit, et le journal
-  porte le geste puis son annulation. Annuler ne vise que le dernier geste de tri fait sur
-  l'appareil depuis l'ouverture de l'application, et une annulation ne s'annule pas. Si une
-  synchronisation a changé l'élément depuis, l'annulation est refusée, et Pupitre dit ce
-  qui a changé.
+  (« Annulé : Idée du 3 novembre : étiquette #pont posée ») : l'historique n'est jamais
+  réécrit, et le journal porte le geste puis son annulation. Annuler ne vise que le dernier
+  geste de tri fait sur l'appareil depuis l'ouverture ; une note, une requête enregistrée, un
+  import ou une déclaration ne le visent ni ne le remplacent ; une annulation faite, un
+  second « annuler » est refusé, et le dit. Un geste refusé ne change pas ce qu'annuler vise.
+  L'inverse repose ce que le geste a changé tel que le fonds le présentait avant lui : une
+  clé en conflit avant le geste revient à sa seule valeur présentée. Si une synchronisation a
+  changé l'élément depuis, l'annulation est refusée, et Pupitre dit ce qui a changé.
 - Sacha peut consigner des **décisions** (`D001`…) et des **questions** (`Q001`…) par
   morceau et par album. Chacune a un ULID ; son numéro est attribué par le nœud à la
   première synchronisation, et d'ici là elle s'affiche « D— » ou « Q— ». Sans nœud, elle

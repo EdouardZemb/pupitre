@@ -1,16 +1,19 @@
 //! La lecture du fonds (§ 31 · 3) : le fonds lu, que le noyau reçoit (`IdeeLue`, `CaptationLue`),
-//! le journal et la version de schéma, tirés du document sans y écrire. Une valeur se reconnaît à
-//! sa variante, jamais par conversion : une idée dont une valeur n'a pas le type du schéma ne se
-//! lit pas. Un conteneur absent de la racine du document se lit vide.
+//! le journal, la version de schéma, les empreintes que nomme le document et sa teneur, tirés du
+//! document sans y écrire. Une valeur se reconnaît à sa variante, jamais par conversion : une idée
+//! dont une valeur n'a pas le type du schéma ne se lit pas. Un conteneur absent de la racine du
+//! document se lit vide.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use automerge::{Automerge, ObjId, ObjType, ROOT, ReadDoc, ScalarValue, Value};
 use noyau::donnees::fonds::{
-    CAPTEE, DEPUIS, DUREE, ETIQUETTES, IDEE, IDEES, IMPORTEE, LE, LIENS, PAR, PROVENANCE, RETIREE,
-    TEXTE, VERSION_DE_SCHEMA,
+    CAPTEE, CONTENEURS_NOMMANT_UNE_CAPTATION, DEPUIS, DUREE, ETIQUETTES, IDEE, IDEES, IMPORTEE, LE,
+    LIENS, PAR, PROVENANCE, RETIREE, TEXTE, VERSION_DE_SCHEMA,
 };
 use noyau::donnees::gestes::{Appareil, CaptationLue, IdeeLue, Provenance, Sorte};
+use noyau::donnees::idee;
+use noyau::donnees::teneur::{ErreurDeTeneur, Valeur, ecrire_la_teneur};
 
 /// L'idée `id`, telle qu'elle se lit : son identifiant, sa provenance (`provenance`, `par`, et
 /// `depuis` d'une idée importée), sa date (`le`), son texte, ses étiquettes, la date de son
@@ -121,6 +124,78 @@ pub fn version_de_schema(doc: &Automerge) -> Option<u64> {
     valeur(doc, &ROOT, VERSION_DE_SCHEMA, naturel).flatten()
 }
 
+/// Les empreintes que nomme le document (§ 31 · 6.1) : les clés `<empreinte>/<clé>` des
+/// `CONTENEURS_NOMMANT_UNE_CAPTATION`, par `idee::empreintes_nommees` ; un conteneur absent de la
+/// racine du document, ou qui n'est pas un objet à clés, se saute.
+pub fn empreintes_nommees(doc: &Automerge) -> BTreeSet<String> {
+    CONTENEURS_NOMMANT_UNE_CAPTATION
+        .into_iter()
+        .filter_map(|conteneur| objet(doc, &ROOT, conteneur))
+        .flat_map(|conteneur| {
+            let cles: Vec<String> = doc.keys(&conteneur).collect();
+            idee::empreintes_nommees(cles.iter().map(String::as_str))
+        })
+        .collect()
+}
+
+/// La teneur de `doc` (§ 31 · 2.6) : son arbre, lu sur la valeur que présente Automerge
+/// (`ReadDoc`, jamais `get_all`), puis écrit par le noyau, sans la lignée ni les lignées qu'elle
+/// remplace.
+pub fn teneur(doc: &Automerge) -> Result<String, ErreurDeTeneur> {
+    ecrire_la_teneur(&objet_a_cles(doc, &ROOT))
+}
+
+/// Un objet `Map` ou `Table` : une seule sorte.
+fn objet_a_cles(doc: &Automerge, objet: &ObjId) -> BTreeMap<String, Valeur> {
+    doc.keys(objet)
+        .map(|cle| {
+            let (valeur, id) = doc
+                .get(objet, cle.as_str())
+                .expect("lire une clé que le document vient de nommer")
+                .expect("une clé nommée a une valeur");
+            let valeur = valeur_de(doc, valeur, &id);
+            (cle, valeur)
+        })
+        .collect()
+}
+
+fn valeur_de(doc: &Automerge, valeur: Value<'_>, id: &ObjId) -> Valeur {
+    match valeur {
+        // En automerge 0.12.0, une `Table` n'est jamais indexée : `put` y rend `NotAnObject`, et
+        // `keys` avale cette erreur. Une `Table` non vide, chargée d'un document d'une autre
+        // implémentation, se lit donc vide, sans erreur.
+        Value::Object(ObjType::Map | ObjType::Table) => Valeur::ObjetACles(objet_a_cles(doc, id)),
+        Value::Object(ObjType::List) => Valeur::Liste(
+            (0..doc.length(id))
+                .map(|indice| {
+                    let (valeur, id) = doc
+                        .get(id, indice)
+                        .expect("lire un indice que le document vient de compter")
+                        .expect("un indice compté a une valeur");
+                    valeur_de(doc, valeur, &id)
+                })
+                .collect(),
+        ),
+        Value::Object(ObjType::Text) => {
+            Valeur::Texte(doc.text(id).expect("lire un objet texte du document"))
+        }
+        Value::Scalar(scalaire) => match scalaire.as_ref() {
+            ScalarValue::Str(texte) => Valeur::Str(texte.to_string()),
+            ScalarValue::Int(n) => Valeur::Int(*n),
+            ScalarValue::Uint(n) => Valeur::Uint(*n),
+            ScalarValue::F64(x) => Valeur::F64(*x),
+            ScalarValue::Counter(compteur) => Valeur::Counter(i64::from(compteur)),
+            ScalarValue::Timestamp(n) => Valeur::Timestamp(*n),
+            ScalarValue::Boolean(b) => Valeur::Boolean(*b),
+            ScalarValue::Bytes(octets) => Valeur::Bytes(octets.clone()),
+            ScalarValue::Null => Valeur::Null,
+            ScalarValue::Unknown { type_code, .. } => Valeur::Inconnu {
+                type_code: *type_code,
+            },
+        },
+    }
+}
+
 /// L'objet à clés que porte `cle` dans `parent` ; absent, ou de tout autre type, `None`.
 fn objet(doc: &Automerge, parent: &ObjId, cle: &str) -> Option<ObjId> {
     match doc.get(parent, cle) {
@@ -179,17 +254,14 @@ fn captation(sorte: Sorte, empreinte: String, idee: String, duree: Option<u64>) 
     }
 }
 
-/// Les clés de `LIENS` dont un bout est `id` : `apparente:<a>:<b>`, coupée aux deux premiers `:`.
-/// Sans liens à la racine du document, aucune.
+/// Les clés de `LIENS` qui sont celles d'un lien dont un bout est `id`, selon la règle du noyau
+/// (`idee::bouts_du_lien`) : une clé d'une autre forme n'est le lien d'aucune idée. Sans liens à
+/// la racine du document, aucune.
 fn liens_de(doc: &Automerge, id: &str) -> BTreeSet<String> {
     let Some(liens) = objet(doc, &ROOT, LIENS) else {
         return BTreeSet::new();
     };
     doc.keys(&liens)
-        .filter(|cle| {
-            cle.split_once(':')
-                .and_then(|(_, bouts)| bouts.split_once(':'))
-                .is_some_and(|(a, b)| a == id || b == id)
-        })
+        .filter(|cle| idee::bouts_du_lien(cle).is_some_and(|(a, b)| a == id || b == id))
         .collect()
 }
