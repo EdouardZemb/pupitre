@@ -19,7 +19,7 @@ use stockage::{Document, Naissance, RacineDesDonnees, empreinte, teneur};
 /// Les empreintes de référence du test 11. Une ligne se change ou se retire avant la `v0.3.0`, et
 /// la PR le dit ; dès elle, seule une ligne ajoutée passe (§ 31 · 10, test 11 ; ADR-023).
 const GENESE_DU_FONDS: &str = "a02890acd15f12619da7f1f5abea9a8056db7188f909a467896ea50d4b5a6fc1";
-const TENEUR_DU_TEMOIN: &str = "6edd898e994a41036e5a4e7d42653910fcb99cb24f4f1ff42244f140b3bceabc";
+const TENEUR_DU_TEMOIN: &str = "291a0df280e2274fe96fc10d24a232a57213a0e938fa0a7b844be8f056657dbc";
 const TENEUR_DES_TYPES: &str = "35d51798213927730a9c636b9d6b72760400f3be0f674b9566b7d012ae7f5d30";
 
 /// Le document témoin, né dans `racine` sous `naissance` : la genèse, la naissance, puis, en un
