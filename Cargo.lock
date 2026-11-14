@@ -2116,6 +2116,7 @@ dependencies = [
 name = "interface"
 version = "0.0.0"
 dependencies = [
+ "commandes",
  "js-sys",
  "leptos",
  "noyau",
