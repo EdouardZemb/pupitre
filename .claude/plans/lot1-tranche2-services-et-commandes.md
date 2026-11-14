@@ -1607,13 +1607,15 @@ aucune source échoue.
 
 - **Le noyau** (`crates/noyau/src/`, récursif) : ni `SystemTime`, `Instant`, `std::time`, `time::`, `getrandom`,
   `rand::`, `random`, `OsRng`, `std::fs`, `fs::`, `File`, `std::io`, `io::`, `std::env`, `env::`, `env!`,
-  `std::thread`, `thread::`, `std::net`, `net::`, `std::process`, `process::` ; et `crates/noyau/Cargo.toml` porte
+  `std::thread`, `thread::`, `std::net`, `net::`, `std::process`, `process::`, `HashMap`, `HashSet`, `RandomState`
+  (`BTreeMap` et `BTreeSet` admis) ; et `crates/noyau/Cargo.toml` porte
   `ulid = { version = "3.0.0", default-features = false }`, cette ligne entière, égale à l'octet, et aucune clé `features` (hors `default-features`) : la sous-chaîne `features =` paraît dans `default-features = false`, et un contrôle qui la refuserait refuserait le dépôt sain. Les chemins courts attrapent un
   import groupé (`use std::{fs, path::Path};` puis `fs::read`) ; aucun ne paraît aujourd'hui dans le noyau
   (`grep -rnE "fs::|env::|process::|thread::|net::|io::|time::" crates/noyau/src`, vide sur `main`).
 - **Les services** (`crates/services/src/`) : ni `std::fs`, `fs::`, `File`, `std::thread`, `thread::`, `spawn`,
   `std::net`, `net::`, `TcpStream`, `UdpSocket`, `SystemTime`, `Instant`, `std::time`, `time::`, `std::env`,
-  `env::`, `env!`, `std::process`, `process::` (décision 13 ; l'aléa n'y est pas interdit : l'acteur d'Automerge s'y
+  `env::`, `env!`, `std::process`, `process::`, `HashMap`, `HashSet`, `RandomState` (`BTreeMap` et `BTreeSet`
+  admis) (décision 13 ; l'aléa n'y est pas interdit : l'acteur d'Automerge s'y
   tire, exception que la décision 10 cite, où qu'il soit tiré).
 - **I28** (chaque `crates/*/src/` et `app/*/src/`) : hors de `crates/services/src/application.rs`,
   `crates/stockage/src/documents.rs` et `crates/stockage/src/racine_des_donnees.rs`, aucun de `.put(`,
@@ -1621,6 +1623,13 @@ aucune source échoue.
   `.transact(`, `.transact_with(`, `.empty_commit(`, `.commit_with(`, `.commit(`, `AutoCommit`, `Transactable`,
   `automerge::transaction`, `Transaction<` ; `receive_sync_message` (`crates/synchro/src/lib.rs:78`) n'en est pas :
   une reprise, que le § 70 · 3 admet, et le commentaire du contrôle le dit.
+- **Pourquoi `HashMap`, `HashSet` et `RandomState`** (plan maître, « Outils et cas limites », ajouté le
+  2026-11-13) : sous leur hacheur par défaut, `new()`, `default()` et `collect()` tirent leur graine du système
+  sans qu'aucun mot de l'aléa ne paraisse, et l'ordre d'itération change d'un passage à l'autre ; une règle qui
+  en dépendrait ne serait plus déterministe. Aucun ne paraît aujourd'hui dans `crates/noyau/src/`
+  (`grep -rn "HashMap\|HashSet\|RandomState" crates/noyau/src`, vide sur `main`). Ils restent permis dans les
+  tests, hors de `src/` (`crates/noyau/tests/guitare.rs:1` s'en sert), et dans les autres crates, où le contrôle
+  d'I30 (tranche 3) ne les cherche pas : limite que la description de la PR (c) dit.
 - **L'identifiant de propriétaire** : `uuid_v4(` ne paraît, hors de sa définition, qu'une fois, dans
   `crates/services/src/lib.rs`.
 
@@ -1644,7 +1653,8 @@ L'étape de CI :
           done
 ```
 
-- [ ] **Étape 1 : écrire les tests** : pour chaque contrôle, `chaque_controle_refuse_ce_qu_on_y_plante` (une source inventée qui porte `tx.put(` dans `crates/interface_essai/src/lib.rs`, un `use std::fs;` dans le noyau, puis un import groupé, `use std::{fs, path::Path}; fn f() { let _ = fs::read("x"); }`, dans le noyau et dans les services, un `std::thread::spawn` dans les services, un second `uuid_v4(`, un `Cargo.toml` du noyau dont la ligne d'`ulid` porte aussi `features = ["std"]` : chacun nommé dans le `Err` ; la ligne exigée seule, `default-features = false` compris, admise), puis le contrôle sur le dépôt : `Ok(())`.
+- [ ] **Étape 1 : écrire les tests** : pour chaque contrôle, `chaque_controle_refuse_ce_qu_on_y_plante` (une source inventée qui porte `tx.put(` dans `crates/interface_essai/src/lib.rs`, un `use std::fs;` dans le noyau, puis un import groupé, `use std::{fs, path::Path}; fn f() { let _ = fs::read("x"); }`, dans le noyau et dans les services, un `std::thread::spawn` dans les services, un `HashMap::new()` dans le noyau et dans les services, un second
+`uuid_v4(`, un `Cargo.toml` du noyau dont la ligne d'`ulid` porte aussi `features = ["std"]` : chacun nommé dans le `Err` ; la ligne exigée seule, `default-features = false` compris, admise), puis le contrôle sur le dépôt : `Ok(())`.
 - [ ] **Étape 2 : voir le rouge**, sur l'essai planté (le contrôle n'existe pas encore : `cannot find function controler`), puis le vert ; l'étape « Le graphe de l'interface » verte, puis rouge à l'essai : `services` ajouté à `app/ui/Cargo.toml`, un envoi rouge à « Cargo.lock à jour », l'artefact `cargo-lock` committé, un envoi rouge à « Le graphe de l'interface » (`services v` et `automerge v` imprimés) ; puis `services` retiré et le `Cargo.lock` remis, vert (les journaux liés dans la description).
 - [ ] **Étape 3 : committer** par chemins (`test: les contrôles statiques du noyau, des services et d'I28`, `ci: le graphe de l'interface, sans automerge, services ni stockage`).
 
