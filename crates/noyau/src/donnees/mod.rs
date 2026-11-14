@@ -2,10 +2,12 @@
 //! stockage et de la synchronisation s'en servent (§ 40 · 3).
 
 pub mod acces;
+pub mod changement;
 pub mod compaction;
 pub mod copie;
 pub mod demarrage;
 pub mod fonds;
+pub mod gestes;
 pub mod identifiants;
 pub mod teneur;
 pub mod version;
