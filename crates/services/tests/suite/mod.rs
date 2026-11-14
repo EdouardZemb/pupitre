@@ -265,6 +265,96 @@ pub fn visee(idee: &str) -> Viser {
     }
 }
 
+/// Verse `octets`, de sorte `sorte` et de fiche `fiche`, importés (`importee`), au décalage local
+/// nul, sans avertissement : son idée naît avec eux, à l'heure du contexte. Rend l'empreinte de la
+/// captation versée.
+fn verser_sans_avertissement<D: Documents, C: Captations>(
+    services: &mut Services<D, C>,
+    sorte: gestes::Sorte,
+    octets: &[u8],
+    fiche: &gestes::Fiche,
+    contexte: &mut Contexte<'_>,
+) -> String {
+    let versee = services
+        .verser_une_fiche(sorte, octets, fiche, &importee(), 0, contexte)
+        .expect("la fiche du témoin se verse");
+    assert_eq!(versee.avertissement, None, "le versement de {sorte:?}");
+    versee.empreinte
+}
+
+/// Les gestes du témoin du test 11 (§ 31 · 10), écrits une seule fois, à l'heure et sous l'aléa
+/// de `contexte`, au décalage local nul, chacun fait sans avertissement : noter « Un refrain qui
+/// monte, en ré », A, qui fait naître le fonds s'il n'est pas né ; poser `refrain` sur A ; noter
+/// « Un pont en mi mineur », B ; relier A et B ; verser une prise WAV de 30 000 ms, un MIDI
+/// `smf1`, puis un texte `brut`, chacun importé (`importee`), sous l'idée qui naît avec lui ;
+/// regrouper le MIDI dans A, ce qui retire l'idée née avec lui.
+pub fn temoin<D: Documents, C: Captations>(
+    services: &mut Services<D, C>,
+    contexte: &mut Contexte<'_>,
+) {
+    let fait = Ok(Faite {
+        avertissement: None,
+    });
+    let a = services
+        .noter(&une_note("Un refrain qui monte, en ré"), contexte)
+        .expect("le témoin note A");
+    assert_eq!(a.avertissement, None, "la note A du témoin");
+    assert_eq!(
+        services.poser_une_etiquette(&etiquetage(&a.idee, "refrain"), contexte),
+        fait,
+        "l'étiquette du témoin"
+    );
+    let b = services
+        .noter(&une_note("Un pont en mi mineur"), contexte)
+        .expect("le témoin note B");
+    assert_eq!(b.avertissement, None, "la note B du témoin");
+    assert_eq!(
+        services.relier(&lien(&a.idee, &b.idee), contexte),
+        fait,
+        "le lien du témoin"
+    );
+    verser_sans_avertissement(
+        services,
+        gestes::Sorte::Prise,
+        b"une prise du temoin",
+        &fiche_wav(30_000),
+        contexte,
+    );
+    let midi = verser_sans_avertissement(
+        services,
+        gestes::Sorte::MidiVerseSeul,
+        b"un midi du temoin",
+        &gestes::Fiche {
+            format: "smf1".to_string(),
+            duree_ms: None,
+        },
+        contexte,
+    );
+    verser_sans_avertissement(
+        services,
+        gestes::Sorte::TexteVerse,
+        b"un texte du temoin",
+        &gestes::Fiche {
+            format: "brut".to_string(),
+            duree_ms: None,
+        },
+        contexte,
+    );
+    let regroupement_du_midi = Regrouper {
+        captation: Captation {
+            sorte: commandes::Sorte::MidiVerseSeul,
+            empreinte: midi,
+        },
+        cible: a.idee,
+        decalage_minutes: 0,
+    };
+    assert_eq!(
+        services.regrouper(&regroupement_du_midi, contexte),
+        fait,
+        "le regroupement du MIDI dans A"
+    );
+}
+
 /// Le refus d'une commande qui ne se fait pas sur le fonds tel qu'il est : `Raison::Impossible`,
 /// et `message`.
 fn impossible(message: String) -> Refus {
