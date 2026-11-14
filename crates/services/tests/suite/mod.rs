@@ -2,10 +2,12 @@
 //! (`Paire`), que rejouent la paire en mémoire (`crates/services/tests/commandes_en_memoire.rs`)
 //! et celle des fichiers, au stockage (`crates/stockage/tests/commandes_sur_fichiers.rs`) ;
 //! l'heure et l'aléa des tests, l'identifiant de l'import des fiches qu'ils versent, la prise de
-//! test, les commandes des gestes de tri, la migration de test, les migrations qui la portent, et
-//! une migration qui attend ses dépendances. Le fichier s'inclut par `mod suite;` dans les tests
-//! des services, et par `#[path = "../../services/tests/suite/mod.rs"]` dans ceux du stockage :
-//! il ne nomme que ce que les deux voient, les services, les commandes, le noyau et `automerge`.
+//! test, les commandes des gestes de tri, les gestes du témoin du test 11 (§ 31 · 10), que
+//! joue le test des empreintes de référence (`crates/stockage/tests/references.rs`), la
+//! migration de test, les migrations qui la portent, et une migration qui attend ses
+//! dépendances. Le fichier s'inclut par `mod suite;` dans les tests des services, et par
+//! `#[path = "../../services/tests/suite/mod.rs"]` dans ceux du stockage : il ne nomme que ce
+//! que les deux voient, les services, les commandes, le noyau et `automerge`.
 
 // Chaque fichier qui inclut la suite n'en emploie qu'une partie.
 #![allow(dead_code)]
