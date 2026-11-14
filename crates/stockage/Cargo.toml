@@ -8,15 +8,23 @@ publish.workspace = true
 [dependencies]
 automerge = "0.12.0"
 noyau = { path = "../noyau" }
-sha2 = { version = "0.11.1", default-features = false }
+services = { path = "../services" }
 synchro = { path = "../synchro" }
 
-# `pannes` injecte une panne à chaque étape d'une écriture, et compile
-# `RacineDesDonnees::fonds_selon`, qui ouvre le fonds selon les migrations qu'un test lui donne :
-# ses tests seuls la demandent, par leur dépendance sur le stockage même.
+# `pannes` coupe une écriture à l'étape voulue, en injectant une panne à chacune de ses étapes ;
+# elle ouvre le fonds selon les migrations qu'un test lui donne (`RacineDesDonnees::fonds_selon`,
+# `FondsSurFichiers::ouvrir_selon`), et garde pour les tests l'écriture et la naissance par une
+# fermeture (`Document::ecrire`, `RacineDesDonnees::faire_naitre_le_fonds`, `Naissance`) : ses
+# tests seuls la demandent, par leur dépendance sur le stockage même.
 [features]
 pannes = []
 
 [dev-dependencies]
+# `services` avec `en-memoire` : le fonds de mesure s'y engendrera sur la paire en mémoire, avant
+# de se rouvrir sur fichiers ; `commandes` : la suite des commandes, que les tests incluent
+# (`tests/commandes_sur_fichiers.rs`), nomme ses types, et un test ne voit que les dépendances et
+# les dépendances de test du stockage.
+commandes = { path = "../commandes" }
 proptest = "1.12.0"
+services = { path = "../services", features = ["en-memoire"] }
 stockage = { path = ".", features = ["pannes"] }

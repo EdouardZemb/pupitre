@@ -609,6 +609,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "commandes"
+version = "0.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "config"
 version = "0.15.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2108,6 +2116,7 @@ dependencies = [
 name = "interface"
 version = "0.0.0"
 dependencies = [
+ "commandes",
  "js-sys",
  "leptos",
  "noyau",
@@ -2782,6 +2791,7 @@ dependencies = [
  "resvg",
  "sha2 0.11.1",
  "ttf-parser",
+ "ulid",
 ]
 
 [[package]]
@@ -4113,6 +4123,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "services"
+version = "0.0.0"
+dependencies = [
+ "automerge",
+ "commandes",
+ "noyau",
+ "services",
+]
+
+[[package]]
 name = "servo_arc"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4282,9 +4302,10 @@ name = "stockage"
 version = "0.0.0"
 dependencies = [
  "automerge",
+ "commandes",
  "noyau",
  "proptest",
- "sha2 0.11.1",
+ "services",
  "stockage",
  "synchro",
 ]
@@ -5235,6 +5256,15 @@ name = "typenum"
 version = "1.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
+
+[[package]]
+name = "ulid"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "947dde63b6d514cc5e044edad4e0ca7261afd1099d16c83d942cb2b2f348689c"
+dependencies = [
+ "web-time",
+]
 
 [[package]]
 name = "unarray"

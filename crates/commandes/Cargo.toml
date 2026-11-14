@@ -1,0 +1,12 @@
+[package]
+name = "commandes"
+description = "Les types des commandes de pupitre : leurs arguments, leurs réponses et leurs vues, que l'interface et l'établi partagent"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+
+[dev-dependencies]
+serde_json = "1.0.154"

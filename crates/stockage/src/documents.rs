@@ -9,10 +9,14 @@
 //! prend sa place, ou se lit où il est ; le voisin lisible du fichier complet se lit, puis la
 //! compaction le fond ; tout autre se retire. Lu entier, le fonds lit sa version de schéma
 //! (§ 31 · 2.4) : plus ancienne que celle que connaît l'application, il migre, et ses migrations
-//! s'écrivent ensemble en un seul fichier d'ajout ; plus récente, il se lit sans écrire, et
-//! reçoit, sans transmettre aucune modification ; absente ou illisible, il s'ouvre en lecture
-//! seule. Après sa compaction d'ouverture, chaque nom provisoire de `captations/` dont le contenu
-//! donne une empreinte que le fonds nomme prend ce nom (§ 31 · 6.1).
+//! s'écrivent ensemble en un seul fichier d'ajout, ou, si elles ne s'appliquent pas, il s'ouvre en
+//! lecture seule ; plus récente, il se lit sans écrire, et reçoit, sans transmettre aucune
+//! modification ; absente ou illisible, il s'ouvre en lecture seule. Après sa compaction
+//! d'ouverture, chaque nom provisoire de `captations/` dont le contenu donne une empreinte que le
+//! fonds nomme prend ce nom (§ 31 · 6.1).
+//!
+//! Les opérations, la genèse, la naissance et les migrations s'appliquent par
+//! `services::application`, le code que partagent les deux adaptateurs `Documents`.
 //!
 //! Une écriture est faite ; faite, avec un avertissement, quand son renommage n'est pas rendu
 //! durable ou que la compaction qui la suit échoue ; ou refusée, avant la fin de son renommage,
@@ -26,19 +30,24 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use automerge::transaction::{CommitOptions, Transactable, Transaction};
+#[cfg(feature = "pannes")]
+use automerge::transaction::{CommitOptions, Transaction};
 use automerge::{
-    ActorId, Automerge, AutomergeError, Change, ChangeHash, LoadOptions, ObjType, OnPartialLoad,
-    ROOT, ReadDoc, ScalarValue, Value,
+    ActorId, Automerge, AutomergeError, ChangeHash, LoadOptions, ObjType, OnPartialLoad, ROOT,
+    ReadDoc, Value,
 };
 use noyau::donnees::acces::Acces;
+use noyau::donnees::changement::Operation;
 use noyau::donnees::compaction::{self, Lu};
 use noyau::donnees::demarrage::{self, Sort};
-use noyau::donnees::fonds::{
-    GENESE, IDENTIFIANT, LIGNEE, MESSAGE_DE_LA_NAISSANCE, MIGRATIONS, PRISES, PROPRIETAIRE,
-    VERSION_DE_SCHEMA,
-};
+use noyau::donnees::fonds::{IDENTIFIANT, LIGNEE, MIGRATIONS, PRISES, PROPRIETAIRE};
+#[cfg(feature = "pannes")]
+use noyau::donnees::gestes;
 use noyau::donnees::version::{self, Lecture, Migration};
+use services::application;
+// La version de schéma se lit par la règle des services, la même pour les deux adaptateurs
+// `Documents` (§ 31 · 2.4).
+use services::lecture::version_de_schema;
 use synchro::{Copie, Echange};
 
 use crate::demarrage::{
@@ -48,8 +57,11 @@ use crate::fichier::{self, Echec, ecrire_a_cote};
 use crate::pannes::{self, Etape};
 use crate::{Avertissement, Erreur, LectureSeule, RacineDesDonnees, disque, empreinte};
 
-/// Ce que la naissance du fonds écrit sur la genèse (§ 31 · 2.3) : son identifiant, sa lignée
-/// (§ 31 · 2.5) et l'identifiant de propriétaire.
+/// Ce que la naissance du fonds écrit sur la genèse (§ 31 · 2.3), que pose
+/// `noyau::donnees::gestes::naissance` : son identifiant, sa lignée (§ 31 · 2.5) et l'identifiant
+/// de propriétaire. La naissance de `RacineDesDonnees::faire_naitre_le_fonds`, un point d'entrée
+/// des tests, sous la fonction `pannes`.
+#[cfg(feature = "pannes")]
 #[derive(Debug, Clone, Copy)]
 pub struct Naissance<'a> {
     pub identifiant: &'a str,
@@ -135,8 +147,8 @@ impl Document<'_> {
     /// § 31 · 2.1 : ce que la synchronisation reçoit ne l'est qu'une fois écrit. Le message
     /// s'applique (`Echange::recevoir`) ; si les heads ont changé, que la réception ait réussi ou
     /// non, `save_after` des heads d'avant s'écrit en un fichier d'ajout avant la réponse, avec
-    /// les issues de [`Document::ecrire`] : faite, faite avec un avertissement, ou refusée. Rien
-    /// de neuf, rien d'écrit.
+    /// les issues de [`Document::appliquer`] : faite, faite avec un avertissement, ou refusée.
+    /// Rien de neuf, rien d'écrit.
     ///
     /// Une réception dont l'écriture est refusée relit le document du disque, qui perd ce que
     /// l'échange croit reçu : l'échange reprend (`Echange::reprendre`), pour que l'autre copie
@@ -204,12 +216,13 @@ impl Document<'_> {
         }
     }
 
-    /// § 31 · 2.1 : une modification atomique, avec son message et son heure (`commit_with`),
-    /// faite une fois son fichier d'ajout en place : `save_after` des heads d'avant, sous
-    /// `ajouts/<empreinte>.automerge`, écrit à côté puis renommé. Une écriture sans modification
-    /// n'écrit rien. Le geste refusé, la transaction est annulée (`rollback`), `Erreur::Automerge`
-    /// se rend, et le document reste ouvert. Un document en lecture seule n'écrit pas :
-    /// `Erreur::LectureSeule`, et le geste n'est pas fait.
+    /// § 31 · 2.1 : `operation`, appliquée par `services::application::appliquer`, en une
+    /// modification atomique, avec son message et son heure, faite une fois son fichier d'ajout en
+    /// place : `save_after` des heads d'avant, sous `ajouts/<empreinte>.automerge`, écrit à côté
+    /// puis renommé. Une opération inapplicable (un objet manque sur son chemin, elle ne change
+    /// rien, ou Automerge la refuse) : `Erreur::Inapplicable`, la modification annulée, et rien ne
+    /// s'écrit ; le document reste ouvert. Un document en lecture seule n'écrit pas :
+    /// `Erreur::LectureSeule`, et l'opération ne s'applique pas.
     ///
     /// La modification faite en mémoire, l'écriture a trois issues :
     ///
@@ -228,26 +241,42 @@ impl Document<'_> {
     /// Un `ajouts/` absent, que l'ouverture ne crée pas, se recrée avant le voisin du fichier
     /// d'ajout.
     ///
-    /// Aucun message ne se prépare pendant une écriture : `ecrire` tient le document emprunté en
-    /// écriture jusqu'à son retour, et le geste ne peut pas l'emprunter pour l'échange. Le premier
-    /// exemple ne compile pas ; le second, qui prépare le message après l'écriture, compile.
+    /// Aucun message ne se prépare pendant une écriture : `appliquer` tient le document emprunté
+    /// en écriture jusqu'à son retour, et une lecture du document tenue pendant ce temps, pour
+    /// l'échange, ne compile pas. Le premier exemple ne compile pas ; le second, qui prépare le
+    /// message après l'écriture, compile.
     ///
     // § 31 · 10, test 8 : une synchronisation lancée pendant l'écriture ne voit pas l'opération en cours
     /// ```compile_fail,E0502
-    /// fn pendant(document: &mut stockage::Document<'_>, echange: &mut synchro::Echange) {
-    ///     let _ = document.ecrire("Idée notée", 0, |_tx| {
-    ///         let _ = document.prochain_message(echange);
-    ///         Ok(())
-    ///     });
+    /// fn pendant(document: &mut stockage::Document<'_>, echange: &mut synchro::Echange,
+    ///            operation: &noyau::donnees::changement::Operation) {
+    ///     let lu = document.automerge();
+    ///     let _ = document.appliquer(operation);
+    ///     let _ = echange.prochain_message(lu);
     /// }
     /// ```
     ///
     /// ```
-    /// fn apres(document: &mut stockage::Document<'_>, echange: &mut synchro::Echange) {
-    ///     let _ = document.ecrire("Idée notée", 0, |_tx| Ok(()));
+    /// fn apres(document: &mut stockage::Document<'_>, echange: &mut synchro::Echange,
+    ///          operation: &noyau::donnees::changement::Operation) {
+    ///     let _ = document.appliquer(operation);
     ///     let _ = document.prochain_message(echange);
     /// }
     /// ```
+    pub fn appliquer(&mut self, operation: &Operation) -> Result<Option<Avertissement>, Erreur> {
+        self.exiger(Acces::ecrit)?;
+        let avant = self.automerge.get_heads();
+        application::appliquer(&mut self.automerge, operation).map_err(Erreur::Inapplicable)?;
+        self.ecrire_l_ajout(&avant)
+    }
+
+    /// L'écriture de [`Document::appliquer`], d'un geste que donne une fermeture sur la
+    /// transaction, sous `message`, à `heure` (`commit_with`), avec les mêmes issues : un point
+    /// d'entrée des tests, hors de l'API livrée, sous la fonction `pannes`. Une écriture sans
+    /// modification n'écrit rien, et rend `Ok(None)`. Le geste refusé, la transaction est annulée
+    /// (`rollback`), `Erreur::Automerge` se rend, et le document reste ouvert. Un document en
+    /// lecture seule n'écrit pas : `Erreur::LectureSeule`, et le geste n'est pas fait.
+    #[cfg(feature = "pannes")]
     pub fn ecrire(
         &mut self,
         message: &str,
@@ -341,9 +370,9 @@ impl Document<'_> {
 
     /// Le fichier d'ajout des heads `avant` (`ecrire_le_fichier_d_ajout`) ; puis la compaction,
     /// quand `apres_une_ecriture` le dit (§ 31 · 2.2). Ses trois issues sont dites à
-    /// [`Document::ecrire`], qui l'appelle comme [`Document::recevoir`]. Un refus, de recréer
-    /// `ajouts/` comme du voisin, est une écriture refusée : la mémoire porte déjà la
-    /// modification, et se relit.
+    /// [`Document::appliquer`], qui l'appelle comme [`Document::recevoir`], et comme `ecrire`,
+    /// sous la fonction `pannes`. Un refus, de recréer `ajouts/` comme du voisin, est une écriture
+    /// refusée : la mémoire porte déjà la modification, et se relit.
     fn ecrire_l_ajout(&mut self, avant: &[ChangeHash]) -> Result<Option<Avertissement>, Erreur> {
         match self.ecrire_le_fichier_d_ajout(avant) {
             // Rien n'est en place : la mémoire porte ce que le disque n'a pas, et se relit.
@@ -390,20 +419,19 @@ impl Document<'_> {
     }
 
     /// § 31 · 2.4 : applique les migrations `a_appliquer`, dans l'ordre de la suite des
-    /// migrations (`Change::try_from`, puis `apply_changes`), puis écrit `save_after` des heads
-    /// d'avant en un seul fichier d'ajout (`ecrire_le_fichier_d_ajout`), comme une écriture :
-    /// refusé, `Erreur::Disque` se rend, et le fonds ne s'ouvre pas ; en place, mais non durable,
-    /// l'avertissement rejoint ceux du document, et la compaction est due. Les migrations sont du
-    /// code, que ses tests éprouvent : une migration qui ne se lit pas, ou ne s'applique pas, est
-    /// un défaut du code (`expect`).
+    /// migrations, par `services::application::migrer`, puis écrit `save_after` des heads d'avant
+    /// en un seul fichier d'ajout (`ecrire_le_fichier_d_ajout`), comme une écriture : refusé,
+    /// `Erreur::Disque` se rend, et le fonds ne s'ouvre pas ; en place, mais non durable,
+    /// l'avertissement rejoint ceux du document, et la compaction est due. Une migration que
+    /// `migrer` refuse, qui ne se lit pas ou attend ses dépendances, n'a pas fait migrer le
+    /// document : il passe en lecture seule (`LectureSeule::MigrationRefusee`), et rien ne
+    /// s'écrit, ni la migration, ni, ensuite, une opération à l'ancienne version de schéma.
     fn migrer(&mut self, a_appliquer: &[Migration<'_>]) -> Result<(), Erreur> {
         let avant = self.automerge.get_heads();
-        let modifications = a_appliquer.iter().map(|migration| {
-            Change::try_from(migration.octets).expect("une migration écrite d'avance se lit")
-        });
-        self.automerge
-            .apply_changes(modifications)
-            .expect("une migration écrite d'avance s'applique");
+        if application::migrer(&mut self.automerge, a_appliquer).is_err() {
+            self.lecture_seule = Some(LectureSeule::MigrationRefusee);
+            return Ok(());
+        }
         let avertissement = self.ecrire_le_fichier_d_ajout(&avant)?;
         self.avertissements.extend(avertissement);
         Ok(())
@@ -552,21 +580,23 @@ impl Document<'_> {
 /// lecture seule si un fichier ne se lit pas ; puis, s'il se lit entier, sa version de schéma
 /// devant celle que donnent les migrations (`version::connue`, § 31 · 2.4) : la même, il est
 /// entier ; plus ancienne, il migre (`Document::migrer`, les migrations de
-/// `version::a_appliquer`), et une migration refusée rend `Erreur::Disque`, sans document ; plus
-/// récente, absente ou illisible, il est en lecture seule (`raison_de_la_version`) ; un fonds
-/// illisible ne migre pas. Puis sa compaction, quand `a_l_ouverture` le dit, sur l'accès qui suit
-/// la lecture de la version de schéma et sur ce que la lecture a lu, avant la migration : un
-/// fichier d'ajout lu, ou un voisin du fichier complet. Pupitre neuf (`pupitre_neuf` : ni
-/// fichier complet, ni voisin du fichier complet lu) : `None`. Les avertissements du démarrage
-/// (`VoisinRestant`, `NonDurable`) sont ceux du document ; un renommage du démarrage non rendu
-/// durable rend la compaction due. Une compaction qui échoue n'empêche pas d'ouvrir : son erreur
-/// vient en avertissement (`Avertissement::Compaction`), rien n'est perdu, et la compaction est
-/// due : l'écriture suivante retire ce qu'elle n'a pas retiré. Enfin, même en lecture seule,
-/// chaque nom provisoire de `captations/` dont le contenu donne une empreinte que nomme le
-/// document lu (`empreintes_nommees`) prend ce nom (`Captations::ranger_les_noms_provisoires`,
-/// § 31 · 6.1) ; ses avertissements (`NomProvisoireRestant`, `NonDurable`) rejoignent ceux du
-/// document, sans empêcher d'ouvrir. Une erreur du démarrage, de la lecture ou de la migration
-/// rend la garde : le document qui n'est pas rendu la rend à sa fin.
+/// `version::a_appliquer`) : une migration que le disque refuse rend `Erreur::Disque`, sans
+/// document, et une migration qui ne s'applique pas le met en lecture seule (`MigrationRefusee`),
+/// sans rien écrire ; plus récente, absente ou illisible, il est en lecture seule
+/// (`raison_de_la_version`) ; un fonds illisible ne migre pas. Puis sa compaction, quand
+/// `a_l_ouverture` le dit, sur l'accès qui suit la lecture de la version de schéma et sur ce que
+/// la lecture a lu, avant la migration : un fichier d'ajout lu, ou un voisin du fichier complet.
+/// Pupitre neuf (`pupitre_neuf` : ni fichier complet, ni voisin du fichier complet lu) : `None`.
+/// Les avertissements du démarrage (`VoisinRestant`, `NonDurable`) sont ceux du document ; un
+/// renommage du démarrage non rendu durable rend la compaction due. Une compaction qui échoue
+/// n'empêche pas d'ouvrir : son erreur vient en avertissement (`Avertissement::Compaction`), rien
+/// n'est perdu, et la compaction est due : l'écriture suivante retire ce qu'elle n'a pas retiré.
+/// Enfin, même en lecture seule, chaque nom provisoire de `captations/` dont le contenu donne une
+/// empreinte que nomme le document lu (`empreintes_nommees`) prend ce nom
+/// (`Captations::ranger_les_noms_provisoires`, § 31 · 6.1) ; ses avertissements
+/// (`NomProvisoireRestant`, `NonDurable`) rejoignent ceux du document, sans empêcher d'ouvrir. Une
+/// erreur du démarrage, de la lecture ou de la migration rend la garde : le document qui n'est pas
+/// rendu la rend à sa fin.
 ///
 /// `fonds()` l'appelle avec `MIGRATIONS`, et `fonds_selon`, sous la fonction `pannes`, avec les
 /// migrations que lui donne un test.
@@ -632,19 +662,6 @@ fn empreintes_nommees(automerge: &Automerge) -> BTreeSet<String> {
     match automerge.get(ROOT, PRISES) {
         Ok(Some((Value::Object(ObjType::Map), prises))) => automerge.keys(&prises).collect(),
         _ => BTreeSet::new(),
-    }
-}
-
-/// § 31 · 2.4 : la version de schéma que porte la racine du document `automerge`
-/// (`VERSION_DE_SCHEMA`), un entier non signé (`ScalarValue::Uint`) ; absente, ou de tout autre
-/// type, `None`.
-fn version_de_schema(automerge: &Automerge) -> Option<u64> {
-    match automerge.get(ROOT, VERSION_DE_SCHEMA) {
-        Ok(Some((Value::Scalar(valeur), _))) => match *valeur {
-            ScalarValue::Uint(version) => Some(version),
-            _ => None,
-        },
-        _ => None,
     }
 }
 
@@ -954,24 +971,63 @@ fn poids(chemin: &Path) -> Result<u64, Erreur> {
         .len())
 }
 
-/// Fait naître le fonds de `racine` : la genèse, la naissance et le premier geste, en mémoire,
-/// puis un seul fichier complet, écrit à côté puis renommé, une fois `ajouts/` créé. Refusé
-/// avant la fin de son renommage, le fichier complet ne laisse que `ajouts/`, vide, et
-/// `Erreur::Disque` se rend ; en place, mais son renommage non rendu durable, le document naît
-/// avec cet avertissement (`Avertissement::NonDurable`), et sa compaction est due.
-///
-/// Le fonds ne naît que si Pupitre est neuf (`pupitre_neuf`) : sinon `Erreur::FondsDejaNe`, sans
-/// que le geste soit fait. Un fichier complet, ou un voisin du fichier complet lisible (non
-/// vide, et qu'`Automerge::load` relit sans erreur), chacun lu par `fichier::lire`, dit le fonds
-/// né ; la naissance ne retire aucun voisin, et ne fait pas le démarrage. Un refus du disque à la
-/// lecture du dossier du fonds, s'il n'est pas absent, ou d'un `.partiel` de ce dossier, rend
-/// `Erreur::Disque`.
+/// Fait naître le fonds de `racine` de la genèse, de `naissance` et du premier geste `geste`,
+/// appliqués par `services::application::faire_naitre`, par `naitre`. Une opération
+/// inapplicable rend `Erreur::Inapplicable`, et rien ne s'écrit.
+pub(crate) fn faire_naitre<'r>(
+    racine: &'r RacineDesDonnees,
+    naissance: &Operation,
+    geste: &Operation,
+) -> Result<Document<'r>, Erreur> {
+    naitre(racine, || {
+        application::faire_naitre(naissance, geste).map_err(Erreur::Inapplicable)
+    })
+}
+
+/// Fait naître le fonds de `racine`, par `naitre`, de la genèse et de la naissance que pose
+/// `noyau::donnees::gestes::naissance` à l'heure `heure` (`services::application::naitre`), puis
+/// du premier geste que donne la fermeture `geste`, sous `message`, à `heure` : un point d'entrée
+/// des tests, sous la fonction `pannes`. Le geste refusé, sa transaction est annulée,
+/// `Erreur::Automerge` se rend, et rien ne s'écrit.
+#[cfg(feature = "pannes")]
 pub(crate) fn faire_naitre_le_fonds<'r>(
     racine: &'r RacineDesDonnees,
     naissance: &Naissance<'_>,
     message: &str,
     heure: i64,
     geste: impl FnOnce(&mut Transaction<'_>) -> Result<(), AutomergeError>,
+) -> Result<Document<'r>, Erreur> {
+    naitre(racine, || {
+        let operation = gestes::naissance(
+            naissance.identifiant,
+            naissance.lignee,
+            naissance.proprietaire,
+            heure,
+        );
+        let mut automerge = application::naitre(&operation).map_err(Erreur::Inapplicable)?;
+        let mut tx = automerge.transaction();
+        geste(&mut tx).map_err(Erreur::Automerge)?;
+        tx.commit_with(a_l_heure(message, heure));
+        Ok(automerge)
+    })
+}
+
+/// Fait naître le fonds de `racine` : `construire` bâtit en mémoire la genèse, la naissance et le
+/// premier geste, dans un document Automerge neuf, dont l'acteur est neuf ; puis un seul fichier
+/// complet, écrit à côté puis renommé, une fois `ajouts/` créé. Refusé avant la fin de son
+/// renommage, le fichier complet ne laisse que `ajouts/`, vide, et `Erreur::Disque` se rend ; en
+/// place, mais son renommage non rendu durable, le document naît avec cet avertissement
+/// (`Avertissement::NonDurable`), et sa compaction est due.
+///
+/// Le fonds ne naît que si Pupitre est neuf (`pupitre_neuf`) : sinon `Erreur::FondsDejaNe`, sans
+/// que `construire` soit appelé. Un fichier complet, ou un voisin du fichier complet lisible (non
+/// vide, et qu'`Automerge::load` relit sans erreur), chacun lu par `fichier::lire`, dit le fonds
+/// né ; la naissance ne retire aucun voisin, et ne fait pas le démarrage. Un refus du disque à la
+/// lecture du dossier du fonds, s'il n'est pas absent, ou d'un `.partiel` de ce dossier, rend
+/// `Erreur::Disque`. Le refus de `construire` se rend tel quel, et rien ne s'écrit.
+fn naitre<'r>(
+    racine: &'r RacineDesDonnees,
+    construire: impl FnOnce() -> Result<Automerge, Erreur>,
 ) -> Result<Document<'r>, Erreur> {
     let garde = racine.prendre_la_garde()?;
     let dossier = dossier_du_fonds(racine);
@@ -980,8 +1036,8 @@ pub(crate) fn faire_naitre_le_fonds<'r>(
     if !demarrage::pupitre_neuf(present, voisins_du_complet_lisibles(&dossier)?) {
         return Err(Erreur::FondsDejaNe);
     }
-    // Rien ne s'écrit avant que le geste soit fait : refusé, il ne laisse rien.
-    let automerge = naitre_en_memoire(naissance, message, heure, geste)?;
+    // Rien ne s'écrit avant que le document soit bâti : refusé, il ne laisse rien.
+    let automerge = construire()?;
     let ajouts = dossier.join("ajouts");
     fs::create_dir_all(&ajouts).map_err(|erreur| disque(&ajouts, erreur))?;
     // Hors de Windows, le dossier du fonds ne survit à une coupure qu'une fois `documents/`
@@ -1031,40 +1087,8 @@ fn dossier_du_fonds(racine: &RacineDesDonnees) -> PathBuf {
     racine.chemin().join("documents").join("fonds")
 }
 
-/// La genèse, puis la naissance, qui écrit l'identifiant, la lignée et le propriétaire, puis le
-/// premier geste : trois modifications, dans un document Automerge neuf, dont l'acteur est
-/// neuf. Le geste refusé, le document est perdu avec lui. La genèse est une constante du noyau,
-/// que `la_genese_se_reconstruit_a_l_octet` éprouve : elle se lit, et s'applique à un document
-/// neuf.
-fn naitre_en_memoire(
-    naissance: &Naissance<'_>,
-    message: &str,
-    heure: i64,
-    geste: impl FnOnce(&mut Transaction<'_>) -> Result<(), AutomergeError>,
-) -> Result<Automerge, Erreur> {
-    let genese = Change::try_from(GENESE).expect("la genèse du noyau se lit");
-    let mut automerge = Automerge::new();
-    automerge
-        .apply_changes([genese])
-        .expect("la genèse du noyau s'applique à un document neuf");
-
-    let mut tx = automerge.transaction();
-    for (cle, valeur) in [
-        (IDENTIFIANT, naissance.identifiant),
-        (LIGNEE, naissance.lignee),
-        (PROPRIETAIRE, naissance.proprietaire),
-    ] {
-        tx.put(ROOT, cle, valeur).map_err(Erreur::Automerge)?;
-    }
-    tx.commit_with(a_l_heure(MESSAGE_DE_LA_NAISSANCE, heure));
-
-    let mut tx = automerge.transaction();
-    geste(&mut tx).map_err(Erreur::Automerge)?;
-    tx.commit_with(a_l_heure(message, heure));
-    Ok(automerge)
-}
-
 /// Le message et l'heure d'une modification.
+#[cfg(feature = "pannes")]
 fn a_l_heure(message: &str, heure: i64) -> CommitOptions {
     CommitOptions::default()
         .with_message(message)

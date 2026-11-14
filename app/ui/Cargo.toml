@@ -6,6 +6,7 @@ version.workspace = true
 publish.workspace = true
 
 [dependencies]
+commandes = { path = "../../crates/commandes" }
 js-sys = "0.3.107"
 leptos = { version = "0.8.23", features = ["csr"] }
 noyau = { path = "../../crates/noyau" }

@@ -302,9 +302,10 @@ pub fn migrations_de_test(octets: &[u8]) -> [Migration<'_>; 1] {
     }]
 }
 
-/// Le chemin d'écriture des tests nouveaux du stockage, avec `ecrire_a` qu'il appelle : quand
-/// l'écriture changera de forme, il changera seul. Les tests d'H07 écrivent par
-/// `Document::ecrire`. Écrit `geste` dans `document`, sous le message `MESSAGE_DU_GESTE`, à
+/// Le chemin d'écriture des tests du stockage par une fermeture sur la transaction
+/// (`Document::ecrire`, sous `pannes`), avec `ecrire_a` qu'il appelle : une fermeture ne se
+/// traduit pas en changements, et les commandes écrivent par `Document::appliquer`. Les tests
+/// d'H07 écrivent aussi par `Document::ecrire`. Écrit `geste` dans `document`, sous le message `MESSAGE_DU_GESTE`, à
 /// l'heure `HEURE`, et rend ce que rend l'écriture : faite (`None`), faite avec un
 /// avertissement, ou refusée.
 // L'erreur est celle de `Document::ecrire`, que l'aide rend telle quelle. Clippy épargne la

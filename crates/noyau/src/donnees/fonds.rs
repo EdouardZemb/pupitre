@@ -1,6 +1,6 @@
 //! Le schéma du fonds, provisoire jusqu'à la `v0.3.0` (§ 31 · 2.3, § 31 · 2.4) : les clés de
 //! la racine du document et de ses objets, les messages de la genèse et de la naissance, la
-//! genèse elle-même, en octets, et les migrations (`MIGRATIONS`). Le noyau, qui calculera les
+//! genèse elle-même, en octets, et les migrations (`MIGRATIONS`). Le noyau, qui calcule les
 //! modifications des opérations nommées, et les adaptateurs `Documents` les trouvent ici ; le
 //! noyau ne lit pas ces octets.
 
@@ -10,8 +10,26 @@ use crate::donnees::version::Migration;
 pub const VERSION_DE_SCHEMA: &str = "version_de_schema";
 /// À la racine du document : l'objet à clés des idées, de l'identifiant d'idée à l'idée.
 pub const IDEES: &str = "idees";
-/// À la racine du document : l'objet à clés des prises, de l'empreinte à la prise.
+/// À la racine du document : l'objet à clés des prises, les clés à plat, de `<empreinte>/<fait>`
+/// à sa valeur.
 pub const PRISES: &str = "prises";
+/// À la racine du document : l'objet à clés des MIDI versés seuls, les clés à plat, de
+/// `<empreinte>/<fait>` à sa valeur.
+pub const MIDI_VERSES: &str = "midi_verses";
+/// À la racine du document : l'objet à clés des textes versés, les clés à plat, de
+/// `<empreinte>/<fait>` à sa valeur.
+pub const TEXTES_VERSES: &str = "textes_verses";
+/// À la racine du document : l'objet à clés des liens, de la clé d'un lien à `true`.
+pub const LIENS: &str = "liens";
+/// À la racine du document : l'objet à clés des requêtes enregistrées.
+pub const REQUETES_ENREGISTREES: &str = "requetes_enregistrees";
+/// À la racine du document : l'objet à clés des imports.
+pub const IMPORTS: &str = "imports";
+/// À la racine du document : l'objet à clés des origines déclarées, rangées par empreinte
+/// (§ 30 · 8.1).
+pub const ORIGINES_DECLAREES: &str = "origines_declarees";
+/// À la racine du document : l'objet à clés des photos.
+pub const PHOTOS: &str = "photos";
 /// À la racine du document : l'identifiant du document, une chaîne écrite à la naissance.
 pub const IDENTIFIANT: &str = "identifiant";
 /// À la racine du document : la lignée (§ 31 · 2.5), une chaîne écrite à la naissance.
@@ -25,10 +43,34 @@ pub const PROPRIETAIRE: &str = "proprietaire";
 pub const TEXTE: &str = "texte";
 /// D'une idée : l'objet à clés de ses étiquettes, de l'étiquette à `true`.
 pub const ETIQUETTES: &str = "etiquettes";
-/// D'une prise : l'identifiant de son idée, une chaîne.
+/// D'une idée : l'origine de sa provenance, `captee` ou `importee` (§ 30 · 8.1), une chaîne.
+pub const PROVENANCE: &str = "provenance";
+/// D'une idée : le champ `par` de sa provenance, le rôle de l'appareil où elle est née,
+/// `etabli` ou `carnet`, une chaîne.
+pub const PAR: &str = "par";
+/// D'une idée : la date de sa naissance, en secondes, un entier. Une captation n'a pas cette clé,
+/// ni `par` : sa date et son appareil, des faits que rien ne lit encore sur elle, restent `—`
+/// (§ 30 · 9.2).
+pub const LE: &str = "le";
+/// D'une idée importée : le champ `depuis` de sa provenance, l'identifiant de l'import, un ULID,
+/// une chaîne.
+pub const DEPUIS: &str = "depuis";
+/// D'une idée retirée : la date de son retrait, en secondes, un entier (§ 30 · 9.1).
+pub const RETIREE: &str = "retiree";
+/// La valeur de `provenance` d'une idée née d'une capture.
+pub const CAPTEE: &str = "captee";
+/// La valeur de `provenance` d'une idée née d'un fichier versé.
+pub const IMPORTEE: &str = "importee";
+/// D'une captation, sous `<empreinte>/idee` : l'identifiant de son idée, une chaîne.
 pub const IDEE: &str = "idee";
-/// D'une prise : son format, une chaîne.
+/// D'une captation, sous `<empreinte>/format` : son format, une chaîne.
 pub const FORMAT: &str = "format";
+/// D'une prise seulement (§ 30 · 9.2), sous `<empreinte>/duree` : sa durée, en millisecondes, un
+/// entier non signé.
+pub const DUREE: &str = "duree";
+/// D'un lien : le type « apparenté à », en tête de sa clé, `apparente:<a>:<b>`, les deux
+/// identifiants rangés dans l'ordre de leurs octets (§ 30 · 9.3).
+pub const APPARENTE: &str = "apparente";
 
 /// Le message de la genèse.
 pub const MESSAGE_DE_LA_GENESE: &str = "Genèse du fonds";

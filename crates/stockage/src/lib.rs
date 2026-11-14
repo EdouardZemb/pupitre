@@ -1,13 +1,16 @@
 //! Le stockage de pupitre, côté natif seulement (§ 40 · 3) : la racine des données et son
 //! verrou, puis les adaptateurs `Documents` et `Captations` sur fichiers, au format de
-//! l'ADR-023 (§ 31 · 2.1). Il ne devine aucun chemin : il reçoit celui de la racine des
-//! données (I30).
+//! l'ADR-023 (§ 31 · 2.1), qui réalisent les contrats des services (`FondsSurFichiers` et
+//! `Captations`). Il ne devine aucun chemin : il reçoit celui de la racine des données (I30).
 //!
-//! La fonction `pannes`, que seuls ses tests demandent, rend public le module `pannes`, qui
-//! injecte une panne à chaque étape d'une écriture ; sans elle, ses points laissent tout passer.
-//! Elle compile aussi `RacineDesDonnees::fonds_selon`, qui ouvre le fonds selon les migrations
-//! qu'un test lui donne.
+//! La fonction `pannes`, que seuls ses tests demandent, coupe une écriture à l'étape voulue : elle
+//! rend public le module `pannes`, qui injecte une panne à chaque étape d'une écriture ; sans
+//! elle, ses points laissent tout passer. Elle ouvre aussi le fonds selon les migrations qu'un
+//! test lui donne (`RacineDesDonnees::fonds_selon`, `FondsSurFichiers::ouvrir_selon`), et garde
+//! pour les tests l'écriture et la naissance par une fermeture (`Document::ecrire`,
+//! `RacineDesDonnees::faire_naitre_le_fonds`, `Naissance`).
 
+mod adaptateurs;
 mod captations;
 mod demarrage;
 mod documents;
@@ -19,17 +22,19 @@ mod pannes;
 mod racine_des_donnees;
 
 use std::collections::BTreeMap;
-use std::fmt::Write;
 use std::io;
 use std::path::{Path, PathBuf};
 
 use automerge::{Automerge, AutomergeError, ObjId, ObjType, ROOT, ReadDoc, ScalarValue, Value};
 use noyau::donnees::acces::Acces;
 use noyau::donnees::teneur::{ErreurDeTeneur, Valeur, ecrire_la_teneur};
-use sha2::{Digest, Sha256};
 
+pub use adaptateurs::FondsSurFichiers;
 pub use captations::Captations;
-pub use documents::{Document, Naissance};
+pub use documents::Document;
+#[cfg(feature = "pannes")]
+pub use documents::Naissance;
+pub use noyau::donnees::identifiants::empreinte;
 pub use racine_des_donnees::RacineDesDonnees;
 
 /// Ce que le stockage refuse, ou ce que le disque lui refuse. Le texte en français de chaque
@@ -55,6 +60,10 @@ pub enum Erreur {
     FondsDejaNe,
     /// Automerge a refusé : le geste, une écriture du document, ou la lecture de sa racine.
     Automerge(AutomergeError),
+    /// L'opération ne s'applique pas au document (`services::application::appliquer`) : un
+    /// objet manque sur son chemin, elle ne change rien, ou Automerge l'a refusée ; rien ne
+    /// s'écrit.
+    Inapplicable(services::application::Inapplicable),
     /// Le document est en lecture seule, pour cette raison : il refuse ce que son accès ne
     /// permet pas (§ 31 · 2.1).
     LectureSeule(LectureSeule),
@@ -110,12 +119,21 @@ pub enum LectureSeule {
     /// Le document, qui se lit entier, porte une version de schéma absente, nulle, ou qui n'est
     /// pas un entier non signé (§ 31 · 2.4) : il se lit, sans écrire ni échanger.
     VersionIllisible,
+    /// Le document, qui se lit entier, porte une version de schéma plus ancienne que celle que
+    /// connaît l'application, et une de ses migrations ne s'applique pas, à l'ouverture
+    /// (`services::application::migrer` la refuse : elle ne se lit pas, ou attend ses
+    /// dépendances, comme une migration bâtie sur une autre genèse) : il n'atteint pas la version
+    /// de schéma connue, et se lit sans écrire ni échanger. Rien ne s'écrit, ni la migration, ni
+    /// une opération à une version de schéma plus ancienne. L'erreur d'Automerge, qui n'est ni
+    /// `Clone` ni `Eq`, ne se garde pas.
+    MigrationRefusee,
 }
 
 impl LectureSeule {
     /// Ce que permet un document en lecture seule pour cette raison : une version de schéma plus
-    /// récente le laisse échanger (`PlusRecent`) ; un fichier illisible, une relecture manquée ou
-    /// une version de schéma illisible le laissent illisible, sans écriture ni échange.
+    /// récente le laisse échanger (`PlusRecent`) ; un fichier illisible, une relecture manquée,
+    /// une version de schéma illisible ou une migration refusée le laissent illisible, sans
+    /// écriture ni échange.
     pub fn acces(&self) -> Acces {
         match self {
             LectureSeule::VersionPlusRecente { .. } => Acces::PlusRecent,
@@ -124,7 +142,8 @@ impl LectureSeule {
             | LectureSeule::AjoutIllisible { .. }
             | LectureSeule::CompletIllisible { .. }
             | LectureSeule::DependancesManquantes { .. }
-            | LectureSeule::VersionIllisible => Acces::Illisible,
+            | LectureSeule::VersionIllisible
+            | LectureSeule::MigrationRefusee => Acces::Illisible,
         }
     }
 }
@@ -205,16 +224,6 @@ fn valeur_de(doc: &Automerge, valeur: Value<'_>, id: &ObjId) -> Valeur {
             },
         },
     }
-}
-
-/// Le SHA-256 de `octets`, en 64 caractères hexadécimaux minuscules (`Sha256::digest`).
-pub fn empreinte(octets: &[u8]) -> String {
-    let condense = Sha256::digest(octets);
-    let mut e = String::with_capacity(64);
-    for octet in condense.iter() {
-        let _ = write!(e, "{octet:02x}");
-    }
-    e
 }
 
 /// Le refus du disque sur `chemin`.
