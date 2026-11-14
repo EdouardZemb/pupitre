@@ -4,7 +4,8 @@
 //! du `Contexte` les identifiants qu'elle forme, demande l'opération au noyau, l'écrit par
 //! `Documents`, et rend la réponse aux types de `commandes`. `application` applique les
 //! changements que le noyau calcule ; `lecture` tire du document le fonds lu, et l'arbre de sa
-//! teneur, que le noyau reçoit.
+//! teneur, que le noyau reçoit ; `mesure` engendre le fonds de mesure (§ 31 · 10, test 13) par
+//! les seules opérations de `Services`.
 //!
 //! La fonction `en-memoire`, que seuls les tests demandent, compile le module `en_memoire`, la
 //! paire d'adaptateurs en mémoire.
@@ -14,6 +15,7 @@ mod contrats;
 #[cfg(feature = "en-memoire")]
 pub mod en_memoire;
 pub mod lecture;
+pub mod mesure;
 
 pub use commandes::{Raison, Refus};
 pub use contrats::{Alea, Captations, Documents, Ecriture};
