@@ -2,26 +2,29 @@
 //! en mémoire : une opération s'applique en une seule modification, avec son message et son
 //! heure, ou ne laisse rien ; le fonds lu ne prend que les valeurs du type du schéma ; la paire en
 //! mémoire migre à son ouverture, se met en lecture seule devant une migration qui attend ses
-//! dépendances, et rend la même empreinte d'une captation versée deux fois.
+//! dépendances, et rend la même empreinte d'une captation versée deux fois. La migration de test
+//! vient de la suite des commandes, qui la porte une seule fois.
+
+mod suite;
 
 use std::collections::BTreeSet;
 
 use automerge::transaction::{CommitOptions, Transactable};
 use automerge::{
-    ActorId, Automerge, AutomergeError, Change, ObjId, ObjType, ROOT, ReadDoc, ScalarValue, Value,
+    ActorId, Automerge, AutomergeError, ObjId, ObjType, ROOT, ReadDoc, ScalarValue, Value,
 };
 use noyau::donnees::changement::{Changement, Operation, Simple};
 use noyau::donnees::fonds::{
-    ACTEUR_DE_LA_GENESE, ETIQUETTES, GENESE, IDEES, IDENTIFIANT, LE, MIGRATIONS, TEXTE,
-    VERSION_DE_SCHEMA,
+    ETIQUETTES, IDEES, IDENTIFIANT, LE, MIGRATIONS, TEXTE, VERSION_DE_SCHEMA,
 };
 use noyau::donnees::gestes::{Appareil, IdeeLue, Provenance, naissance, noter};
 use noyau::donnees::identifiants::empreinte;
-use noyau::donnees::version::{Migration, message_de_la_migration};
+use noyau::donnees::version::message_de_la_migration;
 use services::application::{Inapplicable, appliquer, faire_naitre, migrer, naitre};
 use services::en_memoire::{CaptationsEnMemoire, DocumentsEnMemoire};
 use services::lecture::{idees, journal, lire_l_idee, version_de_schema};
 use services::{Captations, Documents, Raison, Refus};
+use suite::{CONTENEUR_DE_LA_MIGRATION, migration_de_test, migrations_de_test};
 
 const HEURE: i64 = 1_700_000_000; // le 14 novembre 2023, 22 h 13 min 20 s UTC
 /// L'idée que notent les tests.
@@ -94,36 +97,6 @@ fn idee(doc: &Automerge, id: &str) -> ObjId {
     objet(doc, &objet(doc, &ROOT, IDEES), id)
 }
 
-/// Le conteneur de la racine du document que crée la migration de test : un objet à clés, où la
-/// donnée nouvelle d'un objet s'écrit en valeurs simples, sous `<objet>/<élément>` (§ 31 · 2.4).
-const CONTENEUR_DE_LA_MIGRATION: &str = "elements_de_test";
-
-/// La migration de test vers la version de schéma 2, engendrée à l'exécution depuis `GENESE`, de
-/// façon déterministe, comme la recette de la genèse (`genese_par_la_recette`, dans
-/// `crates/stockage/tests/genese.rs`) : l'acteur `ACTEUR_DE_LA_GENESE`, qui pose
-/// `VERSION_DE_SCHEMA` à 2 et crée `CONTENEUR_DE_LA_MIGRATION`, un objet à clés, à la racine du
-/// document, sous le message `message_de_la_migration(2)`, à l'heure 0. Rend les octets de sa
-/// modification (`raw_bytes()`), qui ne dépend que de la genèse.
-fn migration_de_test() -> Vec<u8> {
-    let mut doc = Automerge::new().with_actor(ActorId::from(ACTEUR_DE_LA_GENESE));
-    doc.apply_changes([Change::try_from(GENESE).expect("lire la genèse")])
-        .expect("appliquer la genèse");
-    let mut tx = doc.transaction();
-    tx.put(ROOT, VERSION_DE_SCHEMA, 2u64)
-        .expect("poser la version de schéma 2");
-    tx.put_object(ROOT, CONTENEUR_DE_LA_MIGRATION, ObjType::Map)
-        .expect("créer le conteneur de la migration");
-    let message = message_de_la_migration(2);
-    let options = CommitOptions::default()
-        .with_message(message.as_str())
-        .with_time(0);
-    let (h, _) = tx.commit_with(options);
-    doc.get_change_by_hash(&h.expect("la migration est une modification"))
-        .expect("la modification de la migration")
-        .raw_bytes()
-        .to_vec()
-}
-
 /// Une migration vers la version de schéma 2, engendrée sur un document sans `GENESE` : l'acteur
 /// `autre-genese-de-test` y écrit d'abord une modification qu'aucun fonds ne porte, puis la
 /// migration, qui dépend d'elle. Un fonds qui la reçoit n'a pas cette dépendance : `apply_changes`
@@ -150,16 +123,6 @@ fn migration_sur_une_autre_genese() -> Vec<u8> {
         .expect("la modification de la migration")
         .raw_bytes()
         .to_vec()
-}
-
-/// Les migrations de test, une seule : `octets`, vers la version de schéma 2, apportée par la
-/// version de Pupitre `0.0.0-essai`.
-fn migrations_de_test(octets: &[u8]) -> [Migration<'_>; 1] {
-    [Migration {
-        vers: 2,
-        octets,
-        version_de_pupitre: "0.0.0-essai",
-    }]
 }
 
 #[test]
