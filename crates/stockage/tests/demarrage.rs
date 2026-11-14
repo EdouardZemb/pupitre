@@ -175,7 +175,7 @@ fn nommer_sous(
     tx.put(&objet, format!("{e}/{IDEE}"), idee)
 }
 
-// § 31 · 10, test 8 : renommage perdu après la réponse, le voisin entier reste
+// § 31 · 10, test 8 : renommage perdu après la réponse : le voisin entier reste
 #[test]
 fn le_voisin_conforme_d_un_ajout_prend_sa_place() {
     let chemin = commun::dossier_jetable("demarrage-voisin-d-ajout").join("donnees");

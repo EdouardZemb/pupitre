@@ -43,6 +43,7 @@ Les commandes de Rust, telles que la CI les lance. Deux usages du poste : chaque
 - `cargo clippy -p interface --all-targets -- -D warnings`, puis `cargo clippy -p interface --target wasm32-unknown-unknown -- -D warnings` : de même pour l'interface, sur la cible de l'hôte puis sur celle du navigateur.
 - `cargo clippy -p etabli --all-targets -- -D warnings` : de même pour l'application ; elle demande `app/ui/dist`, donc une construction de l'interface avant.
 - `cargo test -p noyau -p cahier -p interface -p stockage -p synchro -p commandes -p services` : les tests, dont ceux par propriétés ; `cargo test -p etabli` pour l'application.
+- `cargo test -p stockage --release --test mesure -- --ignored --nocapture` : la mesure du test 13 du § 31 · 10. Le fonds de mesure, engendré par les opérations nommées puis rouvert sur fichiers, pèse moins de 4 500 000 octets, et la commande imprime son poids et la durée. `cargo test` saute ce test, ignoré ; l'étape « Le fonds de mesure » de `verifier` le lance, en `--release`.
 - `cargo mutants -p noyau` : la mutation des tests du noyau ; `--in-diff <fichier>` la limite aux lignes d'un diff, comme sur une PR.
 - `trunk build` dans `app/ui` : construit l'interface en WebAssembly, dont `etabli` a besoin.
 - `cargo tauri build` dans `app/src-tauri` : construit l'application et son installateur.

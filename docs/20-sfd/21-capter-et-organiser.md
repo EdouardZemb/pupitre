@@ -65,8 +65,8 @@ la notice qu'Android impose pendant un enregistrement au premier plan (I29).
 - Fonds d'une version de schéma plus récente que l'application : une prise ou une photo
   s'écrit, et son idée naît après la mise à jour
   ([§ 31 · 2.4](../31-persistance-et-synchronisation.md#24-la-version-de-schéma)), selon ce
-  qu'en dira la PR de conception du lot 2 ; une note en texte est refusée, et Pupitre dit de
-  mettre l'application à jour.
+  qu'en dira la PR de conception du lot 2 ; une note en texte est refusée, et Pupitre dit que
+  ce fonds vient d'une version plus récente, qu'il lit sans y écrire.
 
 **Critères d'acceptation**
 1. *Étant donné* le carnet en mode avion, *quand* Sacha touche « Enregistrer » puis
