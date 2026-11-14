@@ -1,11 +1,12 @@
 //! L'application des changements sur un document Automerge, sa lecture, et la paire d'adaptateurs
 //! en mémoire : une opération s'applique en une seule modification, avec son message et son
-//! heure, ou ne laisse rien ; une migration qui attend ses dépendances ne fait pas migrer ; le
-//! fonds lu et la version de schéma ne prennent que les valeurs du type du schéma ; la paire en
-//! mémoire migre à son ouverture, ouvre en lecture seule un fonds dont la version de schéma ne se
-//! lit pas, et rend la même empreinte d'une captation versée deux fois. La migration de test et
-//! celle qui attend ses dépendances viennent de la suite des commandes, qui les porte une seule
-//! fois, et qui éprouve sur chaque paire le fonds qu'une telle migration laisse en lecture seule.
+//! heure, ou ne laisse rien, et ce qui l'en empêche se dit en français, par un constat ; une
+//! migration qui attend ses dépendances ne fait pas migrer ; le fonds lu et la version de schéma
+//! ne prennent que les valeurs du type du schéma ; la paire en mémoire migre à son ouverture,
+//! ouvre en lecture seule un fonds dont la version de schéma ne se lit pas, et rend la même
+//! empreinte d'une captation versée deux fois. La migration de test et celle qui attend ses
+//! dépendances viennent de la suite des commandes, qui les porte une seule fois, et qui éprouve
+//! sur chaque paire le fonds qu'une telle migration laisse en lecture seule.
 
 mod suite;
 
@@ -198,6 +199,25 @@ fn une_operation_sans_effet_est_inapplicable() {
 }
 
 #[test]
+fn chaque_inapplicable_se_dit_en_francais() {
+    assert_eq!(
+        Inapplicable::ObjetAbsent {
+            chemin: chemin(&[IDEES, "absente"])
+        }
+        .to_string(),
+        "L'opération vise un objet absent du fonds : idees/absente."
+    );
+    assert_eq!(
+        Inapplicable::Vide.to_string(),
+        "L'opération ne change rien au fonds."
+    );
+    assert_eq!(
+        Inapplicable::Automerge(AutomergeError::MissingDeps).to_string(),
+        "Le document ne se lit pas."
+    );
+}
+
+#[test]
 fn l_operation_porte_son_message_et_son_heure() {
     let mut doc = fonds_note();
     assert_eq!(
@@ -353,6 +373,8 @@ fn des_octets_qui_ne_sont_pas_un_fonds_ne_s_ouvrent_pas() {
         panic!("des octets qui ne sont pas un fonds se sont ouverts");
     };
     assert_eq!(refus.raison, Raison::Illisible);
+    // Le texte de l'erreur d'Automerge ne paraît pas.
+    assert_eq!(refus.message, "Le document ne se lit pas.");
 }
 
 #[test]

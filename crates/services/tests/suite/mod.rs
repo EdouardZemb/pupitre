@@ -1125,9 +1125,10 @@ pub fn une_empreinte_qu_aucune_captation_ne_porte_ne_se_relit_pas<P: Paire>(pair
 /// version de schéma 1 : il se lit, son journal, la liste des idées et la vue de l'idée notée
 /// montrés, cette vue entière la même qu'avant la migration ; une note, deux gestes de tri,
 /// « annuler » et la fiche d'une prise sont refusés du refus que rend `lecture_seule()`, qui nomme
-/// la version de schéma 2, avant tout constat du noyau, sans rien tirer, et le journal ne change
-/// pas ; la captation de la fiche refusée est versée, et une captation se verse encore, et se
-/// relit.
+/// la version de schéma 2 et dit que ce fonds vient d'une version plus récente de Pupitre, que
+/// celle-ci lit sans y écrire, avant tout constat du noyau, sans rien tirer, et le journal ne
+/// change pas ; la captation de la fiche refusée est versée, et une captation se verse encore, et
+/// se relit.
 pub fn une_commande_sur_un_fonds_plus_recent_est_refusee_et_le_nomme<P: Paire>(paire: &mut P) {
     let mut services = paire.neufs();
     let mut alea = AleaDeTest {
@@ -1169,6 +1170,11 @@ pub fn une_commande_sur_un_fonds_plus_recent_est_refusee_et_le_nomme<P: Paire>(p
         .lecture_seule()
         .expect("le fonds se lit sans écrire");
     assert_eq!(refus.raison, Raison::VersionPlusRecente { version: 2 });
+    // Un constat, jamais un ordre (§ 50 · 5), le même sur les deux paires.
+    assert_eq!(
+        refus.message,
+        "Ce fonds vient d'une version plus récente de Pupitre ; celle-ci le lit sans y écrire."
+    );
     assert_eq!(
         services.noter(
             &une_note("Un pont en mi mineur"),

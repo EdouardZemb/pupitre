@@ -90,6 +90,26 @@ fn nan_et_un_type_inconnu_se_refusent_en_se_nommant() {
 }
 
 #[test]
+fn chaque_erreur_de_teneur_se_dit_en_francais() {
+    assert_eq!(
+        ErreurDeTeneur::NaN {
+            chemin: vec!["a".into(), "b".into()]
+        }
+        .to_string(),
+        "La teneur ne s'écrit pas : la valeur a/b n'est pas un nombre."
+    );
+    assert_eq!(
+        ErreurDeTeneur::Inconnu {
+            chemin: vec!["k".into(), "1".into()],
+            type_code: 9
+        }
+        .to_string(),
+        "La teneur ne s'écrit pas : la valeur k/1 est d'un type que cette version de Pupitre ne \
+         connaît pas (code 9)."
+    );
+}
+
+#[test]
 fn les_textes_se_prennent_octet_pour_octet() {
     assert_ne!(
         t(&[("s", Valeur::Str("\u{e9}".into()))]),

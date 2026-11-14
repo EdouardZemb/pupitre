@@ -192,6 +192,23 @@ fn comparer_rend_la_premiere_difference() {
 }
 
 #[test]
+fn chaque_difference_se_dit_en_francais() {
+    assert_eq!(
+        Difference::AutreProprietaire.to_string(),
+        "Ces deux copies n'ont pas le même identifiant de propriétaire : elles ne s'échangent \
+         rien."
+    );
+    assert_eq!(
+        Difference::AutreDocument.to_string(),
+        "Ces deux copies ne sont pas du même document : elles ne s'échangent rien."
+    );
+    assert_eq!(
+        Difference::AutreLignee.to_string(),
+        "Ces deux copies ne sont pas de la même lignée : elles ne s'échangent rien."
+    );
+}
+
+#[test]
 fn la_lignee_qui_l_emporte() {
     use Rapport::*;
     assert_eq!(rapport_des_lignees("lignee-1", &[], "lignee-1", &[]), Meme);

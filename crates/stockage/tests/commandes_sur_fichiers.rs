@@ -309,15 +309,24 @@ fn une_commande_coupee_avant_le_renommage_est_refusee() {
             &mut contexte_de_test(&mut alea),
         )
     };
+    let message = match rendu {
+        Err(Refus {
+            raison: Raison::Disque,
+            message,
+        }) => message,
+        autre => panic!("attendu le refus du disque ; rendu {autre:?}"),
+    };
+    // Le refus nomme le fichier d'ajout par son chemin relatif à la racine des données, ses
+    // composants joints par `/`, sous Linux comme sous Windows : le chemin de la racine des
+    // données n'y paraît pas.
+    assert!(message.starts_with("documents/fonds/ajouts/"), "{message}");
     assert!(
-        matches!(
-            rendu,
-            Err(Refus {
-                raison: Raison::Disque,
-                ..
-            })
-        ),
-        "attendu le refus du disque ; rendu {rendu:?}"
+        message.ends_with(".automerge, le disque l'a refusé."),
+        "{message}"
+    );
+    assert!(
+        !message.contains(&*racine.chemin().to_string_lossy()),
+        "{message}"
     );
 
     let services = paire.rouvrir(services, &[]);
