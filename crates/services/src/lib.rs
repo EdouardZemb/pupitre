@@ -104,19 +104,14 @@ impl<D: Documents, C: Captations> Services<D, C> {
     }
 
     /// La vue de l'idée `idee`, telle qu'elle se lit, en lecture seule comme ailleurs : sa
-    /// provenance, sa date, son texte, ses étiquettes, l'autre bout de chacun de ses liens, ses
-    /// captations et la date de son retrait. `reliee` vaut `false`, et `duree_ms`, `None`, tant
-    /// que les services n'écrivent ni lien ni prise. Sans fonds, ou sans idée qui se lise sous
-    /// cet identifiant : `Raison::Impossible`.
+    /// provenance, sa date, son texte, ses étiquettes, ses captations et la date de son retrait.
+    /// Ses liens (§ 30 · 9.3), son état de reliée (§ 30 · 9.1) et sa durée (§ 30 · 9.2)
+    /// attendent que les services écrivent des liens et des prises : jusque-là, `liens` est
+    /// vide, `reliee` vaut `false` et `duree_ms`, `None`, ce que rien ne peut démentir. Sans
+    /// fonds, ou sans idée qui se lise sous cet identifiant : `Raison::Impossible`.
     pub fn vue_d_une_idee(&self, idee: &str) -> Reponse<VueDUneIdee> {
         let fonds = self.documents.fonds().ok_or_else(|| idee_absente(idee))?;
         let lue = lecture::lire_l_idee(fonds, idee).ok_or_else(|| idee_absente(idee))?;
-        let mut liens: Vec<String> = lue
-            .liens
-            .iter()
-            .filter_map(|cle| autre_bout(cle, &lue.id))
-            .collect();
-        liens.sort();
         let captations = lecture::captations_de(fonds, idee)
             .into_iter()
             .map(|captation| Captation {
@@ -130,7 +125,7 @@ impl<D: Documents, C: Captations> Services<D, C> {
             le: lue.le,
             texte: lue.texte,
             etiquettes: lue.etiquettes.into_iter().collect(),
-            liens,
+            liens: Vec::new(),
             captations,
             reliee: false,
             duree_ms: None,
@@ -174,14 +169,6 @@ fn identifiant_de_proprietaire(alea: &mut dyn Alea) -> String {
     let mut octets = [0u8; 16];
     alea.remplir(&mut octets);
     uuid_v4(octets)
-}
-
-/// L'autre bout du lien `cle`, `apparente:<a>:<b>`, dont `id` est un bout : la clé coupée aux
-/// deux premiers `:`, comme la lecture la coupe. Une clé qui ne se coupe pas : `None`.
-fn autre_bout(cle: &str, id: &str) -> Option<String> {
-    let (_, bouts) = cle.split_once(':')?;
-    let (a, b) = bouts.split_once(':')?;
-    Some(if a == id { b } else { a }.to_string())
 }
 
 /// Le refus d'une idée qu'aucun fonds ne porte, ou qui ne se lit pas : `Raison::Impossible`.
