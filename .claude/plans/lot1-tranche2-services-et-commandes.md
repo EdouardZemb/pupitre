@@ -710,7 +710,10 @@ fn la_date_du_message_suit_le_decalage_et_dit_le_premier() {
     assert_eq!(date_du_message(1_835_438_400, 0), "29 février");
     assert_eq!(date_du_message(0, 0), "1er janvier");
     assert_eq!(date_du_message(-1, 0), "31 décembre");
-    // Les termes de siècle de l'algorithme (doe / 36 524, doe / 146 096) ne jouent qu'en fin d'ère.
+    // Les termes de siècle de l'algorithme ne changent l'année qu'aux abords du 1er mars :
+    // doe / 36 524, aux premiers jours de mars après le premier siècle de l'ère (dès le 1er mars
+    // 2100 dans celle de 2000) ; doe / 146 096, au seul 29 février qui finit l'ère (celui de 2000
+    // dans l'ère de 1600).
     assert_eq!(date_du_message(951_825_600, 0), "29 février"); // 2000-02-29, 12 h UTC
     assert_eq!(date_du_message(4_107_585_600, 0), "1er mars"); // 2100-03-01, 12 h UTC
 }
@@ -1442,7 +1445,8 @@ pas. `idees()`, une lecture, ne consulte pas `lecture_seule()` (tâche 5).
   prises. Elle tire aussi ses `liens` du noyau : l'autre bout de chaque clé que lit `lire_l_idee`, par
   `noyau::donnees::idee::bouts_du_lien` (tâche 9), dans l'ordre de leurs octets ; aucune découpe de clé n'est écrite
   dans `services`. Jusque-là, la vue rend `liens: Vec::new()`, comme `reliee: false` et `duree_ms: None` (revue de la
-  tâche 5) ; sa doc, qui le dit, se réécrit avec le code.
+  tâche 5) ; sa doc, qui le dit, se réécrit avec le code. La doc de `noter` dit « Ne touche pas au dernier geste de
+  tri. », avec le champ `dernier_geste` (revue de la PR (a)).
 - [ ] **Étape 4 : voir le vert.** Attendu : `commandes_en_memoire.rs` dans `verifier`, `commandes_sur_fichiers.rs` dans `verifier` et `windows`, verts, les comptes dans la description.
 - [ ] **Étape 5 : committer** par chemins (`feat: les gestes de tri et le versement d'une fiche, conduits par les services`).
 
@@ -1602,6 +1606,7 @@ récente de Pupitre ; celle-ci le lit sans y écrire. » (Éc-12). Le texte de c
 | `LectureSeule::DependancesManquantes { chemin }` | « {c} attend une modification qu'aucun fichier lu ne porte : un fichier d'ajout manque, et le document se lit sans écrire ni échanger. » |
 | `LectureSeule::VersionPlusRecente { version }` | « Ce fonds vient d'une version plus récente de Pupitre ; celle-ci le lit sans y écrire. » |
 | `LectureSeule::VersionIllisible` | « La version de schéma du document ne se lit pas : il se lit sans écrire ni échanger. » |
+| `LectureSeule::MigrationRefusee` | « Une migration de ce fonds ne s'applique pas : il se lit sans écrire ni échanger. » |
 | `Avertissement::NonDurable { chemin, erreur }` | « {c} est en place, mais son renommage n'est pas rendu durable. » |
 | `Avertissement::Compaction(e)` | « La compaction a échoué, sans rien perdre, et se retente à l'écriture suivante : {le texte de `e`} » |
 | `Avertissement::VoisinRestant { chemin, erreur }` | « Le voisin {c} n'a pas pris la place de son fichier : il se lit où il est, et la prend à l'ouverture suivante. » |
@@ -1659,7 +1664,12 @@ aucune source échoue.
   `.put_object(`, `.delete(`, `.increment(`, `.splice(`, `.splice_text(`, `.insert_object(`, `.transaction(`,
   `.transact(`, `.transact_with(`, `.empty_commit(`, `.commit_with(`, `.commit(`, `AutoCommit`, `Transactable`,
   `automerge::transaction`, `Transaction<` ; `receive_sync_message` (`crates/synchro/src/lib.rs:78`) n'en est pas :
-  une reprise, que le § 70 · 3 admet, et le commentaire du contrôle le dit.
+  une reprise, que le § 70 · 3 admet, et le commentaire du contrôle le dit. Et les fonctions publiques qui écrivent,
+  `services::application::{appliquer, naitre, faire_naitre, migrer}`, ne s'appellent que depuis `crates/services/src/`,
+  `crates/stockage/src/documents.rs` et `crates/stockage/src/racine_des_donnees.rs` : ailleurs, aucun de
+  `application::appliquer(`, `application::naitre(`, `application::faire_naitre(`, `application::migrer(`, qui portent
+  une parenthèse que les docs qui les nomment n'ont pas (revue de la PR (a) : I28 statique ne voit pas un appel de
+  l'API publique).
 - **Pourquoi `HashMap`, `HashSet` et `RandomState`** (plan maître, « Outils et cas limites », ajouté le
   2026-11-13) : sous leur hacheur par défaut, `new()`, `default()` et `collect()` tirent leur graine du système
   sans qu'aucun mot de l'aléa ne paraisse, et l'ordre d'itération change d'un passage à l'autre ; une règle qui
@@ -1690,7 +1700,7 @@ L'étape de CI :
           done
 ```
 
-- [ ] **Étape 1 : écrire les tests** : pour chaque contrôle, `chaque_controle_refuse_ce_qu_on_y_plante` (une source inventée qui porte `tx.put(` dans `crates/interface_essai/src/lib.rs`, un `use std::fs;` dans le noyau, puis un import groupé, `use std::{fs, path::Path}; fn f() { let _ = fs::read("x"); }`, dans le noyau et dans les services, un `std::thread::spawn` dans les services, un `HashMap::new()` dans le noyau et dans les services, un second
+- [ ] **Étape 1 : écrire les tests** : pour chaque contrôle, `chaque_controle_refuse_ce_qu_on_y_plante` (une source inventée qui porte `tx.put(` dans `crates/interface_essai/src/lib.rs`, puis une autre qui y appelle `services::application::appliquer(&mut doc, &operation)`, un `use std::fs;` dans le noyau, puis un import groupé, `use std::{fs, path::Path}; fn f() { let _ = fs::read("x"); }`, dans le noyau et dans les services, un `std::thread::spawn` dans les services, un `HashMap::new()` dans le noyau et dans les services, un second
 `uuid_v4(`, un `Cargo.toml` du noyau dont la ligne d'`ulid` porte aussi `features = ["std"]` : chacun nommé dans le `Err` ; la ligne exigée seule, `default-features = false` compris, admise), puis le contrôle sur le dépôt : `Ok(())`.
 - [ ] **Étape 2 : voir le rouge**, sur l'essai planté (le contrôle n'existe pas encore : `cannot find function controler`), puis le vert ; l'étape « Le graphe de l'interface » verte, puis rouge à l'essai : `services` ajouté à `app/ui/Cargo.toml`, un envoi rouge à « Cargo.lock à jour », l'artefact `cargo-lock` committé, un envoi rouge à « Le graphe de l'interface » (`services v` et `automerge v` imprimés) ; puis `services` retiré et le `Cargo.lock` remis, vert (les journaux liés dans la description).
 - [ ] **Étape 3 : committer** par chemins (`test: les contrôles statiques du noyau, des services et d'I28`, `ci: le graphe de l'interface, sans automerge, services ni stockage`).
@@ -1758,7 +1768,7 @@ fn le_fonds_de_mesure_pese_moins_de_4_500_000_octets() {
 Tout ce qui part avec la PR (c) se pousse ici, avant sa revue : la revue lit la tête qui part, et la tâche 20 ne
 pousse plus rien.
 
-- [ ] **Étape 1 : le § 31 · 2.4 et CAP-01.** « un bandeau dit qu'il vient d'une version plus récente de Pupitre, que celle-ci le lit sans y écrire » ; CAP-01 : « Pupitre dit que ce fonds vient d'une version plus récente, qu'il lit sans y écrire » : des constats (Éc-12). La recherche de LE-3 : `git grep -n -i -E "faut mettre|mettre (à|l'application)" -- .`, chaque sortie relue (le § 31 · 2.4 coupe aujourd'hui la phrase sur deux lignes, « il faut mettre à » / « jour l'application », qu'une recherche de la phrase entière ne trouve pas ; `docs/90-questions-ouvertes.md:117`, « le mettre à jour quand l'outil change », est d'un autre sujet) : aucune ligne du sujet hors du registre et des plans. **Le § 31 · 2.6** : « Pupitre n'écrit ni `Counter`, ni objet `Text` : un test le vérifie sur les documents qu'écrivent les opérations nommées » (Éc-18).
+- [ ] **Étape 1 : le § 31 · 2.4 et CAP-01.** « un bandeau dit qu'il vient d'une version plus récente de Pupitre, que celle-ci le lit sans y écrire » ; CAP-01 : « Pupitre dit que ce fonds vient d'une version plus récente, qu'il lit sans y écrire » : des constats (Éc-12). Le § 31 · 2.4 gagne aussi : « Une migration qui ne s'applique pas ouvre le document en lecture seule, sans échange. » (`LectureSeule::MigrationRefusee`, revue de la PR (a)). La recherche de LE-3 : `git grep -n -i -E "faut mettre|mettre (à|l'application)" -- .`, chaque sortie relue (le § 31 · 2.4 coupe aujourd'hui la phrase sur deux lignes, « il faut mettre à » / « jour l'application », qu'une recherche de la phrase entière ne trouve pas ; `docs/90-questions-ouvertes.md:117`, « le mettre à jour quand l'outil change », est d'un autre sujet) : aucune ligne du sujet hors du registre et des plans. **Le § 31 · 2.6** : « Pupitre n'écrit ni `Counter`, ni objet `Text` : un test le vérifie sur les documents qu'écrivent les opérations nommées » (Éc-18).
 - [ ] **Étape 2 : les pistes.** `docs/pistes.md` : « Deux regroupements croisés, ou un même fichier importé sur deux appareils, laissent une idée vide visible, ou deux idées retirées qui portent une prise (`deux_regroupements_croises_retirent_les_deux_idees`, `une_prise_nee_sur_deux_repliques_ne_cache_aucun_de_ses_faits`) : le relevé des conflits du lot 3 les montre ; la tranche 5 dit le sort de l'idée laissée par l'import. » Et : « Une étiquette ou un lien posés des deux côtés, ou un fait d'une captation versée des deux côtés, laissent deux valeurs égales sous une clé (`une_etiquette_posee_des_deux_cotes_n_en_fait_qu_une`, `cap02_7_…`) : le relevé des conflits du lot 3 ne les présente pas « à trancher » (Éc-9). »
 - [ ] **Étape 3 : `CLAUDE.md` et `CONVENTIONS.md`.** « Commandes » : `cargo test -p stockage --release --test mesure -- --ignored --nocapture`, la mesure du test 13 ; la ligne `verifier` : l'étape du graphe de l'interface et celle du fonds de mesure, et, parmi ce qu'elle refuse, une écriture hors des deux adaptateurs (I28), un champ engendré (I01), une horloge, un aléa ou un fichier au noyau, un fichier, un fil, un réseau ou une horloge dans les services. `node scripts/verif-liens.mjs` et `node scripts/verif-faits.mjs` verts après le `git add`. Committer par chemins (`docs: le refus d'un fonds plus récent, un constat ; les pistes des regroupements croisés`), pousser.
 - [ ] **Étape 4 : remesurer, à froid.** Les délais de `verifier` (l'étape du fonds de mesure comprise, et sa construction en `--release`) et de `windows` se ramènent à deux fois un passage mesuré à froid (`.github/workflows/ci.yml:72-75`, LE-29 de modele-projet) : `gh cache delete` des clés `v0-rust-verifier` et `v0-rust-windows` de `main` et de la branche, puis un passage de `ci` (`gh run rerun <n>`, qui rejoue l'événement d'origine, sans dommage pour `ci` ; jamais pour `texte-pr`) ; « No cache found. » dans le journal de rust-cache de chaque job ; `gh run view <n> --json jobs` : les deux durées. Si deux fois l'une dépasse son `timeout-minutes`, il passe à deux fois la mesure, arrondie à la minute au-dessus, et son commentaire dit « à froid », la mesure, la date et la PR ; sinon, la description donne les deux mesures. Committer par chemins, s'il le faut (`ci: les délais remesurés à froid avec la suite des commandes et la mesure`), pousser.
@@ -1856,7 +1866,7 @@ valeur en gardent deux (`get_all`), pour chaque fait d'une captation ; CAP-02 ·
 s'inscrit dès (a) ; trois écarts au plan maître de plus (8 à 10) ; le lien sans date corrigé au § 30 · 1 ; un MIDI
 versé et un texte versé, sans date ni appareil, et `importee` ; les messages de `Difference` et d'`ErreurDeTeneur`,
 et les textes des cinq types sans fichier ; les chemins des messages rendus relatifs par l'adaptateur ; `uuid_v4`
-par `+` et deux dates de fin d'ère, contre les mutants qui survivraient ; la puce de chaque crate avec son membre ;
+par `+` et le 29 février 2000 et le 1er mars 2100, contre les mutants qui survivraient ; la puce de chaque crate avec son membre ;
 l'étape du graphe avant les lints, et son essai sur une dépendance ; les imports groupés aux contrôles statiques ;
 la lignée du témoin, changée par le seul deuxième tirage ; la revue de la PR (c) sur la tête qui part, et la
 relecture des corrections ; la remesure à froid ; la réduction de `proptest` bornée.
