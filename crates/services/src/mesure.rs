@@ -89,10 +89,11 @@ pub fn engendrer_le_fonds_de_mesure_selon<D: Documents, C: Captations>(
     for _ in 0..groupes {
         visibles.push(engendrer_un_groupe(services, &mut generateur)?);
     }
-    for paire in visibles.chunks_exact(2) {
+    let (paires, _) = visibles.as_chunks::<2>();
+    for [a, b] in paires {
         let lien = Relier {
-            a: paire[0].clone(),
-            b: paire[1].clone(),
+            a: a.clone(),
+            b: b.clone(),
             decalage_minutes: 0,
         };
         services.relier(&lien, &mut generateur.operation())?;
