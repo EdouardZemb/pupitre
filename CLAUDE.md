@@ -18,6 +18,7 @@ Ce dépôt porte la conception d'une application d'aide à la composition, écri
   - `cahier` (`crates/cahier`) : le PDF et sa commande en ligne ;
   - `stockage` (`crates/stockage`) : la racine des données, les documents et les captations sur fichiers, côté natif ; sa fonction de Cargo `pannes`, que seuls ses tests activent, coupe une écriture à l'étape voulue, et ouvre le fonds selon les migrations qu'un test lui donne (`fonds_selon`) ;
   - `synchro` (`crates/synchro`) : le cœur de la couche de synchronisation, sans réseau ;
+  - `commandes` (`crates/commandes`) : les types des commandes et la liste de leurs noms, que l'interface et l'établi partagent ;
   - `interface` (`app/ui`) : l'interface Leptos ;
   - `etabli` (`app/src-tauri`) : l'application Tauri.
 - La CI (`.github/workflows/ci.yml`) a pour jobs `socle`, `contenu`, `documentation`, `verifier`, `windows` et `mutants`. Le passage complet de mutation a lieu chaque semaine, par `mutants-complet.yml`. Les portes et ce qu'elles protègent sont dans `CONVENTIONS.md` (« Portes de CI »).
