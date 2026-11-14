@@ -170,9 +170,12 @@ garde le noyau en WebAssembly pour dessiner ce qu'elle reçoit
 
 **Hors d'`etabli`.** Les services d'application, les adaptateurs `Documents` et `Captations`
 et le cœur de la couche de synchronisation vivent hors de la crate Tauri. Les services et les
-adaptateurs en mémoire se compilent aussi en WebAssembly pour la construction navigateur
-([ADR-022](adr/adr-022-documents-cote-natif.md)). L'adaptateur sur fichiers et le cœur de la
-couche de synchronisation n'y entrent pas, puisque rien ne s'y écrit ni ne s'y synchronise :
+adaptateurs en mémoire se compileront en WebAssembly, avec la fonction `wasm` d'`automerge`,
+pour la construction navigateur, à la ligne 5 des portes
+([ADR-022](adr/adr-022-documents-cote-natif.md) ;
+[§ 70 · 8](70-qualite-et-verification.md#8-les-portes-de-ci)) ; le lot 1 ne pose aucune
+dépendance de cible `wasm32`. L'adaptateur sur fichiers et le cœur de la couche de
+synchronisation n'y entrent pas, puisque rien ne s'y écrit ni ne s'y synchronise :
 ils sortent d'`etabli` pour que l'essai H07 les éprouve en CI, sans application
 ([§ 9](#9-trajectoire-de-construction)). Les types des commandes, qu'emploie
 l'interface, ne tirent ni `automerge` ni les services.
@@ -180,23 +183,27 @@ l'interface, ne tirent ni `automerge` ni les services.
 La crate `stockage` (`crates/stockage`) porte la racine des données et son verrou, puis les
 adaptateurs `Documents` et `Captations` sur fichiers, au format de
 l'[ADR-023](adr/adr-023-stockage-des-documents.md) ; elle ne vit que côté natif, et dépend du
-noyau, de `synchro`, d'`automerge` et de `sha2`. Sa fonction de Cargo `pannes`, que seuls ses
-tests activent, coupe une écriture à l'étape voulue, et ouvre le fonds selon les
-migrations qu'un test lui donne (`fonds_selon`). La crate `synchro` (`crates/synchro`) porte
-le cœur de la couche de synchronisation : comparer deux copies, porter le protocole
-d'Automerge, puis, au lot 3, lire les conflits et les relever, selon la règle du noyau
-([§ 70 · 1](70-qualite-et-verification.md#1-la-stratégie)) ; elle n'a aucun transport, et
+noyau, de `synchro`, de `services` et d'`automerge`. Sa fonction de Cargo `pannes`, que seuls
+ses tests activent, coupe une écriture à l'étape voulue, ouvre le fonds selon les migrations
+qu'un test lui donne (`fonds_selon`, `ouvrir_selon`), et garde pour les tests l'écriture et la
+naissance par une fermeture (`Document::ecrire`, `faire_naitre_le_fonds`, `Naissance`). La
+crate `synchro` (`crates/synchro`) porte le cœur de la couche de synchronisation : comparer
+deux copies, porter le protocole d'Automerge, puis, au lot 3, lire les conflits et les
+relever, selon la règle du noyau ([§ 70 · 1](70-qualite-et-verification.md#1-la-stratégie)) ; elle n'a aucun transport, et
 dépend du noyau et d'`automerge`. Le transport du lot 3, WebSocket en TLS, se branche sur
 elle : sa PR de conception dit s'il y entre ou s'il vit à côté. La crate `services`
 (`crates/services`) porte les services d'application, les opérations nommées et les
 requêtes, et les adaptateurs en mémoire ; elle dépend du noyau, de `commandes` et
-d'`automerge`. Pour le navigateur (`wasm32-unknown-unknown`), elle prend `automerge` avec sa
-fonction `wasm` : `automerge` tire sans condition `getrandom`, qui ne se compile pour le
-navigateur qu'avec le moteur `wasm_js` que cette fonction active. La crate `commandes`
+d'`automerge`. Sa fonction de Cargo `en-memoire`, que seuls les tests activent, les siens et
+ceux du stockage, compile la paire d'adaptateurs en mémoire (`DocumentsEnMemoire`,
+`CaptationsEnMemoire`) ; l'établi ne la demande jamais. Pour le navigateur
+(`wasm32-unknown-unknown`), elle prendra `automerge` avec sa fonction `wasm`, à la ligne 5 des
+portes : `automerge` tire sans condition `getrandom`, qui ne se compile pour le navigateur
+qu'avec le moteur `wasm_js` que cette fonction active. La crate `commandes`
 (`crates/commandes`) porte les types des commandes, leurs arguments, leurs réponses et leurs
-vues, et ne dépend que de `serde`. Au lot 1, `stockage` dépend aussi de `services`, dont elle
-réalise les adaptateurs, et `etabli` les assemble. L'essai H07 fait naître `stockage` et
-`synchro` ; le lot 1, `services` et `commandes`.
+vues, et ne dépend que de `serde`. Au lot 1, `stockage` réalise les adaptateurs de `services`,
+et `etabli` les assemble. L'essai H07 fait naître `stockage` et `synchro` ; le lot 1,
+`services` et `commandes`.
 
 | Composant | Responsabilité | Exemples |
 |---|---|---|

@@ -188,6 +188,7 @@ fonction Rust nommée d'après un critère que la SFD n'a pas ou qu'elle a retir
 
 | Fonction | Critères | Livrés par |
 |---|---|---|
+| [CAP-01](20-sfd/21-capter-et-organiser.md#cap-01--capter-en-un-geste) | 6 | INC-1, lot 1 |
 | [MIC-12](20-sfd/22-micro-motif-et-phrase.md#mic-12--parcourir-la-table-de-la-tonalité) | 1 à 4, 9 | INC-0 |
 | [MIC-13](20-sfd/22-micro-motif-et-phrase.md#mic-13--lire-la-palette-dun-accord) | 1 à 3, 5 | INC-0 |
 | [REN-04](20-sfd/28-rendus-encre-impression.md#ren-04--diagrammes-de-manche) | 2 | INC-0 |
