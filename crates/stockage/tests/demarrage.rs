@@ -1179,7 +1179,6 @@ fn une_captation_nommee_prend_son_nom_au_demarrage() {
 
 // § 31 · 10, test 4 : renommage perdu après la réponse, la captation nommée par un document prend son nom au démarrage
 #[test]
-#[ignore = "attend la genèse de la v0.3.0, qui crée midi_verses et textes_verses"]
 fn un_midi_ou_un_texte_verse_nomme_prend_son_nom_au_demarrage() {
     let chemin = commun::dossier_jetable("demarrage-midi-et-texte-ranges").join("donnees");
     let racine = ouvrir(&chemin);
