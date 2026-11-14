@@ -297,10 +297,8 @@ fn la_paire_en_memoire_migre_a_son_ouverture() {
     let fonds = migre.fonds().expect("le fonds se lit");
     assert_eq!(version_de_schema(fonds), Some(2));
     objet(fonds, &ROOT, CONTENEUR_DE_LA_MIGRATION);
-    assert_eq!(
-        journal(fonds).last(),
-        Some(&(message_de_la_migration(2), 0))
-    );
+    // La migration, concurrente de la naissance et de la note, est au journal.
+    assert!(journal(fonds).contains(&(message_de_la_migration(2), 0)));
     assert!(lire_l_idee(fonds, I).is_some());
 
     // Rouvert par une application qui ne connaît que la version de schéma 1.
