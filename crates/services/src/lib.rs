@@ -66,11 +66,6 @@ pub struct Services<D: Documents, C: Captations> {
     appareil: gestes::Appareil,
     /// Le dernier geste de tri fait par ces services, que l'annulation défait (§ 30 · 11) ; aucun
     /// à leur ouverture.
-    #[expect(
-        dead_code,
-        reason = "l'annulation du dernier geste de tri, qui le lit, n'est pas encore une commande \
-                  des services"
-    )]
     dernier_geste: Option<GesteDeTri>,
 }
 
