@@ -2,7 +2,9 @@
 //! rejoué sur `FondsSurFichiers` et les `Captations` d'une racine des données jetable ; puis, sur
 //! cette paire seule, des commandes coupées par une panne, avant ou après le renommage de leur
 //! fichier, la première comprise, qui fait naître le fonds, une annulation refusée par le disque,
-//! qui se refait, et la migration de test, la même dans la suite et dans les aides du stockage.
+//! qui se refait, un geste de tri refusé par le disque, qui ne change pas ce qu'annuler vise, un
+//! geste de tri et son annulation coupés après le renommage, faits avec un avertissement, et la
+//! migration de test, la même dans la suite et dans les aides du stockage.
 
 #[path = "../../services/tests/suite/mod.rs"]
 mod suite;
@@ -188,6 +190,14 @@ fn une_fiche_versee_deux_fois_est_refusee_et_rien_ne_change() {
 fn un_geste_qui_touche_une_idee_retiree_est_refuse() {
     let racine = racine_jetable("commandes-idee-retiree-touchee");
     suite::un_geste_qui_touche_une_idee_retiree_est_refuse(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn regrouper_une_empreinte_qu_aucune_captation_ne_porte_est_refuse() {
+    let racine = racine_jetable("commandes-empreinte-sans-captation");
+    suite::regrouper_une_empreinte_qu_aucune_captation_ne_porte_est_refuse(&mut PaireSurFichiers {
         racine: &racine,
     });
 }
@@ -447,5 +457,135 @@ fn une_annulation_refusee_par_le_disque_se_refait() {
     assert_eq!(
         services.vue_d_une_idee(IDEE).map(|vue| vue.etiquettes),
         Ok(Vec::new())
+    );
+}
+
+/// `#pont` posée sur A ; compléter A, coupé avant le renommage de son fichier d'ajout, est refusé
+/// par le disque : A garde son texte, et le journal ne change pas. Le geste refusé ne devient pas
+/// ce qu'annuler vise : « annuler » défait encore la pose ; rouvert, le fonds montre A de son
+/// premier texte, sans étiquette.
+#[test]
+fn un_geste_de_tri_refuse_par_le_disque_ne_change_pas_ce_qu_annuler_vise() {
+    let racine = racine_jetable("commandes-geste-de-tri-refuse-par-le-disque");
+    let mut paire = PaireSurFichiers { racine: &racine };
+    let mut services = paire.neufs();
+    let mut alea = alea_de_test();
+    let mut contexte = contexte_de_test(&mut alea);
+    services
+        .noter(&une_note("Un refrain qui monte, en ré"), &mut contexte)
+        .expect("la note A est faite");
+    services
+        .poser_une_etiquette(&suite::etiquetage(IDEE, "pont"), &mut contexte)
+        .expect("l'étiquette est posée sur A");
+    let journal = services.journal().expect("le journal se lit");
+
+    let rendu = {
+        let _panne = couper(Etape::Renommage, 1);
+        services.completer(
+            &suite::completion(IDEE, "Un refrain qui monte, puis retombe"),
+            &mut contexte,
+        )
+    };
+    assert!(
+        matches!(
+            rendu,
+            Err(Refus {
+                raison: Raison::Disque,
+                ..
+            })
+        ),
+        "attendu le refus du disque ; rendu {rendu:?}"
+    );
+    assert_eq!(
+        services.vue_d_une_idee(IDEE).map(|vue| vue.texte),
+        Ok(Some("Un refrain qui monte, en ré".to_string()))
+    );
+    assert_eq!(services.journal(), Ok(journal.clone()));
+
+    assert_eq!(
+        services.annuler(&mut contexte),
+        Ok(Faite {
+            avertissement: None
+        })
+    );
+    let mut attendu = journal;
+    attendu.push(EntreeDuJournal {
+        message: "Annulé : Idée du 14 novembre : étiquette #pont posée".to_string(),
+        heure: suite::HEURE,
+    });
+    assert_eq!(services.journal(), Ok(attendu));
+
+    let services = paire.rouvrir(services, &[]);
+    let vue = services.vue_d_une_idee(IDEE).expect("l'idée A se lit");
+    assert_eq!(vue.texte.as_deref(), Some("Un refrain qui monte, en ré"));
+    assert_eq!(vue.etiquettes, Vec::<String>::new());
+}
+
+/// Compléter A, coupé après le renommage de son fichier d'ajout, est fait, avec un avertissement,
+/// et devient ce qu'annuler vise : « annuler », coupé de même, le défait, avec un avertissement ;
+/// rouvert, le fonds montre A de son premier texte.
+#[test]
+fn un_geste_de_tri_et_son_annulation_coupes_apres_le_renommage_rendent_un_avertissement() {
+    let racine = racine_jetable("commandes-geste-de-tri-coupe-apres-le-renommage");
+    let mut paire = PaireSurFichiers { racine: &racine };
+    let mut services = paire.neufs();
+    let mut alea = alea_de_test();
+    let mut contexte = contexte_de_test(&mut alea);
+    services
+        .noter(&une_note("Un refrain qui monte, en ré"), &mut contexte)
+        .expect("la note A est faite");
+
+    let rendu = {
+        let _panne = couper(Etape::RendreDurable, 1);
+        services.completer(
+            &suite::completion(IDEE, "Un refrain qui monte, puis retombe"),
+            &mut contexte,
+        )
+    };
+    assert!(
+        matches!(
+            rendu,
+            Ok(Faite {
+                avertissement: Some(_)
+            })
+        ),
+        "attendu le geste fait, avec un avertissement ; rendu {rendu:?}"
+    );
+    assert_eq!(
+        services.vue_d_une_idee(IDEE).map(|vue| vue.texte),
+        Ok(Some("Un refrain qui monte, puis retombe".to_string()))
+    );
+
+    let rendu = {
+        let _panne = couper(Etape::RendreDurable, 1);
+        services.annuler(&mut contexte)
+    };
+    assert!(
+        matches!(
+            rendu,
+            Ok(Faite {
+                avertissement: Some(_)
+            })
+        ),
+        "attendu l'annulation faite, avec un avertissement ; rendu {rendu:?}"
+    );
+    let journal = services.journal().expect("le journal se lit");
+    assert_eq!(
+        journal.last(),
+        Some(&EntreeDuJournal {
+            message: "Annulé : Idée du 14 novembre : texte complété".to_string(),
+            heure: suite::HEURE,
+        }),
+        "{journal:?}"
+    );
+    assert_eq!(
+        services.vue_d_une_idee(IDEE).map(|vue| vue.texte),
+        Ok(Some("Un refrain qui monte, en ré".to_string()))
+    );
+
+    let services = paire.rouvrir(services, &[]);
+    assert_eq!(
+        services.vue_d_une_idee(IDEE).map(|vue| vue.texte),
+        Ok(Some("Un refrain qui monte, en ré".to_string()))
     );
 }

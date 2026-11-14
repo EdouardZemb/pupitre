@@ -155,6 +155,11 @@ fn un_geste_qui_touche_une_idee_retiree_est_refuse() {
 }
 
 #[test]
+fn regrouper_une_empreinte_qu_aucune_captation_ne_porte_est_refuse() {
+    suite::regrouper_une_empreinte_qu_aucune_captation_ne_porte_est_refuse(&mut PaireEnMemoire);
+}
+
+#[test]
 fn la_vue_tire_reliee_et_la_duree_des_regles_du_noyau() {
     suite::la_vue_tire_reliee_et_la_duree_des_regles_du_noyau(&mut PaireEnMemoire);
 }

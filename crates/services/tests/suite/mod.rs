@@ -633,10 +633,11 @@ pub fn une_empreinte_qu_aucune_captation_ne_porte_ne_se_relit_pas<P: Paire>(pair
 // § 31 · 10, test 10 : ouvrir un document de version de schéma N + 1 avec une application qui ne connaît que la version de schéma N
 /// Le fonds migré vers la version de schéma 2, rouvert par une application qui ne connaît que la
 /// version de schéma 1 : il se lit, son journal, la liste des idées et la vue de l'idée notée
-/// montrés, cette vue entière la même qu'avant la migration ; une note, « annuler » et la fiche
-/// d'une prise sont refusés du refus que rend `lecture_seule()`, qui nomme la version de schéma 2,
-/// sans rien tirer, et le journal ne change pas ; la captation de la fiche refusée est versée, et
-/// une captation se verse encore, et se relit.
+/// montrés, cette vue entière la même qu'avant la migration ; une note, deux gestes de tri,
+/// « annuler » et la fiche d'une prise sont refusés du refus que rend `lecture_seule()`, qui nomme
+/// la version de schéma 2, avant tout constat du noyau, sans rien tirer, et le journal ne change
+/// pas ; la captation de la fiche refusée est versée, et une captation se verse encore, et se
+/// relit.
 pub fn une_commande_sur_un_fonds_plus_recent_est_refusee_et_le_nomme<P: Paire>(paire: &mut P) {
     let mut services = paire.neufs();
     let mut alea = AleaDeTest {
@@ -689,6 +690,21 @@ pub fn une_commande_sur_un_fonds_plus_recent_est_refusee_et_le_nomme<P: Paire>(p
     // « rien à annuler » : la lecture seule se dit d'abord.
     assert_eq!(
         services.annuler(&mut contexte_de_test(&mut alea)),
+        Err(refus.clone())
+    );
+    // Un geste de tri rend aussi le refus de la lecture seule, avant tout constat du noyau :
+    // compléter l'idée d'un identifiant qu'aucune idée du fonds ne porte rendrait sinon « Aucune
+    // idée ne porte l'identifiant … », et rétablir l'idée notée, qui n'est pas retirée, « L'idée …
+    // n'est pas retirée. ».
+    assert_eq!(
+        services.completer(
+            &completion(SECONDE_IDEE, "Un pont en mi mineur"),
+            &mut contexte_de_test(&mut alea)
+        ),
+        Err(refus.clone())
+    );
+    assert_eq!(
+        services.retablir(&visee(IDEE), &mut contexte_de_test(&mut alea)),
         Err(refus.clone())
     );
     let prise: &[u8] = b"une prise devant un fonds plus recent";
@@ -1249,11 +1265,47 @@ pub fn un_geste_qui_touche_une_idee_retiree_est_refuse<P: Paire>(paire: &mut P) 
     assert_eq!(services.journal(), Ok(journal));
 }
 
+/// A notée, une prise versée : regrouper dans A une empreinte qu'aucune captation du fonds ne
+/// porte est refusé, du constat `Impossible::CaptationAbsente`, que seuls les services rendent,
+/// et ni le journal ni la liste des idées ne changent.
+pub fn regrouper_une_empreinte_qu_aucune_captation_ne_porte_est_refuse<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let a = services
+        .noter(&une_note("Un refrain qui monte, en ré"), &mut contexte)
+        .expect("la note A est faite")
+        .idee;
+    verser_une_prise(
+        &mut services,
+        PRISE_DE_TEST,
+        &fiche_wav(30_000),
+        &mut contexte,
+    );
+    let journal = services.journal().expect("le journal se lit");
+    let idees = services.idees().expect("la liste des idées se lit");
+
+    let jamais_versee = empreinte(b"une prise jamais versee");
+    assert_eq!(
+        services.regrouper(&regroupement(&jamais_versee, &a), &mut contexte),
+        Err(impossible(format!(
+            "Aucune captation ne porte l'empreinte {jamais_versee}."
+        )))
+    );
+    assert_eq!(services.journal(), Ok(journal));
+    assert_eq!(services.idees(), Ok(idees));
+}
+
 /// A et B reliées : A est reliée ; B retirée, A ne l'est plus ; B rétablie, elle l'est de
 /// nouveau. V1, née d'une prise de 30 000 ms, dure 30 000 ms ; une prise de 64 000 ms regroupée
-/// dans V1 la porte à 64 000 ms ; une prise sans durée lue, en FLAC, regroupée dans V1, lui ôte sa
-/// durée (CAP-02, Règles : `—` dès qu'une de ses prises n'a pas la sienne) : son versement n'a
-/// écrit aucune durée.
+/// dans V1 la porte à 64 000 ms ; un MIDI versé, sans durée, regroupé dans V1, la laisse à
+/// 64 000 ms : la vue ne tire la durée que des prises (CAP-02, Règles : « celle de sa prise la
+/// plus longue ») ; une prise sans durée lue, en FLAC, regroupée dans V1, lui ôte sa durée
+/// (CAP-02, Règles : `—` dès qu'une de ses prises n'a pas la sienne) : son versement n'a écrit
+/// aucune durée.
 pub fn la_vue_tire_reliee_et_la_duree_des_regles_du_noyau<P: Paire>(paire: &mut P) {
     let mut services = paire.neufs();
     let mut alea = AleaDeTest {
@@ -1302,6 +1354,31 @@ pub fn la_vue_tire_reliee_et_la_duree_des_regles_du_noyau<P: Paire>(paire: &mut 
     services
         .regrouper(&regroupement(&v2.empreinte, &v1.idee), &mut contexte)
         .expect("la prise de V2 se regroupe dans V1");
+    assert_eq!(duree(&services), Ok(Some(64_000)));
+    let midi = services
+        .verser_une_fiche(
+            gestes::Sorte::MidiVerseSeul,
+            b"un midi de la prise de trente secondes",
+            &gestes::Fiche {
+                format: "smf1".to_string(),
+                duree_ms: None,
+            },
+            &importee(),
+            0,
+            &mut contexte,
+        )
+        .expect("le MIDI se verse");
+    let regroupement_du_midi = Regrouper {
+        captation: Captation {
+            sorte: commandes::Sorte::MidiVerseSeul,
+            empreinte: midi.empreinte,
+        },
+        cible: v1.idee.clone(),
+        decalage_minutes: 0,
+    };
+    services
+        .regrouper(&regroupement_du_midi, &mut contexte)
+        .expect("le MIDI se regroupe dans V1");
     assert_eq!(duree(&services), Ok(Some(64_000)));
     let sans_duree_lue = gestes::Fiche {
         format: "flac".to_string(),
@@ -1442,12 +1519,12 @@ pub fn annuler_rend_le_fonds_d_avant<P: Paire>(paire: &mut P) {
     );
 }
 
-/// Annuler ne vise que le dernier geste de tri fait depuis l'ouverture (§ 30 · 11) : une note ne
-/// le vise ni ne le remplace, un geste refusé ne le change pas, et une annulation ne s'annule
-/// pas, un second « annuler » est refusé. Pas à pas : noter A ; annuler, refusé ; poser `#pont`
-/// sur A ; noter B ; annuler, qui ôte `#pont` ; annuler, refusé ; relier A et B ; retirer B ;
-/// poser `#pont` sur A ; le reposer, refusé ; annuler, qui ôte `#pont` ; annuler, refusé. Restent
-/// le lien de A et B, B retirée, et A sans étiquette.
+/// Annuler ne vise que le dernier geste de tri fait depuis l'ouverture (§ 30 · 11) : une note ou
+/// une fiche versée ne le vise ni ne le remplace, un geste refusé ne le change pas, et une
+/// annulation ne s'annule pas, un second « annuler » est refusé. Pas à pas : noter A ; annuler,
+/// refusé ; poser `#pont` sur A ; noter B ; verser une prise ; annuler, qui ôte `#pont` ; annuler,
+/// refusé ; relier A et B ; retirer B ; poser `#pont` sur A ; le reposer, refusé ; annuler, qui
+/// ôte `#pont` ; annuler, refusé. Restent le lien de A et B, B retirée, et A sans étiquette.
 pub fn annuler_ne_vise_que_le_dernier_geste_de_tri_depuis_l_ouverture<P: Paire>(paire: &mut P) {
     let mut services = paire.neufs();
     let mut alea = AleaDeTest {
@@ -1467,6 +1544,12 @@ pub fn annuler_ne_vise_que_le_dernier_geste_de_tri_depuis_l_ouverture<P: Paire>(
         .noter(&une_note("Un pont en mi mineur"), &mut contexte)
         .expect("la note B est faite")
         .idee;
+    verser_une_prise(
+        &mut services,
+        PRISE_DE_TEST,
+        &fiche_wav(30_000),
+        &mut contexte,
+    );
     annule(
         &mut services,
         &mut contexte,

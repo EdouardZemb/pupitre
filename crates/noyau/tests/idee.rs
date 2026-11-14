@@ -74,6 +74,8 @@ fn la_duree_est_celle_de_la_plus_longue_prise() {
     assert_eq!(duree(&[]), None);
     assert_eq!(duree(&[Some(30_000), None]), None);
     assert_eq!(duree(&[Some(30_000), Some(64_000)]), Some(64_000));
+    // La plus longue d'abord : une règle qui rendrait la dernière prise rendrait 30 000.
+    assert_eq!(duree(&[Some(64_000), Some(30_000)]), Some(64_000));
 }
 
 #[test]
