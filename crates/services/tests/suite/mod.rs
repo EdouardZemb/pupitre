@@ -18,7 +18,7 @@ use std::collections::BTreeSet;
 
 use automerge::transaction::{CommitOptions, Transactable};
 use automerge::{
-    ActorId, Automerge, Change, ChangeHash, ObjId, ObjType, ROOT, ReadDoc, ScalarValue, Value,
+    ActorId, Automerge, Change, ChangeHash, ObjId, ObjType, Prop, ROOT, ReadDoc, ScalarValue, Value,
 };
 use commandes::{
     Captation, Completer, EntreeDuJournal, Etiqueter, Faite, Notee, Noter, Raison, Refus,
@@ -26,8 +26,10 @@ use commandes::{
 };
 use noyau::donnees::changement::{Changement, Operation, Simple};
 use noyau::donnees::fonds::{
-    ACTEUR_DE_LA_GENESE, DUREE, GENESE, IDEES, IDENTIFIANT, LE, LIENS, LIGNEE,
-    MESSAGE_DE_LA_GENESE, MESSAGE_DE_LA_NAISSANCE, PAR, PRISES, PROPRIETAIRE, VERSION_DE_SCHEMA,
+    ACTEUR_DE_LA_GENESE, APPARENTE, CONTENEURS_DE_LA_GENESE, DEPUIS, DUREE, ETIQUETTES, FORMAT,
+    GENESE, IDEE as IDEE_D_UNE_CAPTATION, IDEES, IDENTIFIANT, LE, LIENS, LIGNEE,
+    MESSAGE_DE_LA_GENESE, MESSAGE_DE_LA_NAISSANCE, MIDI_VERSES, PAR, PHOTOS, PRISES, PROPRIETAIRE,
+    PROVENANCE, RETIREE, TEXTE, TEXTES_VERSES, VERSION_DE_SCHEMA,
 };
 use noyau::donnees::gestes;
 use noyau::donnees::idee::cle_du_lien;
@@ -579,31 +581,270 @@ fn messages_depuis(doc: &Automerge, heads: &[ChangeHash]) -> Vec<String> {
 /// I28 (§ 70 · 3) : depuis `heads_d_avant`, `doc` porte une seule modification, de message
 /// `message` ; sinon, le refus nomme le message de chaque modification qu'il porte depuis.
 pub fn une_modification(
-    _doc: &Automerge,
-    _heads_d_avant: &[ChangeHash],
-    _message: &str,
+    doc: &Automerge,
+    heads_d_avant: &[ChangeHash],
+    message: &str,
 ) -> Result<(), String> {
-    Ok(())
+    let messages = messages_depuis(doc, heads_d_avant);
+    if matches!(messages.as_slice(), [seul] if seul == message) {
+        Ok(())
+    } else {
+        Err(format!(
+            "attendu une seule modification, « {message} », depuis les heads d'avant ; \
+             écrites : {messages:?}"
+        ))
+    }
+}
+
+/// Les douze mois que nomme une date de `gestes::date_du_message`.
+const MOIS: [&str; 12] = [
+    "janvier",
+    "février",
+    "mars",
+    "avril",
+    "mai",
+    "juin",
+    "juillet",
+    "août",
+    "septembre",
+    "octobre",
+    "novembre",
+    "décembre",
+];
+
+/// Ce qui suit la date qui ouvre `texte`, une date de `gestes::date_du_message` : « 1er », ou un
+/// jour de 2 à 31, écrit sans zéro ni signe devant, puis une espace et l'un des douze mois ;
+/// `None` si `texte` ne s'ouvre pas sur une date.
+fn apres_une_date(texte: &str) -> Option<&str> {
+    let (jour, reste) = texte.split_once(' ')?;
+    let jour_du_mois = jour
+        .parse::<u8>()
+        .is_ok_and(|n| (2..=31).contains(&n) && n.to_string() == jour);
+    if jour != "1er" && !jour_du_mois {
+        return None;
+    }
+    MOIS.into_iter().find_map(|mois| reste.strip_prefix(mois))
+}
+
+/// `message` est celui d'une migration, `message_de_la_migration(v)`, vers une version de schéma
+/// `v` de 2 au moins : la genèse porte la version de schéma 1.
+fn est_une_migration(message: &str) -> bool {
+    message
+        .rsplit_once(' ')
+        .and_then(|(_, version)| version.parse::<u64>().ok())
+        .is_some_and(|version| version >= 2 && message_de_la_migration(version) == message)
+}
+
+/// `message` est celui d'une note ou d'un versement : `Idée du <date> notée`, ou
+/// `Idée du <date> : ` suivi de `prise versée`, `MIDI versé` ou `texte versé`.
+fn est_une_note_ou_un_versement(message: &str) -> bool {
+    message
+        .strip_prefix("Idée du ")
+        .and_then(apres_une_date)
+        .is_some_and(|reste| {
+            matches!(
+                reste,
+                " notée" | " : prise versée" | " : MIDI versé" | " : texte versé"
+            )
+        })
+}
+
+/// `message` est celui d'un geste de tri, `Idée du <date>` suivi de l'une de ses formes
+/// fermées : ` : texte complété` ; ` : étiquette #<e> posée` ou ` : étiquette #<e> ôtée`,
+/// l'étiquette non vide ; ` reliée à l'idée du <date>` ou ` déliée de l'idée du <date>` ;
+/// ` : prise regroupée`, ` : MIDI versé regroupé` ou ` : texte versé regroupé`, suivi au besoin
+/// de `, idée du <date> retirée` ; ` retirée` ou ` rétablie`. Aucune ne finit par une suite
+/// libre.
+fn est_un_geste_de_tri(message: &str) -> bool {
+    let Some(reste) = message.strip_prefix("Idée du ").and_then(apres_une_date) else {
+        return false;
+    };
+    if matches!(reste, " : texte complété" | " retirée" | " rétablie") {
+        return true;
+    }
+    if let Some(etiquette) = reste.strip_prefix(" : étiquette #") {
+        return etiquette
+            .strip_suffix(" posée")
+            .or_else(|| etiquette.strip_suffix(" ôtée"))
+            .is_some_and(|nom| !nom.is_empty());
+    }
+    if let Some(autre) = reste
+        .strip_prefix(" reliée à l'idée du ")
+        .or_else(|| reste.strip_prefix(" déliée de l'idée du "))
+    {
+        return apres_une_date(autre).is_some_and(str::is_empty);
+    }
+    [
+        " : prise regroupée",
+        " : MIDI versé regroupé",
+        " : texte versé regroupé",
+    ]
+    .into_iter()
+    .any(|regroupee| {
+        reste.strip_prefix(regroupee).is_some_and(|fin| {
+            fin.is_empty()
+                || fin.strip_prefix(", idée du ").and_then(apres_une_date) == Some(" retirée")
+        })
+    })
 }
 
 /// I28 (§ 70 · 3) : `message` est celui d'une opération connue : la genèse, la naissance, une
 /// migration, ou l'une des formes fermées d'une note, d'un versement ou d'un geste de tri, ou
 /// « Annulé : » suivi d'une forme d'un geste de tri.
-pub fn message_connu(_message: &str) -> bool {
-    true
+pub fn message_connu(message: &str) -> bool {
+    message == MESSAGE_DE_LA_GENESE
+        || message == MESSAGE_DE_LA_NAISSANCE
+        || est_une_migration(message)
+        || est_une_note_ou_un_versement(message)
+        || est_un_geste_de_tri(message)
+        || message
+            .strip_prefix("Annulé : ")
+            .is_some_and(est_un_geste_de_tri)
+}
+
+/// Chaque valeur du document, avec les clés qui y mènent depuis la racine du document : chaque
+/// valeur de chaque clé d'un objet à clés et de chaque indice d'une liste, les valeurs en conflit
+/// comprises (`get_all`), et, d'une valeur qui est un objet, les siennes ; un objet texte n'en a
+/// pas.
+fn chaque_valeur(doc: &Automerge) -> Vec<(Vec<String>, Value<'_>)> {
+    let mut valeurs = Vec::new();
+    descendre(doc, &ROOT, ObjType::Map, &[], &mut valeurs);
+    valeurs
+}
+
+/// Ajoute à `valeurs` chaque valeur de `objet`, de sorte `sorte`, au bout de `chemin`, puis celles
+/// de chaque objet qu'il porte (`chaque_valeur`).
+fn descendre<'d>(
+    doc: &'d Automerge,
+    objet: &ObjId,
+    sorte: ObjType,
+    chemin: &[String],
+    valeurs: &mut Vec<(Vec<String>, Value<'d>)>,
+) {
+    let cles: Vec<(String, Prop)> = match sorte {
+        ObjType::Map | ObjType::Table => doc
+            .keys(objet)
+            .map(|cle| (cle.clone(), Prop::Map(cle)))
+            .collect(),
+        ObjType::List => (0..doc.length(objet))
+            .map(|indice| (indice.to_string(), Prop::Seq(indice)))
+            .collect(),
+        ObjType::Text => Vec::new(),
+    };
+    for (segment, cle) in cles {
+        let mut sous = chemin.to_vec();
+        sous.push(segment);
+        let valeurs_de_la_cle = doc
+            .get_all(objet, cle)
+            .expect("lire une clé que le document vient de nommer");
+        for (valeur, id) in valeurs_de_la_cle {
+            if let Value::Object(sorte) = valeur {
+                descendre(doc, &id, sorte, &sous, valeurs);
+            }
+            valeurs.push((sous.clone(), valeur));
+        }
+    }
+}
+
+/// Les clés de la racine du document hors de ses conteneurs : la version de schéma,
+/// l'identifiant, la lignée et l'identifiant de propriétaire.
+const CHAMPS_DE_LA_RACINE: [&str; 4] = [VERSION_DE_SCHEMA, IDENTIFIANT, LIGNEE, PROPRIETAIRE];
+/// Les clés d'une idée.
+const CHAMPS_D_UNE_IDEE: [&str; 7] = [TEXTE, ETIQUETTES, PROVENANCE, PAR, LE, DEPUIS, RETIREE];
+/// Les faits d'une prise, sous `<empreinte>/<fait>`.
+const FAITS_D_UNE_PRISE: [&str; 3] = [IDEE_D_UNE_CAPTATION, FORMAT, DUREE];
+/// Les faits d'un MIDI versé ou d'un texte versé, sous `<empreinte>/<fait>`.
+const FAITS_D_UN_MIDI_OU_D_UN_TEXTE: [&str; 2] = [IDEE_D_UNE_CAPTATION, FORMAT];
+/// Les noms qu'une idée ne porte jamais (§ 30 · 13) : sa durée, son état « reliée », ses prises,
+/// ses photos, ses MIDI versés et ses textes versés, tous engendrés.
+const INTERDITS_SOUS_UNE_IDEE: [&str; 6] =
+    [DUREE, "reliee", PRISES, PHOTOS, MIDI_VERSES, TEXTES_VERSES];
+/// Les noms qu'aucune clé ne porte (§ 30 · 13) : un compte, un total, l'état « à envoyer ».
+const INTERDITS_PARTOUT: [&str; 3] = ["compte", "total", "a_envoyer"];
+
+/// `cle` est `<empreinte>/<fait>`, coupée au premier `/`, l'empreinte non vide et le fait l'un de
+/// `faits`.
+fn fait_d_une_captation(cle: &str, faits: &[&str]) -> bool {
+    cle.split_once('/')
+        .is_some_and(|(nom, fait)| !nom.is_empty() && faits.contains(&fait))
+}
+
+/// `cle` est celle d'un lien « apparenté », `apparente:<a>:<b>`, ses deux bouts non vides.
+fn cle_d_un_lien(cle: &str) -> bool {
+    cle.strip_prefix(APPARENTE)
+        .and_then(|reste| reste.strip_prefix(':'))
+        .and_then(|bouts| bouts.split_once(':'))
+        .is_some_and(|(a, b)| !a.is_empty() && !b.is_empty())
+}
+
+/// La liste blanche, tirée des clés du schéma : à la racine du document, ses champs et ses neuf
+/// conteneurs ; sous `idees`, chaque idée, ses champs, et chaque étiquette sous `etiquettes` ;
+/// sous `prises`, `<empreinte>/` suivi de `idee`, `format` ou `duree` ; sous `midi_verses` et
+/// `textes_verses`, `<empreinte>/` suivi de `idee` ou `format` ; sous `liens`, la clé d'un lien.
+fn permis(chemin: &[String]) -> bool {
+    match chemin {
+        [cle] => {
+            CHAMPS_DE_LA_RACINE.contains(&cle.as_str())
+                || CONTENEURS_DE_LA_GENESE.contains(&cle.as_str())
+        }
+        [conteneur, _] if conteneur == IDEES => true,
+        [conteneur, _, champ] if conteneur == IDEES => CHAMPS_D_UNE_IDEE.contains(&champ.as_str()),
+        [conteneur, _, sous, _] if conteneur == IDEES && sous == ETIQUETTES => true,
+        [conteneur, cle] if conteneur == PRISES => fait_d_une_captation(cle, &FAITS_D_UNE_PRISE),
+        [conteneur, cle] if conteneur == MIDI_VERSES || conteneur == TEXTES_VERSES => {
+            fait_d_une_captation(cle, &FAITS_D_UN_MIDI_OU_D_UN_TEXTE)
+        }
+        [conteneur, cle] if conteneur == LIENS => cle_d_un_lien(cle),
+        _ => false,
+    }
+}
+
+/// Un nom interdit (§ 30 · 13) : `etiquettes` à la racine du document ; sous une idée, l'un de
+/// `INTERDITS_SOUS_UNE_IDEE` ; partout, chaque clé coupée à chaque `/`, l'un de
+/// `INTERDITS_PARTOUT`, une étiquette ou un identifiant de ce nom compris.
+fn interdit(chemin: &[String]) -> bool {
+    let sous_son_parent = match chemin {
+        [cle] => cle == ETIQUETTES,
+        [conteneur, _, champ] if conteneur == IDEES => {
+            INTERDITS_SOUS_UNE_IDEE.contains(&champ.as_str())
+        }
+        _ => false,
+    };
+    sous_son_parent
+        || chemin
+            .iter()
+            .flat_map(|cle| cle.split('/'))
+            .any(|segment| INTERDITS_PARTOUT.contains(&segment))
 }
 
 /// I01 (§ 70 · 3) : les chemins du document dont la clé sort de la liste blanche que tirent les
-/// clés du schéma (`noyau::donnees::fonds`), ou porte un nom interdit (§ 30 · 13).
-pub fn parcourir(_doc: &Automerge) -> Vec<String> {
-    Vec::new()
+/// clés du schéma (`noyau::donnees::fonds`), ou porte un nom interdit (§ 30 · 13), chacun une
+/// fois, ses clés jointes par `/`, dans l'ordre de leurs octets.
+pub fn parcourir(doc: &Automerge) -> Vec<String> {
+    let fautifs: BTreeSet<String> = chaque_valeur(doc)
+        .into_iter()
+        .filter(|(chemin, _)| !permis(chemin) || interdit(chemin))
+        .map(|(chemin, _)| chemin.join("/"))
+        .collect();
+    fautifs.into_iter().collect()
 }
 
 /// Les chemins du document dont la valeur est un compteur (`ScalarValue::Counter`), ou un objet
 /// texte, table ou liste (`ObjType::Text`, `ObjType::Table`, `ObjType::List`), que Pupitre
-/// n'écrit pas (§ 31 · 2.6).
-pub fn parcourir_les_types(_doc: &Automerge) -> Vec<String> {
-    Vec::new()
+/// n'écrit pas (§ 31 · 2.6), chacun une fois, ses clés jointes par `/`, dans l'ordre de leurs
+/// octets.
+pub fn parcourir_les_types(doc: &Automerge) -> Vec<String> {
+    let fautifs: BTreeSet<String> = chaque_valeur(doc)
+        .into_iter()
+        .filter(|(_, valeur)| match valeur {
+            Value::Object(sorte) => {
+                matches!(sorte, ObjType::Text | ObjType::Table | ObjType::List)
+            }
+            Value::Scalar(scalaire) => matches!(**scalaire, ScalarValue::Counter(_)),
+        })
+        .map(|(chemin, _)| chemin.join("/"))
+        .collect();
+    fautifs.into_iter().collect()
 }
 
 /// Le refus d'une commande qui ne se fait pas sur le fonds tel qu'il est : `Raison::Impossible`,
