@@ -1672,10 +1672,17 @@ aucune source échoue.
   `crates/stockage/src/documents.rs` et `crates/stockage/src/racine_des_donnees.rs` : ailleurs, aucun de
   `application::appliquer(`, `application::naitre(`, `application::faire_naitre(`, `application::migrer(`, qui portent
   une parenthèse que les docs qui les nomment n'ont pas (revue de la PR (a) : I28 statique ne voit pas un appel de
-  l'API publique) ; ni une ligne `use` qui porte `application` et l'un des quatre noms (`use
-  services::application::appliquer;`, puis `appliquer(`, que la forme qualifiée laisserait passer). Un `use` écrit
-  sur plusieurs lignes échappe au contrôle, et son commentaire le dit ; le type `services::application::Inapplicable`,
-  que nomme `crates/stockage/src/lib.rs`, reste admis.
+  l'API publique) ; ni aucune ligne `use` qui porte `application`, quel que soit l'import : nommé (`use
+  services::application::appliquer;`, puis `appliquer(`, que la forme qualifiée laisserait passer), groupé
+  (`use services::{application, lecture};`), en glob (`use services::application::*;`, puis `appliquer(`) ou
+  renommé (`use services::application as w;`, puis `w::appliquer(`) (revue de la PR (b) : la décision de la revue
+  de la PR (a) refuse toute mention de `services::application`, un `use` compris, et un import en glob ou renommé
+  passerait une règle qui chercherait aussi l'un des quatre noms). Le chemin en ligne
+  `services::application::Inapplicable`, que nomme `crates/stockage/src/lib.rs`, reste admis : ce n'est pas une
+  ligne `use`. Un `use` écrit sur plusieurs lignes, dont la ligne qui porte `application` ne commence pas par
+  `use`, échappe au contrôle, et son commentaire le dit. Aujourd'hui, hors de `crates/services/src/`, seule
+  `crates/stockage/src/documents.rs:45` porte une telle ligne, permise
+  (`git grep -nE "^\s*(pub\s+)?use\b.*application" -- 'crates/*/src/**' 'app/*/src/**'`).
 - **Pourquoi `HashMap`, `HashSet` et `RandomState`** (plan maître, « Outils et cas limites », ajouté le
   2026-11-13) : sous leur hacheur par défaut, `new()`, `default()` et `collect()` tirent leur graine du système
   sans qu'aucun mot de l'aléa ne paraisse, et l'ordre d'itération change d'un passage à l'autre ; une règle qui
@@ -1706,7 +1713,7 @@ L'étape de CI :
           done
 ```
 
-- [ ] **Étape 1 : écrire les tests** : pour chaque contrôle, `chaque_controle_refuse_ce_qu_on_y_plante` (une source inventée qui porte `tx.put(` dans `crates/interface_essai/src/lib.rs`, puis une autre qui y appelle `services::application::appliquer(&mut doc, &operation)`, une autre qui porte `use services::application::appliquer;` puis `appliquer(&mut doc, &operation)`, un `use std::fs;` dans le noyau, puis un import groupé, `use std::{fs, path::Path}; fn f() { let _ = fs::read("x"); }`, dans le noyau et dans les services, un `std::thread::spawn` dans les services, un `HashMap::new()` dans le noyau et dans les services, un second
+- [ ] **Étape 1 : écrire les tests** : pour chaque contrôle, `chaque_controle_refuse_ce_qu_on_y_plante` (une source inventée qui porte `tx.put(` dans `crates/interface_essai/src/lib.rs`, puis une autre qui y appelle `services::application::appliquer(&mut doc, &operation)`, une autre qui porte `use services::application::appliquer;` puis `appliquer(&mut doc, &operation)`, une autre qui porte `use services::application::*;` puis `appliquer(&mut doc, &operation)`, un `use std::fs;` dans le noyau, puis un import groupé, `use std::{fs, path::Path}; fn f() { let _ = fs::read("x"); }`, dans le noyau et dans les services, un `std::thread::spawn` dans les services, un `HashMap::new()` dans le noyau et dans les services, un second
 `uuid_v4(`, un `Cargo.toml` du noyau dont la ligne d'`ulid` porte aussi `features = ["std"]` : chacun nommé dans le `Err` ; la ligne exigée seule, `default-features = false` compris, admise), puis le contrôle sur le dépôt : `Ok(())`.
 - [ ] **Étape 2 : voir le rouge**, sur l'essai planté (le contrôle n'existe pas encore : `cannot find function controler`), puis le vert ; l'étape « Le graphe de l'interface » verte, puis rouge à l'essai : `services` ajouté à `app/ui/Cargo.toml`, un envoi rouge à « Cargo.lock à jour », l'artefact `cargo-lock` committé, un envoi rouge à « Le graphe de l'interface » (`services v` et `automerge v` imprimés) ; puis `services` retiré et le `Cargo.lock` remis, vert (les journaux liés dans la description).
 - [ ] **Étape 3 : committer** par chemins (`test: les contrôles statiques du noyau, des services et d'I28`, `ci: le graphe de l'interface, sans automerge, services ni stockage`).
