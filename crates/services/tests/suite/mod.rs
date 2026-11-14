@@ -776,9 +776,10 @@ pub fn chaque_geste_de_tri_parait_au_journal<P: Paire>(paire: &mut P) {
 /// X notée, et P1, versée sous son idée W, regroupée dans X ; puis V, née du versement de P2
 /// seule. Regrouper P2 dans X retire V par le même geste : le journal gagne une seule entrée, qui
 /// le dit ; V, retirée à l'heure du contexte, sans captation, quitte la liste des idées, comme W,
-/// vidée par le premier regroupement ; X porte P1 et P2. Annuler ce regroupement rend P2 à V,
-/// rétablie : V revient dans la liste des idées, W non, X ne porte plus que P1, et le journal
-/// porte le regroupement puis son annulation ; un second « annuler » est refusé, rien à annuler.
+/// vidée par le premier regroupement ; X porte P1 et P2. Annuler ce regroupement, au lendemain,
+/// rend P2 à V, rétablie : V revient dans la liste des idées, W non, X ne porte plus que P1, et le
+/// journal porte le regroupement puis son annulation, à l'heure du contexte de celle-ci, non à
+/// celle du geste ; un second « annuler » est refusé, rien à annuler.
 pub fn l_idee_videe_par_un_regroupement_est_retiree<P: Paire>(paire: &mut P) {
     let mut services = paire.neufs();
     let mut alea = AleaDeTest {
@@ -830,6 +831,7 @@ pub fn l_idee_videe_par_un_regroupement_est_retiree<P: Paire>(paire: &mut P) {
         Ok(prises(&[&p1, &v.empreinte]))
     );
 
+    contexte.heure = LENDEMAIN;
     assert_eq!(
         services.annuler(&mut contexte),
         Ok(Faite {
@@ -838,7 +840,7 @@ pub fn l_idee_videe_par_un_regroupement_est_retiree<P: Paire>(paire: &mut P) {
     );
     journal.push(entree(
         "Annulé : Idée du 14 novembre : prise regroupée, idée du 14 novembre retirée",
-        HEURE,
+        LENDEMAIN,
     ));
     assert_eq!(services.journal(), Ok(journal));
     let vue_de_v = services
