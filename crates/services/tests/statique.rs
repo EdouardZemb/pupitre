@@ -292,6 +292,10 @@ fn saines() -> Vec<(String, String)> {
             "use services::application;\n\nfn appliquer(doc: &mut Automerge, operation: &Operation) {\n    application::appliquer(doc, operation).unwrap();\n    let mut tx = doc.transaction();\n    tx.commit();\n}\n",
         ),
         source(
+            "crates/stockage/src/racine_des_donnees.rs",
+            "use automerge::transaction::Transaction;\n\nfn naitre(geste: impl FnOnce(&mut Transaction<'_>)) {}\n",
+        ),
+        source(
             "crates/stockage/src/lib.rs",
             "pub enum Erreur {\n    Inapplicable(services::application::Inapplicable),\n}\n",
         ),
@@ -360,6 +364,8 @@ fn chaque_controle_refuse_ce_qu_on_y_plante() {
         "use services::application::*;\nfn f() {\n    appliquer(&mut doc, &operation);\n}\n",
         "use services::{application, lecture};\n",
         "use services::application as w;\nfn f() {\n    w::appliquer(&mut doc, &operation);\n}\n",
+        "pub use services::application;\n",
+        "    pub(crate) use services::application::appliquer;\n",
     ] {
         refuse(&avec(essai, import), essai, "application");
     }
@@ -401,6 +407,12 @@ fn chaque_controle_refuse_ce_qu_on_y_plante() {
             proprietaire,
             "fn identifiant_de_proprietaire(octets: [u8; 16]) -> String {\n    uuid_v4(octets)\n}\n\nfn autre(octets: [u8; 16]) -> String {\n    uuid_v4(octets)\n}\n",
         ),
+        proprietaire,
+        "uuid_v4(",
+    );
+    // Aucun `uuid_v4(` : l'identifiant de propriétaire ne se forme plus.
+    refuse(
+        &avec(proprietaire, "fn identifiant_de_proprietaire() {}\n"),
         proprietaire,
         "uuid_v4(",
     );

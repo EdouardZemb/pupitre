@@ -183,14 +183,11 @@ fn refuse(sources: &[(String, String)], chemin: &str, mot: &str) {
 fn chaque_controle_refuse_ce_qu_on_y_plante() {
     // La source saine, et la ligne d'`ulid` seule, `default-features = false` compris : admises.
     assert_eq!(controler(&saines()), Ok(()));
-    // Un contrôle qui ne lit aucune source échoue.
+    // Un contrôle qui ne lit aucune source échoue : ni source Rust, ni `Cargo.toml`.
     let Err(fautes) = controler(&[]) else {
         panic!("aucune source lue, et le contrôle passe");
     };
-    assert!(
-        fautes.iter().any(|f| f == "aucune source Rust lue"),
-        "{fautes:?}"
-    );
+    assert_eq!(fautes, ["aucune source Rust lue", "aucun Cargo.toml lu"]);
     let plante = "crates/noyau/src/plante.rs";
     refuse(&avec(plante, "use std::fs;\n"), plante, "std::fs");
     // Un import groupé ne nomme pas `std::fs` : le chemin court l'attrape.
