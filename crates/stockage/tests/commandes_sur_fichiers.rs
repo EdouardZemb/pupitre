@@ -10,11 +10,12 @@ mod suite;
 mod commun;
 
 use commandes::Notee;
+use noyau::donnees::acces::Acces;
 use noyau::donnees::gestes;
 use noyau::donnees::version::Migration;
 use services::{Documents, Raison, Refus, Services};
 use stockage::pannes::{Etape, couper};
-use stockage::{Captations, FondsSurFichiers, RacineDesDonnees};
+use stockage::{Captations, Document, FondsSurFichiers, LectureSeule, RacineDesDonnees};
 use suite::{AleaDeTest, IDEE, Paire, SECONDE_IDEE, contexte_de_test, une_note};
 
 /// La paire sur fichiers, sur la racine des données `racine` : le fonds de la racine, sans
@@ -122,9 +123,18 @@ fn une_commande_sur_un_fonds_plus_recent_est_refusee_et_le_nomme() {
 #[test]
 fn une_migration_qui_attend_ses_dependances_laisse_le_fonds_en_lecture_seule() {
     let racine = racine_jetable("commandes-migration-en-attente");
-    suite::une_migration_qui_attend_ses_dependances_laisse_le_fonds_en_lecture_seule(
+    let services = suite::une_migration_qui_attend_ses_dependances_laisse_le_fonds_en_lecture_seule(
         &mut PaireSurFichiers { racine: &racine },
     );
+    // Sur fichiers, la raison de la lecture seule nomme la migration refusée, et ne laisse ni
+    // écrire ni échanger.
+    let raison = services
+        .documents()
+        .document()
+        .and_then(Document::lecture_seule)
+        .expect("le document se lit sans écrire");
+    assert_eq!(raison, &LectureSeule::MigrationRefusee);
+    assert_eq!(raison.acces(), Acces::Illisible);
 }
 
 #[test]

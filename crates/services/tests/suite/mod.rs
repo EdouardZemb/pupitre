@@ -398,10 +398,11 @@ pub fn une_commande_sur_un_fonds_plus_recent_est_refusee_et_le_nomme<P: Paire>(p
 /// rend `lecture_seule()`, `Raison::Illisible` ; sa version de schéma reste 1, et son journal et
 /// la vue de l'idée notée se lisent. Une note est refusée de ce refus, sans rien tirer : rien ne
 /// s'écrit à la version de schéma 1 devant une application qui en connaît une autre, et le journal
-/// ne change pas.
+/// ne change pas. Rend les services, que chaque paire examine selon ses adaptateurs : la raison de
+/// la lecture seule du document sur fichiers, le message du refus en mémoire.
 pub fn une_migration_qui_attend_ses_dependances_laisse_le_fonds_en_lecture_seule<P: Paire>(
     paire: &mut P,
-) {
+) -> Services<P::D, P::C> {
     let mut services = paire.neufs();
     let mut alea = AleaDeTest {
         graine: 0,
@@ -444,4 +445,5 @@ pub fn une_migration_qui_attend_ses_dependances_laisse_le_fonds_en_lecture_seule
     // Les quatre tirages de la naissance, et aucun de plus : la note refusée n'a rien tiré.
     assert_eq!(alea.appels, 4);
     assert_eq!(services.journal(), Ok(journal));
+    services
 }

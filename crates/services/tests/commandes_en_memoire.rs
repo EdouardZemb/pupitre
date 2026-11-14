@@ -6,8 +6,8 @@ mod suite;
 
 use noyau::donnees::gestes;
 use noyau::donnees::version::Migration;
-use services::Services;
 use services::en_memoire::{CaptationsEnMemoire, DocumentsEnMemoire};
+use services::{Documents, Services};
 use suite::{AleaDeTest, IDEE, Paire, contexte_de_test, une_note};
 
 /// La paire en mémoire : sans fonds à sa naissance, sur l'établi ; rouverte des octets de son
@@ -105,7 +105,16 @@ fn une_commande_sur_un_fonds_plus_recent_est_refusee_et_le_nomme() {
 
 #[test]
 fn une_migration_qui_attend_ses_dependances_laisse_le_fonds_en_lecture_seule() {
-    suite::une_migration_qui_attend_ses_dependances_laisse_le_fonds_en_lecture_seule(
+    let services = suite::une_migration_qui_attend_ses_dependances_laisse_le_fonds_en_lecture_seule(
         &mut PaireEnMemoire,
+    );
+    // En mémoire, le refus nomme la migration qui ne s'applique pas.
+    let refus = services
+        .documents()
+        .lecture_seule()
+        .expect("le fonds se lit sans écrire");
+    assert_eq!(
+        refus.message,
+        "Une migration de ce fonds ne s'applique pas : il se lit sans écrire ni échanger."
     );
 }
