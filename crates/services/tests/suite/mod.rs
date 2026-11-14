@@ -1356,7 +1356,7 @@ pub fn annuler_rend_le_fonds_d_avant<P: Paire>(paire: &mut P) {
 /// sur A ; noter B ; annuler, qui ôte `#pont` ; annuler, refusé ; relier A et B ; retirer B ;
 /// poser `#pont` sur A ; le reposer, refusé ; annuler, qui ôte `#pont` ; annuler, refusé. Restent
 /// le lien de A et B, B retirée, et A sans étiquette.
-pub fn la_suite_de_la_decision_18<P: Paire>(paire: &mut P) {
+pub fn annuler_ne_vise_que_le_dernier_geste_de_tri_depuis_l_ouverture<P: Paire>(paire: &mut P) {
     let mut services = paire.neufs();
     let mut alea = AleaDeTest {
         graine: 0,

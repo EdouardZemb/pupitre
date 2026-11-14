@@ -207,9 +207,11 @@ fn cap02_6_annuler_rend_le_fonds_d_avant_et_le_journal_porte_le_geste_puis_son_a
 }
 
 #[test]
-fn la_suite_de_la_decision_18() {
+fn annuler_ne_vise_que_le_dernier_geste_de_tri_depuis_l_ouverture() {
     let racine = racine_jetable("commandes-suite-des-annulations");
-    suite::la_suite_de_la_decision_18(&mut PaireSurFichiers { racine: &racine });
+    suite::annuler_ne_vise_que_le_dernier_geste_de_tri_depuis_l_ouverture(&mut PaireSurFichiers {
+        racine: &racine,
+    });
 }
 
 #[test]

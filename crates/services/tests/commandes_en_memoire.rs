@@ -165,8 +165,8 @@ fn cap02_6_annuler_rend_le_fonds_d_avant_et_le_journal_porte_le_geste_puis_son_a
 }
 
 #[test]
-fn la_suite_de_la_decision_18() {
-    suite::la_suite_de_la_decision_18(&mut PaireEnMemoire);
+fn annuler_ne_vise_que_le_dernier_geste_de_tri_depuis_l_ouverture() {
+    suite::annuler_ne_vise_que_le_dernier_geste_de_tri_depuis_l_ouverture(&mut PaireEnMemoire);
 }
 
 #[test]
