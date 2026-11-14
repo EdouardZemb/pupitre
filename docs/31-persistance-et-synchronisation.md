@@ -179,7 +179,7 @@ porte encore neuf conteneurs, chacun un objet à clés, que la genèse crée vid
   clés qui naît avec elle, de chaque étiquette à `true`. Une étiquette s'y range sans `#`,
   que le message et l'écran ajoutent, et se compare octet pour octet, sans normalisation.
 - `prises`, `midi_verses` et `textes_verses` : ce que le fonds sait de chaque captation
-  versée, en clés à plat, `<empreinte>/<nom>`, chacune une valeur simple (§ 2.4) : son idée,
+  versée, en clés à plat, `<empreinte>/<clé>`, chacune une valeur simple (§ 2.4) : son idée,
   une décision, et les faits lus. D'une prise, `idee`, `format`, et `duree`, en
   millisecondes, quand elle est lue ; sa date et son appareil restent `—`, sans clé, tant
   que rien ne les lit sur la captation
@@ -188,8 +188,8 @@ porte encore neuf conteneurs, chacun un objet à clés, que la genèse crée vid
   de l'[ADR-024](adr/adr-024-import-d-un-fonds.md) : d'une prise, celui que nomment sa
   signature et son en-tête (`wav`, `flac`…) ; d'un MIDI, `smf0`, `smf1` ou `smf2` ; d'un
   texte, `brut`, `markdown` ou `chordpro` ; jamais l'extension du fichier. Deux répliques
-  qui versent la même captation laissent deux valeurs sous chaque clé : elles sont gardées,
-  et relevées au lot 3 (§ 5).
+  qui versent la même captation laissent deux valeurs sous chaque clé, qu'Automerge garde
+  jusqu'à la prochaine écriture de la clé, et que le lot 3 relève à la synchronisation (§ 5).
 - `liens` : de la clé d'un lien, `apparente:<a>:<b>`, ses deux bouts rangés dans l'ordre de
   leurs octets ([§ 30 · 9.3](30-modele-de-domaine.md#93-regrouper-et-relier)), à `true`.
   Un lien, comme une étiquette, vaut `true`, sans date : celle du geste qui l'a posé se lit
@@ -198,10 +198,18 @@ porte encore neuf conteneurs, chacun un objet à clés, que la genèse crée vid
 - `requetes_enregistrees`, `imports`, `origines_declarees` et `photos` : vides, jusqu'aux
   lots qui les écrivent.
 
-Les faits d'une captation que l'import lira encore, dont la division d'un MIDI et les autres
-faits d'un en-tête ([ADR-024](adr/adr-024-import-d-un-fonds.md)), s'écriront sous des clés
-ajoutées à côté des autres, `<empreinte>/<fait>`, sans migration : chez une captation plus
-ancienne, une telle clé se lit absente, et le fait vaut `—`
+Ce que l'import écrira encore ([ADR-024](adr/adr-024-import-d-un-fonds.md)) a déjà sa place
+dans ces conteneurs, sous des clés ajoutées, sans conteneur ni migration de plus :
+
+- sous `prises`, les stems d'une prise en stems, `<prise>/stem/<stem>/<fait>`, et son
+  manifeste, `<prise>/manifeste` ;
+- sous le conteneur de la sorte de leur contenu, les noms d'origine d'une captation, un
+  ensemble, `<empreinte>/nom/<nom>` à `true`, chaque nom chemin compris ;
+- sous `imports`, le rapport d'un import, `<import>/rapport` ;
+- la division d'un MIDI et les autres faits d'un en-tête, sous des clés `<empreinte>/<fait>`
+  ajoutées.
+
+Chez une captation plus ancienne, une telle clé se lit absente, et le fait vaut `—`
 ([ADR-006](adr/adr-006-le-partiel-est-normal.md)).
 
 ### 2.1 Sur le disque

@@ -665,7 +665,9 @@ Trois relations partent d'une idée, et chacune n'a qu'un mécanisme.
 - **Un lien se nomme par son type et ses deux bouts** (§ 2) : pour « apparenté à », non
   orienté, les deux identifiants rangés dans l'ordre de leurs octets ; pour « devenue »,
   l'idée, puis ce qu'elle est devenue. Deux appareils qui posent hors ligne le même lien, dans
-  un sens ou dans l'autre, n'en font qu'un, et le même lien ne s'écrit jamais deux fois. Il vit
+  un sens ou dans l'autre, n'en font qu'un : une seule clé, où chacun a posé `true`
+  ([§ 31 · 2](31-persistance-et-synchronisation.md#2-les-documents)) ; sur un appareil, un
+  lien déjà posé ne se repose pas. Il vit
   dans le document du fonds, même quand un bout est un morceau : c'est une référence par
   identifiant, pas un lien vivant entre documents (§ 5.4). Un lien ne porte pas de date :
   celle du geste qui l'a posé se lit dans le journal du fonds.
