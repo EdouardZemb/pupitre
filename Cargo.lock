@@ -609,6 +609,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "commandes"
+version = "0.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "config"
 version = "0.15.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
