@@ -1,22 +1,18 @@
 //! L'application des changements sur un document Automerge, sa lecture, et la paire d'adaptateurs
 //! en mémoire : une opération s'applique en une seule modification, avec son message et son
-//! heure, ou ne laisse rien ; le fonds lu ne prend que les valeurs du type du schéma ; la paire en
-//! mémoire migre à son ouverture, se met en lecture seule devant une migration qui attend ses
-//! dépendances, et rend la même empreinte d'une captation versée deux fois. La migration de test
-//! vient de la suite des commandes, qui la porte une seule fois.
+//! heure, ou ne laisse rien ; une migration qui attend ses dépendances ne fait pas migrer ; le
+//! fonds lu ne prend que les valeurs du type du schéma ; la paire en mémoire migre à son
+//! ouverture, et rend la même empreinte d'une captation versée deux fois. La migration de test et
+//! celle qui attend ses dépendances viennent de la suite des commandes, qui les porte une seule
+//! fois, et qui éprouve sur chaque paire le fonds qu'une telle migration laisse en lecture seule.
 
 mod suite;
 
 use std::collections::BTreeSet;
 
-use automerge::transaction::{CommitOptions, Transactable};
-use automerge::{
-    ActorId, Automerge, AutomergeError, ObjId, ObjType, ROOT, ReadDoc, ScalarValue, Value,
-};
+use automerge::{Automerge, AutomergeError, ObjId, ObjType, ROOT, ReadDoc, ScalarValue, Value};
 use noyau::donnees::changement::{Changement, Operation, Simple};
-use noyau::donnees::fonds::{
-    ETIQUETTES, IDEES, IDENTIFIANT, LE, MIGRATIONS, TEXTE, VERSION_DE_SCHEMA,
-};
+use noyau::donnees::fonds::{ETIQUETTES, IDEES, IDENTIFIANT, LE, MIGRATIONS, TEXTE};
 use noyau::donnees::gestes::{Appareil, IdeeLue, Provenance, naissance, noter};
 use noyau::donnees::identifiants::empreinte;
 use noyau::donnees::version::message_de_la_migration;
@@ -24,7 +20,10 @@ use services::application::{Inapplicable, appliquer, faire_naitre, migrer, naitr
 use services::en_memoire::{CaptationsEnMemoire, DocumentsEnMemoire};
 use services::lecture::{idees, journal, lire_l_idee, version_de_schema};
 use services::{Captations, Documents, Raison, Refus};
-use suite::{CONTENEUR_DE_LA_MIGRATION, migration_de_test, migrations_de_test};
+use suite::{
+    CONTENEUR_DE_LA_MIGRATION, migration_de_test, migration_sur_une_autre_genese,
+    migrations_de_test,
+};
 
 const HEURE: i64 = 1_700_000_000; // le 14 novembre 2023, 22 h 13 min 20 s UTC
 /// L'idée que notent les tests.
@@ -95,34 +94,6 @@ fn scalaire(doc: &Automerge, parent: &ObjId, cle: &str) -> ScalarValue {
 /// L'objet de l'idée `id`, sous `IDEES`.
 fn idee(doc: &Automerge, id: &str) -> ObjId {
     objet(doc, &objet(doc, &ROOT, IDEES), id)
-}
-
-/// Une migration vers la version de schéma 2, engendrée sur un document sans `GENESE` : l'acteur
-/// `autre-genese-de-test` y écrit d'abord une modification qu'aucun fonds ne porte, puis la
-/// migration, qui dépend d'elle. Un fonds qui la reçoit n'a pas cette dépendance : `apply_changes`
-/// la garde en attente, sans erreur. Rend les octets de la migration (`raw_bytes()`).
-fn migration_sur_une_autre_genese() -> Vec<u8> {
-    let mut doc = Automerge::new().with_actor(ActorId::from(b"autre-genese-de-test".as_slice()));
-    let mut tx = doc.transaction();
-    tx.put(ROOT, VERSION_DE_SCHEMA, 1u64)
-        .expect("poser la version de schéma 1");
-    let options = CommitOptions::default()
-        .with_message("Une autre genèse")
-        .with_time(0);
-    let (autre_genese, _) = tx.commit_with(options);
-    autre_genese.expect("l'autre genèse est une modification");
-    let mut tx = doc.transaction();
-    tx.put(ROOT, VERSION_DE_SCHEMA, 2u64)
-        .expect("poser la version de schéma 2");
-    let message = message_de_la_migration(2);
-    let options = CommitOptions::default()
-        .with_message(message.as_str())
-        .with_time(0);
-    let (h, _) = tx.commit_with(options);
-    doc.get_change_by_hash(&h.expect("la migration est une modification"))
-        .expect("la modification de la migration")
-        .raw_bytes()
-        .to_vec()
 }
 
 #[test]
@@ -315,36 +286,16 @@ fn la_paire_en_memoire_migre_a_son_ouverture() {
 }
 
 #[test]
-fn une_migration_qui_attend_ses_dependances_laisse_le_fonds_en_lecture_seule() {
+fn migrer_refuse_une_migration_qui_attend_ses_dependances() {
     let migration = migration_sur_une_autre_genese();
-    let migrations = migrations_de_test(&migration);
-
     // `apply_changes` garde la migration en attente, sans erreur : `migrer` le dit.
     let mut doc = fonds_note();
-    let migre = migrer(&mut doc, &migrations);
+    let migre = migrer(&mut doc, &migrations_de_test(&migration));
     assert!(
         matches!(migre, Err(AutomergeError::MissingDeps)),
         "{migre:?}"
     );
     assert_eq!(version_de_schema(&doc), Some(1));
-
-    // La paire en mémoire ouverte de ces octets : le fonds n'a pas migré, il se lit sans écrire.
-    let octets = fonds_note().save();
-    let mut documents = DocumentsEnMemoire::de(&octets, &migrations).expect("le fonds s'ouvre");
-    let refus = documents
-        .lecture_seule()
-        .expect("le fonds se lit sans écrire");
-    assert_eq!(refus.raison, Raison::Illisible);
-    assert_eq!(
-        documents.appliquer(&operation(vec![poser(
-            &[IDEES, I, ETIQUETTES, "pont"],
-            Simple::Vrai
-        )])),
-        Err(refus)
-    );
-    let fonds = documents.fonds().expect("le fonds se lit");
-    assert_eq!(version_de_schema(fonds), Some(1));
-    assert!(lire_l_idee(fonds, I).is_some());
 }
 
 #[test]

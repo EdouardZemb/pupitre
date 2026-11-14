@@ -61,3 +61,10 @@ fn une_note_vide_refusee_ne_fait_rien_naitre() {
 fn une_commande_sur_un_fonds_plus_recent_est_refusee_et_le_nomme() {
     suite::une_commande_sur_un_fonds_plus_recent_est_refusee_et_le_nomme(&mut PaireEnMemoire);
 }
+
+#[test]
+fn une_migration_qui_attend_ses_dependances_laisse_le_fonds_en_lecture_seule() {
+    suite::une_migration_qui_attend_ses_dependances_laisse_le_fonds_en_lecture_seule(
+        &mut PaireEnMemoire,
+    );
+}

@@ -1,9 +1,11 @@
 //! La suite des commandes : des tests écrits une fois, génériques sur une paire d'adaptateurs
 //! (`Paire`), que rejouent la paire en mémoire (`crates/services/tests/commandes_en_memoire.rs`)
-//! et celle des fichiers, au stockage ; l'heure et l'aléa des tests, l'identifiant de l'import des
-//! fiches qu'ils versent, la migration de test et les migrations qui la portent. Le fichier
-//! s'inclut par `mod suite;` dans les tests des services et dans ceux du stockage : il ne nomme
-//! que ce que les deux voient, les services, les commandes, le noyau et `automerge`.
+//! et celle des fichiers, au stockage (`crates/stockage/tests/commandes_sur_fichiers.rs`) ;
+//! l'heure et l'aléa des tests, l'identifiant de l'import des fiches qu'ils versent, la migration
+//! de test, les migrations qui la portent, et une migration qui attend ses dépendances. Le
+//! fichier s'inclut par `mod suite;` dans les tests des services, et par
+//! `#[path = "../../services/tests/suite/mod.rs"]` dans ceux du stockage : il ne nomme que ce que
+//! les deux voient, les services, les commandes, le noyau et `automerge`.
 
 // Chaque fichier qui inclut la suite n'en emploie qu'une partie.
 #![allow(dead_code)]
@@ -15,6 +17,7 @@ use noyau::donnees::fonds::{
     ACTEUR_DE_LA_GENESE, GENESE, IDENTIFIANT, LIGNEE, PROPRIETAIRE, VERSION_DE_SCHEMA,
 };
 use noyau::donnees::version::{Migration, message_de_la_migration};
+use services::lecture::version_de_schema;
 use services::{Alea, Captations, Contexte, Documents, Services};
 
 /// L'heure des tests, en secondes : le 14 novembre 2023, 22 h 13 min 20 s UTC.
@@ -30,9 +33,9 @@ pub const IMPORT: &str = "01HF7YAT00ZZZZZZZZZZZZZZZZ";
 const ULID_DU_DOCUMENT: &str = "01HF7YAT000000000000000001";
 const ULID_DE_LA_LIGNEE: &str = "01HF7YAT000000000000000002";
 const IDENTIFIANT_DE_PROPRIETAIRE: &str = "00000000-0000-4000-8000-000000000003";
-const IDEE: &str = "01HF7YAT000000000000000004";
+pub const IDEE: &str = "01HF7YAT000000000000000004";
 /// L'idée d'une seconde note, sur le fonds né : le tirage qui suit.
-const SECONDE_IDEE: &str = "01HF7YAT000000000000000005";
+pub const SECONDE_IDEE: &str = "01HF7YAT000000000000000005";
 
 /// L'aléa des tests : à chaque appel, l'octet 0 vaut `graine`, les huit derniers le rang de
 /// l'appel, en gros-boutiste, compté de 1 ; le reste, 0. Chaque réplique d'un test a sa graine.
@@ -109,13 +112,41 @@ pub fn migrations_de_test(octets: &[u8]) -> [Migration<'_>; 1] {
     }]
 }
 
+/// Une migration vers la version de schéma 2, engendrée sur un document sans `GENESE` : l'acteur
+/// `autre-genese-de-test` y écrit d'abord une modification qu'aucun fonds ne porte, puis la
+/// migration, qui dépend d'elle. Un fonds qui la reçoit n'a pas cette dépendance : `apply_changes`
+/// la garde en attente, sans erreur. Rend les octets de la migration (`raw_bytes()`).
+pub fn migration_sur_une_autre_genese() -> Vec<u8> {
+    let mut doc = Automerge::new().with_actor(ActorId::from(b"autre-genese-de-test".as_slice()));
+    let mut tx = doc.transaction();
+    tx.put(ROOT, VERSION_DE_SCHEMA, 1u64)
+        .expect("poser la version de schéma 1");
+    let options = CommitOptions::default()
+        .with_message("Une autre genèse")
+        .with_time(0);
+    let (autre_genese, _) = tx.commit_with(options);
+    autre_genese.expect("l'autre genèse est une modification");
+    let mut tx = doc.transaction();
+    tx.put(ROOT, VERSION_DE_SCHEMA, 2u64)
+        .expect("poser la version de schéma 2");
+    let message = message_de_la_migration(2);
+    let options = CommitOptions::default()
+        .with_message(message.as_str())
+        .with_time(0);
+    let (h, _) = tx.commit_with(options);
+    doc.get_change_by_hash(&h.expect("la migration est une modification"))
+        .expect("la modification de la migration")
+        .raw_bytes()
+        .to_vec()
+}
+
 /// Le contexte des tests : `HEURE`, et `alea`.
-fn contexte_de_test(alea: &mut AleaDeTest) -> Contexte<'_> {
+pub fn contexte_de_test(alea: &mut AleaDeTest) -> Contexte<'_> {
     Contexte { heure: HEURE, alea }
 }
 
 /// La commande qui note `texte`, au décalage local nul.
-fn une_note(texte: &str) -> Noter {
+pub fn une_note(texte: &str) -> Noter {
     Noter {
         texte: texte.to_string(),
         decalage_minutes: 0,
@@ -312,4 +343,57 @@ pub fn une_commande_sur_un_fonds_plus_recent_est_refusee_et_le_nomme<P: Paire>(p
         services.captations().relire(&empreinte),
         Ok(octets.to_vec())
     );
+}
+
+/// Le fonds né d'une note, rouvert selon une migration qui attend ses dépendances
+/// (`migration_sur_une_autre_genese`) : il n'a pas migré, et se lit sans écrire, du refus que
+/// rend `lecture_seule()`, `Raison::Illisible` ; sa version de schéma reste 1, et son journal et
+/// la vue de l'idée notée se lisent. Une note est refusée de ce refus, sans rien tirer : rien ne
+/// s'écrit à la version de schéma 1 devant une application qui en connaît une autre, et le journal
+/// ne change pas.
+pub fn une_migration_qui_attend_ses_dependances_laisse_le_fonds_en_lecture_seule<P: Paire>(
+    paire: &mut P,
+) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    services
+        .noter(
+            &une_note("Un refrain qui monte, en ré"),
+            &mut contexte_de_test(&mut alea),
+        )
+        .expect("la note est faite");
+    let journal = vec![
+        entree("Genèse du fonds", 0),
+        entree("Fonds créé", HEURE),
+        entree("Idée du 14 novembre notée", HEURE),
+    ];
+    let migration = migration_sur_une_autre_genese();
+    let mut services = paire.rouvrir(services, &migrations_de_test(&migration));
+
+    let refus = services
+        .documents()
+        .lecture_seule()
+        .expect("le fonds se lit sans écrire");
+    assert_eq!(refus.raison, Raison::Illisible);
+    let fonds = services.documents().fonds().expect("le fonds se lit");
+    assert_eq!(version_de_schema(fonds), Some(1));
+    assert_eq!(services.journal(), Ok(journal.clone()));
+    let vue = services
+        .vue_d_une_idee(IDEE)
+        .expect("la vue de l'idée se lit");
+    assert_eq!(vue.texte.as_deref(), Some("Un refrain qui monte, en ré"));
+
+    assert_eq!(
+        services.noter(
+            &une_note("Un pont en mi mineur"),
+            &mut contexte_de_test(&mut alea)
+        ),
+        Err(refus)
+    );
+    // Les quatre tirages de la naissance, et aucun de plus : la note refusée n'a rien tiré.
+    assert_eq!(alea.appels, 4);
+    assert_eq!(services.journal(), Ok(journal));
 }
