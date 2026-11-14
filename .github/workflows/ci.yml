@@ -131,6 +131,13 @@ jobs:
         run: cargo clippy -p interface --target wasm32-unknown-unknown -- -D warnings
       - name: Tests
         run: cargo test -p noyau -p cahier -p interface -p stockage -p synchro -p commandes -p services
+      # La part de la tranche 2 du test 13 du § 31 · 10 : le fonds de mesure, engendré par les
+      # opérations nommées puis rouvert sur fichiers, pèse moins de 4 500 000 octets ; l'étape
+      # imprime son poids et la durée. Le test est ignoré : « Tests » le saute, et seule cette
+      # étape le lance, ici, hors du job windows ; en --release, pour tenir dans le délai de
+      # verifier. La tranche 5 complète le test 13.
+      - name: Le fonds de mesure (test 13, la part de la tranche 2)
+        run: cargo test -p stockage --release --test mesure -- --ignored --nocapture
 
   # H10, la partie automatique : l'établi se construit en installateur Windows (NSIS), que
   # la maîtrise d'ouvrage installe ensuite sur un PC pour voir la page s'ouvrir. `trunk` et

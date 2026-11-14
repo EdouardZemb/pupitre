@@ -1,14 +1,15 @@
 //! La suite des commandes sur la paire d'adaptateurs en mémoire : chaque test de la suite,
 //! rejoué sur `DocumentsEnMemoire` et `CaptationsEnMemoire` ; puis, sur cette paire seule, les
-//! services du carnet.
+//! services du carnet et le générateur du fonds de mesure.
 
 mod suite;
 
 use noyau::donnees::gestes;
 use noyau::donnees::version::Migration;
 use services::en_memoire::{CaptationsEnMemoire, DocumentsEnMemoire};
+use services::mesure::{Engendre, engendrer_le_fonds_de_mesure_selon};
 use services::{Documents, Services};
-use suite::{AleaDeTest, IDEE, Paire, contexte_de_test, une_note};
+use suite::{AleaDeTest, HEURE, IDEE, Paire, contexte_de_test, une_note};
 
 /// La paire en mémoire : sans fonds à sa naissance, sur l'établi ; rouverte des octets de son
 /// fonds, ou neuve sans eux, les captations gardées.
@@ -213,4 +214,45 @@ fn rien_d_engendre_n_est_stocke() {
 #[test]
 fn aucun_counter_ni_objet_text_dans_un_document_des_operations() {
     suite::aucun_counter_ni_objet_text_dans_un_document_des_operations(&mut PaireEnMemoire);
+}
+
+/// Le générateur du fonds de mesure, sur deux groupes de trois prises, deux fois, chaque fois sur
+/// une paire neuve : les mêmes comptes, deux idées visibles et quatre retirées en 23 opérations,
+/// et la même teneur ; chaque texte des deux idées visibles fait au moins 200 octets.
+#[test]
+fn le_generateur_est_deterministe() {
+    let engendrer = || {
+        let mut services = PaireEnMemoire.neufs();
+        let engendre = engendrer_le_fonds_de_mesure_selon(&mut services, HEURE, 2)
+            .expect("le fonds de mesure s'engendre");
+        let fonds = services.documents().fonds().expect("le fonds est né");
+        let teneur = services::lecture::teneur(fonds).expect("la teneur s'écrit");
+        (engendre, teneur, services)
+    };
+    let (engendre, teneur, services) = engendrer();
+    let (autre, autre_teneur, _) = engendrer();
+    assert_eq!(
+        engendre,
+        Engendre {
+            idees_visibles: 2,
+            idees_retirees: 4,
+            operations: 23,
+        }
+    );
+    assert_eq!(autre, engendre);
+    assert_eq!(autre_teneur, teneur);
+    let idees = services.idees().expect("les idées se lisent");
+    assert_eq!(idees.len(), 2);
+    for idee in &idees {
+        let texte = services
+            .vue_d_une_idee(idee)
+            .expect("la vue de l'idée se lit")
+            .texte
+            .expect("l'idée a un texte");
+        assert!(
+            texte.len() >= 200,
+            "le texte de l'idée {idee} fait {} octets : {texte}",
+            texte.len()
+        );
+    }
 }
