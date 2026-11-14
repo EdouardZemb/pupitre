@@ -254,17 +254,14 @@ fn captation(sorte: Sorte, empreinte: String, idee: String, duree: Option<u64>) 
     }
 }
 
-/// Les clés de `LIENS` dont un bout est `id` : `apparente:<a>:<b>`, coupée aux deux premiers `:`.
-/// Sans liens à la racine du document, aucune.
+/// Les clés de `LIENS` qui sont celles d'un lien dont un bout est `id`, selon la règle du noyau
+/// (`idee::bouts_du_lien`) : une clé d'une autre forme n'est le lien d'aucune idée. Sans liens à
+/// la racine du document, aucune.
 fn liens_de(doc: &Automerge, id: &str) -> BTreeSet<String> {
     let Some(liens) = objet(doc, &ROOT, LIENS) else {
         return BTreeSet::new();
     };
     doc.keys(&liens)
-        .filter(|cle| {
-            cle.split_once(':')
-                .and_then(|(_, bouts)| bouts.split_once(':'))
-                .is_some_and(|(a, b)| a == id || b == id)
-        })
+        .filter(|cle| idee::bouts_du_lien(cle).is_some_and(|(a, b)| a == id || b == id))
         .collect()
 }
