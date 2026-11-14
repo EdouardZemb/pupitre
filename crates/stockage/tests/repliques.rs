@@ -262,8 +262,8 @@ fn un_texte_change_des_deux_cotes_garde_ses_deux_valeurs() {
 }
 
 /// X notée, puis copiée ; sur chaque copie, hors ligne, l'étiquette `pont` posée sur X ; puis
-/// les deux copies réunies. Chacune ne porte sous les étiquettes de X qu'une clé, `pont`, où
-/// chaque copie a posé `true` (§ 31 · 2) : deux valeurs, égales.
+/// les deux copies réunies. Chacune ne porte sous les étiquettes de X qu'une clé, `pont`, à
+/// `true` (§ 31 · 2), que chaque copie a posé : deux valeurs, égales.
 #[test]
 fn une_etiquette_posee_des_deux_cotes_n_en_fait_qu_une() {
     let r = repliques::<2, _>("repliques-etiquette", une_idee_notee);
@@ -366,8 +366,9 @@ fn deux_regroupements_d_une_meme_prise_ne_la_montrent_que_dans_une_idee() {
             .cloned()
             .collect();
         assert_eq!(
-            montrent, cibles,
-            "les idées qui montrent la prise sur la {nom} copie"
+            montrent.len(),
+            1,
+            "les idées qui montrent la prise sur la {nom} copie : {montrent:?}"
         );
         montrees.push(montrent);
     }
@@ -438,10 +439,11 @@ fn deux_regroupements_croises_retirent_les_deux_idees() {
 /// A notée, puis copiée ; la même prise, importée par l'établi sur chaque copie, hors ligne, à
 /// `HEURE` sur la première, une minute plus tard sur la seconde, sous l'idée qui naît avec elle,
 /// V1 puis V2, que l'heure date, jamais la prise. Réunies, chaque copie ne porte sous les prises
-/// qu'une clé par fait, `<prise>/duree`, `<prise>/format` et `<prise>/idee`, ni date ni appareil
-/// (§ 31 · 2) ; chaque copie a posé chaque fait : sous chacun, deux valeurs, V1 et V2 sous
-/// `idee`, deux formats et deux durées égaux, dont Automerge présente la valeur. L'idée que la
-/// réunion laisse sans la prise reste visible, vide : aucun geste ne l'a retirée.
+/// qu'une clé par fait, `<prise>/duree`, `<prise>/format` et `<prise>/idee`, ni `<prise>/le` ni
+/// `<prise>/par` : la date et l'appareil d'une prise n'ont pas de clé (§ 31 · 2). Chaque copie
+/// a posé chaque fait : sous chacun, deux valeurs, V1 et V2 sous `idee`, deux formats et deux
+/// durées égaux, dont Automerge présente la valeur. L'idée que la réunion laisse sans la prise
+/// reste visible, vide : aucun geste ne l'a retirée.
 #[test]
 fn une_prise_nee_sur_deux_repliques_ne_cache_aucun_de_ses_faits() {
     let r = repliques::<2, _>("repliques-vigilance", une_idee_notee);
