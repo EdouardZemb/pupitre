@@ -311,12 +311,13 @@ pub fn temoin<D: Documents, C: Captations>(
 }
 
 /// Ce que reçoit le suivi des commandes, après chacune (`suivre`) : le fonds, ses heads d'avant
-/// la commande, aucune avant celle qui le fait naître, et le message que rend le noyau pour elle.
+/// la commande, aucune avant celle qui le fait naître, et le message attendu, celui que doit rendre
+/// le noyau.
 pub type Suivi<'s> = dyn FnMut(&Automerge, &[ChangeHash], &str) + 's;
 
 /// Fait `commande` sur `services`, puis montre à `suivi` le fonds, qui doit être né, ses heads
-/// d'avant la commande, et `message`, celui que rend le noyau pour elle. Rend ce que rend la
-/// commande.
+/// d'avant la commande, et `message`, le message attendu, celui que doit rendre le noyau. Rend ce
+/// que rend la commande.
 fn suivre<D: Documents, C: Captations, R>(
     services: &mut Services<D, C>,
     suivi: &mut Suivi<'_>,
@@ -829,10 +830,10 @@ pub fn parcourir(doc: &Automerge) -> Vec<String> {
     fautifs.into_iter().collect()
 }
 
-/// Les chemins du document dont la valeur est un compteur (`ScalarValue::Counter`), ou un objet
-/// texte, table ou liste (`ObjType::Text`, `ObjType::Table`, `ObjType::List`), que Pupitre
-/// n'écrit pas (§ 31 · 2.6), chacun une fois, ses clés jointes par `/`, dans l'ordre de leurs
-/// octets.
+/// Les chemins du document dont la valeur est un compteur (`ScalarValue::Counter`) ou un objet
+/// texte (`ObjType::Text`), que Pupitre n'écrit pas (§ 31 · 2.6), ou une table ou une liste
+/// (`ObjType::Table`, `ObjType::List`), que le schéma de la `v0.3.0` n'a pas (§ 31 · 2), chacun
+/// une fois, ses clés jointes par `/`, dans l'ordre de leurs octets.
 pub fn parcourir_les_types(doc: &Automerge) -> Vec<String> {
     let fautifs: BTreeSet<String> = chaque_valeur(doc)
         .into_iter()
@@ -2236,9 +2237,10 @@ pub fn une_annulation_ne_s_annule_pas<P: Paire>(paire: &mut P) {
 /// I28 sur l'historique (§ 70 · 3) : sur le fonds de chaque geste (`le_fonds_de_chaque_geste`),
 /// la naissance compte à part, la première note écrivant la genèse, la naissance, puis son
 /// message ; chaque autre commande faite ajoute une seule modification à `get_changes`, au message
-/// que rend le noyau (`une_modification`). Une commande plantée en deux modifications, deux
-/// `application::appliquer` de suite sur un document de test, est refusée, et le refus nomme les
-/// deux messages.
+/// que rend le noyau (`une_modification`). Sur un document de test, une seule modification, au
+/// message d'une autre commande que celle attendue, est refusée ; une commande plantée en deux
+/// modifications, deux `application::appliquer` de suite, est refusée, et le refus nomme les deux
+/// messages.
 pub fn chaque_operation_laisse_une_seule_modification_avec_son_message<P: Paire>(paire: &mut P) {
     let mut naissances = 0;
     let mut autres = 0;
@@ -2274,6 +2276,11 @@ pub fn chaque_operation_laisse_une_seule_modification_avec_son_message<P: Paire>
         .operation;
     let avant = doc.get_heads();
     application::appliquer(&mut doc, &complement).expect("le complément s'applique");
+    // Une seule modification, celle du complément : attendue au message de la pose, elle est
+    // refusée, et le refus nomme le message écrit.
+    let refus = une_modification(&doc, &avant, &pose.message)
+        .expect_err("une modification au message d'une autre commande est refusée");
+    assert!(refus.contains(complement.message.as_str()), "{refus}");
     application::appliquer(&mut doc, &pose).expect("la pose s'applique");
     let refus = une_modification(&doc, &avant, &complement.message)
         .expect_err("une commande en deux modifications est refusée");
@@ -2284,10 +2291,11 @@ pub fn chaque_operation_laisse_une_seule_modification_avec_son_message<P: Paire>
 
 /// I28 sur l'historique (§ 70 · 3) : sur le fonds de chaque geste, chaque message du journal est
 /// celui d'une opération connue (`message_connu`). `message_connu` refuse « Idée du 3 novembre :
-/// autre chose », une forme qu'aucune opération n'écrit, et « Annulé : Idée du 3 novembre
-/// notée », une note, qu'annuler ne vise pas ; il reconnaît la genèse, la naissance, une
-/// migration, un exemple de chaque forme d'une note, d'un versement et d'un geste de tri, et
-/// « Annulé : » suivi de chaque forme d'un geste de tri.
+/// autre chose », une forme qu'aucune opération n'écrit, « Annulé : Idée du 3 novembre notée »,
+/// une note, qu'annuler ne vise pas, et des messages bien formés hors d'une date que le noyau
+/// n'écrit pas (un jour 0, 1, 01, 03 ou 32, un mois inconnu) ou d'une étiquette vide ; il
+/// reconnaît la genèse, la naissance, une migration, un exemple de chaque forme d'une note, d'un
+/// versement et d'un geste de tri, et « Annulé : » suivi de chaque forme d'un geste de tri.
 pub fn l_historique_ne_porte_que_des_operations_connues<P: Paire>(paire: &mut P) {
     let services = le_fonds_de_chaque_geste(paire, &mut |_, _, _| {});
     let journal = services.journal().expect("le journal se lit");
@@ -2300,9 +2308,19 @@ pub fn l_historique_ne_porte_que_des_operations_connues<P: Paire>(paire: &mut P)
         );
     }
 
+    // Hors des deux premiers, chacun est bien formé, hors de sa date ou de son étiquette : un
+    // jour 0, 1 (le noyau écrit « 1er »), 01 ou 03 (aucun zéro devant), ou 32 ; un mois inconnu ;
+    // une étiquette vide.
     for inconnu in [
         "Idée du 3 novembre : autre chose",
         "Annulé : Idée du 3 novembre notée",
+        "Idée du 0 novembre notée",
+        "Idée du 1 novembre notée",
+        "Idée du 01 novembre notée",
+        "Idée du 03 novembre notée",
+        "Idée du 32 novembre notée",
+        "Idée du 3 brumaire notée",
+        "Idée du 3 novembre : étiquette # posée",
     ] {
         assert!(!message_connu(inconnu), "« {inconnu} » est reconnu");
     }
