@@ -1,5 +1,6 @@
 //! Les gestes du noyau (§ 31 · 3) : la date d'un message, au décalage local reçu, la naissance,
-//! et noter, que le noyau rend en changements sans rien écrire.
+//! et noter, que le noyau rend en changements sans rien écrire ; l'appareil, retrouvé de son nom,
+//! et chaque sorte, une fois.
 
 use noyau::donnees::changement::{Changement, Simple};
 use noyau::donnees::gestes::{Appareil, Impossible, Sorte, date_du_message, naissance, noter};
@@ -122,4 +123,43 @@ fn chaque_sorte_a_son_conteneur() {
         (Appareil::Etabli.nom(), Appareil::Carnet.nom()),
         ("etabli", "carnet")
     );
+}
+
+/// Chaque appareil du noyau, une fois, à son rang (`rang_de_l_appareil`).
+const APPAREILS: [Appareil; 2] = [Appareil::Etabli, Appareil::Carnet];
+
+/// Le rang de `appareil` dans `APPAREILS`. Le `match` est exhaustif : un appareil ajouté au noyau
+/// ne compile plus ici sans prendre un rang, et `APPAREILS` le reçoit alors.
+fn rang_de_l_appareil(appareil: Appareil) -> usize {
+    match appareil {
+        Appareil::Etabli => 0,
+        Appareil::Carnet => 1,
+    }
+}
+
+/// Le rang de `sorte` dans `Sorte::TOUTES`. Le `match` est exhaustif : une sorte ajoutée au noyau
+/// ne compile plus ici sans prendre un rang, et `Sorte::TOUTES` la reçoit alors.
+fn rang_de_la_sorte(sorte: Sorte) -> usize {
+    match sorte {
+        Sorte::Prise => 0,
+        Sorte::MidiVerseSeul => 1,
+        Sorte::TexteVerse => 2,
+    }
+}
+
+#[test]
+fn chaque_appareil_se_retrouve_de_son_nom() {
+    assert_eq!(APPAREILS.map(rang_de_l_appareil), [0, 1]);
+    for appareil in APPAREILS {
+        assert_eq!(Appareil::depuis_nom(appareil.nom()), Some(appareil));
+    }
+    assert_eq!(Appareil::depuis_nom("telephone"), None);
+    assert_eq!(Appareil::depuis_nom("Etabli"), None);
+    assert_eq!(Appareil::depuis_nom(""), None);
+}
+
+#[test]
+fn toutes_les_sortes_y_sont_une_fois() {
+    // Trois rangs distincts pour trois sortes : chacune y est, une fois, dans son ordre.
+    assert_eq!(Sorte::TOUTES.map(rang_de_la_sorte), [0, 1, 2]);
 }
