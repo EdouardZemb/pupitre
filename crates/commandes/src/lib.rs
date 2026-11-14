@@ -12,7 +12,7 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Les noms des commandes que cette crate type : les opérations nommées et les requêtes du fonds.
+/// Les noms des commandes que cette crate type : les opérations nommées et les lectures du fonds.
 /// `exporter_cahier`, la commande de l'établi qui exporte le cahier des tables depuis INC-0, les
 /// rejoindra.
 pub const NOMS: &[&str] = &[
