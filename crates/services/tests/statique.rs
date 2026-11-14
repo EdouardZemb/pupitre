@@ -7,6 +7,213 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+/// Les mots que la source des services (`crates/services/src/`) ne porte jamais. Les services
+/// conduisent les commandes sur les contrats des adaptateurs (§ 40 · 3) : ni fichier, ni fil, ni
+/// réseau, ni processus, ni environnement ; l'heure du geste y arrive en argument (`Contexte`) :
+/// ni horloge. L'aléa n'y est pas interdit : l'acteur d'Automerge s'y tire (`Automerge::new` en
+/// tire un au hasard). Les chemins courts (`fs::`, `thread::`, `env::`…) attrapent un import
+/// groupé, où le chemin long ne paraît pas : `use std::{fs, path::Path};`, puis `fs::read`.
+///
+/// `HashMap`, `HashSet` et `RandomState` : sous leur hacheur par défaut, `new()`, `default()` et
+/// `collect()` tirent leur graine du système sans qu'aucun mot de l'aléa ne paraisse, et l'ordre
+/// d'itération change d'un passage à l'autre ; une règle qui en dépendrait ne serait plus
+/// déterministe. `BTreeMap` et `BTreeSet` restent permis.
+///
+/// Chaque recherche de ce fichier se fait en sous-chaîne, sensible à la casse, commentaires
+/// compris : un identifiant qui contient l'un de ces mots la fait échouer, et c'est voulu.
+const INTERDITS_AUX_SERVICES: &[&str] = &[
+    "std::fs",
+    "fs::",
+    "File",
+    "std::thread",
+    "thread::",
+    "spawn",
+    "std::net",
+    "net::",
+    "TcpStream",
+    "UdpSocket",
+    "SystemTime",
+    "Instant",
+    "std::time",
+    "time::",
+    "std::env",
+    "env::",
+    "env!",
+    "std::process",
+    "process::",
+    "HashMap",
+    "HashSet",
+    "RandomState",
+];
+
+/// Ce qui écrit dans un document Automerge, c'est-à-dire y crée une modification : une
+/// transaction, ce qu'elle pose ou retire, et son commit (I28). `.insert(` n'y est pas, puisque
+/// c'est aussi celui d'un `BTreeSet` ; mais aucune insertion ne s'écrit sans `Transactable` ou
+/// `automerge::transaction`, qui y sont. La synchronisation, elle, ne crée aucune modification :
+/// elle reprend celles nées d'opérations nommées (`receive_sync_message`, dans `synchro`), ce que
+/// le § 70 · 3 admet, et aucun de ces mots ne la nomme.
+const ECRITURES: &[&str] = &[
+    ".put(",
+    ".put_object(",
+    ".delete(",
+    ".increment(",
+    ".splice(",
+    ".splice_text(",
+    ".insert_object(",
+    ".transaction(",
+    ".transact(",
+    ".transact_with(",
+    ".empty_commit(",
+    ".commit_with(",
+    ".commit(",
+    "AutoCommit",
+    "Transactable",
+    "automerge::transaction",
+    "Transaction<",
+];
+
+/// Les seuls fichiers qui écrivent dans un document : `services::application`, qui applique les
+/// opérations nommées, et les documents sur fichiers du stockage, qui l'appellent (`documents.rs`,
+/// et `racine_des_donnees.rs`, où naît le fonds), et gardent pour leurs tests l'écriture par une
+/// fermeture, sous la fonction `pannes`.
+const ECRIVENT: &[&str] = &[
+    "crates/services/src/application.rs",
+    "crates/stockage/src/documents.rs",
+    "crates/stockage/src/racine_des_donnees.rs",
+];
+
+/// Les appels des fonctions publiques de `services::application` qui écrivent : la parenthèse
+/// les distingue d'une doc qui les nomme.
+const APPELS_QUI_ECRIVENT: &[&str] = &[
+    "application::appliquer(",
+    "application::naitre(",
+    "application::faire_naitre(",
+    "application::migrer(",
+];
+
+/// Où ces appels, et une ligne `use` qui porte `application`, sont permis : les services, et les
+/// documents sur fichiers du stockage.
+const APPELLENT: &[&str] = &[
+    "crates/services/src/",
+    "crates/stockage/src/documents.rs",
+    "crates/stockage/src/racine_des_donnees.rs",
+];
+
+/// Le seul fichier qui forme l'identifiant de propriétaire (§ 30 · 2), par le seul appel
+/// d'`uuid_v4` hors de sa définition, au noyau.
+const PROPRIETAIRE: &str = "crates/services/src/lib.rs";
+
+/// Les fautes des services : un mot interdit dans `crates/services/src/` ; aucune source des
+/// services lue en est une.
+fn fautes_des_services(sources: &[(String, String)]) -> Vec<String> {
+    let mut fautes = Vec::new();
+    let services: Vec<_> = sources
+        .iter()
+        .filter(|(chemin, _)| chemin.starts_with("crates/services/src/"))
+        .collect();
+    if services.is_empty() {
+        fautes.push("aucune source des services lue".to_string());
+    }
+    for (chemin, texte) in services {
+        for mot in INTERDITS_AUX_SERVICES {
+            if texte.contains(mot) {
+                fautes.push(format!("{chemin} contient « {mot} »"));
+            }
+        }
+    }
+    fautes
+}
+
+/// Vrai si `ligne` est une ligne `use`, `pub use` et `pub(crate) use` compris.
+fn est_un_use(ligne: &str) -> bool {
+    let mut reste = ligne.trim_start();
+    if let Some(apres) = reste.strip_prefix("pub") {
+        reste = apres.trim_start();
+        if reste.starts_with('(') {
+            reste = reste
+                .split_once(')')
+                .map_or("", |(_, suite)| suite.trim_start());
+        }
+    }
+    reste
+        .strip_prefix("use")
+        .is_some_and(|suite| suite.starts_with(char::is_whitespace))
+}
+
+/// Les fautes d'I28. Hors d'`ECRIVENT`, aucune écriture dans un document. Hors d'`APPELLENT`,
+/// aucun appel d'une fonction de `services::application` qui écrit, et aucune ligne `use` qui
+/// porte `application`, quel que soit l'import : nommé (`use services::application::appliquer;`,
+/// puis `appliquer(`), groupé (`use services::{application, lecture};`), en glob
+/// (`use services::application::*;`) ou renommé (`use services::application as w;`, puis
+/// `w::appliquer(`). Le chemin en ligne `services::application::Inapplicable` reste admis : ni
+/// appel ni ligne `use`. Une ligne `use` se reconnaît à son début : un `use` écrit sur plusieurs
+/// lignes, dont la ligne qui porte `application` ne commence pas par `use`, échappe au contrôle.
+fn fautes_d_i28(sources: &[(String, String)]) -> Vec<String> {
+    let mut fautes = Vec::new();
+    for (chemin, texte) in sources {
+        if !ECRIVENT.contains(&chemin.as_str()) {
+            for mot in ECRITURES {
+                if texte.contains(mot) {
+                    fautes.push(format!("{chemin} contient « {mot} »"));
+                }
+            }
+        }
+        if !APPELLENT.iter().any(|permis| chemin.starts_with(permis)) {
+            for appel in APPELS_QUI_ECRIVENT {
+                if texte.contains(appel) {
+                    fautes.push(format!("{chemin} contient « {appel} »"));
+                }
+            }
+            for ligne in texte.lines() {
+                if est_un_use(ligne) && ligne.contains("application") {
+                    fautes.push(format!(
+                        "{chemin} importe « application » : {}",
+                        ligne.trim()
+                    ));
+                }
+            }
+        }
+    }
+    fautes
+}
+
+/// Les fautes de l'identifiant de propriétaire : `uuid_v4(` paraît, hors de sa définition
+/// (`fn uuid_v4(`), une fois dans `PROPRIETAIRE`, et nulle part ailleurs.
+fn fautes_du_proprietaire(sources: &[(String, String)]) -> Vec<String> {
+    let mut fautes = Vec::new();
+    let mut ici = 0;
+    for (chemin, texte) in sources {
+        let appels = texte.matches("uuid_v4(").count() - texte.matches("fn uuid_v4(").count();
+        if chemin == PROPRIETAIRE {
+            ici = appels;
+        } else if appels > 0 {
+            fautes.push(format!(
+                "{chemin} contient « uuid_v4( », hors de {PROPRIETAIRE}"
+            ));
+        }
+    }
+    if ici != 1 {
+        fautes.push(format!(
+            "{PROPRIETAIRE} contient « uuid_v4( » {ici} fois, au lieu d'une"
+        ));
+    }
+    fautes
+}
+
+/// Le contrôle des services, d'I28 et de l'identifiant de propriétaire, sur `sources`, des
+/// paires (chemin, texte), nommées depuis la racine du dépôt. Rend chaque faute, qui nomme son
+/// fichier et ce qu'il porte.
+fn controler(sources: &[(String, String)]) -> Result<(), Vec<String>> {
+    let mut fautes = fautes_des_services(sources);
+    fautes.extend(fautes_d_i28(sources));
+    fautes.extend(fautes_du_proprietaire(sources));
+    if fautes.is_empty() {
+        Ok(())
+    } else {
+        Err(fautes)
+    }
+}
+
 fn lire(chemin: &Path) -> String {
     fs::read_to_string(chemin).unwrap_or_else(|e| panic!("lecture de {} : {e}", chemin.display()))
 }

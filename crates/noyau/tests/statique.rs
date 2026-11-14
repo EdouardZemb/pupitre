@@ -5,6 +5,99 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+/// Les mots que la source du noyau ne porte jamais. Le noyau est une crate pure, sans
+/// entrées-sorties (§ 40 · 3 ; ADR-019) : ni fichier, ni flux, ni environnement, ni fil, ni
+/// réseau, ni processus. L'heure et l'aléa y sont reçus (§ 41 · 6) : ni horloge, ni tirage.
+/// Les chemins courts (`fs::`, `io::`, `env::`…) attrapent un import groupé, où le chemin long
+/// ne paraît pas : `use std::{fs, path::Path};`, puis `fs::read`.
+///
+/// `HashMap`, `HashSet` et `RandomState` : sous leur hacheur par défaut, `new()`, `default()` et
+/// `collect()` tirent leur graine du système sans qu'aucun mot de l'aléa ne paraisse, et l'ordre
+/// d'itération change d'un passage à l'autre ; une règle qui en dépendrait ne serait plus
+/// déterministe. `BTreeMap` et `BTreeSet` restent permis.
+///
+/// La recherche se fait en sous-chaîne, sensible à la casse, commentaires compris : un
+/// identifiant qui contient l'un de ces mots (`Ratio::new` contient `io::`) la fait échouer, et
+/// c'est voulu.
+const INTERDITS: &[&str] = &[
+    "SystemTime",
+    "Instant",
+    "std::time",
+    "time::",
+    "getrandom",
+    "rand::",
+    "random",
+    "OsRng",
+    "std::fs",
+    "fs::",
+    "File",
+    "std::io",
+    "io::",
+    "std::env",
+    "env::",
+    "env!",
+    "std::thread",
+    "thread::",
+    "std::net",
+    "net::",
+    "std::process",
+    "process::",
+    "HashMap",
+    "HashSet",
+    "RandomState",
+];
+
+/// La ligne d'`ulid` dans le `Cargo.toml` du noyau, égale à l'octet : sans ses fonctions par
+/// défaut, `ulid` ne compile aucune fonction d'horloge ni d'aléa (§ 41 · 6).
+const LIGNE_D_ULID: &str = r#"ulid = { version = "3.0.0", default-features = false }"#;
+
+/// Le contrôle du noyau, sur `sources`, des paires (chemin, texte) : aucun `.rs` ne porte un des
+/// mots interdits ; le `Cargo.toml` porte la ligne d'`ulid`, et aucune clé `features`, ni sur
+/// elle ni ailleurs (une table `[features]` comprise), qui pourrait rendre à `ulid` sa fonction
+/// `std`. La sous-chaîne `features` se cherche hors de `default-features`, qui la contient. Un
+/// contrôle qui ne lit aucune source Rust, ou aucun `Cargo.toml`, échoue. Rend chaque faute, qui
+/// nomme son fichier et ce qu'il porte.
+fn controler(sources: &[(String, String)]) -> Result<(), Vec<String>> {
+    let mut fautes = Vec::new();
+    let rust: Vec<_> = sources
+        .iter()
+        .filter(|(chemin, _)| chemin.ends_with(".rs"))
+        .collect();
+    if rust.is_empty() {
+        fautes.push("aucune source Rust lue".to_string());
+    }
+    for (chemin, texte) in rust {
+        for mot in INTERDITS {
+            if texte.contains(mot) {
+                fautes.push(format!("{chemin} contient « {mot} »"));
+            }
+        }
+    }
+    match sources
+        .iter()
+        .find(|(chemin, _)| chemin.ends_with("Cargo.toml"))
+    {
+        None => fautes.push("aucun Cargo.toml lu".to_string()),
+        Some((chemin, texte)) => {
+            if !texte.lines().any(|ligne| ligne == LIGNE_D_ULID) {
+                fautes.push(format!("{chemin} ne porte pas la ligne « {LIGNE_D_ULID} »"));
+            }
+            let cles = texte
+                .match_indices("features")
+                .filter(|&(debut, _)| !texte[..debut].ends_with("default-"))
+                .count();
+            if cles > 0 {
+                fautes.push(format!("{chemin} porte une clé « features »"));
+            }
+        }
+    }
+    if fautes.is_empty() {
+        Ok(())
+    } else {
+        Err(fautes)
+    }
+}
+
 fn lire(chemin: &Path) -> String {
     fs::read_to_string(chemin).unwrap_or_else(|e| panic!("lecture de {} : {e}", chemin.display()))
 }
