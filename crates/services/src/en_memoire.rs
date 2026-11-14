@@ -21,6 +21,9 @@ const VERSION_PLUS_RECENTE: &str =
 /// Le message d'un fonds dont la version de schéma ne se lit pas.
 const VERSION_ILLISIBLE: &str =
     "La version de schéma du document ne se lit pas : il se lit sans écrire ni échanger.";
+/// Le message d'un fonds dont une migration ne s'applique pas, à son ouverture.
+const MIGRATION_REFUSEE: &str =
+    "Une migration de ce fonds ne s'applique pas : il se lit sans écrire ni échanger.";
 
 /// Les documents en mémoire : le fonds, s'il est né, et pourquoi il n'écrit pas.
 pub struct DocumentsEnMemoire {
@@ -40,7 +43,8 @@ impl DocumentsEnMemoire {
     /// Ouvre les octets d'un fonds selon `migrations` : `version::lecture(version_de_schema, connue)`
     /// décide ; `Lecture::Migrer` applique `a_appliquer` par `application::migrer`, et une
     /// migration refusée, qui n'a pas fait migrer le fonds, met en lecture seule
-    /// (`Raison::Illisible`) ; `Lecture::LireSansEcrire` met en lecture seule
+    /// (`Raison::Illisible`, son message celui d'une migration qui ne s'applique pas, comme
+    /// `LectureSeule::MigrationRefusee` sur fichiers) ; `Lecture::LireSansEcrire` met en lecture seule
     /// (`Raison::VersionPlusRecente { version }`, ou `Raison::Illisible` sans version lue) ;
     /// `Lecture::Illisible` aussi (`Raison::Illisible`). Des octets qu'`Automerge::load` refuse :
     /// `Err`, `Raison::Illisible`.
@@ -52,8 +56,8 @@ impl DocumentsEnMemoire {
             Lecture::Migrer { de, .. } => {
                 let a_appliquer = version::a_appliquer(migrations, de);
                 application::migrer(&mut automerge, a_appliquer)
-                    .err()
-                    .map(refus_illisible)
+                    .is_err()
+                    .then(migration_refusee)
             }
             // `version::lecture` ne rend `LireSansEcrire` que d'une version lue ; sans elle, le
             // fonds n'écrit pas non plus.
@@ -147,8 +151,8 @@ impl Captations for CaptationsEnMemoire {
     }
 }
 
-/// Le refus d'octets qu'Automerge ne charge pas, ou d'une migration qui ne s'y applique pas :
-/// `Raison::Illisible`, son message le `Debug` de l'erreur.
+/// Le refus d'octets qu'Automerge ne charge pas : `Raison::Illisible`, son message le `Debug` de
+/// l'erreur.
 fn refus_illisible(erreur: AutomergeError) -> Refus {
     Refus {
         raison: Raison::Illisible,
@@ -161,6 +165,15 @@ fn version_illisible() -> Refus {
     Refus {
         raison: Raison::Illisible,
         message: VERSION_ILLISIBLE.to_string(),
+    }
+}
+
+/// Le refus d'un fonds dont une migration ne s'applique pas (`application::migrer` la refuse :
+/// elle ne se lit pas, ou attend ses dépendances) : `Raison::Illisible`.
+fn migration_refusee() -> Refus {
+    Refus {
+        raison: Raison::Illisible,
+        message: MIGRATION_REFUSEE.to_string(),
     }
 }
 
