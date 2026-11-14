@@ -1,7 +1,7 @@
-//! Le fonds de mesure (§ 31 · 10, test 13), dans la part qu'en écrit la tranche 2 : engendré par
-//! les seules opérations nommées de `Services`, sous un aléa à lui, déterministe, à partir d'une
-//! heure reçue. La tranche 5 le complète : les stems et leurs MIDI, les noms d'origine, les
-//! origines déclarées, un acteur par ouverture.
+//! Le fonds de mesure, une part du test 13 du § 31 · 10, une borne basse : engendré par les seules
+//! opérations nommées de `Services`, sous un aléa à lui, déterministe, à partir d'une heure reçue.
+//! Il y manque encore les stems et leurs MIDI, les noms d'origine, les origines déclarées, la
+//! date, l'appareil et le diapason mesuré de chaque prise, et un acteur par ouverture.
 
 use commandes::{Captation, Completer, Etiqueter, Regrouper, Relier};
 use noyau::donnees::gestes;
@@ -55,8 +55,8 @@ pub struct Engendre {
     pub operations: usize,
 }
 
-/// Le fonds de mesure du test 13 (§ 31 · 10), dans la part qu'en écrit la tranche 2, par les
-/// seules opérations de `services` : 6 000 fiches de prises versées, importées à l'établi, par un
+/// Le fonds de mesure, une part du test 13 (§ 31 · 10), une borne basse, par les seules
+/// opérations de `services` : 6 000 fiches de prises versées, importées à l'établi, par un
 /// import tiré pour chaque groupe de trois ; chaque groupe regroupé dans sa première idée
 /// (4 000 regroupements, qui retirent 4 000 idées et en laissent 2 000 visibles) ; pour chaque
 /// idée visible, trois textes complétés l'un après l'autre, chacun d'au moins 200 octets (203 en

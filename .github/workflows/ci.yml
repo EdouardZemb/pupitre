@@ -70,10 +70,10 @@ jobs:
   # l'interface, puis le fonds de mesure. La chaîne vient de rust-toolchain.toml.
   verifier:
     runs-on: ubuntu-latest
-    # Provisoire : le premier passage complet après l'entrée d'automerge, PR #18, a duré 2 min 42 s ;
-    # il restaure le cache de main, et n'est froid que pour automerge et ses dépendances. À ramener
-    # à deux fois un passage mesuré à froid (LE-29 de modele-projet).
-    timeout-minutes: 15
+    # Deux fois le plus long passage complet mesuré à froid (« No cache found. ») : 4 min 47 s, le
+    # 2026-11-14, sur la PR #40 (exécution 43632252911), sans l'étape du fonds de mesure ; 3 min 51 s
+    # sur la PR #39 (exécution 43631355460), avec elle (LE-29 de modele-projet).
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -131,12 +131,14 @@ jobs:
         run: cargo clippy -p interface --target wasm32-unknown-unknown -- -D warnings
       - name: Tests
         run: cargo test -p noyau -p cahier -p interface -p stockage -p synchro -p commandes -p services
-      # La part de la tranche 2 du test 13 du § 31 · 10 : le fonds de mesure, engendré par les
-      # opérations nommées puis rouvert sur fichiers, pèse moins de 4 500 000 octets ; l'étape
+      # Une part du test 13 du § 31 · 10, une borne basse : le fonds de mesure, engendré par les
+      # opérations nommées puis rouvert sur fichiers, pèse moins de 4 500 000 octets ; il y manque
+      # encore les stems et leurs MIDI, les noms d'origine, les origines déclarées, la date,
+      # l'appareil et le diapason mesuré de chaque prise, et un acteur par ouverture. L'étape
       # imprime son poids et la durée. Le test est ignoré : « Tests » le saute, et seule cette
       # étape le lance, ici, hors du job windows ; en --release, pour tenir dans le délai de
-      # verifier. La tranche 5 complète le test 13.
-      - name: Le fonds de mesure (test 13, la part de la tranche 2)
+      # verifier.
+      - name: Le fonds de mesure
         run: cargo test -p stockage --release --test mesure -- --ignored --nocapture
 
   # H10, la partie automatique : l'établi se construit en installateur Windows (NSIS), que

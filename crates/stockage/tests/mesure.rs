@@ -1,7 +1,8 @@
-//! Le fonds de mesure (§ 31 · 10, test 13), dans la part qu'en écrit la tranche 2 : engendré sur
-//! la paire d'adaptateurs en mémoire, écrit en fichier complet dans une racine des données
-//! jetable, puis rouvert sur fichiers. Le test est ignoré : une étape à part de `verifier` le
-//! lance, en `--release`, et imprime le poids du fichier complet et la durée.
+//! Le fonds de mesure, une part du test 13 du § 31 · 10, une borne basse (ce qui y manque encore
+//! est dit à `services::mesure`) : engendré sur la paire d'adaptateurs en mémoire, écrit en
+//! fichier complet dans une racine des données jetable, puis rouvert sur fichiers. Le test est
+//! ignoré : une étape à part de `verifier`, « Le fonds de mesure », le lance, en `--release`, et
+//! imprime le poids du fichier complet et la durée.
 
 mod commun;
 
