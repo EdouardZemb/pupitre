@@ -197,7 +197,7 @@ Détail au [§ 60](60-moteur-musical.md).
 | **Doctrine** | Les règles personnelles de Sacha. Disent ce que Sacha veut. Modifiables par Sacha uniquement |
 | **Règle d'outil** | Les contraintes d'un outil externe (par exemple les limites d'un générateur de maquettes). Non négociables tant que l'outil est le même |
 | **Diagnostic** | L'évaluation d'un ensemble de règles sur un objet. Produit des constats ; n'écrit rien |
-| **Constat** | Le résultat d'une règle : `présent`, `absent`, `indécidable` ou `désactivé`, avec sa mesure chiffrée et son assiette |
+| **Constat** | Au sens d'un diagnostic, le résultat d'une règle : `présent`, `absent`, `indécidable` ou `désactivé`, avec sa mesure chiffrée et son assiette. Au sens d'un texte de l'interface, une phrase qui dit ce qui est, jamais un ordre ([§ 50 · 5](50-interfaces-et-appareils.md#5-les-textes-de-linterface)), dont le message d'un refus ou d'un avertissement. On dit duquel il s'agit dès que le contexte ne le dit pas |
 | **Indécidable** | L'état d'un constat dont la donnée manque. Jamais confondu avec `absent` |
 
 ## L'interface
