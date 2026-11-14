@@ -28,6 +28,17 @@ impl Appareil {
             Appareil::Carnet => "carnet",
         }
     }
+
+    /// L'appareil dont `nom` est le nom, l'inverse de `nom` ; un nom inconnu, `None`. Un appareil
+    /// ajouté s'ajoute ici : le test de l'aller-retour (`chaque_appareil_se_retrouve_de_son_nom`,
+    /// dans `tests/gestes.rs`) le nomme par un `match` exhaustif.
+    pub fn depuis_nom(nom: &str) -> Option<Appareil> {
+        match nom {
+            "etabli" => Some(Appareil::Etabli),
+            "carnet" => Some(Appareil::Carnet),
+            _ => None,
+        }
+    }
 }
 
 /// La provenance d'une idée (§ 30 · 8.1), posée à sa naissance et gardée à vie.
@@ -51,6 +62,11 @@ pub enum Sorte {
 }
 
 impl Sorte {
+    /// Les sortes, chacune une fois, dans l'ordre de leur déclaration. Une sorte ajoutée s'ajoute
+    /// ici : le test qui la garde (`toutes_les_sortes_y_sont_une_fois`, dans `tests/gestes.rs`) la
+    /// nomme par un `match` exhaustif.
+    pub const TOUTES: [Sorte; 3] = [Sorte::Prise, Sorte::MidiVerseSeul, Sorte::TexteVerse];
+
     /// Le conteneur de la racine du document qui la range : `prises`, `midi_verses` ou
     /// `textes_verses`.
     pub fn conteneur(self) -> &'static str {

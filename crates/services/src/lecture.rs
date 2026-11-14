@@ -12,20 +12,15 @@ use noyau::donnees::fonds::{
 };
 use noyau::donnees::gestes::{Appareil, CaptationLue, IdeeLue, Provenance, Sorte};
 
-/// Les sortes, dans leur ordre, chacune avec son conteneur.
-const SORTES: [Sorte; 3] = [Sorte::Prise, Sorte::MidiVerseSeul, Sorte::TexteVerse];
-
 /// L'idée `id`, telle qu'elle se lit : son identifiant, sa provenance (`provenance`, `par`, et
 /// `depuis` d'une idée importée), sa date (`le`), son texte, ses étiquettes, la date de son
 /// retrait et les clés des liens dont elle est un bout. `None` quand l'idée manque, ou qu'une de
 /// ses valeurs n'a pas le type du schéma : une idée illisible n'est pas une idée.
 pub fn lire_l_idee(doc: &Automerge, id: &str) -> Option<IdeeLue> {
     let idee = objet(doc, &objet(doc, &ROOT, IDEES)?, id)?;
-    // `??` : le premier refuse une valeur d'un autre type, le second une valeur absente.
-    let par = valeur(doc, &idee, PAR, chaine)??;
-    let par = [Appareil::Etabli, Appareil::Carnet]
-        .into_iter()
-        .find(|appareil| appareil.nom() == par)?;
+    // `??` : le premier refuse une valeur d'un autre type, le second une valeur absente ; le
+    // dernier `?`, un nom qu'aucun appareil ne porte.
+    let par = Appareil::depuis_nom(&valeur(doc, &idee, PAR, chaine)??)?;
     let provenance = match valeur(doc, &idee, PROVENANCE, chaine)??.as_str() {
         CAPTEE => Provenance::Captee { par },
         IMPORTEE => Provenance::Importee {
@@ -68,7 +63,7 @@ pub fn lire_la_captation(doc: &Automerge, sorte: Sorte, empreinte: &str) -> Opti
 /// premier `/` ; un conteneur absent de la racine du document se saute.
 pub fn captations_de(doc: &Automerge, id: &str) -> Vec<CaptationLue> {
     let mut captations = Vec::new();
-    for sorte in SORTES {
+    for sorte in Sorte::TOUTES {
         let Some(conteneur) = objet(doc, &ROOT, sorte.conteneur()) else {
             continue;
         };
