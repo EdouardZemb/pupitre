@@ -1,15 +1,13 @@
 //! Les règles d'une idée et de ses captations, sans entrée-sortie : les empreintes que nomment
-//! les clés `<empreinte>/<fait>` des conteneurs des captations (§ 31 · 6.1), le lien
+//! les clés `<empreinte>/<clé>` des conteneurs des captations (§ 31 · 6.1), le lien
 //! « apparenté », la durée, l'assiette d'un compte (§ 30 · 9).
 
 use std::collections::BTreeSet;
 
+use super::fonds::APPARENTE;
 use super::gestes::IdeeLue;
 
-/// Le préfixe de la clé d'un lien « apparenté ».
-const PREFIXE_DU_LIEN: &str = "apparente:";
-
-/// Les empreintes que nomment des clés `<empreinte>/<fait>` : ce qui précède le premier `/` ; une
+/// Les empreintes que nomment des clés `<empreinte>/<clé>` : ce qui précède le premier `/` ; une
 /// clé sans `/` ne nomme rien.
 pub fn empreintes_nommees<'a>(cles: impl IntoIterator<Item = &'a str>) -> BTreeSet<String> {
     cles.into_iter()
@@ -18,16 +16,20 @@ pub fn empreintes_nommees<'a>(cles: impl IntoIterator<Item = &'a str>) -> BTreeS
         .collect()
 }
 
-/// La clé d'un lien « apparenté » : `apparente:<a>:<b>`, les deux bouts dans l'ordre de leurs
-/// octets, si bien que deux appareils qui posent le même lien en font la même clé (§ 30 · 9.3).
+/// La clé d'un lien « apparenté » : `apparente:<a>:<b>`, son type (`fonds::APPARENTE`), puis les
+/// deux bouts dans l'ordre de leurs octets, si bien que deux appareils qui posent le même lien en
+/// font la même clé (§ 30 · 9.3).
 pub fn cle_du_lien(a: &str, b: &str) -> String {
     let (p, q) = (a.min(b), a.max(b));
-    format!("{PREFIXE_DU_LIEN}{p}:{q}")
+    format!("{APPARENTE}:{p}:{q}")
 }
 
-/// Les deux bouts d'une clé de lien ; `None` si la clé n'en est pas une.
+/// Les deux bouts d'une clé de lien « apparenté », `apparente:<a>:<b>` ; `None` si la clé n'en
+/// est pas une.
 pub fn bouts_du_lien(cle: &str) -> Option<(&str, &str)> {
-    cle.strip_prefix(PREFIXE_DU_LIEN)?.split_once(':')
+    cle.strip_prefix(APPARENTE)?
+        .strip_prefix(':')?
+        .split_once(':')
 }
 
 /// Reliée : au moins un lien dont l'autre bout n'est pas une idée retirée (§ 30 · 9.1).
