@@ -424,12 +424,12 @@ impl Document<'_> {
     /// `Erreur::Disque` se rend, et le fonds ne s'ouvre pas ; en place, mais non durable,
     /// l'avertissement rejoint ceux du document, et la compaction est due. Une migration que
     /// `migrer` refuse, qui ne se lit pas ou attend ses dépendances, n'a pas fait migrer le
-    /// document : il passe en lecture seule (`LectureSeule::VersionIllisible`), et rien ne
+    /// document : il passe en lecture seule (`LectureSeule::MigrationRefusee`), et rien ne
     /// s'écrit, ni la migration, ni, ensuite, une opération à l'ancienne version de schéma.
     fn migrer(&mut self, a_appliquer: &[Migration<'_>]) -> Result<(), Erreur> {
         let avant = self.automerge.get_heads();
         if application::migrer(&mut self.automerge, a_appliquer).is_err() {
-            self.lecture_seule = Some(LectureSeule::VersionIllisible);
+            self.lecture_seule = Some(LectureSeule::MigrationRefusee);
             return Ok(());
         }
         let avertissement = self.ecrire_le_fichier_d_ajout(&avant)?;
@@ -581,7 +581,7 @@ impl Document<'_> {
 /// devant celle que donnent les migrations (`version::connue`, § 31 · 2.4) : la même, il est
 /// entier ; plus ancienne, il migre (`Document::migrer`, les migrations de
 /// `version::a_appliquer`) : une migration que le disque refuse rend `Erreur::Disque`, sans
-/// document, et une migration qui ne s'applique pas le met en lecture seule (`VersionIllisible`),
+/// document, et une migration qui ne s'applique pas le met en lecture seule (`MigrationRefusee`),
 /// sans rien écrire ; plus récente, absente ou illisible, il est en lecture seule
 /// (`raison_de_la_version`) ; un fonds illisible ne migre pas. Puis sa compaction, quand
 /// `a_l_ouverture` le dit, sur l'accès qui suit la lecture de la version de schéma et sur ce que

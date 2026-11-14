@@ -118,7 +118,8 @@ fn raison(erreur: &Erreur) -> Raison {
             | LectureSeule::AjoutIllisible { .. }
             | LectureSeule::CompletIllisible { .. }
             | LectureSeule::DependancesManquantes { .. }
-            | LectureSeule::VersionIllisible,
+            | LectureSeule::VersionIllisible
+            | LectureSeule::MigrationRefusee,
         ) => Raison::Illisible,
         Erreur::Disque { .. } | Erreur::CaptationAlteree { .. } => Raison::Disque,
         // Une opération qui ne s'applique pas, une empreinte qu'aucun fichier ne porte, un fonds

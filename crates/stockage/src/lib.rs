@@ -117,18 +117,23 @@ pub enum LectureSeule {
     /// réception qui change ses heads, tant qu'elle reste plus récente.
     VersionPlusRecente { version: u64 },
     /// Le document, qui se lit entier, porte une version de schéma absente, nulle, ou qui n'est
-    /// pas un entier non signé (§ 31 · 2.4) : il se lit, sans écrire ni échanger. De même d'une
-    /// version de schéma plus ancienne que les migrations de l'application ne font pas monter,
-    /// à l'ouverture : une migration qui ne se lit pas, ou qui attend ses dépendances
-    /// (`services::application::migrer` la refuse), comme une migration bâtie sur une autre
-    /// genèse ; rien ne s'écrit alors à l'ancienne version de schéma.
+    /// pas un entier non signé (§ 31 · 2.4) : il se lit, sans écrire ni échanger.
     VersionIllisible,
+    /// Le document, qui se lit entier, porte une version de schéma plus ancienne que celle que
+    /// connaît l'application, et une de ses migrations ne s'applique pas, à l'ouverture
+    /// (`services::application::migrer` la refuse : elle ne se lit pas, ou attend ses
+    /// dépendances, comme une migration bâtie sur une autre genèse) : il n'atteint pas la version
+    /// de schéma connue, et se lit sans écrire ni échanger. Rien ne s'écrit, ni la migration, ni
+    /// une opération à une version de schéma plus ancienne. L'erreur d'Automerge, qui n'est ni
+    /// `Clone` ni `Eq`, ne se garde pas.
+    MigrationRefusee,
 }
 
 impl LectureSeule {
     /// Ce que permet un document en lecture seule pour cette raison : une version de schéma plus
-    /// récente le laisse échanger (`PlusRecent`) ; un fichier illisible, une relecture manquée ou
-    /// une version de schéma illisible le laissent illisible, sans écriture ni échange.
+    /// récente le laisse échanger (`PlusRecent`) ; un fichier illisible, une relecture manquée,
+    /// une version de schéma illisible ou une migration refusée le laissent illisible, sans
+    /// écriture ni échange.
     pub fn acces(&self) -> Acces {
         match self {
             LectureSeule::VersionPlusRecente { .. } => Acces::PlusRecent,
@@ -137,7 +142,8 @@ impl LectureSeule {
             | LectureSeule::AjoutIllisible { .. }
             | LectureSeule::CompletIllisible { .. }
             | LectureSeule::DependancesManquantes { .. }
-            | LectureSeule::VersionIllisible => Acces::Illisible,
+            | LectureSeule::VersionIllisible
+            | LectureSeule::MigrationRefusee => Acces::Illisible,
         }
     }
 }

@@ -140,8 +140,8 @@ impl RacineDesDonnees {
     /// [`Avertissement::NonDurable`](crate::Avertissement::NonDurable). Une migration qui ne
     /// s'applique pas (`services::application::migrer` la refuse : elle ne se lit pas, ou attend
     /// ses dépendances) l'ouvre en lecture seule
-    /// ([`LectureSeule::VersionIllisible`](crate::LectureSeule::VersionIllisible)), sans rien
-    /// écrire. Plus récente : il s'ouvre en lecture seule
+    /// ([`LectureSeule::MigrationRefusee`](crate::LectureSeule::MigrationRefusee)), sans rien
+    /// écrire ni échanger. Plus récente : il s'ouvre en lecture seule
     /// ([`LectureSeule::VersionPlusRecente`](crate::LectureSeule::VersionPlusRecente)), se lit
     /// sans écrire ni se compacter, et échange encore. Absente, nulle, ou d'un autre type : en
     /// lecture seule ([`LectureSeule::VersionIllisible`](crate::LectureSeule::VersionIllisible)),
