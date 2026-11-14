@@ -34,19 +34,20 @@ use std::path::{Path, PathBuf};
 use automerge::transaction::{CommitOptions, Transaction};
 use automerge::{
     ActorId, Automerge, AutomergeError, ChangeHash, LoadOptions, ObjType, OnPartialLoad, ROOT,
-    ReadDoc, ScalarValue, Value,
+    ReadDoc, Value,
 };
 use noyau::donnees::acces::Acces;
 use noyau::donnees::changement::Operation;
 use noyau::donnees::compaction::{self, Lu};
 use noyau::donnees::demarrage::{self, Sort};
-use noyau::donnees::fonds::{
-    IDENTIFIANT, LIGNEE, MIGRATIONS, PRISES, PROPRIETAIRE, VERSION_DE_SCHEMA,
-};
+use noyau::donnees::fonds::{IDENTIFIANT, LIGNEE, MIGRATIONS, PRISES, PROPRIETAIRE};
 #[cfg(feature = "pannes")]
 use noyau::donnees::gestes;
 use noyau::donnees::version::{self, Lecture, Migration};
 use services::application;
+// La version de schéma se lit par la règle des services, la même pour les deux adaptateurs
+// `Documents` (§ 31 · 2.4).
+use services::lecture::version_de_schema;
 use synchro::{Copie, Echange};
 
 use crate::demarrage::{
@@ -661,19 +662,6 @@ fn empreintes_nommees(automerge: &Automerge) -> BTreeSet<String> {
     match automerge.get(ROOT, PRISES) {
         Ok(Some((Value::Object(ObjType::Map), prises))) => automerge.keys(&prises).collect(),
         _ => BTreeSet::new(),
-    }
-}
-
-/// § 31 · 2.4 : la version de schéma que porte la racine du document `automerge`
-/// (`VERSION_DE_SCHEMA`), un entier non signé (`ScalarValue::Uint`) ; absente, ou de tout autre
-/// type, `None`.
-fn version_de_schema(automerge: &Automerge) -> Option<u64> {
-    match automerge.get(ROOT, VERSION_DE_SCHEMA) {
-        Ok(Some((Value::Scalar(valeur), _))) => match *valeur {
-            ScalarValue::Uint(version) => Some(version),
-            _ => None,
-        },
-        _ => None,
     }
 }
 
