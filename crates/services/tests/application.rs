@@ -1,12 +1,15 @@
 //! L'application des changements sur un document Automerge, sa lecture, et la paire d'adaptateurs
 //! en mémoire : une opération s'applique en une seule modification, avec son message et son
 //! heure, ou ne laisse rien ; le fonds lu ne prend que les valeurs du type du schéma ; la paire en
-//! mémoire migre à son ouverture, et rend la même empreinte d'une captation versée deux fois.
+//! mémoire migre à son ouverture, se met en lecture seule devant une migration qui attend ses
+//! dépendances, et rend la même empreinte d'une captation versée deux fois.
 
 use std::collections::BTreeSet;
 
 use automerge::transaction::{CommitOptions, Transactable};
-use automerge::{ActorId, Automerge, Change, ObjId, ObjType, ROOT, ReadDoc, ScalarValue, Value};
+use automerge::{
+    ActorId, Automerge, AutomergeError, Change, ObjId, ObjType, ROOT, ReadDoc, ScalarValue, Value,
+};
 use noyau::donnees::changement::{Changement, Operation, Simple};
 use noyau::donnees::fonds::{
     ACTEUR_DE_LA_GENESE, ETIQUETTES, GENESE, IDEES, IDENTIFIANT, LE, MIGRATIONS, TEXTE,
@@ -15,7 +18,7 @@ use noyau::donnees::fonds::{
 use noyau::donnees::gestes::{Appareil, IdeeLue, Provenance, naissance, noter};
 use noyau::donnees::identifiants::empreinte;
 use noyau::donnees::version::{Migration, message_de_la_migration};
-use services::application::{Inapplicable, appliquer, faire_naitre, naitre};
+use services::application::{Inapplicable, appliquer, faire_naitre, migrer, naitre};
 use services::en_memoire::{CaptationsEnMemoire, DocumentsEnMemoire};
 use services::lecture::{idees, journal, lire_l_idee, version_de_schema};
 use services::{Captations, Documents, Raison, Refus};
@@ -110,6 +113,34 @@ fn migration_de_test() -> Vec<u8> {
         .expect("poser la version de schéma 2");
     tx.put_object(ROOT, CONTENEUR_DE_LA_MIGRATION, ObjType::Map)
         .expect("créer le conteneur de la migration");
+    let message = message_de_la_migration(2);
+    let options = CommitOptions::default()
+        .with_message(message.as_str())
+        .with_time(0);
+    let (h, _) = tx.commit_with(options);
+    doc.get_change_by_hash(&h.expect("la migration est une modification"))
+        .expect("la modification de la migration")
+        .raw_bytes()
+        .to_vec()
+}
+
+/// Une migration vers la version de schéma 2, engendrée sur un document sans `GENESE` : l'acteur
+/// `autre-genese-de-test` y écrit d'abord une modification qu'aucun fonds ne porte, puis la
+/// migration, qui dépend d'elle. Un fonds qui la reçoit n'a pas cette dépendance : `apply_changes`
+/// la garde en attente, sans erreur. Rend les octets de la migration (`raw_bytes()`).
+fn migration_sur_une_autre_genese() -> Vec<u8> {
+    let mut doc = Automerge::new().with_actor(ActorId::from(b"autre-genese-de-test".as_slice()));
+    let mut tx = doc.transaction();
+    tx.put(ROOT, VERSION_DE_SCHEMA, 1u64)
+        .expect("poser la version de schéma 1");
+    let options = CommitOptions::default()
+        .with_message("Une autre genèse")
+        .with_time(0);
+    let (autre_genese, _) = tx.commit_with(options);
+    autre_genese.expect("l'autre genèse est une modification");
+    let mut tx = doc.transaction();
+    tx.put(ROOT, VERSION_DE_SCHEMA, 2u64)
+        .expect("poser la version de schéma 2");
     let message = message_de_la_migration(2);
     let options = CommitOptions::default()
         .with_message(message.as_str())
@@ -318,6 +349,83 @@ fn la_paire_en_memoire_migre_a_son_ouverture() {
     let fonds = rouvert.fonds().expect("le fonds se lit");
     assert_eq!(version_de_schema(fonds), Some(2));
     assert!(lire_l_idee(fonds, I).is_some());
+}
+
+#[test]
+fn une_migration_qui_attend_ses_dependances_laisse_le_fonds_en_lecture_seule() {
+    let migration = migration_sur_une_autre_genese();
+    let migrations = migrations_de_test(&migration);
+
+    // `apply_changes` garde la migration en attente, sans erreur : `migrer` le dit.
+    let mut doc = fonds_note();
+    let migre = migrer(&mut doc, &migrations);
+    assert!(
+        matches!(migre, Err(AutomergeError::MissingDeps)),
+        "{migre:?}"
+    );
+    assert_eq!(version_de_schema(&doc), Some(1));
+
+    // La paire en mémoire ouverte de ces octets : le fonds n'a pas migré, il se lit sans écrire.
+    let octets = fonds_note().save();
+    let mut documents = DocumentsEnMemoire::de(&octets, &migrations).expect("le fonds s'ouvre");
+    let refus = documents
+        .lecture_seule()
+        .expect("le fonds se lit sans écrire");
+    assert_eq!(refus.raison, Raison::Illisible);
+    assert_eq!(
+        documents.appliquer(&operation(vec![poser(
+            &[IDEES, I, ETIQUETTES, "pont"],
+            Simple::Vrai
+        )])),
+        Err(refus)
+    );
+    let fonds = documents.fonds().expect("le fonds se lit");
+    assert_eq!(version_de_schema(fonds), Some(1));
+    assert!(lire_l_idee(fonds, I).is_some());
+}
+
+#[test]
+fn des_octets_qui_ne_sont_pas_un_fonds_ne_s_ouvrent_pas() {
+    let Err(refus) = DocumentsEnMemoire::de(b"pas un fonds", MIGRATIONS) else {
+        panic!("des octets qui ne sont pas un fonds se sont ouverts");
+    };
+    assert_eq!(refus.raison, Raison::Illisible);
+}
+
+#[test]
+fn rien_ne_s_applique_avant_la_naissance_du_fonds() {
+    let mut documents = DocumentsEnMemoire::neuf();
+    assert_eq!(documents.lecture_seule(), None);
+    assert_eq!(
+        documents.appliquer(&noter_i()),
+        Err(Refus {
+            raison: Raison::Impossible,
+            message: "Aucun fonds n'est né.".to_string(),
+        })
+    );
+    assert!(documents.fonds().is_none());
+    assert_eq!(documents.octets(), None);
+}
+
+#[test]
+fn le_fonds_ne_nait_qu_une_fois() {
+    let mut documents = DocumentsEnMemoire::neuf();
+    assert_eq!(
+        documents.faire_naitre(&naissance_de_test(), &noter_i()),
+        Ok(None)
+    );
+    let avant = documents.fonds().expect("le fonds est né").get_heads();
+    assert_eq!(
+        documents.faire_naitre(&naissance_de_test(), &noter_i()),
+        Err(Refus {
+            raison: Raison::Impossible,
+            message: "Le fonds est déjà né : il ne naît qu'une fois.".to_string(),
+        })
+    );
+    assert_eq!(
+        documents.fonds().expect("le fonds est né").get_heads(),
+        avant
+    );
 }
 
 #[test]
