@@ -1428,7 +1428,7 @@ pas. `idees()`, une lecture, ne consulte pas `lecture_seule()` (tâche 5).
   - `chaque_geste_de_tri_parait_au_journal` (enveloppe `cap02_4_chaque_geste_de_tri_parait_au_journal_comme_une_operation_nommee`, une part, non inscrite : relier à un motif ou un morceau et regrouper une photo viennent après) : sur deux notes A et B et une prise P versée (idée V), compléter A, poser `#pont` sur A, ôter `#pont`, relier A–B, délier A–B, regrouper P dans A (V retirée), retirer B, rétablir B ; après chaque geste, une entrée de plus au journal, au message de la table de la tâche 10, à l'heure du contexte ;
   - `l_idee_videe_par_un_regroupement_est_retiree` (enveloppe `cap02_8_l_idee_videe_par_un_regroupement_est_retiree_et_l_annulation_la_retablit`, que la tâche 12 complète par l'annulation ; inscrit en (b), entier : son cas, une idée qui n'a qu'une prise, regroupée puis le geste annulé, se calcule sur les gestes de la tranche, et une idée qui porte aussi une photo, au lot 2, n'est pas « une idée qui n'a rien d'autre ») : X notée avec une prise P1 versée puis regroupée dans X ; V, née par `verser_une_fiche` de P2 seule ; regrouper P2 dans X : le journal gagne exactement une entrée, « Idée du 14 novembre : prise regroupée, idée du 14 novembre retirée » (« par le même geste »), la vue de V a `retiree: Some(HEURE)`, `idees()` ne la rend plus, la vue de X porte P1 et P2 ;
   - `deux_prises_regroupees_restent_deux_captations` (enveloppe `cap02_3_deux_prises_regroupees_restent_deux_captations_d_empreinte_inchangee`, une part, non inscrite) : les deux captations de X, distinctes, d'empreintes celles que `verser_une_fiche` a rendues, que `relire` rend ;
-  - `une_idee_retiree_quitte_la_liste_et_se_retablit_telle_qu_elle_etait` (enveloppe `cap02_5_…`, la part de la boîte, non inscrite) : texte, étiquettes, liens, captations rendus ;
+  - `une_idee_retiree_quitte_la_liste_et_se_retablit_telle_qu_elle_etait` (enveloppe `cap02_5_…`, la part de la boîte, non inscrite) : texte, étiquettes, liens, captations rendus ; l'idée porte au moins deux liens, et le test compare le champ `liens` de la vue entier, son ordre et son contenu (l'autre bout de chaque lien, dans l'ordre de leurs octets), avant le retrait et après le rétablissement ;
   - `un_geste_de_tri_sans_fonds_est_refuse_et_rien_ne_nait` (point de revue 2) ; son enveloppe sur la paire de fichiers, qui connaît la racine, ajoute `assert!(!racine.chemin().join("documents").join("fonds").exists())`, le trait `Paire` ne donnant aucun chemin ;
   - `une_fiche_versee_deux_fois_est_refusee_et_rien_ne_change` (point de revue 3) : la seconde rend `Raison::Impossible`, « La captation … est déjà versée. », le journal inchangé ;
   - `un_geste_qui_touche_une_idee_retiree_est_refuse` : poser, relier (depuis l'autre bout), regrouper vers elle : `Raison::Impossible` ;
@@ -1439,7 +1439,10 @@ pas. `idees()`, une lecture, ne consulte pas `lecture_seule()` (tâche 5).
 - [ ] **Étape 2 : voir le rouge.** Committer (`test: les gestes de tri et leurs critères, sur les deux paires`), pousser. Attendu à « Lint » : `no method named completer found`.
 - [ ] **Étape 3 : écrire le code.** La vue
   (`Services::vue_d_une_idee`) prend `reliee` et `duree` de `noyau::donnees::idee` (tâche 9), la durée sur les seules
-  prises.
+  prises. Elle tire aussi ses `liens` du noyau : l'autre bout de chaque clé que lit `lire_l_idee`, par
+  `noyau::donnees::idee::bouts_du_lien` (tâche 9), dans l'ordre de leurs octets ; aucune découpe de clé n'est écrite
+  dans `services`. Jusque-là, la vue rend `liens: Vec::new()`, comme `reliee: false` et `duree_ms: None` (revue de la
+  tâche 5) ; sa doc, qui le dit, se réécrit avec le code.
 - [ ] **Étape 4 : voir le vert.** Attendu : `commandes_en_memoire.rs` dans `verifier`, `commandes_sur_fichiers.rs` dans `verifier` et `windows`, verts, les comptes dans la description.
 - [ ] **Étape 5 : committer** par chemins (`feat: les gestes de tri et le versement d'une fiche, conduits par les services`).
 
