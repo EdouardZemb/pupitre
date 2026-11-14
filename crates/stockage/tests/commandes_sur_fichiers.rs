@@ -203,6 +203,14 @@ fn regrouper_une_empreinte_qu_aucune_captation_ne_porte_est_refuse() {
 }
 
 #[test]
+fn une_cle_d_une_autre_forme_sous_les_liens_n_est_pas_un_lien() {
+    let racine = racine_jetable("commandes-cle-d-une-autre-forme-sous-les-liens");
+    suite::une_cle_d_une_autre_forme_sous_les_liens_n_est_pas_un_lien(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
 fn la_vue_tire_reliee_et_la_duree_des_regles_du_noyau() {
     let racine = racine_jetable("commandes-reliee-et-duree");
     suite::la_vue_tire_reliee_et_la_duree_des_regles_du_noyau(&mut PaireSurFichiers {

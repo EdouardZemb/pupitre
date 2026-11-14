@@ -20,14 +20,15 @@ use commandes::{
     Captation, Completer, EntreeDuJournal, Etiqueter, Faite, Notee, Noter, Raison, Refus,
     Regrouper, Relier, Reponse, Viser, VueDUneIdee,
 };
+use noyau::donnees::changement::{Changement, Operation, Simple};
 use noyau::donnees::fonds::{
-    ACTEUR_DE_LA_GENESE, GENESE, IDENTIFIANT, LIGNEE, PROPRIETAIRE, VERSION_DE_SCHEMA,
+    ACTEUR_DE_LA_GENESE, GENESE, IDENTIFIANT, LIENS, LIGNEE, PROPRIETAIRE, VERSION_DE_SCHEMA,
 };
 use noyau::donnees::gestes;
 use noyau::donnees::idee::cle_du_lien;
 use noyau::donnees::identifiants::empreinte;
 use noyau::donnees::version::{Migration, message_de_la_migration};
-use services::lecture::{teneur, version_de_schema};
+use services::lecture::{lire_l_idee, teneur, version_de_schema};
 use services::{Alea, Captations, Contexte, Documents, Services, Versee};
 
 /// L'heure des tests, en secondes : le 14 novembre 2023, 22 h 13 min 20 s UTC.
@@ -1297,6 +1298,54 @@ pub fn regrouper_une_empreinte_qu_aucune_captation_ne_porte_est_refuse<P: Paire>
     );
     assert_eq!(services.journal(), Ok(journal));
     assert_eq!(services.idees(), Ok(idees));
+}
+
+/// A et B notées : sous `liens`, une clé qui n'a pas la forme de celle d'un lien « apparenté »,
+/// `autre:<A>:<B>`, qu'aucun geste n'écrit, et que le test pose donc par une opération, au type
+/// du noyau, sans les services, n'est un lien ni de A ni de B. L'idée lue ne compte pour ses liens
+/// que les clés que la règle du noyau reconnaît (`idee::bouts_du_lien`), comme la vue.
+pub fn une_cle_d_une_autre_forme_sous_les_liens_n_est_pas_un_lien<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let a = services
+        .noter(&une_note("Un refrain qui monte, en ré"), &mut contexte)
+        .expect("la note A est faite")
+        .idee;
+    let b = services
+        .noter(&une_note("Un pont en mi mineur"), &mut contexte)
+        .expect("la note B est faite")
+        .idee;
+    let autre_forme = Operation {
+        changements: vec![Changement::Poser {
+            chemin: vec![LIENS.to_string(), format!("autre:{a}:{b}")],
+            valeur: Simple::Vrai,
+        }],
+        message: "Une clé d'une autre forme sous les liens".to_string(),
+        heure: HEURE,
+    };
+    services
+        .documents_mut()
+        .appliquer(&autre_forme)
+        .expect("la clé d'une autre forme s'écrit");
+
+    let fonds = services.documents().fonds().expect("le fonds est né");
+    for id in [&a, &b] {
+        assert_eq!(
+            lire_l_idee(fonds, id).map(|idee| idee.liens),
+            Some(BTreeSet::new()),
+            "les liens de l'idée {id}"
+        );
+    }
+    assert_eq!(
+        services
+            .vue_d_une_idee(&a)
+            .map(|vue| (vue.liens, vue.reliee)),
+        Ok((Vec::new(), false))
+    );
 }
 
 /// A et B reliées : A est reliée ; B retirée, A ne l'est plus ; B rétablie, elle l'est de

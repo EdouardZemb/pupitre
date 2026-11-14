@@ -160,6 +160,11 @@ fn regrouper_une_empreinte_qu_aucune_captation_ne_porte_est_refuse() {
 }
 
 #[test]
+fn une_cle_d_une_autre_forme_sous_les_liens_n_est_pas_un_lien() {
+    suite::une_cle_d_une_autre_forme_sous_les_liens_n_est_pas_un_lien(&mut PaireEnMemoire);
+}
+
+#[test]
 fn la_vue_tire_reliee_et_la_duree_des_regles_du_noyau() {
     suite::la_vue_tire_reliee_et_la_duree_des_regles_du_noyau(&mut PaireEnMemoire);
 }
