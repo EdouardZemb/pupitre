@@ -4301,8 +4301,10 @@ name = "stockage"
 version = "0.0.0"
 dependencies = [
  "automerge",
+ "commandes",
  "noyau",
  "proptest",
+ "services",
  "stockage",
  "synchro",
 ]
