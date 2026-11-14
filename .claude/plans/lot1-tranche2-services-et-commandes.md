@@ -1474,7 +1474,7 @@ pub fn teneur(doc: &Automerge) -> Result<String, ErreurDeTeneur>;
 - [ ] **Étape 1 : écrire les tests.** Dans la suite :
   - `annuler_rend_le_fonds_d_avant` (enveloppe `cap02_6_annuler_rend_le_fonds_d_avant_et_le_journal_porte_le_geste_puis_son_annulation`, une part, non inscrite : « le dernier geste de tri » est aussi relier à un motif ou à un morceau (INC-2), et regrouper des photos (lot 2), que la tranche n'annule pas) : pour chacun des huit gestes de tri, la teneur d'avant le geste égale celle d'après l'annulation, et les deux dernières entrées du journal sont le message du geste puis `Annulé : ` suivi de lui ;
   - la seconde moitié de `l_idee_videe_par_un_regroupement_est_retiree` : annuler rend P2 à V, rétablie, et un second annuler rend `Raison::RienAAnnuler` ;
-  - `la_suite_de_la_decision_18` : la table du passage de LE-6, § 3.9, rejouée pas à pas (noter A ; annuler refusé ; étiqueter A `#pont` ; noter B ; annuler, « Annulé : Idée du 14 novembre : étiquette #pont posée » ; annuler refusé ; relier A–B ; retirer B ; étiqueter A `#pont` ; reposer `#pont`, refusé ; annuler ; annuler refusé), puis le lien A–B présent, B retirée, A sans étiquette ;
+  - `annuler_ne_vise_que_le_dernier_geste_de_tri_depuis_l_ouverture` : la table du passage de LE-6, § 3.9, rejouée pas à pas (noter A ; annuler refusé ; étiqueter A `#pont` ; noter B ; annuler, « Annulé : Idée du 14 novembre : étiquette #pont posée » ; annuler refusé ; relier A–B ; retirer B ; étiqueter A `#pont` ; reposer `#pont`, refusé ; annuler ; annuler refusé), puis le lien A–B présent, B retirée, A sans étiquette ;
   - `un_geste_refuse_ne_change_pas_ce_qu_annuler_vise` (point de revue 4) ; `la_reouverture_vide_ce_qu_annuler_vise` (point de revue 5) ;
   - `une_annulation_ne_s_annule_pas` : annuler, puis annuler, `RienAAnnuler`.
 
@@ -1486,7 +1486,10 @@ pub fn teneur(doc: &Automerge) -> Result<String, ErreurDeTeneur>;
 
 ### Tâche 13 : CAP-02 · 7, le témoin du test 11 par les opérations, les documents de la PR (b), la mutation remesurée
 
-**Fichiers :** créer `crates/stockage/tests/repliques.rs` ; modifier `crates/services/tests/suite/mod.rs` (`temoin`),
+**Fichiers :** créer `crates/stockage/tests/repliques.rs` ; modifier `crates/services/tests/suite/mod.rs` (`temoin` ; `la_suite_de_la_decision_18`, nommé ainsi à la tâche 12,
+renommé `annuler_ne_vise_que_le_dernier_geste_de_tri_depuis_l_ouverture`, ici et dans ses deux enveloppes,
+`crates/services/tests/commandes_en_memoire.rs` et `crates/stockage/tests/commandes_sur_fichiers.rs` : un nom de test
+ne cite pas un plan, que la clôture supprime ; revue de la tâche 12),
 `crates/stockage/tests/references.rs` (le
 témoin, :22, son commentaire, :25-44 ; la lignée, :157-206), `docs/31-persistance-et-synchronisation.md` (§ 2,
 :125-164 ; § 2.3, :344-376), `docs/30-modele-de-domaine.md` (§ 1, la classe `Lien`, :59-63 ; § 9.3, :666-671 ; § 11,
