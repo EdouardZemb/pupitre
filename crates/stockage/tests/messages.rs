@@ -93,8 +93,8 @@ fn messages() -> Vec<(String, String)> {
         ),
         (
             LectureSeule::VersionPlusRecente { version: 2 },
-            "Ce fonds vient d'une version plus récente de Pupitre ; celle-ci le lit sans y \
-             écrire."
+            "Ce fonds vient d'une version plus récente de Pupitre ; cette version-ci le lit \
+             sans y écrire."
                 .to_string(),
         ),
         (

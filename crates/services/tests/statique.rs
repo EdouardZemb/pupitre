@@ -103,6 +103,18 @@ const APPELLENT: &[&str] = &[
 /// d'`uuid_v4` hors de sa définition, au noyau.
 const PROPRIETAIRE: &str = "crates/services/src/lib.rs";
 
+/// Les racines dont les contrôles lisent au moins une source : les services, le stockage et la
+/// synchronisation, qui tiennent un document, l'interface et l'établi, qui n'en écrivent pas. Un
+/// membre dont la source quitte `src/` n'y serait lu par personne, et I28 resterait vert sans
+/// l'avoir vérifié.
+const RACINES_LUES: &[&str] = &[
+    "crates/services/src/",
+    "crates/stockage/src/",
+    "crates/synchro/src/",
+    "app/ui/src/",
+    "app/src-tauri/src/",
+];
+
 /// Les fautes des services : un mot interdit dans `crates/services/src/` ; aucune source des
 /// services lue en est une.
 fn fautes_des_services(sources: &[(String, String)]) -> Vec<String> {
@@ -272,7 +284,8 @@ fn source(chemin: &str, texte: &str) -> (String, String) {
     (chemin.to_string(), texte.to_string())
 }
 
-/// Des sources saines : chacune porte ce que sa place permet, et qu'une autre place refuserait.
+/// Des sources saines : chacune porte ce que sa place permet, et qu'une autre place refuserait ;
+/// chaque racine de `RACINES_LUES` en a au moins une.
 fn saines() -> Vec<(String, String)> {
     vec![
         source(
@@ -306,6 +319,14 @@ fn saines() -> Vec<(String, String)> {
         source(
             "crates/noyau/src/donnees/identifiants.rs",
             "pub fn uuid_v4(octets: [u8; 16]) -> String {\n    String::new()\n}\n",
+        ),
+        source(
+            "app/ui/src/main.rs",
+            "fn main() {\n    leptos::mount::mount_to_body(App);\n}\n",
+        ),
+        source(
+            "app/src-tauri/src/lib.rs",
+            "pub fn run() {\n    tauri::Builder::default();\n}\n",
         ),
     ]
 }
@@ -369,6 +390,40 @@ fn chaque_controle_refuse_ce_qu_on_y_plante() {
     ] {
         refuse(&avec(essai, import), essai, "application");
     }
+    // I28 : les écritures d'automerge 0.12.0 que nul autre mot ne nomme. `init_from_hydrate`
+    // ouvre et committe une transaction ; `transact_and_log_patches` se committe d'elle-même ; le
+    // trait des écritures arrive par un glob dans un import groupé ; une transaction possède le
+    // document. Chacune est refusée, et la faute la nomme.
+    let ecritures = [
+        (
+            "fn f(doc: &mut Automerge, carte: &Map) {\n    doc.init_from_hydrate(&carte);\n}\n",
+            ".init_from_hydrate(",
+        ),
+        (
+            "use automerge::{transaction::*, Automerge};\n",
+            "transaction::*",
+        ),
+        (
+            "fn f(doc: &mut Automerge, liste: &ObjId) {\n    doc.transact_and_log_patches(|tx| tx.insert(&liste, 0, 1));\n}\n",
+            ".transact",
+        ),
+        (
+            "fn f(doc: Automerge) -> OwnedTransaction {\n    doc.into_transaction(None, None).unwrap()\n}\n",
+            "OwnedTransaction",
+        ),
+    ];
+    let admises: Vec<&str> = ecritures
+        .iter()
+        .filter(|(texte, _)| controler(&avec(essai, texte)).is_ok())
+        .map(|(_, mot)| *mot)
+        .collect();
+    assert!(
+        admises.is_empty(),
+        "écritures admises hors des fichiers qui écrivent : {admises:?}"
+    );
+    for (texte, mot) in ecritures {
+        refuse(&avec(essai, texte), essai, mot);
+    }
     // Les services : un import groupé, qui ne nomme pas `std::fs`, un fil, une table hachée.
     let plante = "crates/services/src/plante.rs";
     refuse(
@@ -415,6 +470,37 @@ fn chaque_controle_refuse_ce_qu_on_y_plante() {
         &avec(proprietaire, "fn identifiant_de_proprietaire() {}\n"),
         proprietaire,
         "uuid_v4(",
+    );
+}
+
+/// Une racine de `RACINES_LUES` dont aucune source n'est lue, ou un fichier d'`ECRIVENT` non lu,
+/// est une faute qui le nomme : sans elle, I28 resterait vert sans l'avoir lu.
+#[test]
+fn une_racine_ou_un_fichier_qui_ecrit_non_lus_sont_des_fautes() {
+    let mut absentes = Vec::new();
+    for racine in RACINES_LUES {
+        let sources: Vec<_> = saines()
+            .into_iter()
+            .filter(|(chemin, _)| !chemin.starts_with(racine))
+            .collect();
+        let attendue = format!("aucune source lue sous {racine}");
+        if !controler(&sources).is_err_and(|fautes| fautes.contains(&attendue)) {
+            absentes.push(attendue);
+        }
+    }
+    for fichier in ECRIVENT {
+        let sources: Vec<_> = saines()
+            .into_iter()
+            .filter(|(chemin, _)| chemin != fichier)
+            .collect();
+        let attendue = format!("{fichier} n'est pas lu");
+        if !controler(&sources).is_err_and(|fautes| fautes.contains(&attendue)) {
+            absentes.push(attendue);
+        }
+    }
+    assert!(
+        absentes.is_empty(),
+        "fautes attendues, absentes : {absentes:?}"
     );
 }
 
