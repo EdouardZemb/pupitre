@@ -19,17 +19,16 @@ mod pannes;
 mod racine_des_donnees;
 
 use std::collections::BTreeMap;
-use std::fmt::Write;
 use std::io;
 use std::path::{Path, PathBuf};
 
 use automerge::{Automerge, AutomergeError, ObjId, ObjType, ROOT, ReadDoc, ScalarValue, Value};
 use noyau::donnees::acces::Acces;
 use noyau::donnees::teneur::{ErreurDeTeneur, Valeur, ecrire_la_teneur};
-use sha2::{Digest, Sha256};
 
 pub use captations::Captations;
 pub use documents::{Document, Naissance};
+pub use noyau::donnees::identifiants::empreinte;
 pub use racine_des_donnees::RacineDesDonnees;
 
 /// Ce que le stockage refuse, ou ce que le disque lui refuse. Le texte en français de chaque
@@ -205,16 +204,6 @@ fn valeur_de(doc: &Automerge, valeur: Value<'_>, id: &ObjId) -> Valeur {
             },
         },
     }
-}
-
-/// Le SHA-256 de `octets`, en 64 caractères hexadécimaux minuscules (`Sha256::digest`).
-pub fn empreinte(octets: &[u8]) -> String {
-    let condense = Sha256::digest(octets);
-    let mut e = String::with_capacity(64);
-    for octet in condense.iter() {
-        let _ = write!(e, "{octet:02x}");
-    }
-    e
 }
 
 /// Le refus du disque sur `chemin`.
