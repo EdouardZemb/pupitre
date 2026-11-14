@@ -158,3 +158,28 @@ fn un_geste_qui_touche_une_idee_retiree_est_refuse() {
 fn la_vue_tire_reliee_et_la_duree_des_regles_du_noyau() {
     suite::la_vue_tire_reliee_et_la_duree_des_regles_du_noyau(&mut PaireEnMemoire);
 }
+
+#[test]
+fn cap02_6_annuler_rend_le_fonds_d_avant_et_le_journal_porte_le_geste_puis_son_annulation() {
+    suite::annuler_rend_le_fonds_d_avant(&mut PaireEnMemoire);
+}
+
+#[test]
+fn la_suite_de_la_decision_18() {
+    suite::la_suite_de_la_decision_18(&mut PaireEnMemoire);
+}
+
+#[test]
+fn un_geste_refuse_ne_change_pas_ce_qu_annuler_vise() {
+    suite::un_geste_refuse_ne_change_pas_ce_qu_annuler_vise(&mut PaireEnMemoire);
+}
+
+#[test]
+fn la_reouverture_vide_ce_qu_annuler_vise() {
+    suite::la_reouverture_vide_ce_qu_annuler_vise(&mut PaireEnMemoire);
+}
+
+#[test]
+fn une_annulation_ne_s_annule_pas() {
+    suite::une_annulation_ne_s_annule_pas(&mut PaireEnMemoire);
+}

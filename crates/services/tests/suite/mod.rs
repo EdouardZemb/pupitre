@@ -25,7 +25,7 @@ use noyau::donnees::gestes;
 use noyau::donnees::idee::cle_du_lien;
 use noyau::donnees::identifiants::empreinte;
 use noyau::donnees::version::{Migration, message_de_la_migration};
-use services::lecture::version_de_schema;
+use services::lecture::{teneur, version_de_schema};
 use services::{Alea, Captations, Contexte, Documents, Services, Versee};
 
 /// L'heure des tests, en secondes : le 14 novembre 2023, 22 h 13 min 20 s UTC.
@@ -302,6 +302,82 @@ fn parait_au_journal<D: Documents, C: Captations>(
         services.journal(),
         Ok(journal.clone()),
         "après « {message} »"
+    );
+}
+
+/// La teneur du fonds (§ 31 · 2.6), qui doit être né.
+fn teneur_du_fonds<D: Documents, C: Captations>(services: &Services<D, C>) -> String {
+    teneur(services.documents().fonds().expect("le fonds est né"))
+        .expect("la teneur du fonds s'écrit")
+}
+
+/// Le refus d'« annuler » sans dernier geste de tri : `Raison::RienAAnnuler`.
+fn rien_a_annuler() -> Reponse<Faite> {
+    Err(Refus {
+        raison: Raison::RienAAnnuler,
+        message: "Aucun geste de tri à annuler depuis l'ouverture.".to_string(),
+    })
+}
+
+/// « Annuler » est fait : le journal porte, en dernier, « Annulé : » suivi de `message`, à l'heure
+/// du contexte.
+fn annule<D: Documents, C: Captations>(
+    services: &mut Services<D, C>,
+    contexte: &mut Contexte<'_>,
+    message: &str,
+) {
+    assert_eq!(
+        services.annuler(contexte),
+        Ok(Faite {
+            avertissement: None
+        }),
+        "l'annulation de « {message} »"
+    );
+    let journal = services.journal().expect("le journal se lit");
+    assert_eq!(
+        journal.last(),
+        Some(&entree(&format!("Annulé : {message}"), contexte.heure)),
+        "{journal:?}"
+    );
+}
+
+/// « Annuler » est refusé, rien à annuler, et le journal ne change pas.
+fn rien_n_est_annule<D: Documents, C: Captations>(
+    services: &mut Services<D, C>,
+    contexte: &mut Contexte<'_>,
+) {
+    let journal = services.journal();
+    assert_eq!(services.annuler(contexte), rien_a_annuler());
+    assert_eq!(services.journal(), journal);
+}
+
+/// Le geste de tri `rendu`, fait sous `message`, a changé le fonds ; annulé, le fonds revient à
+/// la teneur `avant`, lue avant le geste, et les deux dernières entrées du journal sont le geste,
+/// puis « Annulé : » suivi de son message, à l'heure du contexte.
+fn fait_puis_annule<D: Documents, C: Captations>(
+    services: &mut Services<D, C>,
+    contexte: &mut Contexte<'_>,
+    avant: &str,
+    rendu: Reponse<Faite>,
+    message: &str,
+) {
+    rendu.unwrap_or_else(|refus| panic!("le geste « {message} » est refusé : {refus:?}"));
+    assert_ne!(
+        teneur_du_fonds(services),
+        avant,
+        "« {message} » laisse le fonds tel qu'il était"
+    );
+    annule(services, contexte, message);
+    assert_eq!(
+        teneur_du_fonds(services),
+        avant,
+        "l'annulation de « {message} » ne rend pas le fonds d'avant le geste"
+    );
+    let journal = services.journal().expect("le journal se lit");
+    assert_eq!(
+        journal[journal.len() - 2],
+        entree(message, contexte.heure),
+        "{journal:?}"
     );
 }
 
@@ -700,7 +776,9 @@ pub fn chaque_geste_de_tri_parait_au_journal<P: Paire>(paire: &mut P) {
 /// X notée, et P1, versée sous son idée W, regroupée dans X ; puis V, née du versement de P2
 /// seule. Regrouper P2 dans X retire V par le même geste : le journal gagne une seule entrée, qui
 /// le dit ; V, retirée à l'heure du contexte, sans captation, quitte la liste des idées, comme W,
-/// vidée par le premier regroupement ; X porte P1 et P2.
+/// vidée par le premier regroupement ; X porte P1 et P2. Annuler ce regroupement rend P2 à V,
+/// rétablie : V revient dans la liste des idées, W non, X ne porte plus que P1, et le journal
+/// porte le regroupement puis son annulation ; un second « annuler » est refusé, rien à annuler.
 pub fn l_idee_videe_par_un_regroupement_est_retiree<P: Paire>(paire: &mut P) {
     let mut services = paire.neufs();
     let mut alea = AleaDeTest {
@@ -740,7 +818,7 @@ pub fn l_idee_videe_par_un_regroupement_est_retiree<P: Paire>(paire: &mut P) {
         "Idée du 14 novembre : prise regroupée, idée du 14 novembre retirée",
         HEURE,
     ));
-    assert_eq!(services.journal(), Ok(journal));
+    assert_eq!(services.journal(), Ok(journal.clone()));
     let vue_de_v = services
         .vue_d_une_idee(&v.idee)
         .expect("la vue de V se lit");
@@ -751,6 +829,29 @@ pub fn l_idee_videe_par_un_regroupement_est_retiree<P: Paire>(paire: &mut P) {
         services.vue_d_une_idee(&x).map(|vue| vue.captations),
         Ok(prises(&[&p1, &v.empreinte]))
     );
+
+    assert_eq!(
+        services.annuler(&mut contexte),
+        Ok(Faite {
+            avertissement: None
+        })
+    );
+    journal.push(entree(
+        "Annulé : Idée du 14 novembre : prise regroupée, idée du 14 novembre retirée",
+        HEURE,
+    ));
+    assert_eq!(services.journal(), Ok(journal));
+    let vue_de_v = services
+        .vue_d_une_idee(&v.idee)
+        .expect("la vue de V se lit");
+    assert_eq!(vue_de_v.retiree, None);
+    assert_eq!(vue_de_v.captations, prises(&[&v.empreinte]));
+    assert_eq!(services.idees(), Ok(vec![x.clone(), v.idee.clone()]));
+    assert_eq!(
+        services.vue_d_une_idee(&x).map(|vue| vue.captations),
+        Ok(prises(&[&p1]))
+    );
+    rien_n_est_annule(&mut services, &mut contexte);
 }
 
 /// Deux prises de deux idées, P1 de V1 et P2 de V2, regroupées dans X : X porte deux captations
@@ -1116,4 +1217,291 @@ pub fn la_vue_tire_reliee_et_la_duree_des_regles_du_noyau<P: Paire>(paire: &mut 
         .regrouper(&regroupement(&v3.empreinte, &v1.idee), &mut contexte)
         .expect("la prise de V3 se regroupe dans V1");
     assert_eq!(duree(&services), Ok(None));
+}
+
+/// Sur deux notes A et B et une prise P versée (son idée V), chacun des huit gestes de tri, fait
+/// puis annulé, au lendemain : compléter A, poser `#pont` sur A, l'ôter, relier A et B, les
+/// délier, regrouper P dans A, qui retire V, retirer B, rétablir B. Chaque annulation rend au
+/// fonds la teneur d'avant son geste, et le journal porte le geste, puis « Annulé : » suivi de
+/// son message. Ôter, délier et rétablir demandent l'étiquette, le lien ou le retrait : un geste
+/// de tri les pose d'abord, et reste.
+pub fn annuler_rend_le_fonds_d_avant<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let a = services
+        .noter(&une_note("Un refrain qui monte, en ré"), &mut contexte)
+        .expect("la note A est faite")
+        .idee;
+    let b = services
+        .noter(&une_note("Un pont en mi mineur"), &mut contexte)
+        .expect("la note B est faite")
+        .idee;
+    let p = verser_une_prise(
+        &mut services,
+        PRISE_DE_TEST,
+        &fiche_wav(30_000),
+        &mut contexte,
+    )
+    .empreinte;
+    contexte.heure = LENDEMAIN;
+
+    let avant = teneur_du_fonds(&services);
+    let rendu = services.completer(
+        &completion(&a, "Un refrain qui monte, puis retombe"),
+        &mut contexte,
+    );
+    fait_puis_annule(
+        &mut services,
+        &mut contexte,
+        &avant,
+        rendu,
+        "Idée du 14 novembre : texte complété",
+    );
+
+    let avant = teneur_du_fonds(&services);
+    let rendu = services.poser_une_etiquette(&etiquetage(&a, "pont"), &mut contexte);
+    fait_puis_annule(
+        &mut services,
+        &mut contexte,
+        &avant,
+        rendu,
+        "Idée du 14 novembre : étiquette #pont posée",
+    );
+
+    services
+        .poser_une_etiquette(&etiquetage(&a, "pont"), &mut contexte)
+        .expect("l'étiquette est posée sur A");
+    let avant = teneur_du_fonds(&services);
+    let rendu = services.oter_une_etiquette(&etiquetage(&a, "pont"), &mut contexte);
+    fait_puis_annule(
+        &mut services,
+        &mut contexte,
+        &avant,
+        rendu,
+        "Idée du 14 novembre : étiquette #pont ôtée",
+    );
+
+    let avant = teneur_du_fonds(&services);
+    let rendu = services.relier(&lien(&a, &b), &mut contexte);
+    fait_puis_annule(
+        &mut services,
+        &mut contexte,
+        &avant,
+        rendu,
+        "Idée du 14 novembre reliée à l'idée du 14 novembre",
+    );
+
+    services
+        .relier(&lien(&a, &b), &mut contexte)
+        .expect("A est reliée à B");
+    let avant = teneur_du_fonds(&services);
+    let rendu = services.delier(&lien(&a, &b), &mut contexte);
+    fait_puis_annule(
+        &mut services,
+        &mut contexte,
+        &avant,
+        rendu,
+        "Idée du 14 novembre déliée de l'idée du 14 novembre",
+    );
+
+    let avant = teneur_du_fonds(&services);
+    let rendu = services.regrouper(&regroupement(&p, &a), &mut contexte);
+    fait_puis_annule(
+        &mut services,
+        &mut contexte,
+        &avant,
+        rendu,
+        "Idée du 14 novembre : prise regroupée, idée du 14 novembre retirée",
+    );
+
+    let avant = teneur_du_fonds(&services);
+    let rendu = services.retirer(&visee(&b), &mut contexte);
+    fait_puis_annule(
+        &mut services,
+        &mut contexte,
+        &avant,
+        rendu,
+        "Idée du 14 novembre retirée",
+    );
+
+    services
+        .retirer(&visee(&b), &mut contexte)
+        .expect("B est retirée");
+    let avant = teneur_du_fonds(&services);
+    let rendu = services.retablir(&visee(&b), &mut contexte);
+    fait_puis_annule(
+        &mut services,
+        &mut contexte,
+        &avant,
+        rendu,
+        "Idée du 14 novembre rétablie",
+    );
+}
+
+/// Annuler ne vise que le dernier geste de tri fait depuis l'ouverture (§ 30 · 11) : une note ne
+/// le vise ni ne le remplace, un geste refusé ne le change pas, et une annulation ne s'annule
+/// pas, un second « annuler » est refusé. Pas à pas : noter A ; annuler, refusé ; poser `#pont`
+/// sur A ; noter B ; annuler, qui ôte `#pont` ; annuler, refusé ; relier A et B ; retirer B ;
+/// poser `#pont` sur A ; le reposer, refusé ; annuler, qui ôte `#pont` ; annuler, refusé. Restent
+/// le lien de A et B, B retirée, et A sans étiquette.
+pub fn la_suite_de_la_decision_18<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let a = services
+        .noter(&une_note("Un refrain qui monte, en ré"), &mut contexte)
+        .expect("la note A est faite")
+        .idee;
+    rien_n_est_annule(&mut services, &mut contexte);
+    services
+        .poser_une_etiquette(&etiquetage(&a, "pont"), &mut contexte)
+        .expect("l'étiquette est posée sur A");
+    let b = services
+        .noter(&une_note("Un pont en mi mineur"), &mut contexte)
+        .expect("la note B est faite")
+        .idee;
+    annule(
+        &mut services,
+        &mut contexte,
+        "Idée du 14 novembre : étiquette #pont posée",
+    );
+    rien_n_est_annule(&mut services, &mut contexte);
+    services
+        .relier(&lien(&a, &b), &mut contexte)
+        .expect("A est reliée à B");
+    services
+        .retirer(&visee(&b), &mut contexte)
+        .expect("B est retirée");
+    services
+        .poser_une_etiquette(&etiquetage(&a, "pont"), &mut contexte)
+        .expect("l'étiquette est posée sur A");
+    assert_eq!(
+        services.poser_une_etiquette(&etiquetage(&a, "pont"), &mut contexte),
+        Err(impossible("L'étiquette #pont est déjà posée.".to_string()))
+    );
+    annule(
+        &mut services,
+        &mut contexte,
+        "Idée du 14 novembre : étiquette #pont posée",
+    );
+    rien_n_est_annule(&mut services, &mut contexte);
+
+    let vue_de_a = services.vue_d_une_idee(&a).expect("la vue de A se lit");
+    assert_eq!(vue_de_a.liens, vec![b.clone()]);
+    assert_eq!(vue_de_a.etiquettes, Vec::<String>::new());
+    assert_eq!(
+        services.vue_d_une_idee(&b).map(|vue| vue.retiree),
+        Ok(Some(HEURE))
+    );
+}
+
+/// Un geste de tri refusé ne devient pas ce qu'annuler vise, et ne change pas ce qu'il vise ; un
+/// geste fait le devient, à la place du précédent. Sur A notée : relier A à elle-même, refusé,
+/// puis annuler, refusé ; poser `#pont` sur A, puis compléter A ; reposer `#pont`, refusé ;
+/// annuler défait le seul complément : A garde `#pont` et retrouve son texte ; un second
+/// « annuler » est refusé.
+pub fn un_geste_refuse_ne_change_pas_ce_qu_annuler_vise<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let a = services
+        .noter(&une_note("Un refrain qui monte, en ré"), &mut contexte)
+        .expect("la note A est faite")
+        .idee;
+    assert_eq!(
+        services.relier(&lien(&a, &a), &mut contexte),
+        Err(impossible(
+            "Une idée ne se relie pas à elle-même.".to_string()
+        ))
+    );
+    rien_n_est_annule(&mut services, &mut contexte);
+
+    services
+        .poser_une_etiquette(&etiquetage(&a, "pont"), &mut contexte)
+        .expect("l'étiquette est posée sur A");
+    services
+        .completer(
+            &completion(&a, "Un refrain qui monte, puis retombe"),
+            &mut contexte,
+        )
+        .expect("le texte de A est complété");
+    assert_eq!(
+        services.poser_une_etiquette(&etiquetage(&a, "pont"), &mut contexte),
+        Err(impossible("L'étiquette #pont est déjà posée.".to_string()))
+    );
+    annule(
+        &mut services,
+        &mut contexte,
+        "Idée du 14 novembre : texte complété",
+    );
+    let vue_de_a = services.vue_d_une_idee(&a).expect("la vue de A se lit");
+    assert_eq!(
+        vue_de_a.texte.as_deref(),
+        Some("Un refrain qui monte, en ré")
+    );
+    assert_eq!(vue_de_a.etiquettes, vec!["pont".to_string()]);
+    rien_n_est_annule(&mut services, &mut contexte);
+}
+
+/// Annuler ne vise que ce qui est fait depuis l'ouverture : `#pont` posée sur A, puis les
+/// services rouverts, « annuler » est refusé, rien à annuler ; A garde `#pont`.
+pub fn la_reouverture_vide_ce_qu_annuler_vise<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let a = services
+        .noter(&une_note("Un refrain qui monte, en ré"), &mut contexte)
+        .expect("la note A est faite")
+        .idee;
+    services
+        .poser_une_etiquette(&etiquetage(&a, "pont"), &mut contexte)
+        .expect("l'étiquette est posée sur A");
+
+    let mut services = paire.rouvrir(services, &[]);
+    rien_n_est_annule(&mut services, &mut contexte);
+    assert_eq!(
+        services.vue_d_une_idee(&a).map(|vue| vue.etiquettes),
+        Ok(vec!["pont".to_string()])
+    );
+}
+
+/// Une annulation ne s'annule pas : `#pont` posée sur A, puis ôtée par « annuler » ; un second
+/// « annuler » est refusé, rien à annuler, et A reste sans étiquette.
+pub fn une_annulation_ne_s_annule_pas<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let a = services
+        .noter(&une_note("Un refrain qui monte, en ré"), &mut contexte)
+        .expect("la note A est faite")
+        .idee;
+    services
+        .poser_une_etiquette(&etiquetage(&a, "pont"), &mut contexte)
+        .expect("l'étiquette est posée sur A");
+    annule(
+        &mut services,
+        &mut contexte,
+        "Idée du 14 novembre : étiquette #pont posée",
+    );
+    rien_n_est_annule(&mut services, &mut contexte);
+    assert_eq!(
+        services.vue_d_une_idee(&a).map(|vue| vue.etiquettes),
+        Ok(Vec::new())
+    );
 }
