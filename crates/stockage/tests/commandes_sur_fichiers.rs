@@ -1,7 +1,8 @@
 //! La suite des commandes sur la paire d'adaptateurs sur fichiers : chaque test de la suite,
 //! rejoué sur `FondsSurFichiers` et les `Captations` d'une racine des données jetable ; puis, sur
 //! cette paire seule, des commandes coupées par une panne, avant ou après le renommage de leur
-//! fichier, et la migration de test, la même dans la suite et dans les aides du stockage.
+//! fichier, la première comprise, qui fait naître le fonds, et la migration de test, la même dans
+//! la suite et dans les aides du stockage.
 
 #[path = "../../services/tests/suite/mod.rs"]
 mod suite;
@@ -14,7 +15,7 @@ use noyau::donnees::version::Migration;
 use services::{Documents, Raison, Refus, Services};
 use stockage::pannes::{Etape, couper};
 use stockage::{Captations, FondsSurFichiers, RacineDesDonnees};
-use suite::{AleaDeTest, Paire, SECONDE_IDEE, contexte_de_test, une_note};
+use suite::{AleaDeTest, IDEE, Paire, SECONDE_IDEE, contexte_de_test, une_note};
 
 /// La paire sur fichiers, sur la racine des données `racine` : le fonds de la racine, sans
 /// document à sa naissance, et ses captations, sur l'établi ; rouverte, les services fermés, puis
@@ -93,6 +94,20 @@ fn noter_fait_naitre_le_fonds_en_trois_modifications() {
 fn une_note_vide_refusee_ne_fait_rien_naitre() {
     let racine = racine_jetable("commandes-note-vide");
     suite::une_note_vide_refusee_ne_fait_rien_naitre(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn une_note_au_decalage_local_dit_le_jour_decale() {
+    let racine = racine_jetable("commandes-decalage-local");
+    suite::une_note_au_decalage_local_dit_le_jour_decale(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn une_empreinte_qu_aucune_captation_ne_porte_ne_se_relit_pas() {
+    let racine = racine_jetable("commandes-empreinte-inconnue");
+    suite::une_empreinte_qu_aucune_captation_ne_porte_ne_se_relit_pas(&mut PaireSurFichiers {
+        racine: &racine,
+    });
 }
 
 // § 31 · 10, test 10 : ouvrir un document de version de schéma N + 1 avec une application qui ne connaît que la version de schéma N
@@ -194,6 +209,41 @@ fn une_commande_coupee_apres_le_renommage_est_faite_avec_un_avertissement() {
         .vue_d_une_idee(SECONDE_IDEE)
         .expect("l'idée de la seconde note se lit");
     assert_eq!(vue.texte.as_deref(), Some("Un pont en mi mineur"));
+}
+
+// § 31 · 10, test 8 : interrompre une écriture à chaque étape (fichier voisin écrit, synchronisé, renommé), puis rouvrir le document
+/// La première note, coupée après le renommage du fichier complet de la naissance : le fonds est
+/// né, et la note rend l'avertissement de la naissance (`FondsSurFichiers::faire_naitre`) ;
+/// rouvert, l'idée notée se lit.
+#[test]
+fn la_premiere_note_coupee_apres_le_renommage_fait_naitre_le_fonds_avec_un_avertissement() {
+    let racine = racine_jetable("commandes-naissance-coupee-apres-le-renommage");
+    let mut paire = PaireSurFichiers { racine: &racine };
+    let mut services = paire.neufs();
+    let mut alea = alea_de_test();
+
+    let rendu = {
+        let _panne = couper(Etape::RendreDurable, 1);
+        services.noter(
+            &une_note("Un refrain qui monte, en ré"),
+            &mut contexte_de_test(&mut alea),
+        )
+    };
+    match rendu {
+        Ok(Notee {
+            idee,
+            avertissement: Some(_),
+        }) => assert_eq!(idee, IDEE),
+        autre => {
+            panic!("attendu la note faite, avec l'avertissement de la naissance ; rendu {autre:?}")
+        }
+    }
+
+    let services = paire.rouvrir(services, &[]);
+    let vue = services
+        .vue_d_une_idee(IDEE)
+        .expect("l'idée de la première note se lit");
+    assert_eq!(vue.texte.as_deref(), Some("Un refrain qui monte, en ré"));
 }
 
 #[test]

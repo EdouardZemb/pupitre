@@ -29,7 +29,10 @@ fn la_date_du_message_suit_le_decalage_et_dit_le_premier() {
     assert_eq!(date_du_message(1_835_438_400, 0), "29 février");
     assert_eq!(date_du_message(0, 0), "1er janvier");
     assert_eq!(date_du_message(-1, 0), "31 décembre");
-    // Les termes de siècle de l'algorithme (doe / 36 524, doe / 146 096) ne jouent qu'en fin d'ère.
+    // Les termes de siècle de l'algorithme ne changent l'année qu'aux abords du 1er mars :
+    // doe / 36 524, aux premiers jours de mars après le premier siècle de l'ère (dès le 1er mars
+    // 2100 dans celle de 2000) ; doe / 146 096, au seul 29 février qui finit l'ère (celui de 2000
+    // dans l'ère de 1600).
     assert_eq!(date_du_message(951_825_600, 0), "29 février"); // 2000-02-29, 12 h UTC
     assert_eq!(date_du_message(4_107_585_600, 0), "1er mars"); // 2100-03-01, 12 h UTC
 }
@@ -96,6 +99,19 @@ fn noter_cree_l_idee_captee_datee_avec_ses_etiquettes() {
         &["idees", i, "par"],
         Simple::Chaine("carnet".into())
     )));
+    // Deux heures plus à l'est, `HEURE` (22 h 13 UTC, le 14) tombe le 15 : le message dit le jour
+    // décalé, l'idée reste née à `HEURE`, et le texte se range tel qu'il est reçu, blancs compris.
+    let decalee = noter(i, "  x  ", Appareil::Etabli, HEURE, 120).unwrap();
+    assert_eq!(decalee.message, "Idée du 15 novembre notée");
+    assert!(decalee.changements.contains(&poser(
+        &["idees", i, "texte"],
+        Simple::Chaine("  x  ".into())
+    )));
+    assert!(
+        decalee
+            .changements
+            .contains(&poser(&["idees", i, "le"], Simple::Entier(HEURE)))
+    );
 }
 
 #[test]

@@ -16,6 +16,7 @@ use commandes::{EntreeDuJournal, Notee, Noter, Raison, Refus, VueDUneIdee};
 use noyau::donnees::fonds::{
     ACTEUR_DE_LA_GENESE, GENESE, IDENTIFIANT, LIGNEE, PROPRIETAIRE, VERSION_DE_SCHEMA,
 };
+use noyau::donnees::identifiants::empreinte;
 use noyau::donnees::version::{Migration, message_de_la_migration};
 use services::lecture::version_de_schema;
 use services::{Alea, Captations, Contexte, Documents, Services};
@@ -62,7 +63,7 @@ impl Alea for AleaDeTest {
 pub trait Paire {
     type D: Documents;
     type C: Captations;
-    /// Des services sur une racine sans document (fichiers), ou sans fonds (mémoire).
+    /// Des services sur une racine des données sans document (fichiers), ou sans fonds (mémoire).
     fn neufs(&mut self) -> Services<Self::D, Self::C>;
     /// Ferme `services`, puis les rouvre selon `migrations`.
     fn rouvrir(
@@ -277,11 +278,59 @@ pub fn une_note_vide_refusee_ne_fait_rien_naitre<P: Paire>(paire: &mut P) {
     );
 }
 
+/// Une note au décalage local de deux heures, à `HEURE` (22 h 13 UTC, le 14 novembre) : les
+/// services passent le décalage au noyau, et le message dit le jour décalé, le 15 novembre ;
+/// l'idée née reste datée de `HEURE`.
+pub fn une_note_au_decalage_local_dit_le_jour_decale<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let commande = Noter {
+        texte: "Un pont en mi mineur".to_string(),
+        decalage_minutes: 120,
+    };
+    services
+        .noter(&commande, &mut contexte_de_test(&mut alea))
+        .expect("la note est faite");
+    let journal = services.journal().expect("le journal se lit");
+    assert_eq!(
+        journal.last(),
+        Some(&entree("Idée du 15 novembre notée", HEURE)),
+        "{journal:?}"
+    );
+    let vue = services
+        .vue_d_une_idee(IDEE)
+        .expect("la vue de l'idée se lit");
+    assert_eq!(vue.le, HEURE);
+}
+
+/// Une empreinte qu'aucune captation ne porte ne se relit pas : `Raison::Impossible`, sur des
+/// services neufs comme après qu'une autre captation est versée.
+pub fn une_empreinte_qu_aucune_captation_ne_porte_ne_se_relit_pas<P: Paire>(paire: &mut P) {
+    let services = paire.neufs();
+    let inconnue = empreinte("une captation jamais versée".as_bytes());
+    let relire = |services: &Services<P::D, P::C>| {
+        services
+            .captations()
+            .relire(&inconnue)
+            .map_err(|refus| refus.raison)
+    };
+    assert_eq!(relire(&services), Err(Raison::Impossible));
+    services
+        .captations()
+        .verser("une autre captation".as_bytes())
+        .expect("la captation se verse");
+    assert_eq!(relire(&services), Err(Raison::Impossible));
+}
+
 // § 31 · 10, test 10 : ouvrir un document de version de schéma N + 1 avec une application qui ne connaît que la version de schéma N
 /// Le fonds migré vers la version de schéma 2, rouvert par une application qui ne connaît que la
-/// version de schéma 1 : il se lit, son journal et la vue de l'idée notée montrés ; une note est
-/// refusée du refus que rend `lecture_seule()`, qui nomme la version de schéma 2, sans rien tirer,
-/// et le journal ne change pas ; une captation se verse encore, et se relit.
+/// version de schéma 1 : il se lit, son journal et la vue de l'idée notée montrés, cette vue
+/// entière la même qu'avant la migration ; une note est refusée du refus que rend
+/// `lecture_seule()`, qui nomme la version de schéma 2, sans rien tirer, et le journal ne change
+/// pas ; une captation se verse encore, et se relit.
 pub fn une_commande_sur_un_fonds_plus_recent_est_refusee_et_le_nomme<P: Paire>(paire: &mut P) {
     let mut services = paire.neufs();
     let mut alea = AleaDeTest {
@@ -294,6 +343,9 @@ pub fn une_commande_sur_un_fonds_plus_recent_est_refusee_et_le_nomme<P: Paire>(p
             &mut contexte_de_test(&mut alea),
         )
         .expect("la note est faite");
+    let avant = services
+        .vue_d_une_idee(IDEE)
+        .expect("la vue de l'idée se lit");
     let migration = migration_de_test();
     let services = paire.rouvrir(services, &migrations_de_test(&migration));
     let mut services = paire.rouvrir(services, &[]);
@@ -312,11 +364,7 @@ pub fn une_commande_sur_un_fonds_plus_recent_est_refusee_et_le_nomme<P: Paire>(p
         );
     }
     assert_eq!(journal.len(), 4, "{journal:?}");
-    let vue = services
-        .vue_d_une_idee(IDEE)
-        .expect("la vue de l'idée se lit");
-    assert_eq!(vue.le, HEURE);
-    assert_eq!(vue.texte.as_deref(), Some("Un refrain qui monte, en ré"));
+    assert_eq!(services.vue_d_une_idee(IDEE), Ok(avant));
 
     let refus = services
         .documents()

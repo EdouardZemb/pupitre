@@ -1,8 +1,9 @@
 //! L'application des changements sur un document Automerge, sa lecture, et la paire d'adaptateurs
 //! en mémoire : une opération s'applique en une seule modification, avec son message et son
 //! heure, ou ne laisse rien ; une migration qui attend ses dépendances ne fait pas migrer ; le
-//! fonds lu ne prend que les valeurs du type du schéma ; la paire en mémoire migre à son
-//! ouverture, et rend la même empreinte d'une captation versée deux fois. La migration de test et
+//! fonds lu et la version de schéma ne prennent que les valeurs du type du schéma ; la paire en
+//! mémoire migre à son ouverture, ouvre en lecture seule un fonds dont la version de schéma ne se
+//! lit pas, et rend la même empreinte d'une captation versée deux fois. La migration de test et
 //! celle qui attend ses dépendances viennent de la suite des commandes, qui les porte une seule
 //! fois, et qui éprouve sur chaque paire le fonds qu'une telle migration laisse en lecture seule.
 
@@ -12,7 +13,9 @@ use std::collections::BTreeSet;
 
 use automerge::{Automerge, AutomergeError, ObjId, ObjType, ROOT, ReadDoc, ScalarValue, Value};
 use noyau::donnees::changement::{Changement, Operation, Simple};
-use noyau::donnees::fonds::{ETIQUETTES, IDEES, IDENTIFIANT, LE, MIGRATIONS, TEXTE};
+use noyau::donnees::fonds::{
+    ETIQUETTES, IDEES, IDENTIFIANT, LE, MIGRATIONS, TEXTE, VERSION_DE_SCHEMA,
+};
 use noyau::donnees::gestes::{Appareil, IdeeLue, Provenance, naissance, noter};
 use noyau::donnees::identifiants::empreinte;
 use noyau::donnees::version::message_de_la_migration;
@@ -243,6 +246,52 @@ fn une_valeur_d_un_autre_type_rend_l_idee_illisible() {
         ScalarValue::Uint(1_700_000_000)
     );
     assert_eq!(lire_l_idee(&doc, I), None);
+}
+
+/// Le fonds noté, sa version de schéma reposée en entier signé (`ScalarValue::Int(1)`), de la même
+/// valeur que la version de schéma de la genèse, mais d'un autre type.
+fn fonds_a_la_version_de_schema_signee() -> Automerge {
+    let mut doc = fonds_note();
+    appliquer(
+        &mut doc,
+        &operation(vec![poser(&[VERSION_DE_SCHEMA], Simple::Entier(1))]),
+    )
+    .expect("la version de schéma se pose");
+    assert_eq!(
+        scalaire(&doc, &ROOT, VERSION_DE_SCHEMA),
+        ScalarValue::Int(1)
+    );
+    doc
+}
+
+#[test]
+fn une_version_de_schema_d_un_autre_type_ne_se_lit_pas() {
+    // La valeur se reconnaît à sa variante : un entier signé n'est pas une version de schéma.
+    assert_eq!(
+        version_de_schema(&fonds_a_la_version_de_schema_signee()),
+        None
+    );
+}
+
+#[test]
+fn la_paire_en_memoire_ouvre_en_lecture_seule_un_fonds_de_version_de_schema_illisible() {
+    let octets = fonds_a_la_version_de_schema_signee().save();
+    let mut documents = DocumentsEnMemoire::de(&octets, MIGRATIONS).expect("le fonds s'ouvre");
+    let refus = documents
+        .lecture_seule()
+        .expect("le fonds se lit sans écrire");
+    assert_eq!(refus.raison, Raison::Illisible);
+    let avant = documents.fonds().expect("le fonds se lit").get_heads();
+    assert_eq!(
+        documents.appliquer(&operation(vec![poser(
+            &[IDEES, I, ETIQUETTES, "pont"],
+            Simple::Vrai
+        )])),
+        Err(refus)
+    );
+    let fonds = documents.fonds().expect("le fonds se lit");
+    assert_eq!(fonds.get_heads(), avant);
+    assert!(lire_l_idee(fonds, I).is_some());
 }
 
 #[test]
