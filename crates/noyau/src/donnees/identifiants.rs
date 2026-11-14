@@ -1,6 +1,7 @@
-//! Les identifiants (§ 30 · 2 ; § 41 · 6) : l'ULID d'une idée ou d'une lignée, l'UUID de
-//! l'identifiant de propriétaire et l'empreinte d'une captation. Le noyau les forme de ce qu'il
-//! reçoit : l'heure et l'aléa sont des arguments, jamais l'horloge ni le hasard.
+//! Les identifiants (§ 30 · 2 ; § 41 · 6) : l'ULID d'une idée, d'un document ou d'une lignée,
+//! l'UUID de l'identifiant de propriétaire, et l'empreinte d'une captation, d'un fichier d'ajout
+//! ou de la teneur d'un document. Le noyau les forme de ce qu'il reçoit : l'heure et l'aléa sont
+//! des arguments, jamais l'horloge ni le hasard.
 
 use std::fmt::Write;
 
@@ -39,7 +40,8 @@ pub fn uuid_v4(mut octets: [u8; 16]) -> String {
     texte
 }
 
-/// Le SHA-256 de `octets`, en 64 caractères hexadécimaux minuscules : l'empreinte d'une captation.
+/// Le SHA-256 de `octets`, en 64 caractères hexadécimaux minuscules : l'empreinte d'une captation,
+/// d'un fichier d'ajout ou de la teneur d'un document.
 pub fn empreinte(octets: &[u8]) -> String {
     let condense = Sha256::digest(octets);
     let mut e = String::with_capacity(64);

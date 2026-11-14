@@ -165,11 +165,14 @@ pub enum Raison {
     Impossible,
     /// Aucun geste à annuler.
     RienAAnnuler,
-    /// Le fonds, ou ce qu'en lit l'application, ne se lit pas.
+    /// Le fonds ne se lit pas en entier, ou ne se lit que sans écrire : un fichier altéré ou
+    /// refusé (un fichier d'ajout altéré, par exemple), une version de schéma illisible, une
+    /// migration qui ne s'applique pas, ou des octets qu'Automerge refuse. Ce qui s'en lit se
+    /// montre, en lecture seule.
     Illisible,
     /// Le fonds porte une version de schéma plus récente que celle que connaît l'application.
-    /// `version` : la version de schéma du document, que seules les migrations écrivent, chacune
-    /// d'un de plus (`noyau::donnees::version::connue` : 1 + le nombre de migrations), et que
+    /// `version` : la version de schéma du document, que la genèse pose à 1 et que seules les
+    /// migrations font monter, chacune d'un de plus (`noyau::donnees::version::connue` : 1 + le nombre de migrations), et que
     /// borne donc le nombre de migrations que l'application publiera.
     VersionPlusRecente { version: u64 },
     /// Le disque a refusé une lecture ou une écriture, ou rend des octets altérés.

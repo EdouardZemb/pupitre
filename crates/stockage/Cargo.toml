@@ -20,9 +20,10 @@ synchro = { path = "../synchro" }
 pannes = []
 
 [dev-dependencies]
-# La suite des commandes, que les tests incluent (`tests/commandes_sur_fichiers.rs`), nomme les
-# types de `commandes` : un test ne voit que les dépendances et les dépendances de test du
-# stockage.
+# `services` avec `en-memoire` : le fonds de mesure s'y engendrera sur la paire en mémoire, avant
+# de se rouvrir sur fichiers ; `commandes` : la suite des commandes, que les tests incluent
+# (`tests/commandes_sur_fichiers.rs`), nomme ses types, et un test ne voit que les dépendances et
+# les dépendances de test du stockage.
 commandes = { path = "../commandes" }
 proptest = "1.12.0"
 services = { path = "../services", features = ["en-memoire"] }

@@ -1,6 +1,6 @@
 //! Le fonds lu et les gestes (§ 31 · 3) : ce que le noyau sait d'une idée et d'une captation,
-//! telles que l'adaptateur `Documents` les a lues, et les opérations nommées qu'il calcule de ce
-//! qu'il reçoit. L'heure et le décalage local sont des arguments, jamais l'horloge.
+//! telles que `services::lecture` les tire du document, et les opérations nommées qu'il calcule
+//! de ce qu'il reçoit. L'heure et le décalage local sont des arguments, jamais l'horloge.
 
 use std::collections::BTreeSet;
 use std::fmt;
@@ -78,7 +78,7 @@ impl Sorte {
     }
 }
 
-/// Une idée, telle que l'adaptateur `Documents` l'a lue.
+/// Une idée, telle que `services::lecture` la tire du document.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IdeeLue {
     /// Son identifiant, un ULID.
@@ -97,7 +97,7 @@ pub struct IdeeLue {
     pub liens: BTreeSet<String>,
 }
 
-/// Une captation versée, telle que l'adaptateur `Documents` l'a lue.
+/// Une captation versée, telle que `services::lecture` la tire du document.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CaptationLue {
     /// Sa sorte.
@@ -111,7 +111,7 @@ pub struct CaptationLue {
 }
 
 /// Ce qui se verse d'une captation, ses faits lus : `format`, au vocabulaire du § 30 · 9.2 et de
-/// l'ADR-024, jamais l'extension (la table de la tâche 10) ; `duree_ms`, d'une prise seulement.
+/// l'ADR-024, jamais l'extension ; `duree_ms`, d'une prise seulement.
 /// La date et l'appareil d'une prise n'y sont pas : rien ne les lit sur la captation à INC-1.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Fiche {
@@ -121,8 +121,7 @@ pub struct Fiche {
     pub duree_ms: Option<u64>,
 }
 
-/// Pourquoi un geste ne se fait pas : un constat, jamais un ordre (§ 50 · 5). Les variantes des
-/// gestes de tri arrivent à la tâche 10.
+/// Pourquoi un geste ne se fait pas : un constat, jamais un ordre (§ 50 · 5).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Impossible {
     /// Le texte d'une note est vide, une fois ses blancs ôtés.
@@ -154,8 +153,8 @@ const MOIS_DEPUIS_MARS: [&str; 12] = [
     "février",
 ];
 
-/// « 3 novembre », « 1er novembre » : le jour de `heure`, en secondes, au décalage local
-/// `decalage_minutes` que l'interface donne (décision 10), sans année.
+/// « 3 novembre », « 1er novembre » : le jour que dit le message d'un geste (§ 30 · 11), celui de
+/// `heure`, en secondes, au décalage local `decalage_minutes` que l'interface donne, sans année.
 pub fn date_du_message(heure: i64, decalage_minutes: i32) -> String {
     let jours = (heure + i64::from(decalage_minutes) * 60).div_euclid(86_400);
     // Le calcul civil inversé (« civil from days », H. Hinnant), sur des entiers, dans une ère

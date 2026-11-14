@@ -136,6 +136,7 @@ npx --no-install puppeteer browsers install chrome    # une fois, ou CHROME_PATH
 node scripts/verif-diagrammes.mjs
 cargo fmt --all --check
 cargo clippy -p noyau -p cahier -p stockage -p synchro -p commandes -p services --all-targets -- -D warnings
+cargo clippy -p stockage --lib -- -D warnings
 cargo clippy -p services --lib -- -D warnings
 cargo clippy -p interface --all-targets -- -D warnings
 cargo clippy -p interface --target wasm32-unknown-unknown -- -D warnings

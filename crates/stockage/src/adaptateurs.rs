@@ -121,19 +121,23 @@ fn raison(erreur: &Erreur) -> Raison {
             | LectureSeule::VersionIllisible,
         ) => Raison::Illisible,
         Erreur::Disque { .. } | Erreur::CaptationAlteree { .. } => Raison::Disque,
-        // Une empreinte qu'aucun fichier ne porte, ou un fonds qui n'est plus neuf
-        // (`pupitre_neuf`) : la commande ne se fait pas sur le fonds tel qu'il est.
-        Erreur::Inapplicable(_) | Erreur::CaptationAbsente { .. } | Erreur::FondsDejaNe => {
-            Raison::Impossible
-        }
+        // Une opération qui ne s'applique pas, une empreinte qu'aucun fichier ne porte, un fonds
+        // qui n'est plus neuf (`pupitre_neuf`), ou un autre `Document` de la racine des données
+        // qui vit quand une commande fait naître le fonds (`FondsSurFichiers::faire_naitre`) : la
+        // commande ne se fait pas sur le fonds tel qu'il est. `FondsDejaOuvert` survient aussi à
+        // l'ouverture, avant les services (`FondsSurFichiers::ouvrir`).
+        Erreur::Inapplicable(_)
+        | Erreur::CaptationAbsente { .. }
+        | Erreur::FondsDejaNe
+        | Erreur::FondsDejaOuvert => Raison::Impossible,
         Erreur::Automerge(_) => Raison::Illisible,
         // Celles qui ne surviennent qu'avant les services, ou hors de leurs commandes, ont une
         // raison pour que la correspondance reste complète : la racine des données se prend avant
-        // tout fonds, et le fonds s'ouvre avant ses services ; seule `Document::compacter`, que
-        // les services n'appellent pas, rend `CompactionInfidele` (après une écriture, une
-        // compaction échouée est un avertissement) ; situer une copie et recevoir un message
-        // relèvent de la synchronisation (§ 31 · 2.5), que les services ne conduisent pas.
-        Erreur::RacineDesDonneesTenue | Erreur::FondsDejaOuvert => Raison::Impossible,
+        // tout fonds ; seule `Document::compacter`, que les services n'appellent pas, rend
+        // `CompactionInfidele` (après une écriture, une compaction échouée est un
+        // avertissement) ; situer une copie et recevoir un message relèvent de la
+        // synchronisation (§ 31 · 2.5), que les services ne conduisent pas.
+        Erreur::RacineDesDonneesTenue => Raison::Impossible,
         Erreur::CompactionInfidele => Raison::Disque,
         Erreur::ChampAbsent { .. } | Erreur::Synchro(_) => Raison::Illisible,
     }
