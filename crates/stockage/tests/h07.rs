@@ -17,6 +17,7 @@ use std::path::PathBuf;
 use automerge::{Automerge, ChangeHash, ObjId, ROOT, ReadDoc, hydrate};
 use commun::{HEURE, NAISSANCE, faite, objet, ouvrir, ouvrir_le_fonds, rangee};
 use noyau::donnees::fonds::{ETIQUETTES, IDEES, PRISES, TEXTE};
+use noyau::donnees::idee::empreintes_nommees;
 use proptest::prelude::*;
 use stockage::{Document, Erreur};
 use synchro::Copie;
@@ -138,6 +139,15 @@ fn cles(doc: &Automerge, objet: &ObjId) -> Vec<String> {
     doc.keys(objet).collect()
 }
 
+/// Les empreintes des prises de `doc`, telles que les nomment les clés `<empreinte>/<fait>` de
+/// `PRISES` (`empreintes_nommees`), dans l'ordre de leurs octets.
+fn empreintes_des_prises(doc: &Automerge) -> Vec<String> {
+    let cles_des_prises = cles(doc, &objet(doc, &ROOT, PRISES));
+    empreintes_nommees(cles_des_prises.iter().map(String::as_str))
+        .into_iter()
+        .collect()
+}
+
 /// Ce que la réunion de `deux_repliques_modifiees_hors_ligne_convergent` laisse dans le fonds
 /// `doc` de la réplique `nom` : les deux textes d'`idee-1`, conflit compris (`get_all`) ; les
 /// quatre idées ; les deux étiquettes ; les prises `prises`.
@@ -177,11 +187,7 @@ fn constater_la_reunion(doc: &Automerge, nom: &str, prises: &[&str]) {
     }
     let mut attendues = prises.to_vec();
     attendues.sort_unstable();
-    assert_eq!(
-        cles(doc, &objet(doc, &ROOT, PRISES)),
-        attendues,
-        "les prises de {nom}"
-    );
+    assert_eq!(empreintes_des_prises(doc), attendues, "les prises de {nom}");
 }
 
 /// Ce qu'A relève avant de se fermer : ses captations, dans l'ordre où elle les a versées, avec
@@ -559,7 +565,7 @@ fn une_copie_restauree_relit_chaque_captation_contre_son_empreinte() {
         .iter()
         .map(|(e, octets)| (e.as_str(), octets.as_slice()))
         .collect();
-    let prises = cles(fonds.automerge(), &objet(fonds.automerge(), &ROOT, PRISES));
+    let prises = empreintes_des_prises(fonds.automerge());
     assert_eq!(
         prises,
         versees.keys().copied().collect::<Vec<&str>>(),

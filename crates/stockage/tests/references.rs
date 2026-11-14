@@ -18,8 +18,8 @@ use stockage::{Document, Naissance, RacineDesDonnees, empreinte, teneur};
 
 /// Les empreintes de référence du test 11. Une ligne se change ou se retire avant la `v0.3.0`, et
 /// la PR le dit ; dès elle, seule une ligne ajoutée passe (§ 31 · 10, test 11 ; ADR-023).
-const GENESE_DU_FONDS: &str = "aa03e0cee230ee1aab90c1d53a6a00e51da250b8b5944b67560dd4f9b301c105";
-const TENEUR_DU_TEMOIN: &str = "a349d135957809fcbf348db20cfb69a8752fe5a32b28296f7b8d9744900a58a4";
+const GENESE_DU_FONDS: &str = "a02890acd15f12619da7f1f5abea9a8056db7188f909a467896ea50d4b5a6fc1";
+const TENEUR_DU_TEMOIN: &str = "6edd898e994a41036e5a4e7d42653910fcb99cb24f4f1ff42244f140b3bceabc";
 const TENEUR_DES_TYPES: &str = "35d51798213927730a9c636b9d6b72760400f3be0f674b9566b7d012ae7f5d30";
 
 /// Le document témoin, né dans `racine` sous `naissance` : la genèse, la naissance, puis, en un
@@ -127,8 +127,9 @@ fn genese_et_teneur_figees() {
     let temoin = faire_naitre_le_temoin(&racine, &NAISSANCE);
     let teneur = teneur(temoin.automerge()).unwrap();
     // {"idees":{"idee-1":{"etiquettes":{"refrain":b1},"texte":s"Un refrain qui monte, en ré"}},
-    //  "identifiant":s"fonds-1","prises":{},"proprietaire":s"proprietaire-1",
-    //  "version_de_schema":u1}
+    //  "identifiant":s"fonds-1","imports":{},"liens":{},"midi_verses":{},
+    //  "origines_declarees":{},"photos":{},"prises":{},"proprietaire":s"proprietaire-1",
+    //  "requetes_enregistrees":{},"textes_verses":{},"version_de_schema":u1}
     assert_eq!(
         empreinte(teneur.as_bytes()),
         TENEUR_DU_TEMOIN,
