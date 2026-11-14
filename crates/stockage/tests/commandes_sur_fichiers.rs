@@ -138,6 +138,69 @@ fn une_migration_qui_attend_ses_dependances_laisse_le_fonds_en_lecture_seule() {
 }
 
 #[test]
+fn cap02_4_chaque_geste_de_tri_parait_au_journal_comme_une_operation_nommee() {
+    let racine = racine_jetable("commandes-cap02-4");
+    suite::chaque_geste_de_tri_parait_au_journal(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn cap02_8_l_idee_videe_par_un_regroupement_est_retiree_et_l_annulation_la_retablit() {
+    let racine = racine_jetable("commandes-cap02-8");
+    suite::l_idee_videe_par_un_regroupement_est_retiree(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn cap02_3_deux_prises_regroupees_restent_deux_captations_d_empreinte_inchangee() {
+    let racine = racine_jetable("commandes-cap02-3");
+    suite::deux_prises_regroupees_restent_deux_captations(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn cap02_5_une_idee_retiree_quitte_la_liste_et_se_retablit_telle_qu_elle_etait() {
+    let racine = racine_jetable("commandes-cap02-5");
+    suite::une_idee_retiree_quitte_la_liste_et_se_retablit_telle_qu_elle_etait(
+        &mut PaireSurFichiers { racine: &racine },
+    );
+}
+
+#[test]
+fn un_geste_de_tri_sans_fonds_est_refuse_et_rien_ne_nait() {
+    let racine = racine_jetable("commandes-tri-sans-fonds");
+    suite::un_geste_de_tri_sans_fonds_est_refuse_et_rien_ne_nait(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+    // Le trait `Paire` ne donne aucun chemin : l'enveloppe, qui connaît la racine des données,
+    // voit que le dossier du fonds n'est pas né.
+    assert!(!racine.chemin().join("documents").join("fonds").exists());
+}
+
+#[test]
+fn une_fiche_versee_deux_fois_est_refusee_et_rien_ne_change() {
+    let racine = racine_jetable("commandes-fiche-versee-deux-fois");
+    suite::une_fiche_versee_deux_fois_est_refusee_et_rien_ne_change(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn un_geste_qui_touche_une_idee_retiree_est_refuse() {
+    let racine = racine_jetable("commandes-idee-retiree-touchee");
+    suite::un_geste_qui_touche_une_idee_retiree_est_refuse(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn la_vue_tire_reliee_et_la_duree_des_regles_du_noyau() {
+    let racine = racine_jetable("commandes-reliee-et-duree");
+    suite::la_vue_tire_reliee_et_la_duree_des_regles_du_noyau(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
 fn la_migration_de_test_est_la_meme_dans_les_deux_crates() {
     assert_eq!(suite::migration_de_test(), commun::migration_de_test());
 }

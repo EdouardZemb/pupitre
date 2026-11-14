@@ -1,28 +1,41 @@
 //! La suite des commandes : des tests écrits une fois, génériques sur une paire d'adaptateurs
 //! (`Paire`), que rejouent la paire en mémoire (`crates/services/tests/commandes_en_memoire.rs`)
 //! et celle des fichiers, au stockage (`crates/stockage/tests/commandes_sur_fichiers.rs`) ;
-//! l'heure et l'aléa des tests, l'identifiant de l'import des fiches qu'ils versent, la migration
-//! de test, les migrations qui la portent, et une migration qui attend ses dépendances. Le
-//! fichier s'inclut par `mod suite;` dans les tests des services, et par
-//! `#[path = "../../services/tests/suite/mod.rs"]` dans ceux du stockage : il ne nomme que ce que
-//! les deux voient, les services, les commandes, le noyau et `automerge`.
+//! l'heure et l'aléa des tests, l'identifiant de l'import des fiches qu'ils versent, la prise de
+//! test, les commandes des gestes de tri, la migration de test, les migrations qui la portent, et
+//! une migration qui attend ses dépendances. Le fichier s'inclut par `mod suite;` dans les tests
+//! des services, et par `#[path = "../../services/tests/suite/mod.rs"]` dans ceux du stockage :
+//! il ne nomme que ce que les deux voient, les services, les commandes, le noyau et `automerge`.
 
 // Chaque fichier qui inclut la suite n'en emploie qu'une partie.
 #![allow(dead_code)]
 
+use std::collections::BTreeSet;
+
 use automerge::transaction::{CommitOptions, Transactable};
 use automerge::{ActorId, Automerge, Change, ObjType, ROOT, ReadDoc};
-use commandes::{EntreeDuJournal, Notee, Noter, Raison, Refus, VueDUneIdee};
+use commandes::{
+    Captation, Completer, EntreeDuJournal, Etiqueter, Faite, Notee, Noter, Raison, Refus,
+    Regrouper, Relier, Reponse, Viser, VueDUneIdee,
+};
 use noyau::donnees::fonds::{
     ACTEUR_DE_LA_GENESE, GENESE, IDENTIFIANT, LIGNEE, PROPRIETAIRE, VERSION_DE_SCHEMA,
 };
+use noyau::donnees::gestes;
+use noyau::donnees::idee::cle_du_lien;
 use noyau::donnees::identifiants::empreinte;
 use noyau::donnees::version::{Migration, message_de_la_migration};
 use services::lecture::version_de_schema;
-use services::{Alea, Captations, Contexte, Documents, Services};
+use services::{Alea, Captations, Contexte, Documents, Services, Versee};
 
 /// L'heure des tests, en secondes : le 14 novembre 2023, 22 h 13 min 20 s UTC.
 pub const HEURE: i64 = 1_700_000_000;
+
+/// Le lendemain de `HEURE`, en secondes : le 15 novembre 2023, 22 h 13 min 20 s UTC.
+pub const LENDEMAIN: i64 = HEURE + 86_400;
+
+/// Les octets de la prise de test.
+pub const PRISE_DE_TEST: &[u8] = b"une prise de test";
 
 /// L'identifiant de l'import d'où viennent les fiches que versent les tests :
 /// `ulid(HEURE, [0xFF; 10])`.
@@ -166,6 +179,130 @@ fn entree(message: &str, heure: i64) -> EntreeDuJournal {
 fn chaine_de_la_racine(doc: &Automerge, cle: &str) -> Option<String> {
     let (valeur, _) = doc.get(ROOT, cle).ok()??;
     valeur.into_string().ok()
+}
+
+/// La fiche d'une prise WAV de `duree_ms` millisecondes.
+pub fn fiche_wav(duree_ms: u64) -> gestes::Fiche {
+    gestes::Fiche {
+        format: "wav".to_string(),
+        duree_ms: Some(duree_ms),
+    }
+}
+
+/// La provenance des fiches que versent les tests : importées à l'établi, par l'import `IMPORT`.
+/// À INC-1, une prise n'entre sur l'établi que par l'import.
+pub fn importee() -> gestes::Provenance {
+    gestes::Provenance::Importee {
+        par: gestes::Appareil::Etabli,
+        depuis: IMPORT.to_string(),
+    }
+}
+
+/// Verse la prise `octets`, de fiche `fiche`, importée (`importee`), au décalage local nul : son
+/// idée naît avec elle, à l'heure du contexte.
+pub fn verser_une_prise<D: Documents, C: Captations>(
+    services: &mut Services<D, C>,
+    octets: &[u8],
+    fiche: &gestes::Fiche,
+    contexte: &mut Contexte<'_>,
+) -> Versee {
+    services
+        .verser_une_fiche(
+            gestes::Sorte::Prise,
+            octets,
+            fiche,
+            &importee(),
+            0,
+            contexte,
+        )
+        .expect("la prise se verse")
+}
+
+/// La commande qui complète le texte de l'idée `idee` par `texte`, au décalage local nul.
+pub fn completion(idee: &str, texte: &str) -> Completer {
+    Completer {
+        idee: idee.to_string(),
+        texte: texte.to_string(),
+        decalage_minutes: 0,
+    }
+}
+
+/// La commande qui pose ou ôte l'étiquette `etiquette` de l'idée `idee`, au décalage local nul.
+pub fn etiquetage(idee: &str, etiquette: &str) -> Etiqueter {
+    Etiqueter {
+        idee: idee.to_string(),
+        etiquette: etiquette.to_string(),
+        decalage_minutes: 0,
+    }
+}
+
+/// La commande qui relie ou délie les idées `a` et `b`, au décalage local nul.
+pub fn lien(a: &str, b: &str) -> Relier {
+    Relier {
+        a: a.to_string(),
+        b: b.to_string(),
+        decalage_minutes: 0,
+    }
+}
+
+/// La commande qui regroupe la prise `empreinte` dans l'idée `cible`, au décalage local nul.
+pub fn regroupement(empreinte: &str, cible: &str) -> Regrouper {
+    Regrouper {
+        captation: Captation {
+            sorte: commandes::Sorte::Prise,
+            empreinte: empreinte.to_string(),
+        },
+        cible: cible.to_string(),
+        decalage_minutes: 0,
+    }
+}
+
+/// La commande qui retire ou rétablit l'idée `idee`, au décalage local nul.
+pub fn visee(idee: &str) -> Viser {
+    Viser {
+        idee: idee.to_string(),
+        decalage_minutes: 0,
+    }
+}
+
+/// Le refus d'une commande qui ne se fait pas sur le fonds tel qu'il est : `Raison::Impossible`,
+/// et `message`.
+fn impossible(message: String) -> Refus {
+    Refus {
+        raison: Raison::Impossible,
+        message,
+    }
+}
+
+/// Les prises `empreintes`, telles que les rend la vue d'une idée : dans l'ordre de leurs
+/// empreintes.
+fn prises(empreintes: &[&str]) -> Vec<Captation> {
+    let mut rangees = empreintes.to_vec();
+    rangees.sort();
+    rangees
+        .into_iter()
+        .map(|empreinte| Captation {
+            sorte: commandes::Sorte::Prise,
+            empreinte: empreinte.to_string(),
+        })
+        .collect()
+}
+
+/// Le geste de tri `rendu` est fait, et le journal porte une entrée de plus : `message`, au
+/// lendemain (`LENDEMAIN`), l'heure du contexte des gestes.
+fn parait_au_journal<D: Documents, C: Captations>(
+    services: &Services<D, C>,
+    journal: &mut Vec<EntreeDuJournal>,
+    rendu: Reponse<Faite>,
+    message: &str,
+) {
+    rendu.unwrap_or_else(|refus| panic!("le geste « {message} » est refusé : {refus:?}"));
+    journal.push(entree(message, LENDEMAIN));
+    assert_eq!(
+        services.journal(),
+        Ok(journal.clone()),
+        "après « {message} »"
+    );
 }
 
 /// Une note, sur des services neufs, à l'établi : l'idée née est datée de `HEURE`, `captee`, née
@@ -327,10 +464,11 @@ pub fn une_empreinte_qu_aucune_captation_ne_porte_ne_se_relit_pas<P: Paire>(pair
 
 // § 31 · 10, test 10 : ouvrir un document de version de schéma N + 1 avec une application qui ne connaît que la version de schéma N
 /// Le fonds migré vers la version de schéma 2, rouvert par une application qui ne connaît que la
-/// version de schéma 1 : il se lit, son journal et la vue de l'idée notée montrés, cette vue
-/// entière la même qu'avant la migration ; une note est refusée du refus que rend
-/// `lecture_seule()`, qui nomme la version de schéma 2, sans rien tirer, et le journal ne change
-/// pas ; une captation se verse encore, et se relit.
+/// version de schéma 1 : il se lit, son journal, la liste des idées et la vue de l'idée notée
+/// montrés, cette vue entière la même qu'avant la migration ; une note, et la fiche d'une prise,
+/// sont refusées du refus que rend `lecture_seule()`, qui nomme la version de schéma 2, sans rien
+/// tirer, et le journal ne change pas ; la captation de la fiche refusée est versée, et une
+/// captation se verse encore, et se relit.
 pub fn une_commande_sur_un_fonds_plus_recent_est_refusee_et_le_nomme<P: Paire>(paire: &mut P) {
     let mut services = paire.neufs();
     let mut alea = AleaDeTest {
@@ -365,6 +503,7 @@ pub fn une_commande_sur_un_fonds_plus_recent_est_refusee_et_le_nomme<P: Paire>(p
     }
     assert_eq!(journal.len(), 4, "{journal:?}");
     assert_eq!(services.vue_d_une_idee(IDEE), Ok(avant));
+    assert_eq!(services.idees(), Ok(vec![IDEE.to_string()]));
 
     let refus = services
         .documents()
@@ -376,11 +515,30 @@ pub fn une_commande_sur_un_fonds_plus_recent_est_refusee_et_le_nomme<P: Paire>(p
             &une_note("Un pont en mi mineur"),
             &mut contexte_de_test(&mut alea)
         ),
+        Err(refus.clone())
+    );
+    let prise: &[u8] = b"une prise devant un fonds plus recent";
+    assert_eq!(
+        services.verser_une_fiche(
+            gestes::Sorte::Prise,
+            prise,
+            &fiche_wav(30_000),
+            &importee(),
+            0,
+            &mut contexte_de_test(&mut alea),
+        ),
         Err(refus)
     );
-    // Les quatre tirages de la naissance, et aucun de plus : la note refusée n'a rien tiré.
+    // Les quatre tirages de la naissance, et aucun de plus : ni la note ni la fiche refusées
+    // n'ont rien tiré.
     assert_eq!(alea.appels, 4);
     assert_eq!(services.journal(), Ok(journal));
+    // La fiche est refusée, sa captation versée : « Une captation n'est jamais refusée pour
+    // autant » (§ 31 · 2.4).
+    assert_eq!(
+        services.captations().relire(&empreinte(prise)),
+        Ok(prise.to_vec())
+    );
 
     let octets = b"une captation devant un fonds plus recent";
     let empreinte = services
@@ -446,4 +604,516 @@ pub fn une_migration_qui_attend_ses_dependances_laisse_le_fonds_en_lecture_seule
     assert_eq!(alea.appels, 4);
     assert_eq!(services.journal(), Ok(journal));
     services
+}
+
+/// Sur deux notes A et B et une prise P versée (son idée V), chacun des huit gestes de tri :
+/// compléter A, poser `#pont` sur A, l'ôter, relier A et B, les délier, regrouper P dans A, qui
+/// retire V, retirer B, rétablir B. Après chacun, le journal porte une entrée de plus, au message
+/// du geste, à l'heure du contexte : le lendemain de la naissance des idées, dont le message dit
+/// le jour.
+pub fn chaque_geste_de_tri_parait_au_journal<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let a = services
+        .noter(&une_note("Un refrain qui monte, en ré"), &mut contexte)
+        .expect("la note A est faite")
+        .idee;
+    let b = services
+        .noter(&une_note("Un pont en mi mineur"), &mut contexte)
+        .expect("la note B est faite")
+        .idee;
+    let p = verser_une_prise(
+        &mut services,
+        PRISE_DE_TEST,
+        &fiche_wav(30_000),
+        &mut contexte,
+    )
+    .empreinte;
+    let mut journal = services.journal().expect("le journal se lit");
+    contexte.heure = LENDEMAIN;
+
+    let rendu = services.completer(
+        &completion(&a, "Un refrain qui monte, puis retombe"),
+        &mut contexte,
+    );
+    parait_au_journal(
+        &services,
+        &mut journal,
+        rendu,
+        "Idée du 14 novembre : texte complété",
+    );
+    let rendu = services.poser_une_etiquette(&etiquetage(&a, "pont"), &mut contexte);
+    parait_au_journal(
+        &services,
+        &mut journal,
+        rendu,
+        "Idée du 14 novembre : étiquette #pont posée",
+    );
+    let rendu = services.oter_une_etiquette(&etiquetage(&a, "pont"), &mut contexte);
+    parait_au_journal(
+        &services,
+        &mut journal,
+        rendu,
+        "Idée du 14 novembre : étiquette #pont ôtée",
+    );
+    let rendu = services.relier(&lien(&a, &b), &mut contexte);
+    parait_au_journal(
+        &services,
+        &mut journal,
+        rendu,
+        "Idée du 14 novembre reliée à l'idée du 14 novembre",
+    );
+    let rendu = services.delier(&lien(&a, &b), &mut contexte);
+    parait_au_journal(
+        &services,
+        &mut journal,
+        rendu,
+        "Idée du 14 novembre déliée de l'idée du 14 novembre",
+    );
+    let rendu = services.regrouper(&regroupement(&p, &a), &mut contexte);
+    parait_au_journal(
+        &services,
+        &mut journal,
+        rendu,
+        "Idée du 14 novembre : prise regroupée, idée du 14 novembre retirée",
+    );
+    let rendu = services.retirer(&visee(&b), &mut contexte);
+    parait_au_journal(
+        &services,
+        &mut journal,
+        rendu,
+        "Idée du 14 novembre retirée",
+    );
+    let rendu = services.retablir(&visee(&b), &mut contexte);
+    parait_au_journal(
+        &services,
+        &mut journal,
+        rendu,
+        "Idée du 14 novembre rétablie",
+    );
+}
+
+/// X notée, et P1, versée sous son idée W, regroupée dans X ; puis V, née du versement de P2
+/// seule. Regrouper P2 dans X retire V par le même geste : le journal gagne une seule entrée, qui
+/// le dit ; V, retirée à l'heure du contexte, sans captation, quitte la liste des idées, comme W,
+/// vidée par le premier regroupement ; X porte P1 et P2.
+pub fn l_idee_videe_par_un_regroupement_est_retiree<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let x = services
+        .noter(&une_note("Un refrain qui monte, en ré"), &mut contexte)
+        .expect("la note X est faite")
+        .idee;
+    let p1 = verser_une_prise(
+        &mut services,
+        PRISE_DE_TEST,
+        &fiche_wav(30_000),
+        &mut contexte,
+    )
+    .empreinte;
+    services
+        .regrouper(&regroupement(&p1, &x), &mut contexte)
+        .expect("P1 se regroupe dans X");
+    let v = verser_une_prise(
+        &mut services,
+        b"une seconde prise de test",
+        &fiche_wav(64_000),
+        &mut contexte,
+    );
+    let mut journal = services.journal().expect("le journal se lit");
+
+    assert_eq!(
+        services.regrouper(&regroupement(&v.empreinte, &x), &mut contexte),
+        Ok(Faite {
+            avertissement: None
+        })
+    );
+    journal.push(entree(
+        "Idée du 14 novembre : prise regroupée, idée du 14 novembre retirée",
+        HEURE,
+    ));
+    assert_eq!(services.journal(), Ok(journal));
+    let vue_de_v = services
+        .vue_d_une_idee(&v.idee)
+        .expect("la vue de V se lit");
+    assert_eq!(vue_de_v.retiree, Some(HEURE));
+    assert_eq!(vue_de_v.captations, Vec::new());
+    assert_eq!(services.idees(), Ok(vec![x.clone()]));
+    assert_eq!(
+        services.vue_d_une_idee(&x).map(|vue| vue.captations),
+        Ok(prises(&[&p1, &v.empreinte]))
+    );
+}
+
+/// Deux prises de deux idées, P1 de V1 et P2 de V2, regroupées dans X : X porte deux captations
+/// distinctes, d'empreintes celles que le versement a rendues, celles de leurs octets, que les
+/// captations relisent.
+pub fn deux_prises_regroupees_restent_deux_captations<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let x = services
+        .noter(&une_note("Un refrain qui monte, en ré"), &mut contexte)
+        .expect("la note X est faite")
+        .idee;
+    let premiere: &[u8] = PRISE_DE_TEST;
+    let seconde: &[u8] = b"une seconde prise de test";
+    let v1 = verser_une_prise(&mut services, premiere, &fiche_wav(30_000), &mut contexte);
+    let v2 = verser_une_prise(&mut services, seconde, &fiche_wav(64_000), &mut contexte);
+    assert_eq!(v1.empreinte, empreinte(premiere));
+    assert_eq!(v2.empreinte, empreinte(seconde));
+    assert_ne!(v1.empreinte, v2.empreinte);
+    services
+        .regrouper(&regroupement(&v1.empreinte, &x), &mut contexte)
+        .expect("P1 se regroupe dans X");
+    services
+        .regrouper(&regroupement(&v2.empreinte, &x), &mut contexte)
+        .expect("P2 se regroupe dans X");
+
+    assert_eq!(
+        services.vue_d_une_idee(&x).map(|vue| vue.captations),
+        Ok(prises(&[&v1.empreinte, &v2.empreinte]))
+    );
+    assert_eq!(
+        services.captations().relire(&v1.empreinte),
+        Ok(premiere.to_vec())
+    );
+    assert_eq!(
+        services.captations().relire(&v2.empreinte),
+        Ok(seconde.to_vec())
+    );
+}
+
+/// V, née d'une prise, complétée d'un texte, étiquetée et reliée à deux idées : retirée, elle
+/// quitte la liste des idées, et sa vue, qui garde tout, porte la date de son retrait ;
+/// rétablie, elle revient dans la liste, et sa vue est celle d'avant le retrait, entière : texte,
+/// étiquettes, liens, dans leur ordre, et captations, d'empreintes inchangées, que les captations
+/// relisent.
+pub fn une_idee_retiree_quitte_la_liste_et_se_retablit_telle_qu_elle_etait<P: Paire>(
+    paire: &mut P,
+) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let a = services
+        .noter(&une_note("Un refrain qui monte, en ré"), &mut contexte)
+        .expect("la note A est faite")
+        .idee;
+    // Deux ULID, d'une même longueur, rangent les clés des liens d'une idée comme leurs autres
+    // bouts : une clé est `apparente:<p>:<q>`, ses bouts dans l'ordre de leurs octets, et ne se
+    // départage que sur l'autre bout. Seul un identifiant d'une autre longueur sépare les deux
+    // ordres : A0, A suivi d'un « 0 », qu'aucun appareil ne forme, et que le test écrit donc par
+    // une opération du noyau, sans les services. V, tirée après A, vient après A et A0 : ses clés
+    // se rangent A0 puis A (« 0 » passe avant « : »), quand ses autres bouts se rangent A puis
+    // A0 (A est un préfixe de A0). Une vue qui ne rangerait pas les autres bouts rendrait l'ordre
+    // des clés.
+    let a0 = format!("{a}0");
+    let note_a0 = gestes::noter(
+        &a0,
+        "Un pont en mi mineur",
+        gestes::Appareil::Etabli,
+        HEURE,
+        0,
+    )
+    .expect("la note A0 se calcule");
+    services
+        .documents_mut()
+        .appliquer(&note_a0)
+        .expect("la note A0 s'écrit");
+    let v = verser_une_prise(
+        &mut services,
+        PRISE_DE_TEST,
+        &fiche_wav(30_000),
+        &mut contexte,
+    );
+    let cles: BTreeSet<String> = [cle_du_lien(&a, &v.idee), cle_du_lien(&a0, &v.idee)].into();
+    assert_eq!(
+        cles.into_iter().collect::<Vec<_>>(),
+        vec![cle_du_lien(&a0, &v.idee), cle_du_lien(&a, &v.idee)]
+    );
+    services
+        .completer(
+            &completion(&v.idee, "Une basse qui descend sous la prise"),
+            &mut contexte,
+        )
+        .expect("le texte de V est complété");
+    services
+        .poser_une_etiquette(&etiquetage(&v.idee, "pont"), &mut contexte)
+        .expect("l'étiquette est posée sur V");
+    services
+        .relier(&lien(&v.idee, &a), &mut contexte)
+        .expect("V est reliée à A");
+    services
+        .relier(&lien(&v.idee, &a0), &mut contexte)
+        .expect("V est reliée à A0");
+
+    let telle_qu_elle_etait = VueDUneIdee {
+        idee: v.idee.clone(),
+        provenance: commandes::Provenance::Importee {
+            par: commandes::Appareil::Etabli,
+            depuis: IMPORT.to_string(),
+        },
+        le: HEURE,
+        texte: Some("Une basse qui descend sous la prise".to_string()),
+        etiquettes: vec!["pont".to_string()],
+        liens: vec![a.clone(), a0.clone()],
+        captations: prises(&[&v.empreinte]),
+        reliee: true,
+        duree_ms: Some(30_000),
+        retiree: None,
+    };
+    assert_eq!(
+        services.vue_d_une_idee(&v.idee),
+        Ok(telle_qu_elle_etait.clone())
+    );
+    assert_eq!(
+        services.idees(),
+        Ok(vec![a.clone(), a0.clone(), v.idee.clone()])
+    );
+
+    services
+        .retirer(&visee(&v.idee), &mut contexte)
+        .expect("V est retirée");
+    assert_eq!(services.idees(), Ok(vec![a.clone(), a0.clone()]));
+    assert_eq!(
+        services.vue_d_une_idee(&v.idee),
+        Ok(VueDUneIdee {
+            retiree: Some(HEURE),
+            ..telle_qu_elle_etait.clone()
+        })
+    );
+
+    services
+        .retablir(&visee(&v.idee), &mut contexte)
+        .expect("V est rétablie");
+    assert_eq!(services.idees(), Ok(vec![a, a0, v.idee.clone()]));
+    assert_eq!(services.vue_d_une_idee(&v.idee), Ok(telle_qu_elle_etait));
+    assert_eq!(
+        services.captations().relire(&v.empreinte),
+        Ok(PRISE_DE_TEST.to_vec())
+    );
+}
+
+/// Sur des services neufs, sans fonds, chacun des huit gestes de tri est refusé : aucune idée ne
+/// porte l'identifiant que vise la commande, le premier qu'elle nomme, ou la cible d'un
+/// regroupement. Rien ne naît, ni fonds, ni journal, ni idée, et rien n'est tiré : seuls les
+/// gestes qui créent une idée, noter et verser une fiche, font naître le fonds.
+pub fn un_geste_de_tri_sans_fonds_est_refuse_et_rien_ne_nait<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let absente = Err(impossible(format!(
+        "Aucune idée ne porte l'identifiant {IDEE}."
+    )));
+    assert_eq!(
+        services.completer(
+            &completion(IDEE, "Un refrain qui monte, en ré"),
+            &mut contexte
+        ),
+        absente
+    );
+    assert_eq!(
+        services.poser_une_etiquette(&etiquetage(IDEE, "pont"), &mut contexte),
+        absente
+    );
+    assert_eq!(
+        services.oter_une_etiquette(&etiquetage(IDEE, "pont"), &mut contexte),
+        absente
+    );
+    assert_eq!(
+        services.relier(&lien(IDEE, SECONDE_IDEE), &mut contexte),
+        absente
+    );
+    assert_eq!(
+        services.delier(&lien(IDEE, SECONDE_IDEE), &mut contexte),
+        absente
+    );
+    assert_eq!(
+        services.regrouper(
+            &regroupement(&empreinte(PRISE_DE_TEST), IDEE),
+            &mut contexte
+        ),
+        absente
+    );
+    assert_eq!(services.retirer(&visee(IDEE), &mut contexte), absente);
+    assert_eq!(services.retablir(&visee(IDEE), &mut contexte), absente);
+
+    assert!(services.documents().fonds().is_none());
+    assert_eq!(services.journal(), Ok(Vec::new()));
+    assert_eq!(services.idees(), Ok(Vec::new()));
+    assert_eq!(alea.appels, 0);
+}
+
+/// Une fiche versée deux fois : la seconde est refusée, la captation déjà versée, et ni le
+/// journal ni la liste des idées ne changent. La captation, elle, se verse de nouveau sans
+/// erreur, sous la même empreinte, et se relit : rien ne change une captation, ni sa fiche (I14 :
+/// les captations sont immuables).
+pub fn une_fiche_versee_deux_fois_est_refusee_et_rien_ne_change<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let versee = verser_une_prise(
+        &mut services,
+        PRISE_DE_TEST,
+        &fiche_wav(30_000),
+        &mut contexte,
+    );
+    let journal = services.journal().expect("le journal se lit");
+    let idees = services.idees().expect("la liste des idées se lit");
+
+    assert_eq!(
+        services.verser_une_fiche(
+            gestes::Sorte::Prise,
+            PRISE_DE_TEST,
+            &fiche_wav(30_000),
+            &importee(),
+            0,
+            &mut contexte,
+        ),
+        Err(impossible(format!(
+            "La captation {} est déjà versée.",
+            versee.empreinte
+        )))
+    );
+    assert_eq!(services.journal(), Ok(journal));
+    assert_eq!(services.idees(), Ok(idees));
+    assert_eq!(
+        services.captations().verser(PRISE_DE_TEST),
+        Ok(versee.empreinte.clone())
+    );
+    assert_eq!(
+        services.captations().relire(&versee.empreinte),
+        Ok(PRISE_DE_TEST.to_vec())
+    );
+}
+
+/// R, retirée : poser une étiquette sur elle, la relier depuis l'autre bout, y regrouper une
+/// prise, chacun est refusé, l'idée retirée, et le journal ne change pas.
+pub fn un_geste_qui_touche_une_idee_retiree_est_refuse<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let a = services
+        .noter(&une_note("Un refrain qui monte, en ré"), &mut contexte)
+        .expect("la note A est faite")
+        .idee;
+    let r = services
+        .noter(&une_note("Un pont en mi mineur"), &mut contexte)
+        .expect("la note R est faite")
+        .idee;
+    let v = verser_une_prise(
+        &mut services,
+        PRISE_DE_TEST,
+        &fiche_wav(30_000),
+        &mut contexte,
+    );
+    services
+        .retirer(&visee(&r), &mut contexte)
+        .expect("R est retirée");
+    let journal = services.journal().expect("le journal se lit");
+
+    let retiree = Err(impossible(format!("L'idée {r} est retirée.")));
+    assert_eq!(
+        services.poser_une_etiquette(&etiquetage(&r, "pont"), &mut contexte),
+        retiree
+    );
+    assert_eq!(services.relier(&lien(&a, &r), &mut contexte), retiree);
+    assert_eq!(
+        services.regrouper(&regroupement(&v.empreinte, &r), &mut contexte),
+        retiree
+    );
+    assert_eq!(services.journal(), Ok(journal));
+}
+
+/// A et B reliées : A est reliée ; B retirée, A ne l'est plus ; B rétablie, elle l'est de
+/// nouveau. V1, née d'une prise de 30 000 ms, dure 30 000 ms ; une prise de 64 000 ms regroupée
+/// dans V1 la porte à 64 000 ms ; une prise sans durée lue, en FLAC, regroupée dans V1, lui ôte sa
+/// durée (CAP-02, Règles : `—` dès qu'une de ses prises n'a pas la sienne) : son versement n'a
+/// écrit aucune durée.
+pub fn la_vue_tire_reliee_et_la_duree_des_regles_du_noyau<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let a = services
+        .noter(&une_note("Un refrain qui monte, en ré"), &mut contexte)
+        .expect("la note A est faite")
+        .idee;
+    let b = services
+        .noter(&une_note("Un pont en mi mineur"), &mut contexte)
+        .expect("la note B est faite")
+        .idee;
+    let reliee =
+        |services: &Services<P::D, P::C>| services.vue_d_une_idee(&a).map(|vue| vue.reliee);
+    services
+        .relier(&lien(&a, &b), &mut contexte)
+        .expect("A est reliée à B");
+    assert_eq!(reliee(&services), Ok(true));
+    services
+        .retirer(&visee(&b), &mut contexte)
+        .expect("B est retirée");
+    assert_eq!(reliee(&services), Ok(false));
+    services
+        .retablir(&visee(&b), &mut contexte)
+        .expect("B est rétablie");
+    assert_eq!(reliee(&services), Ok(true));
+
+    let v1 = verser_une_prise(
+        &mut services,
+        b"une prise de trente secondes",
+        &fiche_wav(30_000),
+        &mut contexte,
+    );
+    let duree =
+        |services: &Services<P::D, P::C>| services.vue_d_une_idee(&v1.idee).map(|vue| vue.duree_ms);
+    assert_eq!(duree(&services), Ok(Some(30_000)));
+    let v2 = verser_une_prise(
+        &mut services,
+        b"une prise de soixante-quatre secondes",
+        &fiche_wav(64_000),
+        &mut contexte,
+    );
+    services
+        .regrouper(&regroupement(&v2.empreinte, &v1.idee), &mut contexte)
+        .expect("la prise de V2 se regroupe dans V1");
+    assert_eq!(duree(&services), Ok(Some(64_000)));
+    let sans_duree_lue = gestes::Fiche {
+        format: "flac".to_string(),
+        duree_ms: None,
+    };
+    let v3 = verser_une_prise(
+        &mut services,
+        b"une prise sans duree lue",
+        &sans_duree_lue,
+        &mut contexte,
+    );
+    services
+        .regrouper(&regroupement(&v3.empreinte, &v1.idee), &mut contexte)
+        .expect("la prise de V3 se regroupe dans V1");
+    assert_eq!(duree(&services), Ok(None));
 }
