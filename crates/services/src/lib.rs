@@ -249,13 +249,17 @@ impl<D: Documents, C: Captations> Services<D, C> {
 
     /// Annuler le dernier geste de tri fait par ces services (§ 30 · 11) : son inverse, sous
     /// « Annulé : » suivi de son message, à l'heure du contexte (`gestes::annulation`), par
-    /// `Documents::appliquer`. Faite, l'annulation vide le dernier geste de tri : elle ne s'annule
-    /// pas ; refusée par l'adaptateur, elle le garde, et se refait. Sans dernier geste de tri,
-    /// depuis l'ouverture des services ou depuis la dernière annulation : `Raison::RienAAnnuler`,
+    /// `Documents::appliquer`. En lecture seule, le refus de `lecture_seule()`, tel quel, avant
+    /// tout autre refus. Faite, l'annulation vide le dernier geste de tri : elle ne s'annule pas ;
+    /// refusée par l'adaptateur, elle le garde, et se refait. Sans dernier geste de tri, depuis
+    /// l'ouverture des services ou depuis la dernière annulation : `Raison::RienAAnnuler`,
     /// « Aucun geste de tri à annuler depuis l'ouverture. », et rien ne s'écrit. Ne tire rien de
     /// l'aléa. Le refus d'une annulation après une synchronisation qui a changé l'élément
     /// (§ 30 · 11) vient au lot 3.
     pub fn annuler(&mut self, contexte: &mut Contexte<'_>) -> Reponse<Faite> {
+        if let Some(refus) = self.documents.lecture_seule() {
+            return Err(refus);
+        }
         let geste = self.dernier_geste.as_ref().ok_or_else(rien_a_annuler)?;
         let avertissement = self
             .documents
