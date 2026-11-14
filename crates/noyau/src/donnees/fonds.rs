@@ -10,14 +10,14 @@ use crate::donnees::version::Migration;
 pub const VERSION_DE_SCHEMA: &str = "version_de_schema";
 /// À la racine du document : l'objet à clés des idées, de l'identifiant d'idée à l'idée.
 pub const IDEES: &str = "idees";
-/// À la racine du document : l'objet à clés des prises, les clés à plat, de `<empreinte>/<fait>`
+/// À la racine du document : l'objet à clés des prises, les clés à plat, de `<empreinte>/<clé>`
 /// à sa valeur.
 pub const PRISES: &str = "prises";
 /// À la racine du document : l'objet à clés des MIDI versés seuls, les clés à plat, de
-/// `<empreinte>/<fait>` à sa valeur.
+/// `<empreinte>/<clé>` à sa valeur.
 pub const MIDI_VERSES: &str = "midi_verses";
 /// À la racine du document : l'objet à clés des textes versés, les clés à plat, de
-/// `<empreinte>/<fait>` à sa valeur.
+/// `<empreinte>/<clé>` à sa valeur.
 pub const TEXTES_VERSES: &str = "textes_verses";
 /// À la racine du document : l'objet à clés des liens, de la clé d'un lien à `true`.
 pub const LIENS: &str = "liens";
@@ -43,7 +43,7 @@ pub const CONTENEURS_DE_LA_GENESE: [&str; 9] = [
     ORIGINES_DECLAREES,
     PHOTOS,
 ];
-/// Les conteneurs dont les clés nomment une captation, `<empreinte>/<fait>` (§ 31 · 6.1) ; le
+/// Les conteneurs dont les clés nomment une captation, `<empreinte>/<clé>` (§ 31 · 6.1) ; le
 /// lot 2 y ajoute les photos, avec le cas du test 4.
 pub const CONTENEURS_NOMMANT_UNE_CAPTATION: [&str; 3] = [PRISES, MIDI_VERSES, TEXTES_VERSES];
 /// À la racine du document : l'identifiant du document, une chaîne écrite à la naissance.
@@ -103,5 +103,5 @@ pub const GENESE: &[u8] = &[133, 111, 74, 131, 169, 221, 153, 100, 1, 184, 1, 0,
 
 /// Les migrations du fonds (§ 31 · 2.4), dans l'ordre : la n-ième mène à la version de schéma
 /// n + 1. Aucune : l'application ne connaît que la version de schéma 1, celle de la genèse.
-/// Une migration publiée, portée par une étiquette, ne change plus.
+/// Une migration publiée, portée par une étiquette `vX.Y.Z`, ne change plus.
 pub const MIGRATIONS: &[Migration<'static>] = &[];

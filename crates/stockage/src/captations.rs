@@ -114,8 +114,10 @@ impl Captations<'_> {
     }
 
     /// Range sous son empreinte chaque nom provisoire que `a_ranger` désigne (§ 31 · 6.1) ; rend
-    /// ceux qui n'ont pu l'être. `nommees` : les empreintes que le fonds nomme, les clés de ses
-    /// prises telles qu'elles se lisent, même en lecture seule.
+    /// ceux qui n'ont pu l'être. `nommees` : les empreintes que le fonds nomme par les clés
+    /// `<empreinte>/<clé>` des trois conteneurs qui nomment une captation, les prises, les MIDI
+    /// versés seuls et les textes versés (`services::lecture::empreintes_nommees`), telles qu'elles
+    /// se lisent, même en lecture seule.
     ///
     /// Les noms provisoires sont les fichiers de `captations/` même, triés par nom, chacun lu en
     /// entier par `fichier::lire` : son nom, l'empreinte de son contenu, et si une captation de

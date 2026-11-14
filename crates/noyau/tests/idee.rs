@@ -1,5 +1,6 @@
 //! Les règles d'une idée et de ses captations : les empreintes que nomment les clés
-//! `<empreinte>/<fait>` des conteneurs des captations (§ 31 · 6.1).
+//! `<empreinte>/<clé>` des conteneurs des captations (§ 31 · 6.1), le lien « apparenté »,
+//! l'état de reliée, la durée, l'idée sans rien et l'assiette d'un compte (§ 30 · 9).
 
 use std::collections::BTreeSet;
 

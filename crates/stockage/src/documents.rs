@@ -43,8 +43,8 @@ use noyau::donnees::fonds::{IDENTIFIANT, LIGNEE, MIGRATIONS, PROPRIETAIRE};
 use noyau::donnees::gestes;
 use noyau::donnees::version::{self, Lecture, Migration};
 use services::application;
-// La version de schéma et les empreintes que nomme le fonds se lisent par les règles des
-// services, les mêmes pour les deux adaptateurs `Documents` (§ 31 · 2.4, § 31 · 6.1).
+// La version de schéma se lit par la règle des services, la même pour les deux adaptateurs
+// `Documents` (§ 31 · 2.4) ; les empreintes que nomme le fonds, par la leur (§ 31 · 6.1).
 use services::lecture::{empreintes_nommees, version_de_schema};
 use synchro::{Copie, Echange};
 

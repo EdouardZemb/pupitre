@@ -139,7 +139,7 @@ fn cles(doc: &Automerge, objet: &ObjId) -> Vec<String> {
     doc.keys(objet).collect()
 }
 
-/// Les empreintes des prises de `doc`, telles que les nomment les clés `<empreinte>/<fait>` de
+/// Les empreintes des prises de `doc`, telles que les nomment les clés `<empreinte>/<clé>` de
 /// `PRISES` (`empreintes_nommees`), dans l'ordre de leurs octets.
 fn empreintes_des_prises(doc: &Automerge) -> Vec<String> {
     let cles_des_prises = cles(doc, &objet(doc, &ROOT, PRISES));

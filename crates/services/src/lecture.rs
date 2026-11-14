@@ -124,7 +124,7 @@ pub fn version_de_schema(doc: &Automerge) -> Option<u64> {
     valeur(doc, &ROOT, VERSION_DE_SCHEMA, naturel).flatten()
 }
 
-/// Les empreintes que nomme le document (§ 31 · 6.1) : les clés des
+/// Les empreintes que nomme le document (§ 31 · 6.1) : les clés `<empreinte>/<clé>` des
 /// `CONTENEURS_NOMMANT_UNE_CAPTATION`, par `idee::empreintes_nommees` ; un conteneur absent de la
 /// racine du document, ou qui n'est pas un objet à clés, se saute.
 pub fn empreintes_nommees(doc: &Automerge) -> BTreeSet<String> {

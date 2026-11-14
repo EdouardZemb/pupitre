@@ -1114,7 +1114,7 @@ fn un_ajouts_recree_non_rendu_durable_se_retire() {
     );
 }
 
-// § 31 · 10, test 4 : renommage perdu après la réponse, la captation nommée par un document prend son nom au démarrage
+// § 31 · 10, test 4 : renommage perdu après la réponse : la captation nommée par un document prend son nom au démarrage
 #[test]
 fn une_captation_nommee_prend_son_nom_au_demarrage() {
     let chemin = commun::dossier_jetable("demarrage-nom-provisoire-range").join("donnees");
@@ -1177,7 +1177,7 @@ fn une_captation_nommee_prend_son_nom_au_demarrage() {
     drop(fonds);
 }
 
-// § 31 · 10, test 4 : renommage perdu après la réponse, la captation nommée par un document prend son nom au démarrage
+// § 31 · 10, test 4 : renommage perdu après la réponse : la captation nommée par un document prend son nom au démarrage
 #[test]
 fn un_midi_ou_un_texte_verse_nomme_prend_son_nom_au_demarrage() {
     let chemin = commun::dossier_jetable("demarrage-midi-et-texte-ranges").join("donnees");
