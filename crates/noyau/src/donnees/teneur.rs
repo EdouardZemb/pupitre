@@ -1,5 +1,5 @@
 //! La teneur d'un document (§ 31 · 2.6) : le texte déterministe de son arbre, qui sert à
-//! comparer deux documents (§ 31 · 10). Le noyau ne voit que la valeur que `stockage` tire du
+//! comparer deux documents (§ 31 · 10). Le noyau ne voit que la valeur que `services` tire du
 //! document ; il l'écrit sans l'altérer, octet pour octet, les clés dans l'ordre de leurs octets.
 
 use std::collections::BTreeMap;
@@ -7,7 +7,7 @@ use std::fmt::Write;
 
 use crate::donnees::fonds::{LIGNEE, LIGNEES_REMPLACEES};
 
-/// Une valeur que présente un document, que `stockage` tire du document.
+/// Une valeur que présente un document, que `services` tire du document.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Valeur {
     /// `Map` ou `Table` : une seule sorte.

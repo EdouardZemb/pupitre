@@ -1,4 +1,4 @@
-//! La teneur (§ 31 · 2.6) : le texte déterministe de l'arbre d'un document, que `stockage` tire
+//! La teneur (§ 31 · 2.6) : le texte déterministe de l'arbre d'un document, que `services` tire
 //! du document et que le noyau écrit : les clés par octets, chaque type sous sa lettre, le
 //! flottant sous sa forme la plus courte, NaN et un type inconnu refusés en se nommant.
 

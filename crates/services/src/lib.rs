@@ -3,8 +3,8 @@
 //! fichiers (le stockage) ou en mémoire. `Services` conduit chaque commande : il tire de l'aléa
 //! du `Contexte` les identifiants qu'elle forme, demande l'opération au noyau, l'écrit par
 //! `Documents`, et rend la réponse aux types de `commandes`. `application` applique les
-//! changements que le noyau calcule ; `lecture` tire du document le fonds lu, que le noyau
-//! reçoit.
+//! changements que le noyau calcule ; `lecture` tire du document le fonds lu, et l'arbre de sa
+//! teneur, que le noyau reçoit.
 //!
 //! La fonction `en-memoire`, que seuls les tests demandent, compile le module `en_memoire`, la
 //! paire d'adaptateurs en mémoire.
@@ -65,7 +65,7 @@ pub struct Services<D: Documents, C: Captations> {
     captations: C,
     appareil: gestes::Appareil,
     /// Le dernier geste de tri fait par ces services, que l'annulation défait (§ 30 · 11) ; aucun
-    /// à leur ouverture.
+    /// à leur ouverture, ni après une annulation faite.
     dernier_geste: Option<GesteDeTri>,
 }
 
@@ -245,6 +245,23 @@ impl<D: Documents, C: Captations> Services<D, C> {
             let idee = idee_lue(fonds, &commande.idee)?;
             gestes::retablir(&idee, heure, commande.decalage_minutes)
         })
+    }
+
+    /// Annuler le dernier geste de tri fait par ces services (§ 30 · 11) : son inverse, sous
+    /// « Annulé : » suivi de son message, à l'heure du contexte (`gestes::annulation`), par
+    /// `Documents::appliquer`. Faite, l'annulation vide le dernier geste de tri : elle ne s'annule
+    /// pas ; refusée par l'adaptateur, elle le garde, et se refait. Sans dernier geste de tri,
+    /// depuis l'ouverture des services ou depuis la dernière annulation : `Raison::RienAAnnuler`,
+    /// « Aucun geste de tri à annuler depuis l'ouverture. », et rien ne s'écrit. Ne tire rien de
+    /// l'aléa. Le refus d'une annulation après une synchronisation qui a changé l'élément
+    /// (§ 30 · 11) vient au lot 3.
+    pub fn annuler(&mut self, contexte: &mut Contexte<'_>) -> Reponse<Faite> {
+        let geste = self.dernier_geste.as_ref().ok_or_else(rien_a_annuler)?;
+        let avertissement = self
+            .documents
+            .appliquer(&gestes::annulation(geste, contexte.heure))?;
+        self.dernier_geste = None;
+        Ok(Faite { avertissement })
     }
 
     /// Verse `octets` par le contrat `Captations` (toujours, même devant un fonds en lecture
@@ -430,6 +447,14 @@ fn idee_absente(idee: &str) -> Refus {
     refus_impossible(Impossible::IdeeAbsente {
         idee: idee.to_string(),
     })
+}
+
+/// Le refus d'« annuler » sans dernier geste de tri : `Raison::RienAAnnuler`.
+fn rien_a_annuler() -> Refus {
+    Refus {
+        raison: Raison::RienAAnnuler,
+        message: "Aucun geste de tri à annuler depuis l'ouverture.".to_string(),
+    }
 }
 
 /// Le refus d'un geste que le noyau dit impossible : `Raison::Impossible`, son message le
