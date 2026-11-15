@@ -55,7 +55,7 @@ pub(crate) fn dire_la_cible(table: &Table, touchee: Position) -> Option<String> 
 /// L'identifiant du texte qui dit la cible : une seule case est touchée à la fois.
 const ID_CIBLE: &str = "cible-de-la-case-touchee";
 
-/// Un pour-cent, à trois décimales.
+/// Un pour cent, à trois décimales.
 fn pc(v: f32) -> String {
     format!("{:.3}%", 100.0 * v)
 }
@@ -363,8 +363,14 @@ mod tests {
         };
         // Le rectangle, à 1e-4 près, comme INC-0 : (26 ; 45 ; 15 ; 4,6).
         let p = rect_de_la_palette(r);
-        assert!((p.x - 26.0).abs() < 1e-4 && (p.y - 45.0).abs() < 1e-4);
-        assert!((p.l - 15.0).abs() < 1e-4 && (p.h - 4.6).abs() < 1e-4);
+        assert!(
+            (p.x - 26.0).abs() < 1e-4 && (p.y - 45.0).abs() < 1e-4,
+            "{p:?}"
+        );
+        assert!(
+            (p.l - 15.0).abs() < 1e-4 && (p.h - 4.6).abs() < 1e-4,
+            "{p:?}"
+        );
         // Ses valeurs, calculées en f32 (passage de LE-6, règle 11).
         let place = place_de_la_palette(r);
         assert_eq!(place.gauche, "12.411%");
