@@ -1475,6 +1475,15 @@ mod tests {
             }
         );
         assert_eq!(a(200_000.0).nombre, 0);
+        // Des quotients qui ne tombent pas juste : la première ligne vue s'arrondit vers le bas, et
+        // le nombre de lignes vues vers le haut.
+        assert_eq!(
+            fenetre(40_020.0, 790.0, 40.0, 2_000),
+            Fenetre {
+                debut: 995,
+                nombre: 30
+            }
+        );
         // Jamais plus de trente lignes : les vingt vues, plus deux marges.
         for defilement_px in (0..=80_000).step_by(7) {
             let rendues = a(f64::from(defilement_px)).nombre;
@@ -1510,13 +1519,19 @@ mod tests {
     fn la_fenetre_demandee_couvre_les_lignes_vues() {
         let demandee = fenetre(40_000.0, 800.0, 40.0, 2_000);
         let couverte = |defilement_px| couvre(&demandee, defilement_px, 800.0, 40.0, 2_000);
-        // La fenêtre de 995 à 1 025 porte les lignes vues, de 1 000 à 1 020, et cinq lignes plus
-        // bas encore, de 1 005 à 1 025.
+        // La fenêtre de 995 à 1 025 porte les lignes vues, de 1 000 à 1 019, et une ligne au-delà
+        // de chaque bord, 999 et 1 020.
         assert!(couverte(40_000.0));
-        assert!(couverte(40_200.0));
-        // Un demi-rang de plus, la ligne 1 025 paraît : le défilement demande une autre fenêtre.
+        // Quatre lignes plus bas, de 1 004 à 1 023 : la ligne au-delà, 1 024, est dans la fenêtre.
+        assert!(couverte(40_160.0));
+        // Cinq lignes plus bas, de 1 005 à 1 024 : la ligne au-delà, 1 025, n'y est pas, et le
+        // défilement demande une autre fenêtre avant que Tab n'atteigne la dernière ligne rendue.
+        assert!(!couverte(40_200.0));
         assert!(!couverte(40_220.0));
-        // Six lignes plus haut, la ligne 994 paraît.
+        // Quatre lignes plus haut, de 996 à 1 015, la ligne 995 au-delà ; cinq lignes plus haut, la
+        // ligne au-delà, 994, manque.
+        assert!(couverte(39_840.0));
+        assert!(!couverte(39_800.0));
         assert!(!couverte(39_760.0));
         // Au bout de la liste, les lignes vues s'arrêtent à la dernière.
         let au_bout = fenetre(79_200.0, 800.0, 40.0, 2_000);
@@ -1560,6 +1575,155 @@ mod tests {
         assert_eq!(
             fenetre_a_demander(Some(&au_bout), 79_200.0, 800.0, 40.0, None, false),
             None
+        );
+    }
+
+    /// Une ligne inventée de l'idée `idee`.
+    fn ligne_de(idee: &str) -> LigneDeLaBoite {
+        LigneDeLaBoite {
+            idee: idee.to_string(),
+            ..ligne(Some("Une idée de pont"), &[])
+        }
+    }
+
+    /// La commande `commande` de la ligne de l'idée `idee`.
+    fn gardee(idee: &str, commande: Commande) -> Gardee {
+        Gardee {
+            idee: idee.to_string(),
+            commande,
+        }
+    }
+
+    #[test]
+    fn le_focus_perdu_revient_a_la_ligne_gardee_ou_a_sa_liste() {
+        let lues = [ligne_de("a"), ligne_de("b")];
+        let case_de_b = gardee("b", Commande::Cocher);
+        // La fenêtre posée, le focus est tombé sur `body` : la ligne gardée, encore lue, le
+        // reprend, sur la même commande.
+        assert_eq!(
+            focus_a_rendre(Some(&case_de_b), Liste::Boite, &lues, Actif::Absent),
+            Rendu::Ligne(case_de_b.clone())
+        );
+        // Sortie de la fenêtre lue, le focus va à la liste.
+        let sortie = gardee("c", Commande::Choisir);
+        assert_eq!(
+            focus_a_rendre(Some(&sortie), Liste::Boite, &lues, Actif::Absent),
+            Rendu::Liste
+        );
+        // Le focus ailleurs, rien ne bouge.
+        assert_eq!(
+            focus_a_rendre(Some(&case_de_b), Liste::Boite, &lues, Actif::Ailleurs),
+            Rendu::Rien
+        );
+        assert_eq!(
+            focus_a_rendre(Some(&sortie), Liste::Boite, &lues, Actif::Ailleurs),
+            Rendu::Rien
+        );
+        // Aucune ligne gardée, ou une ligne de l'autre liste : rien ne bouge.
+        assert_eq!(
+            focus_a_rendre(None, Liste::Boite, &lues, Actif::Absent),
+            Rendu::Rien
+        );
+        let retablir_b = gardee("b", Commande::Retablir);
+        assert_eq!(
+            focus_a_rendre(Some(&retablir_b), Liste::Boite, &lues, Actif::Absent),
+            Rendu::Rien
+        );
+        // Les idées retirées, de même, sur « Rétablir ».
+        assert_eq!(
+            focus_a_rendre(Some(&retablir_b), Liste::Retirees, &lues, Actif::Absent),
+            Rendu::Ligne(retablir_b.clone())
+        );
+        assert_eq!(
+            focus_a_rendre(
+                Some(&gardee("c", Commande::Retablir)),
+                Liste::Retirees,
+                &lues,
+                Actif::Absent
+            ),
+            Rendu::Liste
+        );
+        assert_eq!(
+            focus_a_rendre(Some(&case_de_b), Liste::Retirees, &lues, Actif::Absent),
+            Rendu::Rien
+        );
+    }
+
+    #[test]
+    fn fermer_le_volet_rend_le_focus_a_la_ligne_qui_l_a_ouvert() {
+        let lues = [ligne_de("a"), ligne_de("b")];
+        assert_eq!(
+            cible_apres_le_volet("b", &lues),
+            Cible::Ligne(gardee("b", Commande::Choisir))
+        );
+        // Sa ligne sortie de la fenêtre lue, le focus va à la liste.
+        assert_eq!(cible_apres_le_volet("c", &lues), Cible::Liste);
+    }
+
+    #[test]
+    fn le_volet_d_une_idee_retiree_n_offre_que_retablir() {
+        assert_eq!(
+            ce_que_le_volet_offre(false),
+            Offerts {
+                trier: true,
+                dernier: "Retirer"
+            }
+        );
+        // Ni « Compléter », ni « Ôter », ni « Poser l'étiquette », ni « Délier » : le noyau les
+        // refuserait tous.
+        assert_eq!(
+            ce_que_le_volet_offre(true),
+            Offerts {
+                trier: false,
+                dernier: "Rétablir"
+            }
+        );
+    }
+
+    #[test]
+    fn un_geste_en_vol_ignore_une_seconde_activation() {
+        let en_vol = StoredValue::new(false);
+        assert!(prendre(en_vol));
+        // Deux « Rétablir », deux « Retirer », ou `Entrée` tenue : la seconde s'ignore.
+        assert!(!prendre(en_vol));
+        assert!(en_vol.get_value());
+        // La réponse lue, le geste suivant part.
+        en_vol.set_value(false);
+        assert!(prendre(en_vol));
+    }
+
+    #[test]
+    fn ouvrir_une_autre_idee_oublie_le_brouillon_de_la_precedente() {
+        let boite = EtatDeLaBoite::nouveau();
+        assert!(boite.montrer_l_idee("a"));
+        boite.brouillon.set("Un pont en mi mineur".to_string());
+        boite.brouillon_de.set_value(Some("a".to_string()));
+        boite.etiquette.set("pont".to_string());
+        // La même idée : rien ne s'oublie.
+        assert!(!boite.montrer_l_idee("a"));
+        assert_eq!(boite.brouillon.get_untracked(), "Un pont en mi mineur");
+        assert_eq!(boite.etiquette.get_untracked(), "pont");
+        // Une autre : le brouillon, l'idée dont il est parti et l'étiquette s'oublient.
+        assert!(boite.montrer_l_idee("b"));
+        assert_eq!(boite.volet.get_untracked(), Volet::Idee("b".to_string()));
+        assert_eq!(boite.idee.get_untracked(), None);
+        assert_eq!(boite.brouillon.get_untracked(), "");
+        assert_eq!(boite.brouillon_de.get_value(), None);
+        assert_eq!(boite.etiquette.get_untracked(), "");
+    }
+
+    #[test]
+    fn le_nom_d_une_ligne_nomme_chaque_case() {
+        assert_eq!(
+            nom_de_la_ligne("3 novembre 2026", &ligne(Some("Une idée de pont"), &[])),
+            "3 novembre 2026 · Une idée de pont · étiquettes — · durée — · non reliée · captée"
+        );
+        let mut l = ligne(None, &["pont", "refrain"]);
+        l.duree_ms = Some(83_000);
+        l.reliee = true;
+        assert_eq!(
+            nom_de_la_ligne("3 novembre 2026", &l),
+            "3 novembre 2026 · — · étiquettes #pont #refrain · durée 1:23 · reliée · captée"
         );
     }
 
