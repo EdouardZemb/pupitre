@@ -3,6 +3,7 @@
 
 mod app;
 mod bandeau;
+mod boite;
 mod entete;
 mod export;
 mod natif;

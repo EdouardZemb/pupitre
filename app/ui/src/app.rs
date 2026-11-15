@@ -203,6 +203,22 @@ mod tests {
         assert!(etat.palette.get_untracked());
     }
 
+    #[test]
+    fn l_etabli_s_ouvre_sur_la_table_et_la_quitter_ferme_la_palette() {
+        let etat = touchee_et_palette_ouverte();
+        assert_eq!(etat.vue.get_untracked(), Vue::Table);
+        // La boîte d'idées : la palette se ferme, la case reste touchée.
+        etat.choisir_vue(Vue::Boite);
+        assert_eq!(etat.vue.get_untracked(), Vue::Boite);
+        assert!(!etat.palette.get_untracked());
+        assert_eq!(etat.touchee.get_untracked(), Some(A7));
+        // De retour à la table, la palette reste fermée, la case touchée.
+        etat.choisir_vue(Vue::Table);
+        assert_eq!(etat.vue.get_untracked(), Vue::Table);
+        assert!(!etat.palette.get_untracked());
+        assert_eq!(etat.touchee.get_untracked(), Some(A7));
+    }
+
     /// La valeur d'une propriété de la feuille de style : `--page-l: 209.5;` donne 209,5.
     fn mesure(css: &str, propriete: &str) -> f32 {
         let debut = css
