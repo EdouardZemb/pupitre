@@ -172,6 +172,12 @@ pub(crate) fn note_a_envoyer(champ: &str, touche: &str, decalage_minutes: i32) -
     })
 }
 
+/// Une frappe d'`Entrée` envoie le champ, la première seulement : tenue, la touche se répète sans
+/// rien renvoyer, comme `Ctrl+Z` (R13) ; pendant une composition, elle la valide et n'envoie rien.
+fn envoi_au_clavier(touche: &str, tenue: bool, en_composition: bool) -> bool {
+    touche == "Enter" && !tenue && !en_composition
+}
+
 /// Un texte, ou `—` s'il n'y en a pas, ou s'il est vide.
 fn texte_ou_tiret(texte: Option<&str>) -> String {
     match texte {
@@ -683,17 +689,44 @@ fn focus_a_rendre(
     }
 }
 
+/// La cible du focus que rend `rendu` dans la liste `liste` : la ligne, sans faire défiler la
+/// liste (`Defilement::Garde`), ou la liste ; aucune pour `Rendu::Rien`. Rendu à une ligne cachée
+/// dans la marge, un focus qui défilerait ramènerait la vue vers elle, et la molette ne passerait
+/// plus au-delà (R35).
+fn cible_du_rendu(rendu: Rendu, liste: Liste) -> Option<Cible> {
+    match rendu {
+        Rendu::Rien => None,
+        Rendu::Ligne(gardee) => Some(Cible::Ligne {
+            gardee,
+            defilement: Defilement::Garde,
+        }),
+        Rendu::Liste => Some(match liste {
+            Liste::Boite => Cible::Liste,
+            Liste::Retirees => Cible::ListeDesRetirees,
+        }),
+    }
+}
+
 /// Où va le focus quand le volet de l'idée `idee` se ferme : au bouton de sa ligne, si elle est
-/// parmi les lignes lues `lues`, sinon à la liste.
+/// parmi les lignes lues `lues`, et la liste défile jusqu'à elle ; sinon à la liste.
 fn cible_apres_le_volet(idee: &str, lues: &[LigneDeLaBoite]) -> Cible {
     if lues.iter().any(|ligne| ligne.idee == idee) {
-        Cible::Ligne(Gardee {
-            idee: idee.to_string(),
-            commande: Commande::Choisir,
-        })
+        Cible::Ligne {
+            gardee: Gardee {
+                idee: idee.to_string(),
+                commande: Commande::Choisir,
+            },
+            defilement: Defilement::VersLaLigne,
+        }
     } else {
         Cible::Liste
     }
+}
+
+/// Le défilement à remettre à la liste après le `focus()` d'une ligne : celui d'avant, `avant`,
+/// si la cible garde le défilement et que `focus()` l'a changé en `apres` ; rien sinon.
+fn defilement_a_remettre(defilement: Defilement, avant: i32, apres: i32) -> Option<i32> {
+    (defilement == Defilement::Garde && apres != avant).then_some(avant)
 }
 
 /// Ce que le volet offre d'une idée : les gestes de tri (compléter, poser et ôter une étiquette,
@@ -767,15 +800,18 @@ fn rendre_le_focus_perdu(boite: EtatDeLaBoite, focus: RwSignal<Option<Cible>>, l
             }),
         }
     });
-    let cible = match rendu {
-        Rendu::Rien => return,
-        Rendu::Ligne(gardee) => Cible::Ligne(gardee),
-        Rendu::Liste => match liste {
-            Liste::Boite => Cible::Liste,
-            Liste::Retirees => Cible::ListeDesRetirees,
-        },
-    };
-    focus.set(Some(cible));
+    if let Some(cible) = cible_du_rendu(rendu, liste) {
+        focus.set(Some(cible));
+    }
+}
+
+/// Ce que fait le défilement de sa liste quand une ligne reçoit le focus.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Defilement {
+    /// La liste garde son défilement : le focus rendu après une perte ne la fait pas bouger.
+    Garde,
+    /// La liste défile jusqu'à la ligne, comme `focus()` le fait.
+    VersLaLigne,
 }
 
 /// Où rendre le focus, dès que la cible est montée dans le document : un élément détaché, celui
@@ -787,7 +823,10 @@ enum Cible {
     BoutonDesRetirees,
     TitreDeLIdee,
     TitreDesRetirees,
-    Ligne(Gardee),
+    Ligne {
+        gardee: Gardee,
+        defilement: Defilement,
+    },
 }
 
 /// Ce que partagent les vues de la boîte : l'état de l'établi, celui de la boîte, le focus à
@@ -1151,7 +1190,7 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
             Cible::TitreDeLIdee => ecran.titre_de_l_idee.get().map(Into::into),
             Cible::TitreDesRetirees => ecran.titre_des_retirees.get().map(Into::into),
             // Chaque ligne résout la sienne (`focus_de_la_ligne`).
-            Cible::Ligne(_) => return,
+            Cible::Ligne { .. } => return,
         };
         if let Some(element) = element
             && element.is_connected()
@@ -1185,7 +1224,7 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
     };
 
     let noter_au_clavier = move |ev: leptos::ev::KeyboardEvent| {
-        if ev.is_composing() {
+        if !envoi_au_clavier(&ev.key(), ev.repeat(), ev.is_composing()) {
             return;
         }
         let champ = boite.note.get_untracked();
@@ -1474,21 +1513,39 @@ fn ligne_de_la_boite(
 }
 
 /// Le focus demandé à une commande de la ligne de l'idée `idee` (`Cible::Ligne`) : `element` la
-/// résout, et elle le prend dès qu'elle est montée dans le document.
+/// résout, et elle le prend dès qu'elle est montée dans le document. Si la cible garde le
+/// défilement, celui que `focus()` a fait à sa liste se remet aussitôt (`defilement_a_remettre`),
+/// dans la même exécution : l'événement de défilement qui en naît trouve la vue d'avant, que la
+/// fenêtre posée couvre déjà.
 fn focus_de_la_ligne(
     ecran: Ecran,
     idee: String,
     element: impl Fn(Commande) -> Option<HtmlElement> + 'static,
 ) {
     Effect::new(move |_| {
-        let element = ecran.focus.with(|cible| match cible {
-            Some(Cible::Ligne(gardee)) if gardee.idee == idee => element(gardee.commande),
+        let demande = ecran.focus.with(|cible| match cible {
+            Some(Cible::Ligne { gardee, defilement }) if gardee.idee == idee => {
+                element(gardee.commande)
+                    .map(|element| (element, *defilement, gardee.commande.liste()))
+            }
             _ => None,
         });
-        if let Some(element) = element
+        if let Some((element, defilement, liste)) = demande
             && element.is_connected()
         {
+            let conteneur = match liste {
+                Liste::Boite => ecran.liste,
+                Liste::Retirees => ecran.liste_des_retirees,
+            }
+            .get_untracked();
+            let avant = conteneur.as_ref().map(|conteneur| conteneur.scroll_top());
             let _ = element.focus();
+            if let (Some(conteneur), Some(avant)) = (conteneur, avant)
+                && let Some(remis) =
+                    defilement_a_remettre(defilement, avant, conteneur.scroll_top())
+            {
+                conteneur.set_scroll_top(remis);
+            }
             ecran.focus.set(None);
         }
     });
@@ -1592,7 +1649,7 @@ fn VoletDeLIdee(ecran: Ecran) -> impl IntoView {
     };
     let trier = move || offerts().trier;
     let poser_au_clavier = move |ev: leptos::ev::KeyboardEvent| {
-        if ev.key() == "Enter" && !ev.is_composing() {
+        if envoi_au_clavier(&ev.key(), ev.repeat(), ev.is_composing()) {
             ev.prevent_default();
             ecran.poser_l_etiquette();
         }
