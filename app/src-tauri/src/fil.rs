@@ -231,8 +231,10 @@ impl FilDuFonds {
                 .take(),
         );
         let mut fil = self.fil.lock().unwrap_or_else(PoisonError::into_inner);
-        // Le mutant : la fin du fil ne s'attend plus.
-        drop(fil.take());
+        if let Some(fin) = fil.take() {
+            // Un fil tombé rend sa panique : le refus des demandes suivantes la dit déjà.
+            let _ = fin.join();
+        }
     }
 }
 
