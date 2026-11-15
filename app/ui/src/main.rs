@@ -1,5 +1,5 @@
 //! L'interface de pupitre : l'établi, son bandeau, sa table de la tonalité, sa palette et l'export
-//! du cahier des tables, et le pont des commandes de l'établi.
+//! du cahier des tables, sa boîte d'idées, et le pont des commandes de l'établi.
 
 mod app;
 mod bandeau;

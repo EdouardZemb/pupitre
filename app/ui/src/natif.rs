@@ -86,10 +86,6 @@ pub(crate) fn refus_du_rejet(rejet_en_json: Option<String>) -> Refus {
 
 /// Le décalage local du geste, en minutes : `decalage_depuis_js` de
 /// `Date::new_0().get_timezone_offset()`.
-#[expect(
-    dead_code,
-    reason = "la tâche 19 : chaque geste de la boîte porte le décalage local"
-)]
 pub(crate) fn decalage_du_geste() -> i32 {
     decalage_depuis_js(js_sys::Date::new_0().get_timezone_offset())
 }
@@ -97,10 +93,6 @@ pub(crate) fn decalage_du_geste() -> i32 {
 /// Le décalage local de l'instant `le` (en secondes), rendu en minutes, celles qu'attend
 /// `date_de_la_liste` : `decalage_depuis_js` de
 /// `Date::new(&JsValue::from_f64(le as f64 * 1000.0)).get_timezone_offset()` (question 24).
-#[expect(
-    dead_code,
-    reason = "la tâche 19 : la date des lignes de la boîte, au décalage de leur instant"
-)]
 pub(crate) fn decalage_a(le: i64) -> i32 {
     let instant = js_sys::Date::new(&JsValue::from_f64(le as f64 * 1000.0));
     decalage_depuis_js(instant.get_timezone_offset())

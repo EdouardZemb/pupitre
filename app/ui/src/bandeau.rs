@@ -256,32 +256,74 @@ fn vue_de_l_emplacement(
     }
 }
 
-/// Le bandeau, en tête de l'établi : trois emplacements fixes, un par source, l'état d'abord
-/// (`vue_de_l_emplacement`). Sans message, il ne prend aucune place. Après « Fermer », le focus va
-/// au « Fermer » qui reste (`Bandeau::fermer_restant`), sinon au bandeau lui-même, qui le prend
-/// (`tabindex="-1"`).
-#[component]
-pub fn VueDuBandeau(bandeau: RwSignal<Bandeau>) -> impl IntoView {
-    let conteneur = NodeRef::<html::Div>::new();
-    let boutons = Source::TOUTES.map(|_| NodeRef::<html::Button>::new());
-    let fermer = move |source: Source| {
-        bandeau.update(|b| b.fermer(source));
-        let restant = bandeau.with_untracked(Bandeau::fermer_restant);
-        match restant.and_then(|s| boutons[s.rang()].get_untracked()) {
-            Some(bouton) => {
-                let _ = bouton.focus();
-            }
-            None => {
-                if let Some(conteneur) = conteneur.get_untracked() {
-                    let _ = conteneur.focus();
-                }
+/// Les repères du bandeau monté : son conteneur, et le « Fermer » de chaque source, dans l'ordre de
+/// `Source::TOUTES`. L'état de l'établi les porte, pour rendre le focus après l'issue d'un geste
+/// comme après « Fermer » (`rendre_le_focus`).
+#[derive(Clone, Copy)]
+pub(crate) struct ReperesDuBandeau {
+    pub conteneur: NodeRef<html::Div>,
+    pub boutons: [NodeRef<html::Button>; 3],
+}
+
+impl ReperesDuBandeau {
+    pub fn nouveaux() -> Self {
+        ReperesDuBandeau {
+            conteneur: NodeRef::new(),
+            boutons: Source::TOUTES.map(|_| NodeRef::new()),
+        }
+    }
+}
+
+/// Rend le focus, après « Fermer » ou après l'issue d'un geste, s'il est sur le « Fermer » d'un
+/// emplacement qui ne porte plus rien qui se ferme : ce « Fermer » vient de se cacher (un `Ctrl+Z`
+/// hors d'un champ peut effacer un refus dont le « Fermer » a le focus). Le focus va alors au
+/// « Fermer » qui reste (`Bandeau::fermer_restant`), s'il se montre déjà, sinon au bandeau lui-même,
+/// qui le prend (`tabindex="-1"`). Le focus ailleurs, rien ne bouge.
+pub(crate) fn rendre_le_focus(bandeau: RwSignal<Bandeau>, reperes: ReperesDuBandeau) {
+    let Some(actif) = document().active_element().map(leptos::web_sys::Node::from) else {
+        return;
+    };
+    let Some(source) = Source::TOUTES.into_iter().find(|s| {
+        reperes.boutons[s.rang()]
+            .get_untracked()
+            .is_some_and(|bouton| bouton.is_same_node(Some(&actif)))
+    }) else {
+        return;
+    };
+    if bandeau.with_untracked(|b| b.emplacements()[source.rang()].fermable()) {
+        return;
+    }
+    let restant = bandeau
+        .with_untracked(Bandeau::fermer_restant)
+        .and_then(|s| reperes.boutons[s.rang()].get_untracked())
+        .filter(|bouton| !bouton.hidden());
+    match restant {
+        Some(bouton) => {
+            let _ = bouton.focus();
+        }
+        None => {
+            if let Some(conteneur) = reperes.conteneur.get_untracked() {
+                let _ = conteneur.focus();
             }
         }
+    }
+}
+
+/// Le bandeau, en tête de l'établi : trois emplacements fixes, un par source, l'état d'abord
+/// (`vue_de_l_emplacement`), montés sur ses repères, `reperes`. Sans message, il ne prend aucune
+/// place. Après « Fermer », le focus va au « Fermer » qui reste, sinon au bandeau lui-même
+/// (`rendre_le_focus`).
+#[component]
+pub fn VueDuBandeau(bandeau: RwSignal<Bandeau>, reperes: ReperesDuBandeau) -> impl IntoView {
+    let fermer = move |source: Source| {
+        bandeau.update(|b| b.fermer(source));
+        rendre_le_focus(bandeau, reperes);
     };
-    let emplacement =
-        move |source: Source| vue_de_l_emplacement(bandeau, source, boutons[source.rang()], fermer);
+    let emplacement = move |source: Source| {
+        vue_de_l_emplacement(bandeau, source, reperes.boutons[source.rang()], fermer)
+    };
     view! {
-        <div class="bandeau" tabindex="-1" node_ref=conteneur>
+        <div class="bandeau" tabindex="-1" node_ref=reperes.conteneur>
             {emplacement(Source::Etat)}
             {emplacement(Source::Refus)}
             {emplacement(Source::Avertissement)}
