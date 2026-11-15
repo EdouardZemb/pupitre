@@ -11,6 +11,8 @@ use noyau::table::CoucheSombre;
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
+mod systeme;
+
 /// L'instrument que l'interface nomme : « guitare », « clavier » ou « les-deux ».
 fn lire_instrument(s: &str) -> Option<Instrument> {
     match s {
@@ -133,7 +135,7 @@ pub fn run() {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::path::PathBuf;
 
@@ -165,7 +167,7 @@ mod tests {
     /// dossier de l'application (I30) : `pupitre-etabli-<nom>-<processus>`. Ce qu'un passage
     /// précédent y a laissé est effacé, puis le dossier est recréé, vide. C'est le seul endroit
     /// des tests d'`etabli` qui devine un chemin.
-    fn dossier_jetable(nom: &str) -> PathBuf {
+    pub(crate) fn dossier_jetable(nom: &str) -> PathBuf {
         let dossier =
             std::env::temp_dir().join(format!("pupitre-etabli-{nom}-{}", std::process::id()));
         match std::fs::remove_dir_all(&dossier) {
