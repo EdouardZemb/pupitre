@@ -319,16 +319,16 @@ mod tests {
 
     #[test]
     fn le_recouvrement_se_place_en_pour_cent_de_la_page() {
-        let r = Rect {
+        let place = place_du_recouvrement(Rect {
             x: 20.95,
             y: 15.7,
             l: 41.9,
             h: 31.4,
-        };
-        assert_eq!(
-            style_du_recouvrement(r),
-            "left: 10.000%; top: 10.000%; width: 20.000%; height: 20.000%"
-        );
+        });
+        assert_eq!(place.gauche, "10.000%");
+        assert_eq!(place.haut, "10.000%");
+        assert_eq!(place.largeur, "20.000%");
+        assert_eq!(place.hauteur, "20.000%");
     }
 
     #[test]
@@ -339,14 +339,21 @@ mod tests {
             l: 27.0,
             h: 20.0,
         };
-        // Centré, 0,4 mm au-dessus du bas de la case.
+        // Le rectangle, à 1e-4 près, comme INC-0 : (26 ; 45 ; 15 ; 4,6).
         let p = rect_de_la_palette(r);
-        for (vu, attendu) in [(p.x, 26.0), (p.y, 45.0), (p.l, 15.0), (p.h, 4.6)] {
-            assert!((vu - attendu).abs() < 1e-4, "{p:?}");
-        }
-        assert_eq!(
-            style_de_la_palette(r),
-            style_du_recouvrement(rect_de_la_palette(r))
-        );
+        assert!((p.x - 26.0).abs() < 1e-4 && (p.y - 45.0).abs() < 1e-4);
+        assert!((p.l - 15.0).abs() < 1e-4 && (p.h - 4.6).abs() < 1e-4);
+        // Ses valeurs, calculées en f32 (passage de LE-6, règle 11).
+        let place = place_de_la_palette(r);
+        assert_eq!(place.gauche, "12.411%");
+        assert_eq!(place.haut, "28.662%");
+        assert_eq!(place.largeur, "7.160%");
+        assert_eq!(place.hauteur, "2.930%");
+    }
+
+    #[test]
+    fn la_largeur_de_la_fiche_se_pose_en_millimetres_de_la_feuille() {
+        assert_eq!(largeur_de_la_fiche(37.214), "calc(37.214 * var(--mm))");
+        assert_eq!(largeur_de_la_fiche(56.0), "calc(56 * var(--mm))");
     }
 }
