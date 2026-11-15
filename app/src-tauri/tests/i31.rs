@@ -52,7 +52,9 @@ fn controler_les_fichiers_de_droits(noms: &[String]) -> Vec<String> {
 /// Tauri admet (`{"identifier": …}`, avec une portée), est une faute.
 fn controler_les_droits(droits: &Value, noms: &[&str]) -> Vec<String> {
     let Some(objet) = droits.as_object() else {
-        return vec!["les droits ne sont pas un objet : un seul jeu de droits, nommé".to_string()];
+        return vec![
+            "les droits ne sont pas un objet : un fichier de droits n'en porte qu'un".to_string(),
+        ];
     };
     let mut fautes = Vec::new();
     for cle in objet.keys() {
@@ -432,10 +434,10 @@ fn i31_chaque_controle_des_droits_refuse_ce_qu_on_y_plante() {
         );
     }
 
-    // Une liste de jeux de droits, que Tauri admet aussi dans un fichier.
+    // Un fichier de droits écrit en liste, que Tauri admet aussi.
     refuse_seulement(
         controler_les_droits(&json!([droits_valides(&noms)]), &noms),
-        "les droits ne sont pas un objet : un seul jeu de droits, nommé",
+        "les droits ne sont pas un objet : un fichier de droits n'en porte qu'un",
     );
 
     // Les plateformes, les fenêtres et la liste des droits.
