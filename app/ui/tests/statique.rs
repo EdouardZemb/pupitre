@@ -468,7 +468,7 @@ fn i31_chaque_controle_refuse_ce_qu_on_y_plante() {
             "fn date_du_jour() -> f64 {\n    let s = \"}\";\n    js_sys::Date::new_0().get_time()\n}\n",
         )])
         .is_empty(),
-        "un } dans une chaîne ferme date_du_jour"
+        "une accolade dans une chaîne ferme date_du_jour"
     );
     // Un `fn date_du_jour` écrit dans une chaîne n'ouvre pas `date_du_jour`.
     refuse(
