@@ -6,6 +6,7 @@ use leptos::prelude::*;
 use noyau::rendu::verso::fiche_d_accord;
 
 use crate::app::Etat;
+use crate::vue_table::largeur_de_la_fiche;
 
 /// La place de la palette, toujours réservée : la table ne bouge pas quand la palette s'ouvre.
 /// Ouverte, la palette porte « Fermer », puis la fiche, qui défile si elle est plus haute que la
@@ -44,7 +45,7 @@ pub fn PanneauPalette(etat: Etat, bouton_palette: NodeRef<html::Button>) -> impl
                     class="fiche"
                     role="img"
                     aria-label=format!("palette de {nom}")
-                    style=format!("width: calc({largeur} * var(--mm))")
+                    style:width=largeur_de_la_fiche(largeur)
                     inner_html=svg
                 ></div>
             }

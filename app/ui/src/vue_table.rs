@@ -60,16 +60,25 @@ fn pc(v: f32) -> String {
     format!("{:.3}%", 100.0 * v)
 }
 
-/// La place d'un bouton sur une case, en pour-cent de la page : la page suit la fenêtre, le
-/// bouton la suit.
-pub(crate) fn style_du_recouvrement(r: Rect) -> String {
-    format!(
-        "left: {}; top: {}; width: {}; height: {}",
-        pc(r.x / LARGEUR),
-        pc(r.y / HAUTEUR),
-        pc(r.l / LARGEUR),
-        pc(r.h / HAUTEUR)
-    )
+/// Une place en pour cent de la page : les valeurs de `left`, `top`, `width` et `height`, chacune
+/// écrite par `pc` (`{:.3}%`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Place {
+    pub gauche: String,
+    pub haut: String,
+    pub largeur: String,
+    pub hauteur: String,
+}
+
+/// La place du recouvrement d'une case : son rectangle rapporté à la page. La page suit la
+/// fenêtre, le bouton la suit.
+pub(crate) fn place_du_recouvrement(r: Rect) -> Place {
+    Place {
+        gauche: pc(r.x / LARGEUR),
+        haut: pc(r.y / HAUTEUR),
+        largeur: pc(r.l / LARGEUR),
+        hauteur: pc(r.h / HAUTEUR),
+    }
 }
 
 /// Le bouton « Palette », en mm de la page : sa taille, et son retrait du bord de la case.
@@ -91,9 +100,14 @@ pub(crate) fn rect_de_la_palette(r: Rect) -> Rect {
     }
 }
 
-/// La place du bouton « Palette », en pour-cent de la page, comme celle des cases.
-pub(crate) fn style_de_la_palette(r: Rect) -> String {
-    style_du_recouvrement(rect_de_la_palette(r))
+/// La place du bouton de la palette : `place_du_recouvrement(rect_de_la_palette(r))`.
+pub(crate) fn place_de_la_palette(r: Rect) -> Place {
+    place_du_recouvrement(rect_de_la_palette(r))
+}
+
+/// La largeur de la fiche : `calc(<largeur> * var(--mm))`, `largeur` écrite par `{}`.
+pub(crate) fn largeur_de_la_fiche(largeur: f32) -> String {
+    format!("calc({largeur} * var(--mm))")
 }
 
 /// La table : la page du noyau, ses boutons par-dessus.
@@ -155,11 +169,15 @@ fn BoutonsDeCase(
             .then(|| etat.table.with(|t| dire_la_cible(t, position)))
             .flatten()
     };
+    let place = place_du_recouvrement(rect);
     view! {
         <button
             type="button"
             class="case"
-            style=style_du_recouvrement(rect)
+            style:left=place.gauche
+            style:top=place.haut
+            style:width=place.largeur
+            style:height=place.hauteur
             aria-label=libelle
             aria-current=move || touchee().then_some("true")
             aria-describedby=move || cible().map(|_| ID_CIBLE)
@@ -169,11 +187,15 @@ fn BoutonsDeCase(
         {move || {
             touchee()
                 .then(|| {
+                    let place = place_de_la_palette(rect);
                     view! {
                         <button
                             type="button"
                             class="bouton-palette"
-                            style=style_de_la_palette(rect)
+                            style:left=place.gauche
+                            style:top=place.haut
+                            style:width=place.largeur
+                            style:height=place.hauteur
                             node_ref=bouton_palette
                             aria-controls=move || etat.palette.get().then_some("palette")
                             aria-expanded=move || etat.palette.get().to_string()
