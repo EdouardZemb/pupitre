@@ -1,8 +1,8 @@
 # Le test de mutation du noyau (famille 3 des garde-fous de la méthode).
-# Seize modules sont examinés : la théorie (hauteurs, tonalités, accords, table), la palette, le
+# Dix-sept modules sont examinés : la théorie (hauteurs, tonalités, accords, table), la palette, le
 # clavier et la guitare, et les règles des données (la compaction, l'accès d'un document, le
 # démarrage, la version de schéma, la teneur, la comparaison des copies et des lignées, les
-# identifiants, les gestes et les règles d'une idée).
+# identifiants, les gestes, les règles d'une idée et la boîte).
 # Le rendu (`rendu/`) n'est pas examiné.
 examine_globs = [
     "crates/noyau/src/hauteur.rs",
@@ -13,6 +13,7 @@ examine_globs = [
     "crates/noyau/src/clavier.rs",
     "crates/noyau/src/guitare.rs",
     "crates/noyau/src/donnees/acces.rs",
+    "crates/noyau/src/donnees/boite.rs",
     "crates/noyau/src/donnees/compaction.rs",
     "crates/noyau/src/donnees/copie.rs",
     "crates/noyau/src/donnees/demarrage.rs",
@@ -23,7 +24,7 @@ examine_globs = [
     "crates/noyau/src/donnees/version.rs",
 ]
 
-# Chaque mutant ne rejoue que les tests de ces seize modules, et les tests unitaires : les tests
+# Chaque mutant ne rejoue que les tests de ces dix-sept modules, et les tests unitaires : les tests
 # du rendu dessinent les 48 pages de table, les 72 versos et les fiches de chaque case, et la suite
 # complète prend une minute et demie en debug, contre deux secondes et demie sans eux. Ils
 # appellent la théorie sans la vérifier : ses propres tests tuent tous ses mutants (0 survivant
@@ -44,6 +45,7 @@ additional_cargo_test_args = [
     "--test", "identifiants",
     "--test", "gestes",
     "--test", "idee",
+    "--test", "boite",
 ]
 
 # Un mutant réellement équivalent s'exclut ici, nommément, avec sa raison.

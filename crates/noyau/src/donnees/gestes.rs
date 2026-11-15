@@ -399,8 +399,8 @@ pub fn completer(
 }
 
 /// Poser l'étiquette `etiquette` sur l'idée, rangée sans `#`, que le message ajoute, et comparée
-/// octet pour octet, sans normalisation ; l'inverse l'ôte. Vide : `Impossible::EtiquetteVide` ;
-/// déjà posée : `Impossible::EtiquetteDejaPosee`.
+/// octet pour octet, sans normalisation ; l'inverse l'ôte. Vide, une fois ses blancs ôtés :
+/// `Impossible::EtiquetteVide` ; déjà posée : `Impossible::EtiquetteDejaPosee`.
 pub fn poser_une_etiquette(
     idee: &IdeeLue,
     etiquette: &str,
@@ -408,7 +408,7 @@ pub fn poser_une_etiquette(
     decalage_minutes: i32,
 ) -> Result<GesteDeTri, Impossible> {
     visible(idee)?;
-    if etiquette.is_empty() {
+    if etiquette.trim().is_empty() {
         return Err(Impossible::EtiquetteVide);
     }
     if idee.etiquettes.contains(etiquette) {
@@ -437,7 +437,7 @@ pub fn oter_une_etiquette(
     decalage_minutes: i32,
 ) -> Result<GesteDeTri, Impossible> {
     visible(idee)?;
-    if etiquette.is_empty() {
+    if etiquette.trim().is_empty() {
         return Err(Impossible::EtiquetteVide);
     }
     if !idee.etiquettes.contains(etiquette) {
