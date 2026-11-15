@@ -7,16 +7,11 @@ use std::path::Path;
 use noyau::rendu::Instrument;
 use noyau::rendu::pages::Date;
 use noyau::table::CoucheSombre;
-#[cfg(desktop)]
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
 mod commandes_de_l_etabli;
-// Rien ne l'appelle hors des tests avant la tâche 4 : l'allow tombe quand `run()` appelle le fil.
-#[allow(dead_code)]
 mod fil;
-// Rien ne l'appelle hors des tests avant la tâche 4 : l'allow tombe quand `run()` appelle systeme.
-#[allow(dead_code)]
 mod systeme;
 
 /// L'instrument que l'interface nomme : « guitare », « clavier » ou « les-deux ».
@@ -91,8 +86,8 @@ fn ecrire_le_cahier(
 /// `Ok(None)` : la boîte a été fermée, rien n'est écrit ; `Ok(Some(nom du fichier))` ;
 /// `Err(message en français)`.
 #[tauri::command]
-async fn exporter_cahier(
-    app: tauri::AppHandle,
+async fn exporter_cahier<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
     date: String,
     instrument: String,
     couche: String,
@@ -131,11 +126,41 @@ async fn exporter_cahier(
     .map_err(|e| format!("l'export s'est interrompu : {e}"))?
 }
 
+/// Le gestionnaire des commandes : `generate_handler!`, qui nomme `exporter_cahier` et chaque
+/// commande de `commandes_de_l_etabli` ; `run()` et les tests le partagent.
+pub(crate) fn gestionnaire<R: tauri::Runtime>()
+-> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static {
+    tauri::generate_handler![
+        exporter_cahier,
+        commandes_de_l_etabli::noter,
+        commandes_de_l_etabli::completer,
+        commandes_de_l_etabli::poser_une_etiquette,
+        commandes_de_l_etabli::oter_une_etiquette,
+        commandes_de_l_etabli::relier,
+        commandes_de_l_etabli::delier,
+        commandes_de_l_etabli::regrouper,
+        commandes_de_l_etabli::retirer,
+        commandes_de_l_etabli::retablir,
+        commandes_de_l_etabli::annuler,
+        commandes_de_l_etabli::vue_d_une_idee,
+        commandes_de_l_etabli::idees,
+        commandes_de_l_etabli::journal,
+    ]
+}
+
+/// L'établi : au démarrage, la racine des données s'ouvre sous le dossier de l'application, par
+/// le fil du fonds, et Tauri garde l'ouverture dans son état ; puis le gestionnaire sert les
+/// commandes.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![exporter_cahier])
+        .setup(|app| {
+            let dossier = systeme::dossier_de_l_application(app.handle())?;
+            app.manage(systeme::ouvrir(&dossier));
+            Ok(())
+        })
+        .invoke_handler(gestionnaire())
         .run(tauri::generate_context!())
         .expect("l'établi ne démarre pas");
 }

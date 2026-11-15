@@ -3,6 +3,128 @@
 //! aux types de `commandes`. Chacune prend l'état, l'ouverture du fonds, et au plus un argument,
 //! nommé `commande` : un seul mot, que le camelCase des arguments de Tauri ne change pas.
 
+use commandes::{
+    Completer, EntreeDuJournal, Etiqueter, Faite, Notee, Noter, Regrouper, Relier, Reponse, Viser,
+    VueDUneIdee,
+};
+
+use crate::fil::Ouverture;
+
+/// Noter une idée (`Services::noter`).
+#[tauri::command]
+pub async fn noter(ouverture: tauri::State<'_, Ouverture>, commande: Noter) -> Reponse<Notee> {
+    ouverture
+        .demander(move |services, contexte| services.noter(&commande, contexte))
+        .await
+}
+
+/// Compléter le texte d'une idée (`Services::completer`).
+#[tauri::command]
+pub async fn completer(
+    ouverture: tauri::State<'_, Ouverture>,
+    commande: Completer,
+) -> Reponse<Faite> {
+    ouverture
+        .demander(move |services, contexte| services.completer(&commande, contexte))
+        .await
+}
+
+/// Poser une étiquette sur une idée (`Services::poser_une_etiquette`).
+#[tauri::command]
+pub async fn poser_une_etiquette(
+    ouverture: tauri::State<'_, Ouverture>,
+    commande: Etiqueter,
+) -> Reponse<Faite> {
+    ouverture
+        .demander(move |services, contexte| services.poser_une_etiquette(&commande, contexte))
+        .await
+}
+
+/// Ôter une étiquette d'une idée (`Services::oter_une_etiquette`).
+#[tauri::command]
+pub async fn oter_une_etiquette(
+    ouverture: tauri::State<'_, Ouverture>,
+    commande: Etiqueter,
+) -> Reponse<Faite> {
+    ouverture
+        .demander(move |services, contexte| services.oter_une_etiquette(&commande, contexte))
+        .await
+}
+
+/// Relier deux idées (`Services::relier`).
+#[tauri::command]
+pub async fn relier(ouverture: tauri::State<'_, Ouverture>, commande: Relier) -> Reponse<Faite> {
+    ouverture
+        .demander(move |services, contexte| services.relier(&commande, contexte))
+        .await
+}
+
+/// Délier deux idées (`Services::delier`).
+#[tauri::command]
+pub async fn delier(ouverture: tauri::State<'_, Ouverture>, commande: Relier) -> Reponse<Faite> {
+    ouverture
+        .demander(move |services, contexte| services.delier(&commande, contexte))
+        .await
+}
+
+/// Regrouper une captation dans une idée (`Services::regrouper`).
+#[tauri::command]
+pub async fn regrouper(
+    ouverture: tauri::State<'_, Ouverture>,
+    commande: Regrouper,
+) -> Reponse<Faite> {
+    ouverture
+        .demander(move |services, contexte| services.regrouper(&commande, contexte))
+        .await
+}
+
+/// Retirer une idée (`Services::retirer`).
+#[tauri::command]
+pub async fn retirer(ouverture: tauri::State<'_, Ouverture>, commande: Viser) -> Reponse<Faite> {
+    ouverture
+        .demander(move |services, contexte| services.retirer(&commande, contexte))
+        .await
+}
+
+/// Rétablir une idée retirée (`Services::retablir`).
+#[tauri::command]
+pub async fn retablir(ouverture: tauri::State<'_, Ouverture>, commande: Viser) -> Reponse<Faite> {
+    ouverture
+        .demander(move |services, contexte| services.retablir(&commande, contexte))
+        .await
+}
+
+/// Annuler le dernier geste de tri (`Services::annuler`).
+#[tauri::command]
+pub async fn annuler(ouverture: tauri::State<'_, Ouverture>) -> Reponse<Faite> {
+    ouverture
+        .demander(|services, contexte| services.annuler(contexte))
+        .await
+}
+
+/// La vue d'une idée, `commande` son identifiant (`Services::vue_d_une_idee`).
+#[tauri::command]
+pub async fn vue_d_une_idee(
+    ouverture: tauri::State<'_, Ouverture>,
+    commande: String,
+) -> Reponse<VueDUneIdee> {
+    ouverture
+        .demander(move |services, _| services.vue_d_une_idee(&commande))
+        .await
+}
+
+/// Les idées non retirées (`Services::idees`).
+#[tauri::command]
+pub async fn idees(ouverture: tauri::State<'_, Ouverture>) -> Reponse<Vec<String>> {
+    ouverture.demander(|services, _| services.idees()).await
+}
+
+/// Le journal du fonds (`Services::journal`).
+#[tauri::command]
+pub async fn journal(ouverture: tauri::State<'_, Ouverture>) -> Reponse<Vec<EntreeDuJournal>> {
+    ouverture.demander(|services, _| services.journal()).await
+}
+
 #[cfg(test)]
 mod tests {
     use commandes::{Notee, Raison, Refus, VueDUneIdee};
