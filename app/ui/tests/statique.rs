@@ -6,6 +6,109 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+/// Le HTML posé.
+const HTML_POSE: &[&str] = &[
+    "inner_html",
+    "innerHTML",
+    "outer_html",
+    "outerHTML",
+    "insert_adjacent_html",
+    "insertAdjacentHTML",
+];
+
+/// Les seuls fichiers où `inner_html` paraît, une fois chacun : la page et la fiche.
+const INNER_HTML_ADMIS: &[&str] = &["app/ui/src/vue_table.rs", "app/ui/src/panneau_palette.rs"];
+
+/// Un style en attribut ; `style:` reste admis.
+const STYLE_EN_ATTRIBUT: &[&str] = &["style=", "\"style\"", "cssText", "css_text", "<style"];
+
+/// Le stockage du navigateur, l'appel comme le nom écrit en chaîne.
+const STOCKAGE: &[&str] = &[
+    "localStorage",
+    "local_storage",
+    "sessionStorage",
+    "session_storage",
+    "indexedDB",
+    "indexed_db",
+    "IdbFactory",
+    "CacheStorage",
+    "\"caches\"",
+    "cookie",
+];
+
+/// L'horloge, admise dans la seule fonction `FONCTION_DE_L_HORLOGE`.
+const HORLOGE: &[&str] = &["Date::new_0", "Date::now", "performance"];
+
+/// La seule fonction où l'interface lit l'horloge.
+const FONCTION_DE_L_HORLOGE: &str = "date_du_jour";
+
+/// Le décalage local, nulle part jusqu'à la tâche 18.
+const DECALAGE_LOCAL: &[&str] = &["get_timezone_offset", "getTimezoneOffset"];
+
+/// Le nom du dernier `fn <nom>` de `ligne`, s'il y en a un.
+fn fonction_de(ligne: &str) -> Option<&str> {
+    let mut trouvee = None;
+    for (debut, _) in ligne.match_indices("fn ") {
+        let avant = ligne[..debut].chars().next_back();
+        if avant.is_some_and(|c| c.is_alphanumeric() || c == '_') {
+            continue;
+        }
+        let reste = ligne[debut + 3..].trim_start();
+        let fin = reste
+            .find(|c: char| !(c.is_alphanumeric() || c == '_'))
+            .unwrap_or(reste.len());
+        if fin > 0 {
+            trouvee = Some(&reste[..fin]);
+        }
+    }
+    trouvee
+}
+
+/// Les fautes d'I31 sur `sources`, des paires (chemin, texte) nommées depuis la racine du dépôt.
+/// Une ligne dont le début, blancs ôtés, est `//` (commentaire, doc) ne compte pas ; tout le reste
+/// se lit en sous-chaîne, sensible à la casse. Chaque faute nomme le fichier, la ligne et le mot.
+fn controler(sources: &[(String, String)]) -> Vec<String> {
+    let mut fautes = Vec::new();
+    for (chemin, texte) in sources {
+        let mut inner_html_vus = 0;
+        let mut englobante: Option<&str> = None;
+        for (indice, ligne) in texte.lines().enumerate() {
+            if ligne.trim_start().starts_with("//") {
+                continue;
+            }
+            if let Some(nom) = fonction_de(ligne) {
+                englobante = Some(nom);
+            }
+            let mut faute = |mot: &str| {
+                fautes.push(format!("{chemin}:{} contient « {mot} »", indice + 1));
+            };
+            for mot in HTML_POSE.iter().filter(|mot| ligne.contains(**mot)) {
+                if *mot == "inner_html" && INNER_HTML_ADMIS.contains(&chemin.as_str()) {
+                    inner_html_vus += ligne.matches(mot).count();
+                    if inner_html_vus <= 1 {
+                        continue;
+                    }
+                }
+                faute(mot);
+            }
+            for mot in STYLE_EN_ATTRIBUT
+                .iter()
+                .chain(STOCKAGE)
+                .chain(DECALAGE_LOCAL)
+                .filter(|mot| ligne.contains(**mot))
+            {
+                faute(mot);
+            }
+            if englobante != Some(FONCTION_DE_L_HORLOGE) {
+                for mot in HORLOGE.iter().filter(|mot| ligne.contains(**mot)) {
+                    faute(mot);
+                }
+            }
+        }
+    }
+    fautes
+}
+
 /// Une source inventée, nommée depuis la racine du dépôt.
 fn source(chemin: &str, texte: &str) -> (String, String) {
     (chemin.to_string(), texte.to_string())
