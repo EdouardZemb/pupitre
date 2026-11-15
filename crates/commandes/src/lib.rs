@@ -12,9 +12,10 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Les noms des commandes que cette crate type : les opérations nommées et les lectures du fonds.
-/// `exporter_cahier`, la commande de l'établi qui exporte le cahier des tables depuis INC-0, les
-/// rejoindra.
+/// Les noms de toutes les commandes de l'application : les opérations nommées et les lectures du
+/// fonds, que cette crate type, et `exporter_cahier`, la commande de l'établi qui exporte le cahier
+/// des tables depuis INC-0. La liste est complète : `build.rs` en tire le manifeste de l'application,
+/// et chaque fichier de droits la recopie.
 pub const NOMS: &[&str] = &[
     "noter",
     "completer",
@@ -29,6 +30,7 @@ pub const NOMS: &[&str] = &[
     "vue_d_une_idee",
     "idees",
     "journal",
+    "exporter_cahier",
 ];
 
 /// Le plus grand entier que `JSON.parse` relit à l'identique : 2⁵³ − 1. Le noyau, qui ne voit pas

@@ -7,6 +7,9 @@
 //! qu'importe le greffon de dialogue (`rfd`, fonction `common-controls-v6`) : Windows refuse de le
 //! charger (`STATUS_ENTRYPOINT_NOT_FOUND`), avant tout test. C'est le contournement que donne
 //! l'issue tauri-apps/tauri#13419.
+//!
+//! Le manifeste de l'application, lui, déclare chaque commande de `commandes::NOMS` : Tauri en tire
+//! les droits `allow-<nom>` que `capabilities/windows.json` nomme (§ 40 · 7.5).
 
 use std::env;
 use std::path::PathBuf;
@@ -30,7 +33,8 @@ const MANIFESTE_WINDOWS: &str = r#"<assembly xmlns="urn:schemas-microsoft-com:as
 "#;
 
 fn main() {
-    let mut attributs = tauri_build::Attributes::new();
+    let mut attributs = tauri_build::Attributes::new()
+        .app_manifest(tauri_build::AppManifest::new().commands(commandes::NOMS));
     let cible_msvc = env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows")
         && env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc");
     if cible_msvc {

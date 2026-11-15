@@ -526,17 +526,17 @@ lance.
 - Chaque commande est déclarée au manifeste de l'application, dans `build.rs` : sans lui,
   Tauri permet toute commande.
 - Un fichier de droits par plateforme, sous `app/src-tauri/capabilities/`, nomme une à une
-  les commandes permises, et les seuls droits du noyau de Tauri que l'interface emploie,
-  comme l'écoute du signal par lequel le côté natif lui dit qu'un document a changé. Aucun
-  droit de greffon n'est donné à l'interface : un greffon, comme la boîte d'enregistrement
-  du cahier, s'emploie du côté natif.
+  les commandes permises, et les seuls droits du noyau de Tauri que l'interface emploie :
+  au lot 1, aucun ; l'écoute du signal par lequel le côté natif lui dit qu'un document a
+  changé viendra avec le lot 3. Aucun droit de greffon n'est donné à l'interface : un
+  greffon, comme la boîte d'enregistrement du cahier, s'emploie du côté natif.
 - Que l'API de Tauri soit exposée à l'interface (`withGlobalTauri`) ou non, une commande que
   les droits ne nomment pas est refusée : la frontière est celle des droits, et, pour le
   protocole des captations, celle de son gestionnaire.
 
 | Plateforme | Appareil | Ce que l'interface peut appeler |
 |---|---|---|
-| Windows | 💻 Établi | L'export du cahier des tables, depuis INC-0 ; au lot 1 d'INC-1, les opérations nommées et les requêtes du fonds, l'import, l'archive complète et la reprise depuis l'archive, la relance sur la démonstration ou sur le fonds, et, en mode démonstration seulement, réécrire le jeu factice ou engendrer le fonds de mesure |
+| Windows | 💻 Établi | L'export du cahier des tables, depuis INC-0 ; au lot 1 d'INC-1, les opérations nommées et les requêtes du fonds, l'import, l'archive complète et la reprise depuis l'archive, la relance sur la démonstration ou sur le fonds, et, en mode démonstration seulement, réécrire le jeu factice ou engendrer le fonds de mesure, une borne que le côté natif tient (tranche 7 du lot 1), les droits ne distinguant pas les modes |
 | Android | 📱 Carnet, puis 📖 lutrin | Rien, tant que la PR de conception du lot 2 n'a pas nommé les commandes du carnet |
 | Toute autre | — | Rien : aucune n'est une cible |
 
@@ -546,10 +546,11 @@ deux sous Android. Ce que le lutrin n'a pas, les opérations destructrices et le
 destructrice, quand elle viendra, se confirmera du côté natif, hors de l'interface : un code
 injecté ne peut pas confirmer à la place de Sacha.
 
-La liste exacte des commandes vit dans ces fichiers, et nulle part ailleurs : I31 la compare
-aux commandes de l'application, et la CSP au bloc de la CSP exacte, plus haut
-([§ 70 · 3](70-qualite-et-verification.md#3-les-invariants-et-leurs-tests)). Si un écran
-demande davantage, la PR qui l'ajoute le dit et l'écrit ici.
+La liste exacte des commandes vit dans `commandes::NOMS` : `build.rs` en tire
+le manifeste de l'application, chaque fichier de droits la recopie en `allow-<nom>`, chaque
+`_` devenu `-`, et I31 compare les trois, avec `generate_handler!` ; la CSP se compare au bloc
+de la CSP exacte, plus haut ([§ 70 · 3](70-qualite-et-verification.md#3-les-invariants-et-leurs-tests)).
+Si un écran demande davantage, la PR qui l'ajoute le dit et l'écrit ici.
 
 ---
 

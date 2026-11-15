@@ -11,6 +11,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2.7.4", features = [] }
+commandes = { path = "../../crates/commandes" }
 
 [dependencies]
 cahier = { path = "../../crates/cahier" }

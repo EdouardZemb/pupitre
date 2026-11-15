@@ -164,7 +164,7 @@ fn chaque_type_fait_l_aller_retour_par_serde_json() {
 
 #[test]
 fn les_noms_sont_uniques_et_en_snake_case() {
-    assert_eq!(NOMS.len(), 13);
+    assert_eq!(NOMS.len(), 14);
     let uniques: BTreeSet<&str> = NOMS.iter().copied().collect();
     assert_eq!(uniques.len(), NOMS.len(), "un nom en double dans {NOMS:?}");
     for nom in NOMS {
