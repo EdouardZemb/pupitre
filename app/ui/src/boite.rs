@@ -15,7 +15,7 @@ use commandes::{
 };
 use leptos::html;
 use leptos::prelude::*;
-use leptos::web_sys::{HtmlElement, HtmlInputElement, HtmlTextAreaElement};
+use leptos::web_sys::{Element, HtmlElement, HtmlInputElement, HtmlTextAreaElement, Node};
 use noyau::donnees::boite::{
     date_de_la_liste, duree_affichee, etiquette_saisie, texte_du_compte, texte_du_filtre,
 };
@@ -100,9 +100,11 @@ pub(crate) fn fenetre(
     }
 }
 
-/// Vrai si la fenêtre `demandee` porte toutes les lignes qui se voient, même en partie, bornées
-/// par `total` : le défilement n'a pas à en demander une autre. Sans hauteur de ligne lisible, rien
-/// n'est couvert.
+/// Vrai si la fenêtre `demandee` porte toutes les lignes qui se voient, même en partie, et une
+/// ligne au-delà de chaque bord vu, bornées par 0 et par `total` : le défilement n'a pas à en
+/// demander une autre. La ligne au-delà fait partir la demande avant que le focus, qui descend de
+/// ligne en ligne, n'atteigne la dernière ligne rendue. Sans hauteur de ligne lisible, rien n'est
+/// couvert.
 fn couvre(
     demandee: &Fenetre,
     defilement_px: f64,
@@ -114,8 +116,12 @@ fn couvre(
         return false;
     }
     let haut = defilement_px.max(0.0);
-    let premiere = ((haut / hauteur_ligne_px).floor() as u64).min(total);
-    let fin = (((haut + hauteur_vue_px.max(0.0)) / hauteur_ligne_px).ceil() as u64).min(total);
+    let premiere = ((haut / hauteur_ligne_px).floor() as u64)
+        .saturating_sub(1)
+        .min(total);
+    let fin = (((haut + hauteur_vue_px.max(0.0)) / hauteur_ligne_px).ceil() as u64)
+        .saturating_add(1)
+        .min(total);
     let debut = u64::from(demandee.debut);
     debut <= premiere && fin <= debut + u64::from(demandee.nombre)
 }
@@ -213,6 +219,20 @@ pub(crate) fn provenance_de_la_ligne(ligne: &LigneDeLaBoite) -> &'static str {
     mot_de_la_provenance(&ligne.provenance)
 }
 
+/// Le nom d'une ligne, que dit son bouton : sa date `date`, son texte, ses étiquettes et sa durée,
+/// chacune nommée, son état et sa provenance. Les titres des colonnes, cachés aux lecteurs d'écran,
+/// ne disent pas quel tiret est l'étiquette et lequel la durée ; le nom le dit.
+fn nom_de_la_ligne(date: &str, ligne: &LigneDeLaBoite) -> String {
+    format!(
+        "{date} · {} · étiquettes {} · durée {} · {} · {}",
+        texte_de_la_ligne(ligne),
+        etiquettes_de_la_ligne(ligne),
+        duree_affichee(ligne.duree_ms),
+        etat_de_la_ligne(ligne),
+        provenance_de_la_ligne(ligne)
+    )
+}
+
 /// Un compte de la boîte et son assiette, tels que le noyau les dit (`texte_du_compte`,
 /// `texte_du_filtre`) : chaque compte en `usize`, `usize::MAX` s'il le dépasse.
 fn au_noyau(compte: u64, assiette: &Assiette) -> (usize, idee::Assiette) {
@@ -262,7 +282,9 @@ fn etat_de_l_idee(vue: &VueDUneIdee) -> String {
 }
 
 /// La clé d'une ligne dans sa liste : la ligne entière, en JSON. Une ligne inchangée garde ses
-/// éléments d'une fenêtre à l'autre, et le focus qu'ils portent ; une ligne changée se redessine.
+/// éléments d'une fenêtre à l'autre ; une ligne changée se redessine. Le diff des lignes réinsère
+/// les lignes gardées quand la fenêtre remonte, et une ligne redessinée est neuve : le focus
+/// qu'elles portaient se perd, et se rend (`rendre_le_focus_perdu`).
 fn cle_de_la_ligne(ligne: &LigneDeLaBoite) -> String {
     serde_json::to_string(ligne).unwrap_or_else(|_| ligne.idee.clone())
 }
@@ -393,13 +415,19 @@ pub(crate) struct EtatDeLaBoite {
     demandes_des_retirees: Demandes,
     /// Le champ « Noter une idée ».
     note: RwSignal<String>,
-    /// Une note est partie, sans réponse encore : `Entrée` n'en envoie pas une seconde.
+    /// Une note est partie, sans relecture encore : `Entrée` n'en envoie pas une seconde.
     note_en_cours: StoredValue<bool>,
     /// Le champ « Texte complété » du volet, et l'idée dont il est parti.
     brouillon: RwSignal<String>,
     brouillon_de: StoredValue<Option<String>>,
     /// Le champ « Étiquette » du volet.
     etiquette: RwSignal<String>,
+    /// La commande d'une ligne qui a eu le focus en dernier, tant qu'aucun autre élément de la boîte
+    /// ne l'a pris.
+    gardee: StoredValue<Option<Gardee>>,
+    /// Un geste de tri, ou l'annulation, est parti, sans relecture encore : une seconde activation
+    /// s'ignore.
+    geste_en_vol: StoredValue<bool>,
 }
 
 impl EtatDeLaBoite {
@@ -421,13 +449,39 @@ impl EtatDeLaBoite {
             brouillon: RwSignal::new(String::new()),
             brouillon_de: StoredValue::new(None),
             etiquette: RwSignal::new(String::new()),
+            gardee: StoredValue::new(None),
+            geste_en_vol: StoredValue::new(false),
         }
+    }
+
+    /// Montre l'idée `id` dans le volet ; vrai si elle n'y était pas. Une autre idée : l'idée lue,
+    /// le champ « Étiquette », le brouillon et l'idée dont il est parti s'oublient, et rien de la
+    /// précédente ne part vers elle.
+    fn montrer_l_idee(self, id: &str) -> bool {
+        if self
+            .volet
+            .with_untracked(|volet| matches!(volet, Volet::Idee(i) if i == id))
+        {
+            return false;
+        }
+        self.idee.set(None);
+        self.etiquette.set(String::new());
+        self.brouillon.set(String::new());
+        self.brouillon_de.set_value(None);
+        self.volet.set(Volet::Idee(id.to_string()));
+        true
     }
 }
 
 /// Lit la fenêtre `fenetre` de la boîte, dans l'ordre et sous le filtre choisis. Une réponse
-/// qu'une demande plus récente a devancée s'ignore ; un refus va au bandeau.
-async fn lire_la_boite(etat: Etat, boite: EtatDeLaBoite, fenetre: Fenetre) {
+/// qu'une demande plus récente a devancée s'ignore ; un refus va au bandeau. La fenêtre posée, et
+/// ses lignes rendues au tick suivant, le focus perdu se rend (`rendre_le_focus_perdu`).
+async fn lire_la_boite(
+    etat: Etat,
+    boite: EtatDeLaBoite,
+    focus: RwSignal<Option<Cible>>,
+    fenetre: Fenetre,
+) {
     let rang = boite.demandes.demander(&fenetre);
     let filtre = CONTENUS[boite.contenu.get_untracked()].0.clone();
     let filtree = filtre.is_some();
@@ -442,24 +496,37 @@ async fn lire_la_boite(etat: Etat, boite: EtatDeLaBoite, fenetre: Fenetre) {
         return;
     }
     match lu {
-        Ok(vue) => boite.lue.set(Some(BoiteLue {
-            fenetre,
-            filtree,
-            vue,
-        })),
+        Ok(vue) => {
+            boite.lue.set(Some(BoiteLue {
+                fenetre,
+                filtree,
+                vue,
+            }));
+            leptos::task::tick().await;
+            rendre_le_focus_perdu(boite, focus, Liste::Boite);
+        }
         Err(refus) => etat.apres_un_geste(&Err(refus)),
     }
 }
 
 /// Lit la fenêtre `fenetre` des idées retirées, comme `lire_la_boite`.
-async fn lire_les_retirees(etat: Etat, boite: EtatDeLaBoite, fenetre: Fenetre) {
+async fn lire_les_retirees(
+    etat: Etat,
+    boite: EtatDeLaBoite,
+    focus: RwSignal<Option<Cible>>,
+    fenetre: Fenetre,
+) {
     let rang = boite.demandes_des_retirees.demander(&fenetre);
     let lu = natif::invoquer::<VueDesRetirees>(RETIREES, argument(&fenetre)).await;
     if !boite.demandes_des_retirees.est_la_derniere(rang) {
         return;
     }
     match lu {
-        Ok(vue) => boite.retirees.set(Some(RetireesLues { fenetre, vue })),
+        Ok(vue) => {
+            boite.retirees.set(Some(RetireesLues { fenetre, vue }));
+            leptos::task::tick().await;
+            rendre_le_focus_perdu(boite, focus, Liste::Retirees);
+        }
         Err(refus) => etat.apres_un_geste(&Err(refus)),
     }
 }
@@ -467,8 +534,9 @@ async fn lire_les_retirees(etat: Etat, boite: EtatDeLaBoite, fenetre: Fenetre) {
 /// Lit l'idée `id`, puis chacune de ses idées liées, pour les nommer ; chaque refus va au bandeau.
 /// La lecture finie, si l'idée est encore celle du volet et que nulle lecture plus récente ne l'a
 /// devancée, elle devient l'idée du volet ; le champ « Texte complété » part de son texte, s'il
-/// n'est pas déjà parti d'elle.
-async fn lire_l_idee(etat: Etat, boite: EtatDeLaBoite, id: String) {
+/// n'est pas déjà parti d'elle. L'idée posée, si le contrôle qui avait le focus a disparu (un geste
+/// de tri, l'idée devenue retirée), le focus va au titre du volet.
+async fn lire_l_idee(etat: Etat, boite: EtatDeLaBoite, focus: RwSignal<Option<Cible>>, id: String) {
     boite
         .lectures_de_l_idee
         .update_value(|rang| *rang = rang.wrapping_add(1));
@@ -496,7 +564,7 @@ async fn lire_l_idee(etat: Etat, boite: EtatDeLaBoite, id: String) {
             Ok(liee) => nom_d_une_idee_liee(&liee),
             Err(refus) => {
                 etat.apres_un_geste(&Err(refus));
-                "idée illisible".to_string()
+                CASE_VIDE.to_string()
             }
         };
         liens.push((autre.clone(), nom));
@@ -515,39 +583,211 @@ async fn lire_l_idee(etat: Etat, boite: EtatDeLaBoite, id: String) {
         boite.brouillon_de.set_value(Some(id));
     }
     boite.idee.set(Some(IdeeOuverte { vue, liens }));
+    leptos::task::tick().await;
+    if actif() == Actif::Absent {
+        focus.set(Some(Cible::TitreDeLIdee));
+    }
 }
 
 /// Après une commande : l'état du fonds, hors de l'ouverture (`suivre_le_fonds`), puis la dernière
 /// fenêtre demandée de la boîte, celle des idées retirées si leur volet est ouvert, et l'idée du
-/// volet.
-async fn relire(etat: Etat, boite: EtatDeLaBoite) {
+/// volet ; chaque lecture rend le focus perdu, par `focus`.
+async fn relire(etat: Etat, boite: EtatDeLaBoite, focus: RwSignal<Option<Cible>>) {
     match natif::invoquer::<EtatDuFonds>(ETAT_DU_FONDS, None).await {
         Ok(fonds) => etat.suivre_le_fonds(fonds, false),
         Err(refus) => etat.apres_un_geste(&Err(refus)),
     }
     if let Some(fenetre) = boite.demandes.derniere.get_value() {
-        lire_la_boite(etat, boite, fenetre).await;
+        lire_la_boite(etat, boite, focus, fenetre).await;
     }
     match boite.volet.get_untracked() {
         Volet::Retirees => {
             if let Some(fenetre) = boite.demandes_des_retirees.derniere.get_value() {
-                lire_les_retirees(etat, boite, fenetre).await;
+                lire_les_retirees(etat, boite, focus, fenetre).await;
             }
         }
-        Volet::Idee(id) => lire_l_idee(etat, boite, id).await,
+        Volet::Idee(id) => lire_l_idee(etat, boite, focus, id).await,
         Volet::Aucun => {}
     }
 }
 
-/// Où rendre le focus, dès que la cible est montée dans le document : un élément détaché, celui
-/// d'un volet fermé, ne le reçoit pas.
+/// Une liste en fenêtre de l'écran : celle de la boîte, ou celle des idées retirées.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Liste {
+    Boite,
+    Retirees,
+}
+
+/// Une commande d'une ligne : son bouton, qui ouvre le volet de l'idée, ou sa case à cocher, dans
+/// la liste de la boîte ; « Rétablir », dans celle des idées retirées.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Commande {
+    Choisir,
+    Cocher,
+    Retablir,
+}
+
+impl Commande {
+    /// La liste où paraît la commande.
+    fn liste(self) -> Liste {
+        match self {
+            Commande::Choisir | Commande::Cocher => Liste::Boite,
+            Commande::Retablir => Liste::Retirees,
+        }
+    }
+}
+
+/// La commande d'une ligne qui a eu le focus en dernier : l'idée de la ligne, et la commande.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Gardee {
+    idee: String,
+    commande: Commande,
+}
+
+/// Ce qui a le focus dans le document : rien, ou `body`, où tombe le focus d'un élément déplacé ou
+/// recréé ; ou un autre élément.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Actif {
+    Absent,
+    Ailleurs,
+}
+
+/// Où rendre le focus d'une liste : nulle part, à une commande d'une ligne, ou à la liste.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Rendu {
+    Rien,
+    Ligne(Gardee),
+    Liste,
+}
+
+/// Où rendre le focus de la liste `liste`, ses lignes lues `lues` posées : perdu (`Actif::Absent`)
+/// alors que la dernière commande focalisée, `gardee`, est d'une ligne de cette liste, il revient à
+/// la même commande si la ligne est encore lue, sinon à la liste. Le focus ailleurs, aucune ligne
+/// gardée, ou celle de l'autre liste : rien ne bouge.
+fn focus_a_rendre(
+    gardee: Option<&Gardee>,
+    liste: Liste,
+    lues: &[LigneDeLaBoite],
+    actif: Actif,
+) -> Rendu {
+    let Some(gardee) = gardee else {
+        return Rendu::Rien;
+    };
+    if actif == Actif::Ailleurs || gardee.commande.liste() != liste {
+        return Rendu::Rien;
+    }
+    if lues.iter().any(|ligne| ligne.idee == gardee.idee) {
+        Rendu::Ligne(gardee.clone())
+    } else {
+        Rendu::Liste
+    }
+}
+
+/// Où va le focus quand le volet de l'idée `idee` se ferme : au bouton de sa ligne, si elle est
+/// parmi les lignes lues `lues`, sinon à la liste.
+fn cible_apres_le_volet(idee: &str, lues: &[LigneDeLaBoite]) -> Cible {
+    if lues.iter().any(|ligne| ligne.idee == idee) {
+        Cible::Ligne(Gardee {
+            idee: idee.to_string(),
+            commande: Commande::Choisir,
+        })
+    } else {
+        Cible::Liste
+    }
+}
+
+/// Ce que le volet offre d'une idée : les gestes de tri (compléter, poser et ôter une étiquette,
+/// délier), et le libellé de son dernier bouton.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Offerts {
+    trier: bool,
+    dernier: &'static str,
+}
+
+/// D'une idée retirée, le volet n'offre que « Rétablir » (et « Fermer ») : le noyau refuserait
+/// tout geste de tri qui la touche. D'une autre, les gestes de tri et « Retirer ».
+fn ce_que_le_volet_offre(retiree: bool) -> Offerts {
+    if retiree {
+        Offerts {
+            trier: false,
+            dernier: "Rétablir",
+        }
+    } else {
+        Offerts {
+            trier: true,
+            dernier: "Retirer",
+        }
+    }
+}
+
+/// Prend le drapeau `en_vol` d'un geste : faux s'il est déjà pris, et la seconde activation
+/// s'ignore ; vrai sinon, et le drapeau reste pris jusqu'à la relecture d'après le geste.
+fn prendre(en_vol: StoredValue<bool>) -> bool {
+    if en_vol.get_value() {
+        return false;
+    }
+    en_vol.set_value(true);
+    true
+}
+
+/// Ce qui a le focus dans le document (`Actif`).
+fn actif() -> Actif {
+    let document = document();
+    let ailleurs = document.active_element().is_some_and(|element| {
+        !document.body().is_some_and(|body| {
+            let body: &Node = body.as_ref();
+            element.is_same_node(Some(body))
+        })
+    });
+    if ailleurs {
+        Actif::Ailleurs
+    } else {
+        Actif::Absent
+    }
+}
+
+/// La fenêtre de la liste `liste` posée : si le focus s'est perdu, il revient à la ligne gardée,
+/// ou à la liste (`focus_a_rendre`), par `focus`.
+fn rendre_le_focus_perdu(boite: EtatDeLaBoite, focus: RwSignal<Option<Cible>>, liste: Liste) {
+    let actif = actif();
+    let rendu = boite.gardee.with_value(|gardee| {
+        let decider = |lues: &[LigneDeLaBoite]| focus_a_rendre(gardee.as_ref(), liste, lues, actif);
+        match liste {
+            Liste::Boite => boite.lue.with_untracked(|lue| {
+                decider(
+                    lue.as_ref()
+                        .map_or(&[][..], |lue| lue.vue.lignes.as_slice()),
+                )
+            }),
+            Liste::Retirees => boite.retirees.with_untracked(|lues| {
+                decider(
+                    lues.as_ref()
+                        .map_or(&[][..], |lues| lues.vue.lignes.as_slice()),
+                )
+            }),
+        }
+    });
+    let cible = match rendu {
+        Rendu::Rien => return,
+        Rendu::Ligne(gardee) => Cible::Ligne(gardee),
+        Rendu::Liste => match liste {
+            Liste::Boite => Cible::Liste,
+            Liste::Retirees => Cible::ListeDesRetirees,
+        },
+    };
+    focus.set(Some(cible));
+}
+
+/// Où rendre le focus, dès que la cible est montée dans le document : un élément détaché, celui
+/// d'un volet fermé, ne le reçoit pas. Une commande d'une ligne, chaque ligne la résout.
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum Cible {
     Liste,
     ListeDesRetirees,
     BoutonDesRetirees,
     TitreDeLIdee,
     TitreDesRetirees,
+    Ligne(Gardee),
 }
 
 /// Ce que partagent les vues de la boîte : l'état de l'établi, celui de la boîte, le focus à
@@ -588,7 +828,7 @@ impl Ecran {
             .lue
             .with_untracked(|lue| lue.as_ref().map(|lue| lue.vue.retenues));
         if let Some(fenetre) = self.a_demander(self.liste, self.boite.demandes, total, forcer) {
-            leptos::task::spawn_local(lire_la_boite(self.etat, self.boite, fenetre));
+            leptos::task::spawn_local(lire_la_boite(self.etat, self.boite, self.focus, fenetre));
         }
     }
 
@@ -600,7 +840,9 @@ impl Ecran {
             .with_untracked(|lues| lues.as_ref().map(|lues| lues.vue.total));
         let demandes = self.boite.demandes_des_retirees;
         if let Some(fenetre) = self.a_demander(self.liste_des_retirees, demandes, total, forcer) {
-            leptos::task::spawn_local(lire_les_retirees(self.etat, self.boite, fenetre));
+            leptos::task::spawn_local(lire_les_retirees(
+                self.etat, self.boite, self.focus, fenetre,
+            ));
         }
     }
 
@@ -614,46 +856,50 @@ impl Ecran {
 
     /// Un geste : la commande `nom`, puis son issue au bandeau (`avertissement` tire celui d'un
     /// geste fait), puis `apres`, qui reçoit vrai si le geste est fait, puis la relecture de l'état
-    /// du fonds et des fenêtres (`relire`).
+    /// du fonds et des fenêtres (`relire`). Le drapeau `en_vol` pris (`prendre`), une seconde
+    /// activation s'ignore jusqu'à la fin de la relecture.
     fn geste<R: DeserializeOwned + 'static>(
         self,
         nom: &'static str,
         commande: Option<serde_json::Value>,
         avertissement: fn(R) -> Option<String>,
+        en_vol: StoredValue<bool>,
         apres: impl FnOnce(bool) + 'static,
     ) {
+        if !prendre(en_vol) {
+            return;
+        }
         leptos::task::spawn_local(async move {
             let issue = natif::invoquer::<R>(nom, commande).await.map(avertissement);
             self.etat.apres_un_geste(&issue);
             apres(issue.is_ok());
-            relire(self.etat, self.boite).await;
+            relire(self.etat, self.boite, self.focus).await;
+            en_vol.set_value(false);
         });
     }
 
-    /// Un geste qui rend `Faite` : un geste de tri, ou l'annulation.
+    /// Un geste qui rend `Faite` : un geste de tri, ou l'annulation, sous le drapeau des gestes.
     fn faire(
         self,
         nom: &'static str,
         commande: Option<serde_json::Value>,
         apres: impl FnOnce(bool) + 'static,
     ) {
-        self.geste::<Faite>(nom, commande, |faite| faite.avertissement, apres);
+        let en_vol = self.boite.geste_en_vol;
+        self.geste::<Faite>(nom, commande, |faite| faite.avertissement, en_vol, apres);
     }
 
-    /// Note l'idée `noter`. Faite, le champ se vide, s'il porte encore la note partie.
+    /// Note l'idée `noter`, sous le drapeau des notes. Faite, le champ se vide, s'il porte encore
+    /// la note partie.
     fn noter(self, noter: Noter) {
-        let (note, en_cours) = (self.boite.note, self.boite.note_en_cours);
-        if en_cours.get_value() {
-            return;
-        }
-        en_cours.set_value(true);
+        let note = self.boite.note;
         let partie = noter.texte.clone();
         self.geste::<Notee>(
             NOTER,
             argument(&noter),
             |notee| notee.avertissement,
+            self.boite.note_en_cours,
             move |faite| {
-                en_cours.set_value(false);
                 if faite {
                     note.update(|champ| {
                         if champ.trim() == partie {
@@ -689,17 +935,10 @@ impl Ecran {
         });
     }
 
-    /// Ouvre l'idée `id` dans le volet, et y porte le focus.
+    /// Ouvre l'idée `id` dans le volet (`montrer_l_idee`), et y porte le focus.
     fn ouvrir(self, id: String) {
-        let deja = self
-            .boite
-            .volet
-            .with_untracked(|volet| matches!(volet, Volet::Idee(i) if *i == id));
-        if !deja {
-            self.boite.idee.set(None);
-            self.boite.etiquette.set(String::new());
-            self.boite.volet.set(Volet::Idee(id.clone()));
-            leptos::task::spawn_local(lire_l_idee(self.etat, self.boite, id));
+        if self.boite.montrer_l_idee(&id) {
+            leptos::task::spawn_local(lire_l_idee(self.etat, self.boite, self.focus, id));
         }
         self.focus.set(Some(Cible::TitreDeLIdee));
     }
@@ -708,6 +947,31 @@ impl Ecran {
     fn fermer_le_volet(self, cible: Cible) {
         self.boite.volet.set(Volet::Aucun);
         self.focus.set(Some(cible));
+    }
+
+    /// Ferme le volet de l'idée ; le focus va au bouton de la ligne qui l'a ouvert, si elle est
+    /// lue, sinon à la liste (`cible_apres_le_volet`).
+    fn fermer_l_idee(self) {
+        let cible = match self.idee_du_volet() {
+            Some(id) => self.boite.lue.with_untracked(|lue| {
+                cible_apres_le_volet(
+                    &id,
+                    lue.as_ref()
+                        .map_or(&[][..], |lue| lue.vue.lignes.as_slice()),
+                )
+            }),
+            None => Cible::Liste,
+        };
+        self.fermer_le_volet(cible);
+    }
+
+    /// La commande `commande` de la ligne de l'idée `idee` a pris le focus : elle est la ligne
+    /// gardée.
+    fn garder(self, idee: &str, commande: Commande) {
+        self.boite.gardee.set_value(Some(Gardee {
+            idee: idee.to_string(),
+            commande,
+        }));
     }
 
     /// Ouvre le volet des idées retirées, qui prend le focus, ou le ferme.
@@ -854,7 +1118,8 @@ impl Ecran {
 /// contenu la ramène au début. La liste suit le seul événement de défilement (I18) : chaque ligne
 /// a la hauteur fixe `--ligne`, que l'étalon mesure ; la piste a la hauteur de toutes les lignes,
 /// et seules celles de la fenêtre lue s'y posent, à leur rang. Chaque contrôle est un bouton, une
-/// case ou un champ, nommé ; le focus suit les volets (`Cible`).
+/// case ou un champ, nommé ; le focus suit les volets (`Cible`), et revient à la ligne qui l'a
+/// perdu quand la fenêtre se pose (`rendre_le_focus_perdu`).
 #[component]
 pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
     let ecran = Ecran {
@@ -885,6 +1150,8 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
             Cible::BoutonDesRetirees => ecran.bouton_des_retirees.get().map(Into::into),
             Cible::TitreDeLIdee => ecran.titre_de_l_idee.get().map(Into::into),
             Cible::TitreDesRetirees => ecran.titre_des_retirees.get().map(Into::into),
+            // Chaque ligne résout la sienne (`focus_de_la_ligne`).
+            Cible::Ligne(_) => return,
         };
         if let Some(element) = element
             && element.is_connected()
@@ -901,7 +1168,21 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
             ecran.annuler();
         }
     });
-    on_cleanup(move || ecouteur.remove());
+    on_cleanup(move || {
+        ecouteur.remove();
+        boite.gardee.set_value(None);
+    });
+    // Le focus pris par un élément de la boîte qui n'est pas d'une ligne : aucune ligne n'est plus
+    // gardée.
+    let hors_des_lignes = move |ev: leptos::ev::FocusEvent| {
+        let dans_une_ligne = ev
+            .target()
+            .and_then(|cible| cible.dyn_into::<Element>().ok())
+            .is_some_and(|element| element.closest(".ligne").ok().flatten().is_some());
+        if !dans_une_ligne {
+            boite.gardee.set_value(None);
+        }
+    };
 
     let noter_au_clavier = move |ev: leptos::ev::KeyboardEvent| {
         if ev.is_composing() {
@@ -991,7 +1272,7 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
         })
     };
     view! {
-        <main class="boite" aria-label="Boîte d'idées">
+        <main class="boite" aria-label="Boîte d'idées" on:focusin=hors_des_lignes>
             <div class="etalon" aria-hidden="true">
                 <div node_ref=ecran.etalon></div>
             </div>
@@ -1098,6 +1379,7 @@ fn ligne_de_la_boite(
     let date = date_locale(ligne.le);
     let texte = texte_de_la_ligne(&ligne);
     let nom_de_la_case = format!("Cocher pour relier : {date} · {texte}");
+    let nom_du_bouton = nom_de_la_ligne(&date, &ligne);
     let cellules = [
         date,
         texte,
@@ -1107,6 +1389,15 @@ fn ligne_de_la_boite(
         provenance_de_la_ligne(&ligne).to_string(),
     ];
     let id = ligne.idee;
+    let (bouton, case) = (
+        NodeRef::<html::Button>::new(),
+        NodeRef::<html::Input>::new(),
+    );
+    focus_de_la_ligne(ecran, id.clone(), move |commande| match commande {
+        Commande::Choisir => bouton.get().map(Into::into),
+        Commande::Cocher => case.get().map(Into::into),
+        Commande::Retablir => None,
+    });
     let rang = move || {
         let debut = boite
             .lue
@@ -1135,6 +1426,14 @@ fn ligne_de_la_boite(
         let id = id.clone();
         move |_| ecran.ouvrir(id.clone())
     };
+    let bouton_pris = {
+        let id = id.clone();
+        move |_| ecran.garder(&id, Commande::Choisir)
+    };
+    let case_prise = {
+        let id = id.clone();
+        move |_| ecran.garder(&id, Commande::Cocher)
+    };
     let cocher = move |ev: leptos::ev::Event| {
         let coche = event_target_checked(&ev);
         boite.cochees.update(|cochees| {
@@ -1149,7 +1448,10 @@ fn ligne_de_la_boite(
             <button
                 type="button"
                 class="choisir cellules"
+                aria-label=nom_du_bouton
                 aria-current=move || choisie().then_some("true")
+                node_ref=bouton
+                on:focus=bouton_pris
                 on:click=ouvrir
             >
                 {cellules
@@ -1162,11 +1464,34 @@ fn ligne_de_la_boite(
                     type="checkbox"
                     aria-label=nom_de_la_case
                     prop:checked=cochee
+                    node_ref=case
+                    on:focus=case_prise
                     on:change=cocher
                 />
             </span>
         </div>
     }
+}
+
+/// Le focus demandé à une commande de la ligne de l'idée `idee` (`Cible::Ligne`) : `element` la
+/// résout, et elle le prend dès qu'elle est montée dans le document.
+fn focus_de_la_ligne(
+    ecran: Ecran,
+    idee: String,
+    element: impl Fn(Commande) -> Option<HtmlElement> + 'static,
+) {
+    Effect::new(move |_| {
+        let element = ecran.focus.with(|cible| match cible {
+            Some(Cible::Ligne(gardee)) if gardee.idee == idee => element(gardee.commande),
+            _ => None,
+        });
+        if let Some(element) = element
+            && element.is_connected()
+        {
+            let _ = element.focus();
+            ecran.focus.set(None);
+        }
+    });
 }
 
 /// Une idée retirée, de rang `index` dans la fenêtre lue : sa date, son texte coupé sur une ligne,
@@ -1178,6 +1503,15 @@ fn ligne_retiree(ecran: Ecran, index: ReadSignal<usize>, ligne: LigneDeLaBoite) 
     let nom_du_bouton = format!("Rétablir : {date} · {texte}");
     let cellules = [date, texte, etiquettes_de_la_ligne(&ligne)];
     let id = ligne.idee;
+    let bouton = NodeRef::<html::Button>::new();
+    focus_de_la_ligne(ecran, id.clone(), move |commande| match commande {
+        Commande::Retablir => bouton.get().map(Into::into),
+        Commande::Choisir | Commande::Cocher => None,
+    });
+    let bouton_pris = {
+        let id = id.clone();
+        move |_| ecran.garder(&id, Commande::Retablir)
+    };
     let rang = move || {
         let debut = boite
             .retirees
@@ -1202,6 +1536,8 @@ fn ligne_retiree(ecran: Ecran, index: ReadSignal<usize>, ligne: LigneDeLaBoite) 
                 type="button"
                 class="retablir"
                 aria-label=nom_du_bouton
+                node_ref=bouton
+                on:focus=bouton_pris
                 on:click=move |_| ecran.retablir(id.clone())
             >
                 "Rétablir"
@@ -1247,11 +1583,14 @@ fn VoletDeLIdee(ecran: Ecran) -> impl IntoView {
             .idee
             .with(|idee| idee.as_ref().map(|i| i.liens.clone()).unwrap_or_default())
     };
-    let retiree = move || {
-        boite
-            .idee
-            .with(|idee| idee.as_ref().is_some_and(|i| i.vue.retiree.is_some()))
+    let offerts = move || {
+        ce_que_le_volet_offre(
+            boite
+                .idee
+                .with(|idee| idee.as_ref().is_some_and(|i| i.vue.retiree.is_some())),
+        )
     };
+    let trier = move || offerts().trier;
     let poser_au_clavier = move |ev: leptos::ev::KeyboardEvent| {
         if ev.key() == "Enter" && !ev.is_composing() {
             ev.prevent_default();
@@ -1264,25 +1603,27 @@ fn VoletDeLIdee(ecran: Ecran) -> impl IntoView {
                 <h2 id="titre-de-l-idee" tabindex="-1" node_ref=ecran.titre_de_l_idee>
                     {titre}
                 </h2>
-                <button type="button" on:click=move |_| ecran.fermer_le_volet(Cible::Liste)>
+                <button type="button" on:click=move |_| ecran.fermer_l_idee()>
                     "Fermer"
                 </button>
             </div>
             <p class="texte-entier">{texte}</p>
             <p>{ce_qu_elle_est}</p>
-            <label class="champ">
-                "Texte complété"
-                <textarea
-                    rows="3"
-                    prop:value=move || boite.brouillon.get()
-                    on:input=move |ev| boite.brouillon.set(event_target_value(&ev))
-                ></textarea>
-            </label>
-            <div>
-                <button type="button" on:click=move |_| ecran.completer()>
-                    "Compléter"
-                </button>
-            </div>
+            <Show when=trier>
+                <label class="champ">
+                    "Texte complété"
+                    <textarea
+                        rows="3"
+                        prop:value=move || boite.brouillon.get()
+                        on:input=move |ev| boite.brouillon.set(event_target_value(&ev))
+                    ></textarea>
+                </label>
+                <div>
+                    <button type="button" on:click=move |_| ecran.completer()>
+                        "Compléter"
+                    </button>
+                </div>
+            </Show>
             <h3>"Étiquettes"</h3>
             <p hidden=move || !etiquettes().is_empty()>{CASE_VIDE}</p>
             <ul class="puces">
@@ -1295,32 +1636,39 @@ fn VoletDeLIdee(ecran: Ecran) -> impl IntoView {
                         view! {
                             <li>
                                 <span>"#" {etiquette}</span>
-                                <button
-                                    type="button"
-                                    aria-label=nom
-                                    on:click=move |_| ecran.oter(a_oter.clone())
-                                >
-                                    "Ôter"
-                                </button>
+                                <Show when=trier>
+                                    <button
+                                        type="button"
+                                        aria-label=nom.clone()
+                                        on:click={
+                                            let a_oter = a_oter.clone();
+                                            move |_| ecran.oter(a_oter.clone())
+                                        }
+                                    >
+                                        "Ôter"
+                                    </button>
+                                </Show>
                             </li>
                         }
                     }
                 />
             </ul>
-            <label class="champ">
-                "Étiquette"
-                <input
-                    type="text"
-                    prop:value=move || boite.etiquette.get()
-                    on:input=move |ev| boite.etiquette.set(event_target_value(&ev))
-                    on:keydown=poser_au_clavier
-                />
-            </label>
-            <div>
-                <button type="button" on:click=move |_| ecran.poser_l_etiquette()>
-                    "Poser l'étiquette"
-                </button>
-            </div>
+            <Show when=trier>
+                <label class="champ">
+                    "Étiquette"
+                    <input
+                        type="text"
+                        prop:value=move || boite.etiquette.get()
+                        on:input=move |ev| boite.etiquette.set(event_target_value(&ev))
+                        on:keydown=poser_au_clavier
+                    />
+                </label>
+                <div>
+                    <button type="button" on:click=move |_| ecran.poser_l_etiquette()>
+                        "Poser l'étiquette"
+                    </button>
+                </div>
+            </Show>
             <h3>"Liens"</h3>
             <p hidden=move || !liens().is_empty()>{CASE_VIDE}</p>
             <ul class="puces">
@@ -1332,13 +1680,18 @@ fn VoletDeLIdee(ecran: Ecran) -> impl IntoView {
                         view! {
                             <li>
                                 <span>{nom}</span>
-                                <button
-                                    type="button"
-                                    aria-label=nom_du_bouton
-                                    on:click=move |_| ecran.delier(autre.clone())
-                                >
-                                    "Délier"
-                                </button>
+                                <Show when=trier>
+                                    <button
+                                        type="button"
+                                        aria-label=nom_du_bouton.clone()
+                                        on:click={
+                                            let autre = autre.clone();
+                                            move |_| ecran.delier(autre.clone())
+                                        }
+                                    >
+                                        "Délier"
+                                    </button>
+                                </Show>
                             </li>
                         }
                     }
@@ -1346,7 +1699,7 @@ fn VoletDeLIdee(ecran: Ecran) -> impl IntoView {
             </ul>
             <div>
                 <button type="button" on:click=move |_| ecran.retirer_ou_retablir()>
-                    {move || if retiree() { "Rétablir" } else { "Retirer" }}
+                    {move || offerts().dernier}
                 </button>
             </div>
         </aside>
