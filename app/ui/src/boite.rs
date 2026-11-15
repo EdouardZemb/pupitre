@@ -1519,6 +1519,44 @@ mod tests {
     }
 
     #[test]
+    fn la_fenetre_demandee_au_bout_porte_les_idees_qu_un_geste_ajoute() {
+        // Deux mille idées lues, la liste défilée jusqu'au bout : la fenêtre demandée va cinq
+        // lignes au-delà de la dernière, que la relecture d'après une note reprend et montre.
+        let au_bout = Fenetre {
+            debut: 1_975,
+            nombre: 30,
+        };
+        assert_eq!(
+            fenetre_a_demander(None, 79_200.0, 800.0, 40.0, Some(2_000), false),
+            Some(au_bout.clone())
+        );
+        // Une idée notée, la même fenêtre porte encore les lignes vues : rien ne se redemande.
+        assert_eq!(
+            fenetre_a_demander(Some(&au_bout), 79_240.0, 800.0, 40.0, Some(2_001), false),
+            None
+        );
+        // Forcée, elle se redemande.
+        assert_eq!(
+            fenetre_a_demander(Some(&au_bout), 79_200.0, 800.0, 40.0, Some(2_000), true),
+            Some(au_bout.clone())
+        );
+        // Revenue au début, la liste ne voit plus ses lignes dans la dernière fenêtre : une autre
+        // se demande.
+        assert_eq!(
+            fenetre_a_demander(Some(&au_bout), 0.0, 800.0, 40.0, Some(2_000), false),
+            Some(Fenetre {
+                debut: 0,
+                nombre: 25
+            })
+        );
+        // Sans total lu, rien ne borne les lignes vues.
+        assert_eq!(
+            fenetre_a_demander(Some(&au_bout), 79_200.0, 800.0, 40.0, None, false),
+            None
+        );
+    }
+
+    #[test]
     fn ctrl_z_n_annule_un_geste_que_hors_d_un_champ() {
         assert!(ctrl_z_annule("z", true, false));
         // `Ctrl+Maj+Z` donne « Z ».
