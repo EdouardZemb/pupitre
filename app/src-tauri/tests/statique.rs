@@ -13,6 +13,118 @@ const AU_MOINS_DES_CRATES: usize = 6;
 /// L'établi, dont les sources sont lues, nommées depuis la racine du dépôt.
 const ETABLI: &str = "app/src-tauri/src/";
 
+/// Le seul fichier qui devine un chemin, lit l'horloge et tire l'aléa.
+const SYSTEME: &str = "app/src-tauri/src/systeme.rs";
+
+/// Le fichier de l'établi qui porte `dossier_jetable`, seul admis à nommer `temp_dir`, une fois.
+const LIB_DE_L_ETABLI: &str = "app/src-tauri/src/lib.rs";
+
+/// Les chemins devinés : le dossier de l'utilisateur, les dossiers du système, leurs variables
+/// d'environnement. Admis dans `SYSTEME` ; `temp_dir` l'est aussi, une fois, dans
+/// `LIB_DE_L_ETABLI`. Un chemin se reçoit.
+const CHEMINS_DEVINES: &[&str] = &[
+    "home_dir",
+    "temp_dir",
+    "data_dir",
+    "data_local_dir",
+    "config_dir",
+    "cache_dir",
+    "document_dir",
+    "app_data_dir",
+    "app_local_data_dir",
+    "app_config_dir",
+    "app_cache_dir",
+    "app_log_dir",
+    "download_dir",
+    "desktop_dir",
+    "audio_dir",
+    "picture_dir",
+    "video_dir",
+    "public_dir",
+    "template_dir",
+    "font_dir",
+    "runtime_dir",
+    "executable_dir",
+    "resource_dir",
+    "BaseDirectory",
+    "SHGetKnownFolderPath",
+    "GetTempPath",
+    "\"USERPROFILE\"",
+    "\"HOME\"",
+    "\"APPDATA\"",
+    "\"LOCALAPPDATA\"",
+    "\"TEMP\"",
+    "\"TMP\"",
+    "dirs::",
+];
+
+/// L'horloge, admise dans `SYSTEME`.
+const HORLOGE: &[&str] = &["SystemTime", "Instant", "UNIX_EPOCH"];
+
+/// L'aléa, admis dans `SYSTEME`.
+const ALEA: &[&str] = &["getrandom", "rand::", "OsRng", "thread_rng"];
+
+/// L'acteur d'Automerge : il naît de l'un de ces mots, ou d'une copie du document.
+const ACTEUR: &[&str] = &[
+    "ActorId::random",
+    "Automerge::new",
+    ".fork(",
+    "fork_at",
+    "Automerge::load",
+    "load_with_options",
+];
+
+/// Les seuls fichiers où l'acteur naît : les documents sur fichiers, le démarrage du fonds, et
+/// l'application des opérations nommées avec son adaptateur en mémoire.
+const ACTEUR_ADMIS: &[&str] = &[
+    "crates/stockage/src/documents.rs",
+    "crates/stockage/src/demarrage.rs",
+    "crates/services/src/application.rs",
+    "crates/services/src/en_memoire.rs",
+];
+
+/// Les fautes d'I30 sur `sources`, des paires (chemin, texte) nommées depuis la racine du dépôt.
+/// Une ligne dont le début, blancs ôtés, est `//` (commentaire, doc) ne compte pas ; tout le reste
+/// se lit en sous-chaîne, sensible à la casse. Chaque faute nomme le fichier, la ligne et le mot.
+fn controler(sources: &[(String, String)]) -> Vec<String> {
+    let mut fautes = Vec::new();
+    for (chemin, texte) in sources {
+        let mut temp_dir_vus = 0;
+        for (indice, ligne) in texte.lines().enumerate() {
+            if ligne.trim_start().starts_with("//") {
+                continue;
+            }
+            let mut faute = |mot: &str| {
+                fautes.push(format!("{chemin}:{} contient « {mot} »", indice + 1));
+            };
+            if chemin != SYSTEME {
+                for mot in CHEMINS_DEVINES.iter().filter(|mot| ligne.contains(**mot)) {
+                    if *mot == "temp_dir" && chemin == LIB_DE_L_ETABLI {
+                        temp_dir_vus += ligne.matches(mot).count();
+                        if temp_dir_vus <= 1 {
+                            continue;
+                        }
+                    }
+                    faute(mot);
+                }
+                for mot in HORLOGE
+                    .iter()
+                    .chain(ALEA)
+                    .filter(|mot| ligne.contains(**mot))
+                {
+                    faute(mot);
+                }
+            }
+            if !ACTEUR_ADMIS.contains(&chemin.as_str()) {
+                for mot in ACTEUR.iter().filter(|mot| ligne.contains(**mot)) {
+                    faute(mot);
+                }
+            }
+        }
+    }
+    fautes
+}
+
 /// Une source inventée, nommée depuis la racine du dépôt.
 fn source(chemin: &str, texte: &str) -> (String, String) {
     (chemin.to_string(), texte.to_string())
