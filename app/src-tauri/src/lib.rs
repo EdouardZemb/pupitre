@@ -147,6 +147,9 @@ pub(crate) fn gestionnaire<R: tauri::Runtime>()
         commandes_de_l_etabli::vue_d_une_idee,
         commandes_de_l_etabli::idees,
         commandes_de_l_etabli::journal,
+        commandes_de_l_etabli::boite,
+        commandes_de_l_etabli::retirees,
+        commandes_de_l_etabli::etat_du_fonds,
     ]
 }
 

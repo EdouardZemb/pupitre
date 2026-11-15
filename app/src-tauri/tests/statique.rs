@@ -14,6 +14,9 @@ const AU_MOINS_DES_CRATES: usize = 6;
 /// L'établi, dont les sources sont lues, nommées depuis la racine du dépôt.
 const ETABLI: &str = "app/src-tauri/src/";
 
+/// Le manifeste de l'établi, nommé depuis la racine du dépôt, que lit le contrôle d'I29.
+const MANIFESTE_DE_L_ETABLI: &str = "app/src-tauri/Cargo.toml";
+
 /// Le seul fichier qui devine un chemin, lit l'horloge et tire l'aléa.
 const SYSTEME: &str = "app/src-tauri/src/systeme.rs";
 
@@ -122,6 +125,42 @@ fn controler(sources: &[(String, String)]) -> Vec<String> {
                 }
             }
         }
+    }
+    fautes
+}
+
+/// Les fautes d'I29 (§ 70 · 3) : côté natif, ni greffon ni API de notification, ni boîte de
+/// message. `manifeste` est le `Cargo.toml` de l'établi, `sources` ses sources, nommées depuis la
+/// racine du dépôt. Une ligne de source dont le début, blancs ôtés, est `//`, et une ligne du
+/// manifeste dont le début est `#`, ne comptent pas. `notification` se lit sans égard à la casse,
+/// `.message(` et `MessageDialog` en sous-chaîne ; la boîte d'enregistrement, `.file()`, reste.
+fn controler_i29(manifeste: &str, sources: &[(String, String)]) -> Vec<String> {
+    let mut fautes = Vec::new();
+    let mut examiner = |chemin: &str, texte: &str, commentaire: &str, mots: &[&str]| {
+        for (indice, ligne) in texte.lines().enumerate() {
+            if ligne.trim_start().starts_with(commentaire) {
+                continue;
+            }
+            for mot in mots {
+                let trouve = if *mot == "notification" {
+                    ligne.to_lowercase().contains(mot)
+                } else {
+                    ligne.contains(mot)
+                };
+                if trouve {
+                    fautes.push(format!("{chemin}:{} contient « {mot} »", indice + 1));
+                }
+            }
+        }
+    };
+    examiner(MANIFESTE_DE_L_ETABLI, manifeste, "#", &["notification"]);
+    for (chemin, texte) in sources {
+        examiner(
+            chemin,
+            texte,
+            "//",
+            &["notification", ".message(", "MessageDialog"],
+        );
     }
     fautes
 }
