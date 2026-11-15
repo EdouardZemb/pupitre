@@ -318,3 +318,62 @@ fn i30_chaque_controle_refuse_ce_qu_on_y_plante() {
         "un commentaire est refusé"
     );
 }
+
+#[test]
+fn i29_ni_greffon_ni_api_de_notification_cote_natif() {
+    let racine = racine_du_depot();
+    let manifeste = lire(&racine.join("app/src-tauri/Cargo.toml"));
+    let sources: Vec<_> = sources_du_depot()
+        .into_iter()
+        .filter(|(chemin, _)| chemin.starts_with(ETABLI))
+        .collect();
+    let fautes = controler_i29(&manifeste, &sources);
+    assert!(fautes.is_empty(), "{fautes:#?}");
+}
+
+#[test]
+fn i29_chaque_controle_refuse_ce_qu_on_y_plante() {
+    let lib = "app/src-tauri/src/lib.rs";
+    let sain = "[dependencies]\ntauri = \"2\"\n";
+    let aucune = Vec::<(String, String)>::new();
+    assert!(controler_i29(sain, &aucune).is_empty());
+    // Le greffon des notifications, dans le manifeste, sans égard à la casse.
+    assert_eq!(
+        controler_i29(
+            "[dependencies]\ntauri-plugin-notification = \"2\"\n",
+            &aucune
+        ),
+        vec!["app/src-tauri/Cargo.toml:2 contient « notification »".to_string()]
+    );
+    assert_eq!(
+        controler_i29("[dependencies]\nNotification = \"2\"\n", &aucune),
+        vec!["app/src-tauri/Cargo.toml:2 contient « notification »".to_string()]
+    );
+    // Dans les sources : le greffon, une boîte de message, son constructeur.
+    for (texte, mot) in [
+        ("use tauri_plugin_notification::init;\n", "notification"),
+        (
+            "app.dialog().message(\"Bonjour\").show(|_| {});\n",
+            ".message(",
+        ),
+        ("let b = MessageDialogBuilder::new();\n", "MessageDialog"),
+    ] {
+        assert_eq!(
+            controler_i29(sain, &[source(lib, texte)]),
+            vec![format!("{lib}:1 contient « {mot} »")],
+            "{texte}"
+        );
+    }
+    // Les lignes `//` des sources, et `#` du manifeste, ne comptent pas ; la boîte
+    // d'enregistrement, `.file()`, reste admise.
+    assert!(
+        controler_i29(
+            "# notification\n[dependencies]\n",
+            &[source(
+                lib,
+                "/// aucune notification (I29)\n    // .message(\nlet d = app.dialog().file();\n"
+            )]
+        )
+        .is_empty()
+    );
+}

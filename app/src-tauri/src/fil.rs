@@ -452,4 +452,42 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn i29_une_ecriture_refusee_revient_en_refus_et_l_etat_le_dit() {
+        let dossier = dossier_jetable("fil-i29");
+        let racine = dossier.join("donnees");
+        let premiere = ouvrir(racine.clone());
+        premiere.demander_bloquant(noter_une("Une idée")).unwrap();
+        premiere.fermer();
+        // Le fichier complet du fonds ne se lit plus : la seconde ouverture s'ouvre en lecture
+        // seule.
+        let complet = racine
+            .join("documents")
+            .join("fonds")
+            .join("complet.automerge");
+        std::fs::write(&complet, b"pas un document")
+            .unwrap_or_else(|e| panic!("écrire {} : {e}", complet.display()));
+        let seconde = ouvrir(racine);
+        let refus = seconde
+            .demander_bloquant(noter_une("Une autre"))
+            .unwrap_err();
+        assert_eq!(refus.raison, Raison::Illisible);
+        let etat = seconde
+            .demander_bloquant(|services, _| services.etat_du_fonds())
+            .unwrap();
+        let lecture_seule = etat.lecture_seule.expect("le fonds est en lecture seule");
+        // Aucun message ne nomme le dossier jetable, quelle que soit la forme du chemin.
+        let nom = dossier
+            .file_name()
+            .expect("un nom de dossier")
+            .to_string_lossy()
+            .into_owned();
+        let mut messages = vec![refus.message, lecture_seule.message];
+        messages.extend(etat.avertissements);
+        messages.extend(etat.a_annuler);
+        for message in messages {
+            assert!(!message.contains(&nom), "{message}");
+        }
+    }
 }
