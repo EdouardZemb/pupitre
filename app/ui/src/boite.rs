@@ -2005,12 +2005,65 @@ mod tests {
     #[test]
     fn fermer_le_volet_rend_le_focus_a_la_ligne_qui_l_a_ouvert() {
         let lues = [ligne_de("a"), ligne_de("b")];
+        // La ligne revient à la vue : la liste défile jusqu'à elle.
         assert_eq!(
             cible_apres_le_volet("b", &lues),
-            Cible::Ligne(gardee("b", Commande::Choisir))
+            Cible::Ligne {
+                gardee: gardee("b", Commande::Choisir),
+                defilement: Defilement::VersLaLigne
+            }
         );
         // Sa ligne sortie de la fenêtre lue, le focus va à la liste.
         assert_eq!(cible_apres_le_volet("c", &lues), Cible::Liste);
+    }
+
+    #[test]
+    fn le_focus_rendu_apres_une_perte_ne_fait_pas_defiler_la_liste() {
+        // Le focus rendu à la ligne gardée laisse la liste où la molette l'a menée, même si la
+        // ligne est cachée dans la marge.
+        let case_de_b = gardee("b", Commande::Cocher);
+        assert_eq!(
+            cible_du_rendu(Rendu::Ligne(case_de_b.clone()), Liste::Boite),
+            Some(Cible::Ligne {
+                gardee: case_de_b,
+                defilement: Defilement::Garde
+            })
+        );
+        assert_eq!(
+            cible_du_rendu(Rendu::Liste, Liste::Boite),
+            Some(Cible::Liste)
+        );
+        assert_eq!(
+            cible_du_rendu(Rendu::Liste, Liste::Retirees),
+            Some(Cible::ListeDesRetirees)
+        );
+        assert_eq!(cible_du_rendu(Rendu::Rien, Liste::Boite), None);
+        // Le défilement que `focus()` a fait se remet ; sans défilement, rien ne se remet ; celui
+        // de « Fermer » reste.
+        assert_eq!(
+            defilement_a_remettre(Defilement::Garde, 39_600, 40_000),
+            Some(39_600)
+        );
+        assert_eq!(
+            defilement_a_remettre(Defilement::Garde, 39_600, 39_600),
+            None
+        );
+        assert_eq!(
+            defilement_a_remettre(Defilement::VersLaLigne, 39_600, 40_000),
+            None
+        );
+    }
+
+    #[test]
+    fn une_touche_tenue_n_envoie_rien() {
+        // La première frappe d'`Entrée` envoie le champ ; tenue, la touche se répète sans rien
+        // renvoyer, comme `Ctrl+Z`.
+        assert!(envoi_au_clavier("Enter", false, false));
+        assert!(!envoi_au_clavier("Enter", true, false));
+        // Pendant une composition (un accent en cours), `Entrée` la valide et n'envoie rien.
+        assert!(!envoi_au_clavier("Enter", false, true));
+        assert!(!envoi_au_clavier("a", false, false));
+        assert!(!envoi_au_clavier("Tab", false, false));
     }
 
     #[test]
