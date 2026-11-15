@@ -528,7 +528,7 @@ fn presente_rend_l_idee_lue_ou_la_dit_absente() {
     assert_eq!(absente, Err(Impossible::IdeeAbsente { idee: A.into() }));
     assert_eq!(
         absente.unwrap_err().to_string(),
-        "Aucune idée ne porte l'identifiant 01HF7YAT00000000000000000A."
+        "Aucune idée ne porte cet identifiant."
     );
 }
 
@@ -563,7 +563,7 @@ fn un_geste_de_tri_qui_touche_une_idee_retiree_est_refuse() {
     assert_eq!(retirer(&a, HEURE, 0), retiree);
     assert_eq!(
         Impossible::IdeeRetiree { idee: A.into() }.to_string(),
-        "L'idée 01HF7YAT00000000000000000A est retirée."
+        "Cette idée est retirée."
     );
 }
 
@@ -573,7 +573,7 @@ fn retablir_une_idee_qui_n_est_pas_retiree_est_refuse() {
     assert_eq!(refus, Err(Impossible::IdeeNonRetiree { idee: A.into() }));
     assert_eq!(
         refus.unwrap_err().to_string(),
-        "L'idée 01HF7YAT00000000000000000A n'est pas retirée."
+        "Cette idée n'est pas retirée."
     );
 }
 

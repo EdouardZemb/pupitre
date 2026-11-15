@@ -1073,7 +1073,7 @@ pub fn une_note_vide_refusee_ne_fait_rien_naitre<P: Paire>(paire: &mut P) {
         services.vue_d_une_idee(IDEE),
         Err(Refus {
             raison: Raison::Impossible,
-            message: format!("Aucune idée ne porte l'identifiant {IDEE}."),
+            message: "Aucune idée ne porte cet identifiant.".to_string(),
         })
     );
 }
@@ -1196,8 +1196,8 @@ pub fn une_commande_sur_un_fonds_plus_recent_est_refusee_et_le_nomme<P: Paire>(p
     );
     // Un geste de tri rend aussi le refus de la lecture seule, avant tout constat du noyau :
     // compléter l'idée d'un identifiant qu'aucune idée du fonds ne porte rendrait sinon « Aucune
-    // idée ne porte l'identifiant … », et rétablir l'idée notée, qui n'est pas retirée, « L'idée …
-    // n'est pas retirée. ».
+    // idée ne porte cet identifiant. », et rétablir l'idée notée, qui n'est pas retirée, « Cette
+    // idée n'est pas retirée. ».
     assert_eq!(
         services.completer(
             &completion(SECONDE_IDEE, "Un pont en mi mineur"),
@@ -1638,9 +1638,9 @@ pub fn un_geste_de_tri_sans_fonds_est_refuse_et_rien_ne_nait<P: Paire>(paire: &m
         appels: 0,
     };
     let mut contexte = contexte_de_test(&mut alea);
-    let absente = Err(impossible(format!(
-        "Aucune idée ne porte l'identifiant {IDEE}."
-    )));
+    let absente = Err(impossible(
+        "Aucune idée ne porte cet identifiant.".to_string(),
+    ));
     assert_eq!(
         services.completer(
             &completion(IDEE, "Un refrain qui monte, en ré"),
@@ -1754,7 +1754,7 @@ pub fn un_geste_qui_touche_une_idee_retiree_est_refuse<P: Paire>(paire: &mut P) 
         .expect("R est retirée");
     let journal = services.journal().expect("le journal se lit");
 
-    let retiree = Err(impossible(format!("L'idée {r} est retirée.")));
+    let retiree = Err(impossible("Cette idée est retirée.".to_string()));
     assert_eq!(
         services.poser_une_etiquette(&etiquetage(&r, "pont"), &mut contexte),
         retiree

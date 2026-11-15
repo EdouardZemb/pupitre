@@ -143,11 +143,14 @@ pub struct GesteDeTri {
 pub enum Impossible {
     /// Le texte d'une note, ou celui qui complète une idée, est vide, une fois ses blancs ôtés.
     TexteVide,
-    /// Aucune idée ne porte l'identifiant `idee`.
+    /// Aucune idée ne porte l'identifiant `idee`. Le message ne le nomme pas : un identifiant ne
+    /// s'écrit jamais dans un message montré.
     IdeeAbsente { idee: String },
-    /// L'idée `idee` est retirée : aucun geste de tri ne la touche, sauf la rétablir.
+    /// L'idée `idee` est retirée : aucun geste de tri ne la touche, sauf la rétablir. Le message
+    /// ne nomme pas l'identifiant.
     IdeeRetiree { idee: String },
-    /// L'idée `idee`, que l'on rétablirait, n'est pas retirée.
+    /// L'idée `idee`, que l'on rétablirait, n'est pas retirée. Le message ne nomme pas
+    /// l'identifiant.
     IdeeNonRetiree { idee: String },
     /// Le texte qui complète l'idée est déjà le sien : le geste serait sans effet.
     MemeTexte,
@@ -183,11 +186,9 @@ impl fmt::Display for Impossible {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Impossible::TexteVide => f.write_str("Le texte est vide."),
-            Impossible::IdeeAbsente { idee } => {
-                write!(f, "Aucune idée ne porte l'identifiant {idee}.")
-            }
-            Impossible::IdeeRetiree { idee } => write!(f, "L'idée {idee} est retirée."),
-            Impossible::IdeeNonRetiree { idee } => write!(f, "L'idée {idee} n'est pas retirée."),
+            Impossible::IdeeAbsente { .. } => f.write_str("Aucune idée ne porte cet identifiant."),
+            Impossible::IdeeRetiree { .. } => f.write_str("Cette idée est retirée."),
+            Impossible::IdeeNonRetiree { .. } => f.write_str("Cette idée n'est pas retirée."),
             Impossible::MemeTexte => f.write_str("Le texte est déjà celui-ci."),
             Impossible::EtiquetteVide => f.write_str("L'étiquette est vide."),
             Impossible::EtiquetteDejaPosee { etiquette } => {
