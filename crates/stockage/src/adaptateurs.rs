@@ -2,7 +2,8 @@
 //! des services, et les captations de la racine des données, le contrat `Captations`. Chaque
 //! erreur du stockage s'y rend en refus, sa raison dite par `raison`, son message le texte de
 //! l'erreur ; un avertissement, de même, en texte. Chaque chemin s'y dit relatif à la racine des
-//! données (`Relatif`).
+//! données (`Relatif`), sauf dans le refus d'ouvrir la racine des données elle-même
+//! (`refus_a_l_ouverture`), qui la nomme par son chemin entier.
 
 use automerge::Automerge;
 use noyau::donnees::changement::Operation;
@@ -121,6 +122,17 @@ fn refus(erreur: Erreur, racine: &RacineDesDonnees) -> Refus {
     }
 }
 
+/// Le refus d'ouvrir la racine des données, qui n'a pas de racine à qui rapporter un chemin : la
+/// raison que donne `refus` à chaque variante (`RacineDesDonneesTenue` : `Raison::Impossible`), et
+/// le texte de l'erreur, qui nomme le dossier par son chemin entier, ses composants joints par `/`,
+/// sous Windows aussi (`chemin_dit` ; question 3).
+pub fn refus_a_l_ouverture(erreur: Erreur) -> Refus {
+    Refus {
+        raison: raison(&erreur),
+        message: erreur.to_string(),
+    }
+}
+
 /// La raison du refus de `erreur`, une par variante d'`Erreur`, et de `LectureSeule`.
 fn raison(erreur: &Erreur) -> Raison {
     match erreur {
@@ -149,10 +161,10 @@ fn raison(erreur: &Erreur) -> Raison {
         Erreur::Automerge(_) => Raison::Illisible,
         // Celles qui ne surviennent qu'avant les services, ou hors de leurs commandes, ont une
         // raison pour que la correspondance reste complète : la racine des données se prend avant
-        // tout fonds ; seule `Document::compacter`, que les services n'appellent pas, rend
-        // `CompactionInfidele` (après une écriture, une compaction échouée est un
-        // avertissement) ; situer une copie et recevoir un message relèvent de la
-        // synchronisation (§ 31 · 2.5), que les services ne conduisent pas.
+        // tout fonds, et son refus se dit par `refus_a_l_ouverture` ; seule `Document::compacter`,
+        // que les services n'appellent pas, rend `CompactionInfidele` (après une écriture, une
+        // compaction échouée est un avertissement) ; situer une copie et recevoir un message
+        // relèvent de la synchronisation (§ 31 · 2.5), que les services ne conduisent pas.
         Erreur::RacineDesDonneesTenue => Raison::Impossible,
         Erreur::CompactionInfidele => Raison::Disque,
         Erreur::ChampAbsent { .. } | Erreur::Synchro(_) => Raison::Illisible,

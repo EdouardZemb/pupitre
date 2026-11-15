@@ -28,7 +28,7 @@ use std::path::{Component, Path, PathBuf};
 use automerge::AutomergeError;
 use noyau::donnees::acces::Acces;
 
-pub use adaptateurs::FondsSurFichiers;
+pub use adaptateurs::{FondsSurFichiers, refus_a_l_ouverture};
 pub use captations::Captations;
 pub use documents::Document;
 #[cfg(feature = "pannes")]

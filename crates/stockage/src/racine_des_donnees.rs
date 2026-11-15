@@ -27,7 +27,7 @@ pub struct RacineDesDonnees {
     /// quand la racine des données se ferme, et aussi à un arrêt brutal.
     _verrou: File,
     /// Un [`Document`] du fonds vit dans ce processus. Un `AtomicBool`, pour que la racine des
-    /// données reste `Sync` (l'état de l'application, en tranche 3).
+    /// données reste `Sync` ; elle vit dans le fil du fonds de l'établi, qui la possède.
     fonds_ouvert: AtomicBool,
 }
 

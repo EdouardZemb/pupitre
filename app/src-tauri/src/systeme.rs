@@ -5,6 +5,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use tauri::Manager;
 
+use crate::fil::{self, Ouverture};
+
 /// L'heure du système, en secondes depuis 1970 (`SystemTime`) ; une horloge d'avant 1970 compte
 /// pour 0.
 pub fn heure() -> i64 {
@@ -35,6 +37,11 @@ pub fn dossier_de_l_application<R: tauri::Runtime>(
 /// La racine des données, `donnees/`, sous le dossier de l'application reçu.
 pub fn racine_des_donnees(dossier: &Path) -> PathBuf {
     dossier.join("donnees")
+}
+
+/// Ouvre `donnees/` sous le dossier de l'application reçu, par le fil du fonds.
+pub fn ouvrir(dossier: &Path) -> Ouverture {
+    fil::ouvrir(racine_des_donnees(dossier))
 }
 
 #[cfg(test)]

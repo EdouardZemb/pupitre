@@ -11,8 +11,10 @@ use noyau::table::CoucheSombre;
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
+// Rien ne l'appelle hors des tests avant la tâche 4 : l'allow tombe quand `run()` appelle le fil.
+#[allow(dead_code)]
 mod fil;
-// Rien ne l'appelle avant la tâche 3 (le fil du fonds) : l'allow tombe avec elle.
+// Rien ne l'appelle hors des tests avant la tâche 4 : l'allow tombe quand `run()` appelle systeme.
 #[allow(dead_code)]
 mod systeme;
 
