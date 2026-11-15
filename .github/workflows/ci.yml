@@ -70,10 +70,11 @@ jobs:
   # l'interface, puis le fonds de mesure. La chaîne vient de rust-toolchain.toml.
   verifier:
     runs-on: ubuntu-latest
-    # Deux fois le plus long passage complet mesuré à froid (« No cache found. ») : 4 min 47 s, le
-    # 2026-11-14, sur la PR #40 (exécution 43632252911), sans l'étape du fonds de mesure ; 3 min 51 s
-    # sur la PR #39 (exécution 43631355460), avec elle (LE-29 de modele-projet).
-    timeout-minutes: 10
+    # Deux fois le plus long passage complet mesuré à froid (« No cache found. »), le graphe de
+    # l'établi et le fonds de mesure compris : 5 min 53 s le 2026-11-15, PR #43 (exécution
+    # 43717435077) ; avant, 4 min 47 s le 2026-11-14, PR #40, sans le fonds de mesure (LE-29 de
+    # modele-projet).
+    timeout-minutes: 12
     permissions:
       contents: read
     steps:
@@ -82,8 +83,6 @@ jobs:
       - name: Installer la chaîne de rust-toolchain.toml
         run: rustup toolchain install
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          prefix-key: v0-froid-pr-b
       # Un Cargo.lock en retard sur les Cargo.toml échoue ici, et la CI dépose celui qu'elle a
       # résolu en artefact, à relire puis à committer : le tenir à jour ne demande aucun cargo local.
       - name: Cargo.lock à jour
@@ -166,9 +165,10 @@ jobs:
   windows:
     runs-on: windows-latest
     # Deux fois le passage complet mesuré à froid (« No cache found. »), le stockage, la
-    # synchronisation, l'établi et le cahier compris : 29 min 42 s le 2026-11-14, PR #39, dont
-    # 17 min 36 s pour installer trunk et tauri-cli (LE-29 de modele-projet).
-    timeout-minutes: 60
+    # synchronisation, l'établi, la sentinelle d'I30 et le cahier compris : 28 min 11 s le
+    # 2026-11-15, PR #43 (exécution 43717435077), dont 16 min 11 s pour installer trunk et
+    # tauri-cli (LE-29 de modele-projet).
+    timeout-minutes: 57
     permissions:
       contents: read
     steps:
@@ -177,8 +177,6 @@ jobs:
       - name: Installer la chaîne de rust-toolchain.toml
         run: rustup toolchain install
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          prefix-key: v0-froid-pr-b
       # H07 sous Windows, où le renommage suit sa voie propre (§ 31 · 2.1). clippy y voit le
       # code propre à Windows, que le job verifier ne compile pas.
       - name: Lint du stockage et de la synchronisation
