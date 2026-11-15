@@ -84,6 +84,8 @@ jobs:
       - name: Installer la chaîne de rust-toolchain.toml
         run: rustup toolchain install
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          prefix-key: v0-froid-pr-d
       # Un Cargo.lock en retard sur les Cargo.toml échoue ici, et la CI dépose celui qu'elle a
       # résolu en artefact, à relire puis à committer : le tenir à jour ne demande aucun cargo local.
       - name: Cargo.lock à jour
@@ -180,6 +182,8 @@ jobs:
       - name: Installer la chaîne de rust-toolchain.toml
         run: rustup toolchain install
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          prefix-key: v0-froid-pr-d
       # H07 sous Windows, où le renommage suit sa voie propre (§ 31 · 2.1). clippy y voit le
       # code propre à Windows, que le job verifier ne compile pas.
       - name: Lint du stockage et de la synchronisation
@@ -265,6 +269,8 @@ jobs:
       - name: Installer la chaîne de rust-toolchain.toml
         run: rustup toolchain install
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          prefix-key: v0-froid-pr-d
       - name: Installer cargo-mutants
         run: cargo install --locked cargo-mutants --version 27.1.0
       - name: Diff de la PR
