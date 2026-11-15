@@ -115,26 +115,45 @@ button:disabled {
 
 /* --- Le bandeau ------------------------------------------------------------------------- */
 
-/* En tête de l'établi, un message par source, l'état d'abord. La source se dit par le mot en
-   gras qui ouvre chaque message, jamais par une couleur. Sans message, le bandeau ne prend
-   aucune place ; son texte passe à la ligne, et « Fermer » sous lui, à 200 %. */
+/* En tête de l'établi, trois emplacements fixes, un par source, l'état d'abord. La source se dit
+   par le mot en gras qui ouvre chaque ligne, jamais par une couleur. Sans message, le bandeau ne
+   prend aucune place ; son texte passe à la ligne, et « Fermer » sous lui, à 200 %. */
 .bandeau {
   flex: none;
   display: flex;
   flex-direction: column;
 }
 
-.message {
+/* Le bandeau prend le focus quand le dernier « Fermer » s'en va : son contour en tirets se trace
+   en dedans, que le bord de la fenêtre ne coupe pas ; vide, sans hauteur, il se trace dehors, et
+   son bord bas paraît en haut de la fenêtre. */
+.bandeau:focus-visible {
+  outline-offset: -0.1875rem;
+}
+
+.bandeau:focus-visible:not(:has(.message)) {
+  outline-offset: 0;
+}
+
+/* Un emplacement reste monté, sa région aussi, même vide : il ne prend alors aucune place. Son
+   cadre et sa marge ne se posent (`message`) que s'il porte un message. */
+.emplacement {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0.25rem 1rem;
+}
+
+.emplacement.message {
   padding: 0.25rem 0.75rem;
   border-bottom: 1px solid #000;
 }
 
-.message p {
+.region {
   flex: 1 1 20rem;
+}
+
+.region p {
   margin: 0;
 }
 

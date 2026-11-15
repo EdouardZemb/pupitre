@@ -3,6 +3,7 @@
 //! couleur ; et la page d'ouverture, l'établi ou le seul bandeau (question 4).
 
 use commandes::{EtatDuFonds, Refus};
+use leptos::html;
 use leptos::prelude::*;
 
 /// D'où vient un message du bandeau.
@@ -18,6 +19,28 @@ pub(crate) enum Source {
 }
 
 impl Source {
+    /// Les sources, dans l'ordre de leurs emplacements : l'état, le refus, les avertissements.
+    pub const TOUTES: [Source; 3] = [Source::Etat, Source::Refus, Source::Avertissement];
+
+    /// Le rang de la source dans `TOUTES`.
+    pub fn rang(self) -> usize {
+        match self {
+            Source::Etat => 0,
+            Source::Refus => 1,
+            Source::Avertissement => 2,
+        }
+    }
+
+    /// L'identifiant fixe de la région de son emplacement, que vise son « Fermer »
+    /// (`aria-describedby`).
+    pub fn id(self) -> &'static str {
+        match self {
+            Source::Etat => "bandeau-etat",
+            Source::Refus => "bandeau-refus",
+            Source::Avertissement => "bandeau-avertissements",
+        }
+    }
+
     /// Le mot en tête du message, qui dit sa source : la couleur ne la dit jamais seule.
     pub fn mot(self) -> &'static str {
         match self {
@@ -43,6 +66,21 @@ pub(crate) struct MessageDuBandeau {
     pub source: Source,
     pub texte: String,
     pub fermable: bool,
+}
+
+/// Un emplacement du bandeau, toujours monté : sa source, et ses lignes, chacune un message de
+/// cette source, sans son mot ; aucune quand rien ne le remplit.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Emplacement {
+    pub source: Source,
+    pub lignes: Vec<String>,
+}
+
+impl Emplacement {
+    /// Il porte un message qui se ferme : un refus ou des avertissements, jamais l'état.
+    pub fn fermable(&self) -> bool {
+        self.source != Source::Etat && !self.lignes.is_empty()
+    }
 }
 
 /// Le bandeau (I29 ; question 31) : un état (lecture seule, version de schéma plus récente), qui ne
@@ -117,6 +155,29 @@ impl Bandeau {
         })
         .collect()
     }
+
+    /// Les messages rangés par emplacement, un par source, dans l'ordre de `Source::TOUTES` :
+    /// l'état, le refus, puis les avertissements, une ligne chacun, dans l'ordre de leur arrivée.
+    /// Un emplacement que rien ne remplit reste, vide.
+    pub fn emplacements(&self) -> [Emplacement; 3] {
+        Source::TOUTES.map(|source| Emplacement {
+            source,
+            lignes: match source {
+                Source::Etat => self.etat.iter().cloned().collect(),
+                Source::Refus => self.refus.iter().cloned().collect(),
+                Source::Avertissement => self.avertissements.clone(),
+            },
+        })
+    }
+
+    /// La source du premier message qui se ferme encore (`messages`), dont le « Fermer » prend le
+    /// focus après un « Fermer » ; aucune, le bandeau le prend.
+    pub fn fermer_restant(&self) -> Option<Source> {
+        self.messages()
+            .into_iter()
+            .find(|message| message.fermable)
+            .map(|message| message.source)
+    }
 }
 
 /// Ce que l'établi ouvre : tout, ou, dans l'application, devant un refus de l'état du fonds (une
@@ -143,13 +204,11 @@ pub(crate) fn page_d_ouverture(
     }
 }
 
-/// Le texte d'un message : le mot de sa source, en gras, puis ce qu'il dit, sous le rôle de sa
-/// source.
-fn texte_du_message(source: Source, texte: String) -> impl IntoView {
-    let role = source.role();
+/// Une ligne d'un message : le mot de sa source, en gras, puis ce qu'il dit.
+fn ligne_du_message(source: Source, texte: String) -> impl IntoView {
     let mot = source.mot();
     view! {
-        <p role=role>
+        <p>
             <strong>{mot}</strong>
             " "
             {texte}
@@ -157,40 +216,75 @@ fn texte_du_message(source: Source, texte: String) -> impl IntoView {
     }
 }
 
-/// Le bandeau, en tête de l'établi : chaque message en texte, et un bouton « Fermer » s'il se
-/// ferme. Sans message, il ne prend aucune place.
+/// L'emplacement de `source`, toujours monté : sa région, au rôle de sa source et à son
+/// identifiant fixe, vide sans message, ses lignes suivant le bandeau ; puis, hors de la région,
+/// son « Fermer », que la région décrit (`aria-describedby`), caché tant que l'emplacement ne
+/// porte rien qui se ferme. Le cadre et la marge (`message`) ne se posent que sur un emplacement
+/// qui porte un message : une région ne se cache jamais.
+fn vue_de_l_emplacement(
+    bandeau: RwSignal<Bandeau>,
+    source: Source,
+    bouton: NodeRef<html::Button>,
+    fermer: impl Fn(Source) + Copy + Send + Sync + 'static,
+) -> impl IntoView {
+    let emplacement = Memo::new(move |_| bandeau.with(|b| b.emplacements()[source.rang()].clone()));
+    let id = source.id();
+    let role = source.role();
+    let lignes = move || {
+        emplacement
+            .get()
+            .lignes
+            .into_iter()
+            .map(|texte| ligne_du_message(source, texte))
+            .collect_view()
+    };
+    view! {
+        <div class="emplacement" class:message=move || emplacement.with(|e| !e.lignes.is_empty())>
+            <div id=id class="region" role=role>
+                {lignes}
+            </div>
+            <button
+                type="button"
+                node_ref=bouton
+                hidden=move || !emplacement.with(Emplacement::fermable)
+                aria-describedby=id
+                on:click=move |_| fermer(source)
+            >
+                "Fermer"
+            </button>
+        </div>
+    }
+}
+
+/// Le bandeau, en tête de l'établi : trois emplacements fixes, un par source, l'état d'abord
+/// (`vue_de_l_emplacement`). Sans message, il ne prend aucune place. Après « Fermer », le focus va
+/// au « Fermer » qui reste (`Bandeau::fermer_restant`), sinon au bandeau lui-même, qui le prend
+/// (`tabindex="-1"`).
 #[component]
 pub fn VueDuBandeau(bandeau: RwSignal<Bandeau>) -> impl IntoView {
+    let conteneur = NodeRef::<html::Div>::new();
+    let boutons = Source::TOUTES.map(|_| NodeRef::<html::Button>::new());
+    let fermer = move |source: Source| {
+        bandeau.update(|b| b.fermer(source));
+        let restant = bandeau.with_untracked(Bandeau::fermer_restant);
+        match restant.and_then(|s| boutons[s.rang()].get_untracked()) {
+            Some(bouton) => {
+                let _ = bouton.focus();
+            }
+            None => {
+                if let Some(conteneur) = conteneur.get_untracked() {
+                    let _ = conteneur.focus();
+                }
+            }
+        }
+    };
+    let emplacement =
+        move |source: Source| vue_de_l_emplacement(bandeau, source, boutons[source.rang()], fermer);
     view! {
-        <div class="bandeau">
-            {move || {
-                bandeau
-                    .get()
-                    .messages()
-                    .into_iter()
-                    .map(|message| {
-                        let source = message.source;
-                        let fermer = message
-                            .fermable
-                            .then(|| {
-                                view! {
-                                    <button
-                                        type="button"
-                                        on:click=move |_| bandeau.update(|b| b.fermer(source))
-                                    >
-                                        "Fermer"
-                                    </button>
-                                }
-                            });
-                        view! {
-                            <div class="message">
-                                {texte_du_message(source, message.texte)}
-                                {fermer}
-                            </div>
-                        }
-                    })
-                    .collect_view()
-            }}
+        <div class="bandeau" tabindex="-1" node_ref=conteneur>
+            {emplacement(Source::Etat)}
+            {emplacement(Source::Refus)}
+            {emplacement(Source::Avertissement)}
         </div>
     }
 }
@@ -199,10 +293,15 @@ pub fn VueDuBandeau(bandeau: RwSignal<Bandeau>) -> impl IntoView {
 /// l'établi ne s'ouvre pas, et aucune commande ne passe.
 #[component]
 pub fn PageDuBandeau(texte: String) -> impl IntoView {
+    let role = Source::Refus.role();
     view! {
         <main class="bandeau-seul">
             <div class="bandeau">
-                <div class="message">{texte_du_message(Source::Refus, texte)}</div>
+                <div class="emplacement message">
+                    <div class="region" role=role>
+                        {ligne_du_message(Source::Refus, texte)}
+                    </div>
+                </div>
             </div>
         </main>
     }
@@ -367,6 +466,98 @@ mod tests {
         assert_eq!(Source::Etat.role(), "status");
         assert_eq!(Source::Refus.role(), "alert");
         assert_eq!(Source::Avertissement.role(), "status");
+        // Chaque emplacement a son identifiant fixe, que vise le « Fermer » de sa source.
+        assert_eq!(Source::Etat.id(), "bandeau-etat");
+        assert_eq!(Source::Refus.id(), "bandeau-refus");
+        assert_eq!(Source::Avertissement.id(), "bandeau-avertissements");
+    }
+
+    fn emplacement(source: Source, lignes: &[&str]) -> Emplacement {
+        Emplacement {
+            source,
+            lignes: lignes.iter().map(|l| l.to_string()).collect(),
+        }
+    }
+
+    #[test]
+    fn chaque_source_a_son_emplacement_vide_sans_message() {
+        let mut bandeau = Bandeau::default();
+        // Sans message : les trois emplacements, dans l'ordre des sources, chacun vide.
+        assert_eq!(
+            bandeau.emplacements(),
+            [
+                emplacement(Source::Etat, &[]),
+                emplacement(Source::Refus, &[]),
+                emplacement(Source::Avertissement, &[]),
+            ]
+        );
+        // L'état et deux avertissements : le refus reste à sa place, vide ; les avertissements
+        // gardent leur ordre, une ligne chacun.
+        bandeau.suivre(
+            &etat(
+                Some(refus(Raison::Illisible, "Un état inventé.")),
+                &[
+                    "Un avertissement inventé.",
+                    "Un second avertissement inventé.",
+                ],
+            ),
+            true,
+        );
+        assert_eq!(
+            bandeau.emplacements(),
+            [
+                emplacement(Source::Etat, &["Un état inventé."]),
+                emplacement(Source::Refus, &[]),
+                emplacement(
+                    Source::Avertissement,
+                    &[
+                        "Un avertissement inventé.",
+                        "Un second avertissement inventé.",
+                    ]
+                ),
+            ]
+        );
+        assert_eq!(
+            bandeau.emplacements().map(|e| e.fermable()),
+            [false, false, true]
+        );
+        // Un refus remplit son emplacement ; l'état ne se ferme jamais.
+        bandeau.apres_un_geste(&Err(refus(Raison::Impossible, "Un refus inventé.")));
+        assert_eq!(
+            bandeau.emplacements()[1],
+            emplacement(Source::Refus, &["Un refus inventé."])
+        );
+        assert_eq!(
+            bandeau.emplacements().map(|e| e.fermable()),
+            [false, true, true]
+        );
+    }
+
+    #[test]
+    fn le_focus_va_au_fermer_qui_reste() {
+        let mut bandeau = Bandeau::default();
+        bandeau.suivre(
+            &etat(
+                Some(refus(Raison::Illisible, "Un état inventé.")),
+                &["Un avertissement inventé."],
+            ),
+            true,
+        );
+        bandeau.apres_un_geste(&Err(refus(Raison::Impossible, "Un refus inventé.")));
+        assert_eq!(bandeau.fermer_restant(), Some(Source::Refus));
+        bandeau.fermer(Source::Refus);
+        assert_eq!(bandeau.fermer_restant(), Some(Source::Avertissement));
+        bandeau.fermer(Source::Avertissement);
+        // L'état reste, sans « Fermer » : le focus va au bandeau.
+        assert_eq!(bandeau.fermer_restant(), None);
+        // Le refus seul, fermé : plus rien à fermer.
+        let mut bandeau = Bandeau::default();
+        bandeau.apres_un_geste(&Ok(Some("Un avertissement inventé.".to_string())));
+        bandeau.apres_un_geste(&Err(refus(Raison::Impossible, "Un refus inventé.")));
+        bandeau.fermer(Source::Avertissement);
+        assert_eq!(bandeau.fermer_restant(), Some(Source::Refus));
+        bandeau.fermer(Source::Refus);
+        assert_eq!(bandeau.fermer_restant(), None);
     }
 
     #[test]
