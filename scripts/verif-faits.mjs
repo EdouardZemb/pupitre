@@ -46,6 +46,10 @@
 //    un nom écrit « mic_12_1_… ». C'est la porte d'un second motif, « Une spec qui se contredit »
 //    (AM-2, LE-6, LE-11). Elle vérifie qu'un test qui tourne nomme chaque critère inscrit ; qu'il
 //    en calcule l'exemple, c'est la revue de la PR qui le vérifie.
+// 9. La CSP. La chaîne `app.security.csp` de app/src-tauri/tauri.conf.json est égale, octet
+//    pour octet, au bloc qui suit « La CSP exacte, que `tauri.conf.json` recopie : » dans le
+//    § 40 · 7.5 de docs/40-architecture.md ; et aucun app/src-tauri/tauri.windows.conf.json
+//    n'existe, que Tauri fusionnerait par-dessus.
 //
 // Trois conventions en découlent. Une plage qui part du premier numéro couvre toute la famille.
 // Un compte partiel ne s'écrit pas en chiffres devant « ADR », ni, dans ces trois fichiers, en
@@ -447,6 +451,26 @@ export function section(texte, titre) {
     if (t && t[1].length <= niveau) { fin = k; break; }
   }
   return { debut: i + 1, fin, lignes: lignes.slice(i + 1, fin) };
+}
+
+// Le point 9 : la CSP de tauri.conf.json, une chaîne, égale au bloc qui suit « La CSP exacte, que
+// `tauri.conf.json` recopie : » dans le § 40 · 7.5 ; et aucun tauri.windows.conf.json, que Tauri
+// fusionnerait par-dessus. Rend la liste des fautes, vide si tout est juste.
+export function comparerLaCsp({ conf, section: s, fichierDeWindows }) {
+  const fautes = [];
+  const csp = conf?.app?.security?.csp;
+  if (typeof csp !== "string") fautes.push("app/src-tauri/tauri.conf.json : app.security.csp n'est pas une chaîne (une directive par clé ou null ne se compare pas)");
+  let bloc = null;
+  const lignes = s ? s.lignes : [];
+  const i = lignes.findIndex((l) => l.startsWith("La CSP exacte, que `tauri.conf.json` recopie :"));
+  if (i >= 0 && /^```/.test(lignes[i + 2] ?? "")) {
+    const fin = lignes.findIndex((l, k) => k > i + 2 && /^```\s*$/.test(l));
+    if (fin > i + 3) bloc = lignes.slice(i + 3, fin).join("\n");
+  }
+  if (bloc === null) fautes.push("docs/40-architecture.md § 7.5 : bloc absent après « La CSP exacte, que `tauri.conf.json` recopie : »");
+  else if (typeof csp === "string" && csp !== bloc) fautes.push("la CSP de app/src-tauri/tauri.conf.json diffère du bloc du § 7.5 de docs/40-architecture.md (comparaison octet pour octet)");
+  if (fichierDeWindows) fautes.push("app/src-tauri/tauri.windows.conf.json existe : Tauri le fusionnerait par-dessus tauri.conf.json, et la CSP comparée ne serait plus celle qui s'applique");
+  return fautes;
 }
 
 // « Portes de CI » : le compte en lettres (« **Sept, aujourd'hui.** ») et les portes du tableau.
@@ -936,6 +960,14 @@ async function principal() {
   const tests = sources.flatMap((f) => fonctionsNommeesCritere(f, lire(f), codes));
   ecarts.push(...verifierCriteres({ criteres, fichierDe, livres, fichierListe: qualite, tests }));
   const nLivres = (livres ?? []).reduce((n, l) => n + (l.criteres?.length ?? 0), 0);
+
+  // 9. La CSP de l'établi, comparée au bloc du § 40 · 7.5.
+  const confTauri = "app/src-tauri/tauri.conf.json";
+  const sCsp = section(lire("docs/40-architecture.md"), "### 7.5 L'interface, la CSP et les commandes");
+  if (!sCsp) ecart("docs/40-architecture.md", 1, "section « ### 7.5 L'interface, la CSP et les commandes » introuvable");
+  else {
+    for (const m of comparerLaCsp({ conf: JSON.parse(lire(confTauri)), section: sCsp, fichierDeWindows: existsSync("app/src-tauri/tauri.windows.conf.json") })) ecart(confTauri, 1, m);
+  }
 
   // En dernier, l'appel réseau : la règle de protection réelle.
   if (requis) {

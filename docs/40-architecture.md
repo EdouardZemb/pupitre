@@ -506,19 +506,20 @@ script de l'interface, dont le chargeur en ligne que Trunk écrit dans `index.ht
 |---|---|---|
 | `default-src` | `'self'` | Rien que les fichiers de l'application |
 | `script-src` | `'self' 'wasm-unsafe-eval'` | L'interface est un module WebAssembly, que la WebView compile ; son seul script en ligne, le chargeur de Trunk, n'est admis que par l'empreinte que Tauri ajoute ; ni `'unsafe-inline'`, ni `eval` |
-| `style-src` | `'self'` | La feuille de style de l'interface. Un style calculé se pose propriété par propriété (`style:left=…` en Leptos, soit `style.setProperty`), jamais par un attribut `style`, ni par `cssText`, que la CSP refuse. Les trois styles calculés d'INC-0 (`app/ui/src/vue_table.rs` : `place_du_recouvrement`, `place_de_la_palette` et `largeur_de_la_fiche`, que pose `app/ui/src/panneau_palette.rs`) sont passés en propriétés au lot 1, avant que la CSP ne soit posée |
-| `img-src`, `media-src` | `'self'`, et le protocole des captations, `captation`, qui s'écrit `http://captation.localhost` sous Windows et Android, comme `ipc` | Une photo, une prise, un stem : le côté natif les sert par leur empreinte, en lecture seule, et rien d'autre. Le protocole de fichiers de Tauri (`asset:`), qui sert tout un dossier, n'est pas employé. Si `useHttpsScheme` est un jour posé, la valeur passe en `https` |
-| `connect-src` | `'self'`, et le canal des commandes de Tauri (`ipc:`, `http://ipc.localhost`) | L'interface ne lit que ses propres fichiers, son module WebAssembly compris, et ne parle qu'au côté natif ; la synchronisation se fait de ce côté-là ([ADR-022](adr/adr-022-documents-cote-natif.md)) |
+| `style-src` | `'self'` | La feuille de style de l'interface. Un style calculé se pose propriété par propriété (`style:left=…` en Leptos, soit `style.setProperty`), jamais par un attribut `style`, que la CSP refuse, ni par `cssText`, que la CSP admet mais que le contrôle statique de l'interface refuse, pour qu'un style calculé ne se pose que d'une façon. Les trois styles calculés d'INC-0 (`app/ui/src/vue_table.rs` : `place_du_recouvrement`, `place_de_la_palette` et `largeur_de_la_fiche`, que pose `app/ui/src/panneau_palette.rs`) sont passés en propriétés au lot 1, avant que la CSP ne soit posée |
+| `img-src`, `media-src` | `'self'`, et le protocole des captations, `captation`, qui s'écrit `http://captation.localhost` sous Windows et Android, comme le canal des commandes | Une photo, une prise, un stem : le côté natif les sert par leur empreinte, en lecture seule, et rien d'autre. Le protocole de fichiers de Tauri (`asset:`), qui sert tout un dossier, n'est pas employé. Si `useHttpsScheme` est un jour posé, la valeur passe en `https` |
+| `connect-src` | `'self'`, et le canal des commandes de Tauri, `http://ipc.localhost`, sa forme sous Windows et Android ; `ipc:`, sa forme sur les plateformes qui ne sont pas des cibles, n'est pas admis | L'interface ne lit que ses propres fichiers, son module WebAssembly compris, et ne parle qu'au côté natif ; la synchronisation se fait de ce côté-là ([ADR-022](adr/adr-022-documents-cote-natif.md)) |
 | `object-src`, `frame-src`, `base-uri`, `form-action` | `'none'` | Rien à incorporer, rien à envoyer |
 
 La CSP exacte, que `tauri.conf.json` recopie :
 
 ```text
-default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' http://captation.localhost; media-src 'self' http://captation.localhost; connect-src 'self' ipc: http://ipc.localhost; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'
+default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' http://captation.localhost; media-src 'self' http://captation.localhost; connect-src 'self' http://ipc.localhost; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'
 ```
 
 La comparaison porte sur `tauri.conf.json`, avant que Tauri n'y ajoute, à la construction,
-les empreintes des scripts.
+les empreintes des scripts. Aucun `devCsp` : `cargo tauri dev` suit la même CSP, et aucun job ne le
+lance.
 
 **Les droits de Tauri** ne permettent à l'interface que ce qu'ils nomment.
 
