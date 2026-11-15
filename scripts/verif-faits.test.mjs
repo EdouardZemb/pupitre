@@ -727,12 +727,30 @@ test("comparerLaCsp compare la CSP de tauri.conf.json au bloc du § 7.5, octet p
   ].join("\n"), titre);
   const conf = (c) => ({ app: { security: { csp: c } } });
   const fautes = (args) => comparerLaCsp(args).join("\n");
-  assert.deepEqual(comparerLaCsp({ conf: conf(csp), section: s, fichierDeWindows: false }), []);
-  assert.match(fautes({ conf: conf({ "default-src": "'self'" }), section: s, fichierDeWindows: false }), /n'est pas une chaîne/);
+  const dossier = ["build.rs", "Cargo.toml", "tauri.conf.json"];
+  assert.deepEqual(comparerLaCsp({ conf: conf(csp), section: s, fichiers: dossier }), []);
+  assert.match(fautes({ conf: conf({ "default-src": "'self'" }), section: s, fichiers: dossier }), /n'est pas une chaîne/);
   const autre = csp.replace("object-src 'none'", "object-src 'self'");
-  assert.match(fautes({ conf: conf(autre), section: s, fichierDeWindows: false }), /diffère/);
-  assert.match(fautes({ conf: conf(csp), section: s, fichierDeWindows: true }), /tauri\.windows\.conf\.json/);
+  assert.match(fautes({ conf: conf(autre), section: s, fichiers: dossier }), /diffère/);
+  assert.match(fautes({ conf: conf(csp), section: s, fichiers: [...dossier, "tauri.windows.conf.json"] }), /tauri\.windows\.conf\.json existe/);
   const sans = section([titre, "", "Un texte sans bloc."].join("\n"), titre);
-  assert.match(fautes({ conf: conf(csp), section: sans, fichierDeWindows: false }), /bloc absent/);
-  assert.match(fautes({ conf: {}, section: s, fichierDeWindows: false }), /n'est pas une chaîne/);
+  assert.match(fautes({ conf: conf(csp), section: sans, fichiers: dossier }), /bloc absent/);
+  assert.match(fautes({ conf: {}, section: s, fichiers: dossier }), /n'est pas une chaîne/);
+});
+
+test("comparerLaCsp refuse chacune des trois formes du fichier propre à Windows, sans égard à la casse", () => {
+  const csp = "default-src 'self'";
+  const titre = "### 7.5 Titre";
+  const s = section([titre, "", "La CSP exacte, que `tauri.conf.json` recopie :", "", "```text", csp, "```"].join("\n"), titre);
+  const conf = { app: { security: { csp } } };
+  // Ni `tauri.conf.json5`, ni `Tauri.toml`, ni le fichier d'une autre plateforme ne sont visés.
+  const voisins = ["tauri.conf.json", "tauri.conf.json5", "Tauri.toml", "tauri.linux.conf.json"];
+  assert.deepEqual(comparerLaCsp({ conf, section: s, fichiers: voisins }), []);
+  for (const nom of ["tauri.windows.conf.json", "tauri.windows.conf.json5", "Tauri.windows.toml", "TAURI.WINDOWS.CONF.JSON", "tauri.windows.toml"]) {
+    assert.deepEqual(
+      comparerLaCsp({ conf, section: s, fichiers: [...voisins, nom] }),
+      [`app/src-tauri/${nom} existe : Tauri le fusionnerait par-dessus tauri.conf.json, et la CSP comparée ne serait plus celle qui s'applique`],
+      nom,
+    );
+  }
 });
