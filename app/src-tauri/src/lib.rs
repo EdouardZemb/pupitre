@@ -1,4 +1,6 @@
-//! L'établi : l'enveloppe Tauri de l'interface, et l'export du cahier des tables.
+//! L'établi : l'enveloppe Tauri de l'interface ; le fil du fonds, qui possède la racine des
+//! données et sert une à une les commandes que l'interface envoie ; et l'export du cahier des
+//! tables.
 
 use std::fs::File;
 use std::io::Write;

@@ -3,7 +3,7 @@
 //! erreur du stockage s'y rend en refus, sa raison dite par `raison`, son message le texte de
 //! l'erreur ; un avertissement, de même, en texte. Chaque chemin s'y dit relatif à la racine des
 //! données (`Relatif`), sauf dans le refus d'ouvrir la racine des données elle-même
-//! (`refus_a_l_ouverture`), qui la nomme par son chemin entier.
+//! (`refus_a_l_ouverture`), qui dit le chemin en cause entier.
 
 use automerge::Automerge;
 use noyau::donnees::changement::Operation;
@@ -124,8 +124,9 @@ fn refus(erreur: Erreur, racine: &RacineDesDonnees) -> Refus {
 
 /// Le refus d'ouvrir la racine des données, qui n'a pas de racine à qui rapporter un chemin : la
 /// raison que donne `refus` à chaque variante (`RacineDesDonneesTenue` : `Raison::Impossible`), et
-/// le texte de l'erreur, qui nomme le dossier par son chemin entier, ses composants joints par `/`,
-/// sous Windows aussi (`chemin_dit` ; question 3).
+/// le texte de l'erreur, qui nomme le chemin en cause (le dossier, son `verrou`, son `documents/`
+/// ou son `captations/`) par son chemin entier, ses composants joints par `/`, sous Windows aussi
+/// (`chemin_dit` ; question 3) ; la racine des données tenue n'en nomme aucun.
 pub fn refus_a_l_ouverture(erreur: Erreur) -> Refus {
     Refus {
         raison: raison(&erreur),

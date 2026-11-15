@@ -1,7 +1,8 @@
 //! Contrôle statique d'I30 (§ 70 · 3) : hors du module `systeme` de l'établi, aucun code ne devine
-//! un chemin, ne lit l'horloge ni ne tire l'aléa ; l'acteur d'Automerge ne naît que dans quatre
-//! fichiers. Le test lit sur le disque chaque `src/` de `crates/` et celui de l'établi ; une
-//! racine dont aucune source n'est lue est une faute. L'interface a sa propre règle.
+//! un chemin, ne lit l'horloge ni ne tire l'aléa ; l'acteur d'Automerge ne naît que dans les
+//! fichiers que le contrôle admet (`ACTEUR_ADMIS`). Le test lit sur le disque chaque `src/` de
+//! `crates/` et celui de l'établi ; une racine dont aucune source n'est lue est une faute.
+//! L'interface a sa propre règle.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -193,15 +194,10 @@ fn sources_du_depot() -> Vec<(String, String)> {
         .collect()
 }
 
-/// `controler` refuse `sources` : chaque faute nomme `chemin`, et l'une nomme `mot`.
-fn refuse(sources: &[(String, String)], chemin: &str, mot: &str) {
-    let fautes = controler(sources);
-    assert!(!fautes.is_empty(), "{chemin} : « {mot} » admis");
-    assert!(fautes.iter().all(|f| f.contains(chemin)), "{fautes:?}");
-    assert!(
-        fautes.iter().any(|f| f.contains(&format!("« {mot} »"))),
-        "{chemin} : « {mot} » non nommé : {fautes:?}"
-    );
+/// `controler` refuse `sources` d'une seule faute, `attendue`, telle qu'il la dit : le fichier, la
+/// ligne et le mot.
+fn refuse(sources: &[(String, String)], attendue: &str) {
+    assert_eq!(controler(sources), vec![attendue.to_string()]);
 }
 
 #[test]
@@ -235,7 +231,7 @@ fn i30_chaque_racine_lue_porte_des_sources() {
 fn i30_chaque_controle_refuse_ce_qu_on_y_plante() {
     let lib = "app/src-tauri/src/lib.rs";
     let systeme = "app/src-tauri/src/systeme.rs";
-    // Le seul `temp_dir` admis de l'établi : un second est refusé.
+    // Le seul `temp_dir` admis de l'établi : un second est refusé, sur sa ligne à lui.
     assert!(
         controler(&[source(lib, "let d = std::env::temp_dir().join(nom);\n")]).is_empty(),
         "le temp_dir de dossier_jetable est refusé"
@@ -245,8 +241,7 @@ fn i30_chaque_controle_refuse_ce_qu_on_y_plante() {
             lib,
             "let d = std::env::temp_dir().join(nom);\nlet e = std::env::temp_dir();\n",
         )],
-        lib,
-        "temp_dir",
+        "app/src-tauri/src/lib.rs:2 contient « temp_dir »",
     );
     // Un import groupé, qui ne nomme pas `std::env::temp_dir`.
     let cahier = "crates/cahier/src/main.rs";
@@ -255,21 +250,18 @@ fn i30_chaque_controle_refuse_ce_qu_on_y_plante() {
             cahier,
             "use std::{env, path::Path};\nfn f() { let _ = env::temp_dir(); }\n",
         )],
-        cahier,
-        "temp_dir",
+        "crates/cahier/src/main.rs:2 contient « temp_dir »",
     );
     refuse(
         &[source(lib, "let d = app.path().home_dir();\n")],
-        lib,
-        "home_dir",
+        "app/src-tauri/src/lib.rs:1 contient « home_dir »",
     );
     refuse(
         &[source(
             lib,
             "let d = app.path().resolve(\"x\", BaseDirectory::Download);\n",
         )],
-        lib,
-        "BaseDirectory",
+        "app/src-tauri/src/lib.rs:1 contient « BaseDirectory »",
     );
     let stockage = "crates/stockage/src/lib.rs";
     refuse(
@@ -277,14 +269,12 @@ fn i30_chaque_controle_refuse_ce_qu_on_y_plante() {
             stockage,
             "let d = std::env::var(\"LOCALAPPDATA\");\n",
         )],
-        stockage,
-        "\"LOCALAPPDATA\"",
+        "crates/stockage/src/lib.rs:1 contient « \"LOCALAPPDATA\" »",
     );
     let services = "crates/services/src/lib.rs";
     refuse(
         &[source(services, "let t = SystemTime::now();\n")],
-        services,
-        "SystemTime",
+        "crates/services/src/lib.rs:1 contient « SystemTime »",
     );
     let documents = "crates/stockage/src/documents.rs";
     refuse(
@@ -292,28 +282,24 @@ fn i30_chaque_controle_refuse_ce_qu_on_y_plante() {
             documents,
             "getrandom::fill(&mut octets).unwrap();\n",
         )],
-        documents,
-        "getrandom",
+        "crates/stockage/src/documents.rs:1 contient « getrandom »",
     );
     let synchro = "crates/synchro/src/lib.rs";
     refuse(
         &[source(synchro, "let doc = Automerge::new();\n")],
-        synchro,
-        "Automerge::new",
+        "crates/synchro/src/lib.rs:1 contient « Automerge::new »",
     );
     let lecture = "crates/services/src/lecture.rs";
     refuse(
         &[source(lecture, "let copie = doc.fork();\n")],
-        lecture,
-        ".fork(",
+        "crates/services/src/lecture.rs:1 contient « .fork( »",
     );
     // L'acteur n'est pas admis dans `systeme`, qui n'admet que les chemins, l'horloge et l'aléa.
     refuse(
         &[source(systeme, "let a = ActorId::random();\n")],
-        systeme,
-        "ActorId::random",
+        "app/src-tauri/src/systeme.rs:1 contient « ActorId::random »",
     );
-    // `systeme` admet l'horloge ; les quatre fichiers admettent l'acteur.
+    // `systeme` admet l'horloge ; les fichiers d'`ACTEUR_ADMIS` admettent l'acteur.
     assert!(
         controler(&[source(systeme, "let t = SystemTime::now();\n")]).is_empty(),
         "systeme refuse l'horloge"

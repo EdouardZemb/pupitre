@@ -140,8 +140,8 @@ mod tests {
 
     /// Invoque la commande `nom` par l'IPC simulée de `tauri::test`, depuis `fenetre`, avec le
     /// corps `corps` ; rend sa réponse, ou son rejet. L'adresse est l'origine locale de l'établi,
-    /// `http://tauri.localhost` sous Windows et Android, `tauri://localhost` ailleurs : une
-    /// commande de l'application, sans manifeste, n'y passe par aucune ACL.
+    /// `http://tauri.localhost` sous Windows et Android, `tauri://localhost` ailleurs : le
+    /// contexte simulé, sans manifeste de l'application, n'y passe par aucune ACL.
     fn invoquer(
         fenetre: &tauri::WebviewWindow<MockRuntime>,
         nom: &str,

@@ -16,8 +16,10 @@ pub fn heure() -> i64 {
     }
 }
 
-/// L'aléa du système, par `getrandom::fill`. Un échec arrête l'application : l'aléa ne se
-/// remplace pas, et `Alea::remplir` ne rend rien.
+/// L'aléa du système, par `getrandom::fill`. Un échec panique : sur le fil du fonds, seul à le
+/// tirer, le fil tombe, la racine des données et son verrou avec lui, et la commande en cours,
+/// puis chacune des suivantes, rendent « Le fonds ne répond plus. » ; l'aléa ne se remplace pas,
+/// et `Alea::remplir` ne rend rien.
 pub struct AleaDuSysteme;
 
 impl services::Alea for AleaDuSysteme {

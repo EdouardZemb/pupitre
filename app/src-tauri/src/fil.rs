@@ -145,6 +145,9 @@ where
     let envoyee = emetteur.send(demande);
     drop(emetteur);
     envoyee.map_err(|_| ne_repond_plus())?;
+    // La mpsc standard, quand tombe le récepteur (le fil panique), jette les messages en tampon,
+    // et leurs émetteurs de réponse avec eux : chaque demande en attente reçoit le refus ; sans
+    // cela, elle attendrait jusqu'à `fermer`.
     reponse.recv().unwrap_or_else(|_| Err(ne_repond_plus()))
 }
 

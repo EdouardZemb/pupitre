@@ -164,11 +164,11 @@ jobs:
   # l'impression.
   windows:
     runs-on: windows-latest
-    # Deux fois le passage complet mesuré à froid (« No cache found. »), le stockage, la
-    # synchronisation, l'établi, la sentinelle d'I30 et le cahier compris : 28 min 11 s le
-    # 2026-11-15, PR #43 (exécution 43717435077), dont 16 min 11 s pour installer trunk et
-    # tauri-cli (LE-29 de modele-projet).
-    timeout-minutes: 57
+    # Deux fois le plus long passage complet mesuré à froid (« No cache found. »), le stockage, la
+    # synchronisation, l'établi et le cahier compris : 29 min 42 s le 2026-11-14, PR #39, dont
+    # 17 min 36 s pour installer trunk et tauri-cli ; 28 min 11 s le 2026-11-15, PR #43 (exécution
+    # 43717435077), la sentinelle d'I30 comprise, dont 16 min 11 s (LE-29 de modele-projet).
+    timeout-minutes: 60
     permissions:
       contents: read
     steps:
@@ -203,14 +203,15 @@ jobs:
       # une sentinelle vide. USERPROFILE porte la sentinelle, que SHGetKnownFolderPath développe ; APPDATA et
       # LOCALAPPDATA, ses sous-dossiers, créés d'abord (sans eux, l'appel échoue). CARGO_HOME et RUSTUP_HOME
       # gardent leurs vrais dossiers, lus avant la redirection. L'essai prouve que la recherche voit un
-      # fichier caché ; $LASTEXITCODE se lit, puisqu'un exécutable en échec n'arrête pas PowerShell.
+      # fichier caché dans un sous-dossier ; $LASTEXITCODE se lit, puisqu'un exécutable en échec
+      # n'arrête pas PowerShell.
       - name: La sentinelle d'I30
         run: |
           $cargo = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path $env:USERPROFILE '.cargo' }
           $rustup = if ($env:RUSTUP_HOME) { $env:RUSTUP_HOME } else { Join-Path $env:USERPROFILE '.rustup' }
           $essai = Join-Path $env:RUNNER_TEMP 'sentinelle-essai'
-          New-Item -ItemType Directory -Force $essai | Out-Null
-          (New-Item -ItemType File (Join-Path $essai 'cache')).Attributes = 'Hidden'
+          New-Item -ItemType Directory -Force (Join-Path $essai 'a') | Out-Null
+          (New-Item -ItemType File (Join-Path $essai 'a\cache')).Attributes = 'Hidden'
           if (-not (Get-ChildItem -LiteralPath $essai -Recurse -File -Force)) { throw "l'essai ne voit pas le fichier caché" }
           $s = Join-Path $env:RUNNER_TEMP 'sentinelle'
           New-Item -ItemType Directory -Force (Join-Path $s 'AppData\Roaming'), (Join-Path $s 'AppData\Local') | Out-Null
