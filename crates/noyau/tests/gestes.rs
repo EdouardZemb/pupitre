@@ -619,6 +619,24 @@ fn une_etiquette_vide_est_refusee() {
 }
 
 #[test]
+fn une_etiquette_de_blancs_est_refusee() {
+    assert_eq!(
+        poser_une_etiquette(&idee(A), "   ", HEURE, 0),
+        Err(Impossible::EtiquetteVide)
+    );
+    assert_eq!(
+        oter_une_etiquette(&idee(A), "  ", HEURE, 0),
+        Err(Impossible::EtiquetteVide)
+    );
+    // Une étiquette qui porte des blancs passe, gardée telle quelle : son identité reste ses octets.
+    let geste = poser_une_etiquette(&idee(A), "pont ", HEURE, 0).unwrap();
+    assert_eq!(
+        geste.operation.changements,
+        vec![poser(&["idees", A, "etiquettes", "pont "], Simple::Vrai)]
+    );
+}
+
+#[test]
 fn poser_une_etiquette_deja_posee_est_refuse() {
     let mut a = idee(A);
     a.etiquettes.insert("pont".into());
