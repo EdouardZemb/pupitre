@@ -355,7 +355,7 @@ dans la tâche qui possède le code.
   chaque commande (tâche 4).
 - `app/src-tauri/src/lib.rs:170` — `std::env::temp_dir()` — le seul `temp_dir()` qu'admet le contrôle d'I30, celui de
   `dossier_jetable` (tâche 5).
-- `app/src-tauri/build.rs:2` — `tauri_build::build();` — devient `try_build`, avec le manifeste de l'application
+- `app/src-tauri/build.rs:33` — `tauri_build::Attributes::new()` — reçoit le manifeste de l'application ; `try_build` et le contournement du manifeste Windows (tauri-apps/tauri#13419), posés en PR (b), restent
   (tâche 9).
 - `app/src-tauri/tauri.conf.json:17` — `"csp": null` — la CSP exacte prend sa place (tâche 8).
 - `app/src-tauri/tauri.conf.json:5` — `"identifier": "app.pupitre.etabli"` — l'identifiant que le garde-fou lit
@@ -1188,16 +1188,14 @@ dit que la liste est complète), `crates/commandes/tests/serialisation.rs` (`:16
 créer `app/src-tauri/capabilities/windows.json`, `app/src-tauri/tests/i31.rs` ; retirer
 `app/src-tauri/capabilities/default.json` (`git rm`).
 
-**`build.rs` :**
+**`build.rs` :** la PR (b) l'a passé à `try_build`, avec le contournement du manifeste Windows
+(tauri-apps/tauri#13419 : sous MSVC, `WindowsAttributes::new_without_app_manifest()` et les trois arguments de
+l'éditeur de liens ; sans lui, les tests de l'établi meurent en `0xc0000139`). La tâche le garde tel quel, et
+n'ajoute que le manifeste de l'application, à la création des attributs :
 
 ```rust
-fn main() {
-    tauri_build::try_build(
-        tauri_build::Attributes::new()
-            .app_manifest(tauri_build::AppManifest::new().commands(commandes::NOMS)),
-    )
-    .expect("le manifeste de l'application ne s'est pas construit");
-}
+    let mut attributs = tauri_build::Attributes::new()
+        .app_manifest(tauri_build::AppManifest::new().commands(commandes::NOMS));
 ```
 
 **`capabilities/windows.json`** : `"$schema": "../gen/schemas/desktop-schema.json"`, `"identifier": "windows"`, une
