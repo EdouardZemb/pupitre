@@ -857,7 +857,9 @@ fn une_racine_que_le_disque_refuse_se_dit_par_son_chemin() {
     let Ouverture::Refusee(refus) = ouvrir(racine.clone()) else { panic!("l'ouverture devait être refusée") };
     assert_eq!(refus.raison, Raison::Disque);
     // Le stockage joint les composants du chemin par `/`, sous Windows aussi (`chemin_dit`), puis dit le
-    // constat du disque (`constat_du_disque`).
+    // constat du disque (`constat_du_disque`), qui suit le genre de l'erreur : « , le disque l'a refusé »
+    // pour `AlreadyExists`, attendu ici, « est absent » ou « est refusé par le système » si le système en
+    // rend un autre ; le test exige le chemin entier en tête, non le genre.
     let dit = racine.display().to_string().replace('\\', "/");
     assert!(refus.message.starts_with(&format!("{dit} ")) || refus.message.starts_with(&format!("{dit},")),
         "{}", refus.message);
@@ -1701,7 +1703,8 @@ données, jamais par le `Display` d'un `Avertissement`, qui écrirait le chemin 
   - CAP-02 · 3 s'inscrit, par une fonction neuve de la suite, `deux_prises_regroupees_paraissent_ensemble_dans_la_boite`,
     appelée sur les deux paires par `cap02_3_la_boite_montre_ensemble_deux_prises_regroupees` (le test de la tranche 2,
     `deux_prises_regroupees_restent_deux_captations`, reste tel quel) : P et Q, nées du versement de deux prises
-    (`fiche_wav(12_000)`, `fiche_wav(47_000)`) ; la boîte rend `non_reliees == 2` et deux lignes ; la prise de Q
+    (`fiche_wav(12_000)`, `fiche_wav(47_000)`), par `verser_une_prise`, dont les `Versee` rendent les idées `p`, `q`
+    et les empreintes `p_emp`, `q_emp` ; la boîte rend `non_reliees == 2` et deux lignes ; la prise de Q
     regroupée dans P : les lignes de la boîte sont `[P]`, sa ligne porte `duree_ms == Some(47_000)` (`idee::duree`, la
     plus longue des prises) ; `vue_d_une_idee(&p).captations` égale `prises(&[&p_emp, &q_emp])` ;
     `vue_d_une_idee(&q).retiree` est `Some(HEURE)`, Q vidée et retirée par le même geste ; `non_reliees == 1` ;
