@@ -23,9 +23,9 @@ use automerge::{
     ActorId, Automerge, Change, ChangeHash, ObjId, ObjType, Prop, ROOT, ReadDoc, ScalarValue, Value,
 };
 use commandes::{
-    Assiette, Boite, Captation, Completer, EntreeDuJournal, EtatDuFonds, Etiqueter, FENETRE_MAX,
-    Faite, Fenetre, LigneDeLaBoite, Notee, Noter, Ordre, Raison, Refus, Regrouper, Relier, Reponse,
-    Viser, VueDUneIdee, VueDeLaBoite, VueDesRetirees,
+    Assiette, Boite, Captation, Completer, Contenu, EntreeDuJournal, EtatDuFonds, Etiqueter,
+    FENETRE_MAX, Faite, Fenetre, LigneDeLaBoite, Notee, Noter, Ordre, Raison, Refus, Regrouper,
+    Relier, Reponse, Viser, VueDUneIdee, VueDeLaBoite, VueDesRetirees,
 };
 use noyau::donnees::boite::texte_du_compte;
 use noyau::donnees::changement::{Changement, Operation, Simple};
@@ -2437,7 +2437,7 @@ pub fn aucun_counter_ni_objet_text_dans_un_document_des_operations<P: Paire>(pai
 }
 
 /// L'heure des cinquante idées de CAP-02 · 1, en secondes : le 13 septembre 2020, 12 h 26 min
-/// 40 s UTC, des mois avant `HEURE`.
+/// 40 s UTC, plus de trois ans avant `HEURE`.
 const EN_2020: i64 = 1_600_000_000;
 
 /// La boîte entière, autant qu'une fenêtre en rend : par date, sans filtre, de la première ligne,
@@ -2498,10 +2498,9 @@ pub fn texte_du_compte_de(non_reliees: u64, assiette: &Assiette) -> String {
     )
 }
 
-/// Un document de test (`un_document_de_test`), puis la note de l'idée `SECONDE_IDEE`, dont le
-/// test pose la date, `le`, en texte : elle n'a plus le type du schéma, et ne se lit plus. Rend
-/// les octets du document (`save()`).
-pub fn un_document_dont_une_idee_est_illisible() -> Vec<u8> {
+/// Un document de test (`un_document_de_test`), puis la note de l'idée `SECONDE_IDEE`, « Un pont
+/// en mi mineur », à `HEURE`.
+fn un_document_de_deux_idees() -> Automerge {
     let mut doc = un_document_de_test();
     let note = gestes::noter(
         SECONDE_IDEE,
@@ -2512,6 +2511,14 @@ pub fn un_document_dont_une_idee_est_illisible() -> Vec<u8> {
     )
     .expect("la seconde note du document de test se calcule");
     application::appliquer(&mut doc, &note).expect("la seconde note s'écrit");
+    doc
+}
+
+/// Un document de deux idées (`un_document_de_deux_idees`), dont le test pose la date de
+/// `SECONDE_IDEE`, `le`, en texte : elle n'a plus le type du schéma, et ne se lit plus. Rend les
+/// octets du document (`save()`).
+pub fn un_document_dont_une_idee_est_illisible() -> Vec<u8> {
+    let mut doc = un_document_de_deux_idees();
     let idee = objet_au_bout(&doc, &[IDEES, SECONDE_IDEE]);
     let mut tx = doc.transaction();
     tx.put(&idee, LE, "le lendemain")
@@ -2521,11 +2528,30 @@ pub fn un_document_dont_une_idee_est_illisible() -> Vec<u8> {
     doc.save()
 }
 
-/// CAP-02 · 1 : cinquante idées non reliées, notées en 2020, des mois avant la lecture. La boîte
-/// en compte cinquante, sur une assiette de cinquante, « 50 idées non reliées · 50 interrogées »,
-/// et ses lignes ne portent que ce que montre une ligne, sans ancienneté : la vue, puis chaque
-/// ligne, se défont par un motif exhaustif, si bien qu'un champ ajouté, un âge, un badge ou une
-/// alerte, casse la compilation.
+/// Un document de deux idées (`un_document_de_deux_idees`), où le test pose, dans le conteneur
+/// `photos`, la clé `<empreinte>/idee` d'une photo inventée, qui nomme `SECONDE_IDEE` : aucun geste
+/// n'écrit de photo au lot 1. Rend les octets du document (`save()`).
+pub fn un_document_dont_une_idee_porte_une_photo() -> Vec<u8> {
+    let mut doc = un_document_de_deux_idees();
+    let photos = objet_au_bout(&doc, &[PHOTOS]);
+    let photo = empreinte(b"une photo de test");
+    let mut tx = doc.transaction();
+    tx.put(
+        &photos,
+        format!("{photo}/{IDEE_D_UNE_CAPTATION}"),
+        SECONDE_IDEE,
+    )
+    .expect("poser l'idée de la photo");
+    let (plantation, _) = tx.commit();
+    plantation.expect("la plantation est une modification");
+    doc.save()
+}
+
+/// CAP-02 · 1 : cinquante idées non reliées, notées en 2020, plus de trois ans avant `HEURE`. La
+/// boîte en compte cinquante, sur une assiette de cinquante, « 50 idées non reliées · 50
+/// interrogées », et ses lignes ne portent que ce que montre une ligne, sans ancienneté : la vue,
+/// puis chaque ligne, se défont par un motif exhaustif, si bien qu'un champ ajouté, un âge, un
+/// badge ou une alerte, casse la compilation.
 pub fn aucun_compteur_d_anciennete<P: Paire>(paire: &mut P) {
     let mut services = paire.neufs();
     let mut alea = AleaDeTest {
@@ -3084,4 +3110,133 @@ pub fn les_retirees_se_rangent_par_la_date_du_retrait<P: Paire>(paire: &mut P) {
         vec![Some(HEURE + 20), Some(HEURE + 10)]
     );
     assert_eq!(idees_des_lignes(&la_boite(&services).lignes), vec![c]);
+}
+
+/// Le filtre et l'ordre de la commande passent au noyau, et `retenues` compte les idées que le
+/// filtre retient. A, notée à `HEURE`, puis, de minute en minute, B, une prise de 12 000 ms, C,
+/// une prise de 47 000 ms, D, un MIDI versé, et E, un texte versé, chacune importée et sans texte ;
+/// A reliée à C ; `#couplet` sur D, `#refrain` sur E. Sans filtre, cinq idées retenues, dont
+/// trois non reliées, B, D et E ; chaque filtre retient ses seules idées, par date, et laisse les
+/// trois non reliées : le texte de l'idée, A ; une prise, C puis B ; une photo, aucune ; un MIDI
+/// versé, D ; un texte versé, E. Chaque ordre range les cinq selon
+/// `noyau::donnees::boite::ordonner`, à égalité par la date, la plus récente d'abord, puis par
+/// l'identifiant : par date, E, D, C, B, A ; par étiquette, D (`couplet`), E (`refrain`), puis
+/// les sans étiquette, C, B, A ; par durée, C, B, puis les sans durée, E, D, A ; par état, les non
+/// reliées E, D, B, puis les reliées C, A ; par provenance, la captée A, puis les importées E, D,
+/// C, B. Les cinq suites, comme les cinq jeux que retiennent les filtres, sont deux à deux
+/// distinctes : un bras d'ordre ou de filtre inversé, un ordre ou un filtre perdu, se voient.
+pub fn le_filtre_et_l_ordre_passent_au_noyau<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let a = services
+        .noter(&une_note("Un refrain qui monte, en ré"), &mut contexte)
+        .expect("la note A est faite")
+        .idee;
+    contexte.heure = HEURE + 60;
+    let b = verser_une_prise(
+        &mut services,
+        b"une prise de douze secondes",
+        &fiche_wav(12_000),
+        &mut contexte,
+    )
+    .idee;
+    contexte.heure = HEURE + 120;
+    let c = verser_une_prise(
+        &mut services,
+        b"une prise de quarante-sept secondes",
+        &fiche_wav(47_000),
+        &mut contexte,
+    )
+    .idee;
+    contexte.heure = HEURE + 180;
+    let d = services
+        .verser_une_fiche(
+            gestes::Sorte::MidiVerseSeul,
+            b"un midi de la boite",
+            &gestes::Fiche {
+                format: "smf1".to_string(),
+                duree_ms: None,
+            },
+            &importee(),
+            0,
+            &mut contexte,
+        )
+        .expect("le MIDI se verse")
+        .idee;
+    contexte.heure = HEURE + 240;
+    let e = services
+        .verser_une_fiche(
+            gestes::Sorte::TexteVerse,
+            b"un texte de la boite",
+            &gestes::Fiche {
+                format: "brut".to_string(),
+                duree_ms: None,
+            },
+            &importee(),
+            0,
+            &mut contexte,
+        )
+        .expect("le texte se verse")
+        .idee;
+    services
+        .relier(&lien(&a, &c), &mut contexte)
+        .expect("A est reliée à C");
+    services
+        .poser_une_etiquette(&etiquetage(&d, "couplet"), &mut contexte)
+        .expect("l'étiquette est posée sur D");
+    services
+        .poser_une_etiquette(&etiquetage(&e, "refrain"), &mut contexte)
+        .expect("l'étiquette est posée sur E");
+    let boite_de = |ordre: Ordre, filtre: Option<Contenu>| Boite {
+        ordre,
+        filtre,
+        debut: 0,
+        nombre: FENETRE_MAX,
+    };
+
+    let toutes = services
+        .boite(&boite_de(Ordre::Date, None))
+        .expect("la boîte se lit");
+    assert_eq!(toutes.retenues, 5);
+    assert_eq!(toutes.non_reliees, 3);
+
+    for (filtre, attendues, retenues) in [
+        (Contenu::TexteDeLIdee, vec![a.clone()], 1),
+        (Contenu::Prise, vec![c.clone(), b.clone()], 2),
+        (Contenu::Photo, Vec::new(), 0),
+        (Contenu::MidiVerse, vec![d.clone()], 1),
+        (Contenu::TexteVerse, vec![e.clone()], 1),
+    ] {
+        let vue = services
+            .boite(&boite_de(Ordre::Date, Some(filtre.clone())))
+            .expect("la boîte se lit");
+        assert_eq!(
+            idees_des_lignes(&vue.lignes),
+            attendues,
+            "le filtre {filtre:?}"
+        );
+        assert_eq!(vue.retenues, retenues, "le filtre {filtre:?}");
+        assert_eq!(vue.non_reliees, 3, "le filtre {filtre:?}");
+    }
+
+    let mut suites = BTreeSet::new();
+    for (ordre, attendue) in [
+        (Ordre::Date, [&e, &d, &c, &b, &a]),
+        (Ordre::Etiquette, [&d, &e, &c, &b, &a]),
+        (Ordre::Duree, [&c, &b, &e, &d, &a]),
+        (Ordre::Reliee, [&e, &d, &b, &c, &a]),
+        (Ordre::Provenance, [&a, &e, &d, &c, &b]),
+    ] {
+        let vue = services
+            .boite(&boite_de(ordre.clone(), None))
+            .expect("la boîte se lit");
+        let rangees = idees_des_lignes(&vue.lignes);
+        assert_eq!(rangees, attendue.map(String::clone), "l'ordre {ordre:?}");
+        suites.insert(rangees);
+    }
+    assert_eq!(suites.len(), 5, "deux ordres rendent la même suite");
 }

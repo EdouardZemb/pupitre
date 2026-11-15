@@ -1,7 +1,7 @@
 //! La suite des commandes sur la paire d'adaptateurs en mémoire : chaque test de la suite,
 //! rejoué sur `DocumentsEnMemoire` et `CaptationsEnMemoire` ; puis, sur cette paire seule, les
-//! services du carnet, une idée illisible dans l'assiette de la boîte et le générateur du fonds
-//! de mesure.
+//! services du carnet, une idée illisible dans l'assiette de la boîte, le filtre des photos et le
+//! générateur du fonds de mesure.
 
 mod suite;
 
@@ -11,7 +11,7 @@ use noyau::donnees::version::Migration;
 use services::en_memoire::{CaptationsEnMemoire, DocumentsEnMemoire};
 use services::mesure::{Engendre, engendrer_le_fonds_de_mesure_selon};
 use services::{Documents, Services};
-use suite::{AleaDeTest, HEURE, IDEE, Paire, contexte_de_test, une_note};
+use suite::{AleaDeTest, HEURE, IDEE, Paire, SECONDE_IDEE, contexte_de_test, une_note};
 
 /// La paire en mémoire : sans fonds à sa naissance, sur l'établi ; rouverte des octets de son
 /// fonds, ou neuve sans eux, les captations gardées.
@@ -266,6 +266,41 @@ fn l_etat_du_fonds_dit_le_geste_qu_annuler_vise() {
 #[test]
 fn les_retirees_se_rangent_par_la_date_du_retrait() {
     suite::les_retirees_se_rangent_par_la_date_du_retrait(&mut PaireEnMemoire);
+}
+
+#[test]
+fn le_filtre_et_l_ordre_passent_au_noyau() {
+    suite::le_filtre_et_l_ordre_passent_au_noyau(&mut PaireEnMemoire);
+}
+
+/// Un document écrit par le test, dont le conteneur `photos` porte une clé `<empreinte>/idee`
+/// qui nomme `SECONDE_IDEE` (`suite::un_document_dont_une_idee_porte_une_photo`), rouvert en
+/// mémoire : le filtre « photo » ne retient que cette idée, et la boîte compte toujours ses deux
+/// idées non reliées.
+#[test]
+fn le_filtre_photo_lit_le_conteneur_des_photos() {
+    let documents =
+        DocumentsEnMemoire::de(&suite::un_document_dont_une_idee_porte_une_photo(), &[])
+            .expect("le document s'ouvre");
+    let services = Services::new(
+        documents,
+        CaptationsEnMemoire::default(),
+        gestes::Appareil::Etabli,
+    );
+    let photo = commandes::Boite {
+        filtre: Some(commandes::Contenu::Photo),
+        ..suite::toute_la_boite()
+    };
+    let vue = services.boite(&photo).expect("la boîte se lit");
+    assert_eq!(
+        vue.lignes
+            .iter()
+            .map(|ligne| ligne.idee.as_str())
+            .collect::<Vec<_>>(),
+        vec![SECONDE_IDEE]
+    );
+    assert_eq!(vue.retenues, 1);
+    assert_eq!(vue.non_reliees, 2);
 }
 
 /// Un document écrit par le test, dont l'idée `SECONDE_IDEE` porte sa date en texte

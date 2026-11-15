@@ -6,15 +6,15 @@
 //! geste de tri et son annulation coupés après le renommage, faits avec un avertissement, un
 //! fichier d'ajout altéré et une captation coupée, chaque refus ou avertissement disant ses
 //! chemins relatifs à la racine des données, l'état du fonds qui dit sa lecture seule et
-//! l'avertissement de sa naissance, de même, et la migration de test, la même dans la suite et
-//! dans les aides du stockage.
+//! l'avertissement de sa naissance, de même, la boîte qui se lit en lecture seule, et la migration
+//! de test, la même dans la suite et dans les aides du stockage.
 
 #[path = "../../services/tests/suite/mod.rs"]
 mod suite;
 
 mod commun;
 
-use commandes::{EntreeDuJournal, Faite, Notee};
+use commandes::{Appareil, EntreeDuJournal, Faite, LigneDeLaBoite, Notee, Provenance};
 use noyau::donnees::acces::Acces;
 use noyau::donnees::gestes;
 use noyau::donnees::version::Migration;
@@ -354,6 +354,12 @@ fn les_retirees_se_rangent_par_la_date_du_retrait() {
     suite::les_retirees_se_rangent_par_la_date_du_retrait(&mut PaireSurFichiers {
         racine: &racine,
     });
+}
+
+#[test]
+fn le_filtre_et_l_ordre_passent_au_noyau() {
+    let racine = racine_jetable("commandes-filtre-et-ordre");
+    suite::le_filtre_et_l_ordre_passent_au_noyau(&mut PaireSurFichiers { racine: &racine });
 }
 
 #[test]
@@ -829,7 +835,8 @@ fn un_geste_de_tri_et_son_annulation_coupes_apres_le_renommage_rendent_un_averti
 
 /// Deux notes, puis un octet changé au milieu du fichier d'ajout de la seconde : rouvert, l'état
 /// du fonds le dit né, en lecture seule, du refus `Raison::Illisible`, qui nomme le fichier
-/// d'ajout par son chemin relatif à la racine des données, écrit ici en texte.
+/// d'ajout par son chemin relatif à la racine des données, écrit ici en texte ; et la boîte se lit
+/// en lecture seule : elle montre la seule note d'avant l'altération, non reliée.
 #[test]
 fn l_etat_du_fonds_dit_la_lecture_seule() {
     let racine = racine_jetable("commandes-etat-lecture-seule");
@@ -867,6 +874,25 @@ fn l_etat_du_fonds_dit_la_lecture_seule() {
             ),
         })
     );
+    let vue = services
+        .boite(&suite::toute_la_boite())
+        .expect("la boîte se lit en lecture seule");
+    assert_eq!(
+        vue.lignes,
+        vec![LigneDeLaBoite {
+            idee: IDEE.to_string(),
+            le: suite::HEURE,
+            texte: Some("Un refrain qui monte, en ré".to_string()),
+            etiquettes: Vec::new(),
+            duree_ms: None,
+            reliee: false,
+            provenance: Provenance::Captee {
+                par: Appareil::Etabli,
+            },
+            retiree: None,
+        }]
+    );
+    assert_eq!(vue.non_reliees, 1);
 }
 
 /// La première note, coupée après le renommage du fichier complet de la naissance, comme
