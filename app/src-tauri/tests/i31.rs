@@ -217,4 +217,142 @@ fn i31_chaque_controle_du_manifeste_refuse_ce_qu_on_y_plante() {
     // Un droit par défaut.
     let permissif = format!("{bon}\n.default_permission(DefaultPermissionRule::AllowAllCommands)");
     assert!(!controler_le_manifeste(&permissif).is_empty());
+    // Un appel seulement commenté ne compte pas.
+    let commente = "// AppManifest::new().commands(commandes::NOMS)
+let attributs = tauri_build::Attributes::new();";
+    assert!(!controler_le_manifeste(commente).is_empty());
+    // Un commentaire qui cite `default_permission` ne refuse pas un build.rs juste.
+    let cite = format!(
+        "    // pas de default_permission ici
+{bon}"
+    );
+    assert!(controler_le_manifeste(&cite).is_empty());
+}
+
+fn lire_de_l_etabli(chemin: &str) -> String {
+    let complet = dossier_de_l_etabli().join(chemin);
+    fs::read_to_string(&complet)
+        .unwrap_or_else(|e| panic!("lecture de {} : {e}", complet.display()))
+}
+
+#[test]
+fn i31_la_csp_n_admet_que_ce_que_l_application_apporte() {
+    let conf: Value = serde_json::from_str(&lire_de_l_etabli("tauri.conf.json"))
+        .expect("tauri.conf.json est du JSON");
+    let csp = conf["app"]["security"]["csp"]
+        .as_str()
+        .expect("app.security.csp est une chaîne");
+    let fautes = controler_la_csp(csp);
+    assert!(fautes.is_empty(), "{fautes:?}");
+}
+
+#[test]
+fn i31_tauri_conf_ne_pose_aucune_cle_interdite() {
+    let conf: Value = serde_json::from_str(&lire_de_l_etabli("tauri.conf.json"))
+        .expect("tauri.conf.json est du JSON");
+    let fautes = controler_la_configuration(&conf);
+    assert!(fautes.is_empty(), "{fautes:?}");
+}
+
+#[test]
+fn i31_generate_handler_porte_chaque_nom() {
+    let fautes = controler_le_gestionnaire(&lire_de_l_etabli("src/lib.rs"), commandes::NOMS);
+    assert!(fautes.is_empty(), "{fautes:?}");
+}
+
+#[test]
+fn i31_le_cargo_toml_ne_tire_pas_protocol_asset() {
+    let fautes = controler_le_cargo_toml(&lire_de_l_etabli("Cargo.toml"));
+    assert!(fautes.is_empty(), "{fautes:?}");
+}
+
+const CSP_EXACTE: &str = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' http://captation.localhost; media-src 'self' http://captation.localhost; connect-src 'self' http://ipc.localhost; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'";
+
+fn conf_valide() -> Value {
+    json!({ "app": {
+        "windows": [{ "label": "main" }],
+        "security": { "csp": CSP_EXACTE }
+    } })
+}
+
+#[test]
+fn i31_chaque_controle_refuse_ce_qu_on_y_plante() {
+    // La CSP exacte passe : `'wasm-unsafe-eval'` est le cas limite admis.
+    assert!(controler_la_csp(CSP_EXACTE).is_empty());
+    let sans_script = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'";
+    assert!(controler_la_csp(sans_script).is_empty());
+    for plante in [
+        "default-src 'self'; script-src 'self' 'unsafe-inline'",
+        "default-src 'self'; script-src 'self' 'unsafe-eval'",
+        "default-src 'self'; img-src 'self' https://exemple.org",
+        "default-src 'self'; img-src 'self' http://captation.localhost.exemple.org",
+        "default-src *",
+    ] {
+        assert!(!controler_la_csp(plante).is_empty(), "{plante}");
+    }
+
+    // La configuration juste passe ; une CSP en objet ou absente refuse.
+    assert!(controler_la_configuration(&conf_valide()).is_empty());
+    let mut en_objet = conf_valide();
+    en_objet["app"]["security"]["csp"] = json!({ "default-src": "'self'" });
+    assert!(!controler_la_configuration(&en_objet).is_empty());
+    let mut sans_csp = conf_valide();
+    sans_csp["app"]["security"]
+        .as_object_mut()
+        .unwrap()
+        .remove("csp");
+    assert!(!controler_la_configuration(&sans_csp).is_empty());
+
+    // Chacune des six clés de `security`, sous chacune de ses deux formes.
+    for cle in [
+        "dangerousDisableAssetCspModification",
+        "dangerous-disable-asset-csp-modification",
+        "assetProtocol",
+        "asset-protocol",
+        "devCsp",
+        "dev-csp",
+    ] {
+        let mut plantee = conf_valide();
+        plantee["app"]["security"][cle] = json!(true);
+        assert!(!controler_la_configuration(&plantee).is_empty(), "{cle}");
+    }
+    // `useHttpsScheme`, sous une fenêtre, sous chacune de ses deux formes.
+    for cle in ["useHttpsScheme", "use-https-scheme"] {
+        let mut plantee = conf_valide();
+        plantee["app"]["windows"][0][cle] = json!(true);
+        assert!(!controler_la_configuration(&plantee).is_empty(), "{cle}");
+    }
+
+    // Le gestionnaire : le bon passe, sans `journal` refuse, avec `supprimer` en trop refuse.
+    let noms = ["noter", "journal"];
+    let bon = "tauri::generate_handler![
+    exporter_cahier,
+    commandes_de_l_etabli::noter,
+    commandes_de_l_etabli::journal,
+]";
+    assert!(controler_le_gestionnaire(bon, &["noter", "journal", "exporter_cahier"]).is_empty());
+    let sans_journal = "tauri::generate_handler![exporter_cahier, commandes_de_l_etabli::noter]";
+    assert!(!controler_le_gestionnaire(sans_journal, &noms).is_empty());
+    let en_trop = "tauri::generate_handler![commandes_de_l_etabli::noter, commandes_de_l_etabli::journal, commandes_de_l_etabli::supprimer]";
+    assert!(!controler_le_gestionnaire(en_trop, &noms).is_empty());
+    assert!(!controler_le_gestionnaire("fn sans_gestionnaire() {}", &noms).is_empty());
+    // Une ligne commentée ne compte pas.
+    let commente = "tauri::generate_handler![
+    commandes_de_l_etabli::noter,
+    // commandes_de_l_etabli::journal,
+]";
+    assert!(!controler_le_gestionnaire(commente, &noms).is_empty());
+
+    // Le `Cargo.toml` : `protocol-asset` refuse, même parmi d'autres fonctions.
+    assert!(controler_le_cargo_toml("tauri = { version = \"2\", features = [] }").is_empty());
+    assert!(
+        !controler_le_cargo_toml("tauri = { version = \"2\", features = [\"protocol-asset\"] }")
+            .is_empty()
+    );
+    assert!(
+        !controler_le_cargo_toml(
+            "tauri = { version = \"2\", features = [\"test\", \"protocol-asset\"] }"
+        )
+        .is_empty()
+    );
 }
