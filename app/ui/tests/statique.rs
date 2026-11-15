@@ -1,7 +1,9 @@
-//! Contrôle statique d'I31 côté interface (§ 70 · 3) : l'interface ne pose ni HTML, ni style en
-//! attribut, ni stockage du navigateur, ne lit l'horloge que dans `date_du_jour`, et ne lit pas le
-//! décalage local. Le test lit sur le disque chaque `.rs` de `src/` et `index.html` ; un lieu dont
-//! aucune source n'est lue est une faute.
+//! Contrôles statiques d'I31 et d'I29 côté interface (§ 70 · 3). I31 : l'interface ne pose ni
+//! HTML, ni style en attribut, ni stockage du navigateur ; elle ne lit l'horloge que dans
+//! `date_du_jour` et `decalage_du_geste`, la date à l'heure locale que dans `date_du_jour`, et le
+//! décalage local que dans `decalage_du_geste` et `decalage_a`. I29 : ni greffon ni API de
+//! notification. Les tests lisent sur le disque chaque `.rs` de `src/` et `index.html`, et, pour
+//! I29 seule, le `Cargo.toml` de l'interface ; un lieu dont aucune source n'est lue est une faute.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -37,14 +39,57 @@ const STOCKAGE: &[&str] = &[
     "cookie",
 ];
 
-/// L'horloge, admise dans la seule fonction `FONCTION_DE_L_HORLOGE`.
+/// L'horloge, admise dans les seules fonctions que nomme `admis_dans`.
 const HORLOGE: &[&str] = &["Date::new_0", "Date::now", "performance"];
 
-/// La seule fonction où l'interface lit l'horloge.
-const FONCTION_DE_L_HORLOGE: &str = "date_du_jour";
+/// Le décalage local : `getTimezoneOffset`, et chaque lecture à l'heure locale (l'année, le mois,
+/// le jour, le jour de la semaine, l'heure, les minutes, un texte à la manière du pays, `Intl`),
+/// admis dans les seules fonctions que nomme `admis_dans`. Une lecture en UTC (`getUTCDate`) n'en
+/// est pas une.
+const DECALAGE_LOCAL: &[&str] = &[
+    "get_timezone_offset",
+    "getTimezoneOffset",
+    "get_full_year",
+    "get_month",
+    "get_date",
+    "get_day",
+    "get_hours",
+    "get_minutes",
+    "getFullYear",
+    "getMonth",
+    "getDate",
+    "getDay",
+    "getHours",
+    "getMinutes",
+    "to_locale",
+    "toLocale",
+    "Intl",
+    "DateTimeFormat",
+];
 
-/// Le décalage local, nulle part jusqu'à la tâche 18.
-const DECALAGE_LOCAL: &[&str] = &["get_timezone_offset", "getTimezoneOffset"];
+/// Les fonctions dont le contrôle suit le corps : les seules où un mot de `HORLOGE` ou de
+/// `DECALAGE_LOCAL` peut être admis.
+const FONCTIONS_SUIVIES: &[&str] = &["date_du_jour", "decalage_du_geste", "decalage_a"];
+
+/// Les fonctions où `mot`, de `HORLOGE` ou de `DECALAGE_LOCAL`, est admis : `Date::new_0`, dans
+/// `date_du_jour` et `decalage_du_geste` ; le décalage, `get_timezone_offset` et
+/// `getTimezoneOffset`, dans `decalage_du_geste` et `decalage_a` ; tout autre mot, l'horloge ou la
+/// date à l'heure locale, dans `date_du_jour` seule.
+fn admis_dans(mot: &str) -> &'static [&'static str] {
+    match mot {
+        "Date::new_0" => &["date_du_jour", "decalage_du_geste"],
+        "get_timezone_offset" | "getTimezoneOffset" => &["decalage_du_geste", "decalage_a"],
+        _ => &["date_du_jour"],
+    }
+}
+
+/// Le manifeste de l'interface, nommé depuis la racine du dépôt : le seul manifeste que lit le
+/// contrôle d'I29.
+const MANIFESTE: &str = "app/ui/Cargo.toml";
+
+/// Les mots d'I29 : le greffon (`tauri-plugin-notification`) et l'API de notification
+/// (`web_sys::Notification`, `window.Notification`), en sous-chaîne, sensible à la casse.
+const NOTIFICATION: &[&str] = &["Notification", "notification"];
 
 /// Où en est la lecture d'un fichier à la fin d'une ligne : dans le code, dans une chaîne, ou dans
 /// une chaîne brute ouverte par `r` et ce nombre de `#`.
@@ -155,51 +200,52 @@ fn apres_la_fonction<'a>(ligne: &'a str, nom: &str) -> Option<&'a str> {
     })
 }
 
-/// Où en est `FONCTION_DE_L_HORLOGE` dans la lecture d'un fichier : pas ouverte ; déclarée, son
-/// `fn` lu, sa première `{` pas encore ; ou dans son corps, à cette profondeur d'accolades.
+/// Où en est une fonction suivie (`FONCTIONS_SUIVIES`) dans la lecture d'un fichier : pas
+/// ouverte ; déclarée, son `fn` lu, sa première `{` pas encore ; ou dans son corps, à cette
+/// profondeur d'accolades.
 #[derive(Clone, Copy)]
-enum Horloge {
+enum Fonction {
     Dehors,
     Declaree,
     Corps(usize),
 }
 
-/// Avance `horloge` sur la ligne nettoyée `nette`, et dit si la ligne est dans
-/// `FONCTION_DE_L_HORLOGE` : elle porte son `fn`, ou elle commence après lui et avant la `}` qui
+/// Avance `fonction`, la fonction suivie `nom`, sur la ligne nettoyée `nette`, et dit si la
+/// ligne est dans `nom` : elle porte son `fn`, ou elle commence après lui et avant la `}` qui
 /// ferme son corps, les accolades comptées depuis la première `{` qui suit ce `fn`. Un `;` lu
 /// avant cette `{` (une déclaration sans corps) la referme.
-fn suivre(horloge: &mut Horloge, nette: &str) -> bool {
-    let mut dedans = !matches!(*horloge, Horloge::Dehors);
+fn suivre(fonction: &mut Fonction, nom: &str, nette: &str) -> bool {
+    let mut dedans = !matches!(*fonction, Fonction::Dehors);
     let mut reste = nette;
     loop {
-        match *horloge {
-            Horloge::Dehors => {
-                let Some(apres) = apres_la_fonction(reste, FONCTION_DE_L_HORLOGE) else {
+        match *fonction {
+            Fonction::Dehors => {
+                let Some(apres) = apres_la_fonction(reste, nom) else {
                     break;
                 };
                 dedans = true;
-                *horloge = Horloge::Declaree;
+                *fonction = Fonction::Declaree;
                 reste = apres;
             }
-            Horloge::Declaree => {
+            Fonction::Declaree => {
                 let Some(position) = reste.find(['{', ';']) else {
                     break;
                 };
-                *horloge = if reste[position..].starts_with('{') {
-                    Horloge::Corps(1)
+                *fonction = if reste[position..].starts_with('{') {
+                    Fonction::Corps(1)
                 } else {
-                    Horloge::Dehors
+                    Fonction::Dehors
                 };
                 reste = &reste[position + 1..];
             }
-            Horloge::Corps(profondeur) => {
+            Fonction::Corps(profondeur) => {
                 let Some(position) = reste.find(['{', '}']) else {
                     break;
                 };
-                *horloge = match (reste[position..].starts_with('{'), profondeur) {
-                    (true, p) => Horloge::Corps(p + 1),
-                    (false, 1) => Horloge::Dehors,
-                    (false, p) => Horloge::Corps(p - 1),
+                *fonction = match (reste[position..].starts_with('{'), profondeur) {
+                    (true, p) => Fonction::Corps(p + 1),
+                    (false, 1) => Fonction::Dehors,
+                    (false, p) => Fonction::Corps(p - 1),
                 };
                 reste = &reste[position + 1..];
             }
@@ -209,17 +255,19 @@ fn suivre(horloge: &mut Horloge, nette: &str) -> bool {
 }
 
 /// Les fautes d'I31 sur `sources`, des paires (chemin, texte) nommées depuis la racine du dépôt.
-/// Chaque ligne se lit deux fois. Nettoyée (`nettoyer`), elle dit où est `date_du_jour`
-/// (`suivre`) : un `}` ou un `fn date_du_jour` écrit dans une chaîne ne compte pas. Telle quelle,
-/// elle se lit en sous-chaîne, sensible à la casse : un mot écrit dans une chaîne compte. Une ligne
-/// qui commence dans le code et dont le début, blancs ôtés, est `//` (commentaire, doc) ne compte
-/// pas. Chaque faute nomme le fichier, la ligne et le mot.
+/// Chaque ligne se lit deux fois. Nettoyée (`nettoyer`), elle dit dans quelles fonctions suivies
+/// elle est (`suivre`, pour chacune de `FONCTIONS_SUIVIES`) : un `}` ou un `fn date_du_jour`
+/// écrit dans une chaîne ne compte pas. Telle quelle, elle se lit en sous-chaîne, sensible à la
+/// casse : un mot écrit dans une chaîne compte ; un mot de `HORLOGE` ou de `DECALAGE_LOCAL` est
+/// une faute hors des fonctions où `admis_dans` l'admet. Une ligne qui commence dans le code et
+/// dont le début, blancs ôtés, est `//` (commentaire, doc) ne compte pas. Chaque faute nomme le
+/// fichier, la ligne et le mot.
 fn controler(sources: &[(String, String)]) -> Vec<String> {
     let mut fautes = Vec::new();
     for (chemin, texte) in sources {
         let mut inner_html_vus = 0;
         let mut lecture = Lecture::Code;
-        let mut horloge = Horloge::Dehors;
+        let mut suivies = [Fonction::Dehors; FONCTIONS_SUIVIES.len()];
         for (indice, ligne) in texte.lines().enumerate() {
             let dans_le_code = lecture == Lecture::Code;
             let (nette, suite) = nettoyer(ligne, lecture);
@@ -227,7 +275,11 @@ fn controler(sources: &[(String, String)]) -> Vec<String> {
             if dans_le_code && ligne.trim_start().starts_with("//") {
                 continue;
             }
-            let dans_l_horloge = suivre(&mut horloge, &nette);
+            let dedans: Vec<&str> = FONCTIONS_SUIVIES
+                .iter()
+                .zip(suivies.iter_mut())
+                .filter_map(|(nom, fonction)| suivre(fonction, nom, &nette).then_some(*nom))
+                .collect();
             let mut faute = |mot: &str| {
                 fautes.push(format!("{chemin}:{} contient « {mot} »", indice + 1));
             };
@@ -243,17 +295,44 @@ fn controler(sources: &[(String, String)]) -> Vec<String> {
             for mot in STYLE_EN_ATTRIBUT
                 .iter()
                 .chain(STOCKAGE)
-                .chain(DECALAGE_LOCAL)
                 .filter(|mot| ligne.contains(**mot))
             {
                 faute(mot);
             }
-            if !dans_l_horloge {
-                for mot in HORLOGE.iter().filter(|mot| ligne.contains(**mot)) {
+            for mot in HORLOGE
+                .iter()
+                .chain(DECALAGE_LOCAL)
+                .filter(|mot| ligne.contains(**mot))
+            {
+                if !admis_dans(mot).iter().any(|admise| dedans.contains(admise)) {
                     faute(mot);
                 }
             }
         }
+    }
+    fautes
+}
+
+/// Les fautes d'I29 (§ 70 · 3) : dans l'interface, ni greffon ni API de notification. `manifeste`
+/// est le `Cargo.toml` de l'interface, `sources` ses sources, nommées depuis la racine du dépôt.
+/// Une ligne de source dont le début, blancs ôtés, est `//`, et une ligne du manifeste dont le
+/// début est `#`, ne comptent pas. Chaque mot de `NOTIFICATION` se lit en sous-chaîne, sensible à
+/// la casse ; chaque faute nomme le fichier, la ligne et le mot.
+fn controler_i29(manifeste: &str, sources: &[(String, String)]) -> Vec<String> {
+    let mut fautes = Vec::new();
+    let mut examiner = |chemin: &str, texte: &str, commentaire: &str| {
+        for (indice, ligne) in texte.lines().enumerate() {
+            if ligne.trim_start().starts_with(commentaire) {
+                continue;
+            }
+            for mot in NOTIFICATION.iter().filter(|mot| ligne.contains(**mot)) {
+                fautes.push(format!("{chemin}:{} contient « {mot} »", indice + 1));
+            }
+        }
+    };
+    examiner(MANIFESTE, manifeste, "#");
+    for (chemin, texte) in sources {
+        examiner(chemin, texte, "//");
     }
     fautes
 }
@@ -494,13 +573,86 @@ fn i31_chaque_controle_refuse_ce_qu_on_y_plante() {
         &[source(autre, "let s = \"\n// localStorage\n\";\n")],
         "app/ui/src/autre.rs:2 contient « localStorage »",
     );
-    // Le décalage local : nulle part.
+    // Le décalage local : refusé dans une autre fonction, comme dans `date_du_jour`, qui ne lit
+    // que la date.
+    refuse(
+        &[source(
+            autre,
+            "fn autre() {\n    let z = d.getTimezoneOffset();\n}\n",
+        )],
+        "app/ui/src/autre.rs:2 contient « getTimezoneOffset »",
+    );
     refuse(
         &[source(
             autre,
             "fn date_du_jour() {\n    let z = d.getTimezoneOffset();\n}\n",
         )],
         "app/ui/src/autre.rs:2 contient « getTimezoneOffset »",
+    );
+    // Admis : l'horloge et le décalage dans `decalage_du_geste`, le décalage dans `decalage_a`, la
+    // date à l'heure locale dans `date_du_jour`.
+    assert!(
+        controler(&[source(
+            autre,
+            "fn decalage_du_geste() -> i32 {\n    decalage_depuis_js(js_sys::Date::new_0().get_timezone_offset())\n}\nfn decalage_a(le: i64) -> i32 {\n    let d = js_sys::Date::new(&JsValue::from_f64(le as f64 * 1000.0));\n    decalage_depuis_js(d.get_timezone_offset())\n}\nfn date_du_jour() -> String {\n    let d = js_sys::Date::new_0();\n    date_iso(d.get_full_year(), d.get_month() + 1, d.get_date())\n}\n",
+        )])
+        .is_empty(),
+        "decalage_du_geste, decalage_a ou date_du_jour est refusée"
+    );
+    // Chaque mot n'est admis que dans ses fonctions : l'horloge, pas dans `decalage_a` ; la date à
+    // l'heure locale, pas dans `decalage_du_geste`.
+    refuse(
+        &[source(
+            autre,
+            "fn decalage_a(le: i64) -> i32 {\n    let d = js_sys::Date::new_0();\n}\n",
+        )],
+        "app/ui/src/autre.rs:2 contient « Date::new_0 »",
+    );
+    refuse(
+        &[source(
+            autre,
+            "fn decalage_du_geste() -> i32 {\n    let h = d.get_hours();\n}\n",
+        )],
+        "app/ui/src/autre.rs:2 contient « get_hours »",
+    );
+    // La fin de `decalage_du_geste` et celle de `decalage_a` sont la `}` qui ferme leur corps.
+    refuse(
+        &[source(
+            autre,
+            "fn decalage_du_geste() -> i32 {\n    1\n}\nfn autre() {\n    let d = js_sys::Date::new_0();\n}\n",
+        )],
+        "app/ui/src/autre.rs:5 contient « Date::new_0 »",
+    );
+    refuse(
+        &[source(
+            autre,
+            "fn decalage_a(le: i64) -> i32 {\n    d.get_timezone_offset()\n}\nfn autre() {\n    let z = d.getTimezoneOffset();\n}\n",
+        )],
+        "app/ui/src/autre.rs:5 contient « getTimezoneOffset »",
+    );
+    // La date à l'heure locale, hors de `date_du_jour` : l'heure, un texte à la manière du pays.
+    refuse(
+        &[source(
+            autre,
+            "fn autre() {\n    let h = d.get_hours();\n}\n",
+        )],
+        "app/ui/src/autre.rs:2 contient « get_hours »",
+    );
+    refuse(
+        &[source(
+            autre,
+            "fn autre() {\n    let t = d.to_locale_date_string(\"fr\", &o);\n}\n",
+        )],
+        "app/ui/src/autre.rs:2 contient « to_locale »",
+    );
+    // Une lecture en UTC n'est pas une lecture à l'heure locale.
+    assert!(
+        controler(&[source(
+            autre,
+            "fn autre() {\n    let j = d.getUTCDate();\n    let k = d.get_utc_date();\n}\n",
+        )])
+        .is_empty(),
+        "une lecture en UTC est refusée"
     );
     // Un mot dans un commentaire ou une doc ne compte pas.
     assert!(
@@ -510,5 +662,64 @@ fn i31_chaque_controle_refuse_ce_qu_on_y_plante() {
         )])
         .is_empty(),
         "un commentaire est refusé"
+    );
+}
+
+#[test]
+fn i29_ni_greffon_ni_api_de_notification_dans_l_interface() {
+    let manifeste = lire(&racine_du_depot().join(MANIFESTE));
+    let fautes = controler_i29(&manifeste, &sources_du_depot());
+    assert!(fautes.is_empty(), "{fautes:#?}");
+
+    let autre = "app/ui/src/autre.rs";
+    let sain = "[dependencies]\nleptos = \"0.8.23\"\n";
+    let aucune = Vec::<(String, String)>::new();
+    assert!(controler_i29(sain, &aucune).is_empty());
+    // L'API de notification, dans une source et dans la page.
+    assert_eq!(
+        controler_i29(
+            sain,
+            &[source(
+                autre,
+                "let n = web_sys::Notification::new(\"Bonjour\");\n"
+            )]
+        ),
+        vec!["app/ui/src/autre.rs:1 contient « Notification »".to_string()]
+    );
+    assert_eq!(
+        controler_i29(
+            sain,
+            &[source(
+                "app/ui/index.html",
+                "<script>Notification.requestPermission();</script>\n"
+            )]
+        ),
+        vec!["app/ui/index.html:1 contient « Notification »".to_string()]
+    );
+    // Le greffon, ou la fonction de `web-sys` qui porte l'API, dans le manifeste.
+    assert_eq!(
+        controler_i29(
+            "[dependencies]\ntauri-plugin-notification = \"2\"\n",
+            &aucune
+        ),
+        vec!["app/ui/Cargo.toml:2 contient « notification »".to_string()]
+    );
+    assert_eq!(
+        controler_i29(
+            "[dependencies]\nweb-sys = { version = \"0.3\", features = [\"Notification\"] }\n",
+            &aucune
+        ),
+        vec!["app/ui/Cargo.toml:2 contient « Notification »".to_string()]
+    );
+    // Les lignes `//` des sources, et `#` du manifeste, ne comptent pas.
+    assert!(
+        controler_i29(
+            "# notification\n[dependencies]\n",
+            &[source(
+                autre,
+                "/// aucune notification (I29)\n    // web_sys::Notification\nfn f() {}\n"
+            )]
+        )
+        .is_empty()
     );
 }
