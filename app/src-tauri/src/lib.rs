@@ -11,6 +11,7 @@ use noyau::table::CoucheSombre;
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
+mod fil;
 // Rien ne l'appelle avant la tâche 3 (le fil du fonds) : l'allow tombe avec elle.
 #[allow(dead_code)]
 mod systeme;
