@@ -4,7 +4,7 @@
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 
-use super::gestes::{IdeeLue, Provenance, Sorte};
+use super::gestes::{IdeeLue, Provenance, Sorte, date_civile};
 use super::idee::{Assiette, assiette};
 
 /// L'ordre de la boîte : il n'écrit rien et ne s'annule pas ; le tri est un geste (question 17).
@@ -181,4 +181,88 @@ pub fn retirees(idees: Vec<EnBoite>) -> Vec<EnBoite> {
             .then_with(|| a.idee.id.as_bytes().cmp(b.idee.id.as_bytes()))
     });
     retirees
+}
+
+/// Le mot au singulier pour 0 et 1, au pluriel dès 2 (question 18 ; LE-6, règle 9).
+fn accorde(n: usize, singulier: &str, pluriel: &str) -> String {
+    format!("{n} {}", if n >= 2 { pluriel } else { singulier })
+}
+
+/// Ce que l'assiette ajoute au compte : « · K illisible(s) » si elle en compte (les considérées
+/// moins celles qui portent la donnée), puis « · M interrogée(s) ».
+fn suite_de_l_assiette(assiette: Assiette) -> String {
+    let illisibles = assiette.considerees - assiette.portant;
+    let mut suite = String::new();
+    if illisibles > 0 {
+        suite.push_str(" · ");
+        suite.push_str(&accorde(illisibles, "illisible", "illisibles"));
+    }
+    suite.push_str(" · ");
+    suite.push_str(&accorde(assiette.considerees, "interrogée", "interrogées"));
+    suite
+}
+
+/// « N idée(s) non reliée(s) », puis « · K illisible(s) » si l'assiette en compte, puis
+/// « · M interrogée(s) » (question 18).
+pub fn texte_du_compte(non_reliees: usize, assiette: Assiette) -> String {
+    format!(
+        "{}{}",
+        accorde(non_reliees, "idée non reliée", "idées non reliées"),
+        suite_de_l_assiette(assiette)
+    )
+}
+
+/// « N idée(s) », puis de même (question 18).
+pub fn texte_du_filtre(retenues: usize, assiette: Assiette) -> String {
+    format!(
+        "{}{}",
+        accorde(retenues, "idée", "idées"),
+        suite_de_l_assiette(assiette)
+    )
+}
+
+/// Les mois abrégés de la liste, de janvier à décembre (question 24).
+const MOIS_ABREGES: [&str; 12] = [
+    "janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.",
+    "déc.",
+];
+
+/// « 3 nov. 2026 », « 1er janv. 2027 » : le jour de `heure`, en secondes, au décalage
+/// `decalage_minutes`, avec l'année et sans heure (question 24).
+pub fn date_de_la_liste(heure: i64, decalage_minutes: i32) -> String {
+    let (annee, mois, jour) = date_civile(heure, decalage_minutes);
+    let mois = MOIS_ABREGES[mois];
+    if jour == 1 {
+        format!("1er {mois} {annee}")
+    } else {
+        format!("{jour} {mois} {annee}")
+    }
+}
+
+/// « m:ss » sous une heure, « h:mm:ss » dès une heure, arrondie à la seconde inférieure ; « — »
+/// sans durée (question 23).
+pub fn duree_affichee(duree_ms: Option<u64>) -> String {
+    let Some(duree_ms) = duree_ms else {
+        return "—".to_string();
+    };
+    let secondes = duree_ms / 1_000;
+    let heures = secondes / 3_600;
+    let minutes = secondes % 3_600 / 60;
+    let reste = secondes % 60;
+    if heures > 0 {
+        format!("{heures}:{minutes:02}:{reste:02}")
+    } else {
+        format!("{minutes}:{reste:02}")
+    }
+}
+
+/// L'étiquette saisie, telle qu'elle s'envoie : les blancs autour ôtés, puis un `#` de tête, puis
+/// les blancs que celui-ci laissait (question 29).
+pub fn etiquette_saisie(texte: &str) -> String {
+    let sans_blancs = texte.trim();
+    sans_blancs
+        .strip_prefix('#')
+        .unwrap_or(sans_blancs)
+        .trim()
+        .to_string()
 }

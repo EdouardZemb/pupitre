@@ -217,6 +217,11 @@ fn le_compte_et_le_filtre_disent_leur_assiette_et_s_accordent() {
         texte_du_compte(2, a(4, 2)),
         "2 idées non reliées · 2 illisibles · 4 interrogées"
     );
+    // 5 considérées, 2 portantes : 3 illisibles (ni 5 / 2, ni 5 + 2, ni 5 * 2).
+    assert_eq!(
+        texte_du_compte(2, a(5, 2)),
+        "2 idées non reliées · 3 illisibles · 5 interrogées"
+    );
     assert_eq!(texte_du_filtre(0, a(4, 4)), "0 idée · 4 interrogées");
     assert_eq!(texte_du_filtre(1, a(4, 4)), "1 idée · 4 interrogées");
     assert_eq!(

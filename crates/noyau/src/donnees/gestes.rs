@@ -219,9 +219,12 @@ impl fmt::Display for Impossible {
     }
 }
 
-/// Les mois, de mars à février : l'année du calcul civil commence le 1er mars, et le jour de
-/// février qui finit une année bissextile en est le dernier.
-const MOIS_DEPUIS_MARS: [&str; 12] = [
+/// Les mois, de janvier à décembre, indexés par le mois de `date_civile` (0 à 11) : la table
+/// d'avant, qui allait de mars à février, était l'ordre du calcul civil ; ce calcul le convertit
+/// désormais, une seule fois, dans `date_civile`.
+const MOIS: [&str; 12] = [
+    "janvier",
+    "février",
     "mars",
     "avril",
     "mai",
@@ -232,18 +235,17 @@ const MOIS_DEPUIS_MARS: [&str; 12] = [
     "octobre",
     "novembre",
     "décembre",
-    "janvier",
-    "février",
 ];
 
-/// « 3 novembre », « 1er novembre » : le jour que dit le message d'un geste (§ 30 · 11), celui de
-/// `heure`, en secondes, au décalage local `decalage_minutes` que l'interface donne, sans année.
-pub fn date_du_message(heure: i64, decalage_minutes: i32) -> String {
+/// (année, mois de 0 à 11 depuis janvier, jour) de `heure`, en secondes, au décalage local
+/// `decalage_minutes`.
+pub(crate) fn date_civile(heure: i64, decalage_minutes: i32) -> (i64, usize, i64) {
     let jours = (heure + i64::from(decalage_minutes) * 60).div_euclid(86_400);
     // Le calcul civil inversé (« civil from days », H. Hinnant), sur des entiers, dans une ère
     // de 400 ans, 146 097 jours, qui commence un 1er mars (celle de 1600 à 2000, par exemple).
-    // `doe`, le jour de l'ère, de 0 à 146 096 : 719 468 jours vont du 1er mars de l'an 0 au
-    // 1er janvier 1970.
+    // `ere`, le numéro de l'ère. `doe`, le jour de l'ère, de 0 à 146 096 : 719 468 jours vont du
+    // 1er mars de l'an 0 au 1er janvier 1970.
+    let ere = (jours + 719_468).div_euclid(146_097);
     let doe = (jours + 719_468).rem_euclid(146_097);
     // `yoe`, l'année de l'ère, de 0 à 399. Les termes de siècle ne la changent qu'aux abords du
     // 1er mars : `doe / 36_524`, aux premiers jours de mars après le premier siècle de l'ère
@@ -255,7 +257,21 @@ pub fn date_du_message(heure: i64, decalage_minutes: i32) -> String {
     // `mp`, le mois, de 0 (mars) à 11 (février).
     let mp = (5 * doy + 2) / 153;
     let jour = doy - (153 * mp + 2) / 5 + 1;
-    let mois = MOIS_DEPUIS_MARS[mp as usize];
+    // Le mois depuis janvier : mars (0) à décembre (9) deviennent 2 à 11, janvier (10) et février
+    // (11) deviennent 0 et 1, et ces deux-là appartiennent à l'année qui suit celle du calcul.
+    let (mois, annee) = if mp < 10 {
+        ((mp + 2) as usize, yoe + ere * 400)
+    } else {
+        ((mp - 10) as usize, yoe + ere * 400 + 1)
+    };
+    (annee, mois, jour)
+}
+
+/// « 3 novembre », « 1er novembre » : le jour que dit le message d'un geste (§ 30 · 11), celui de
+/// `heure`, en secondes, au décalage local `decalage_minutes` que l'interface donne, sans année.
+pub fn date_du_message(heure: i64, decalage_minutes: i32) -> String {
+    let (_, mois, jour) = date_civile(heure, decalage_minutes);
+    let mois = MOIS[mois];
     if jour == 1 {
         format!("1er {mois}")
     } else {
