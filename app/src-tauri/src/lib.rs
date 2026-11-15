@@ -150,9 +150,20 @@ pub(crate) fn gestionnaire<R: tauri::Runtime>()
     ]
 }
 
+/// Le gestionnaire du protocole `captation` jusqu'à la tranche 5 : toute requête est refusée, 404,
+/// sans corps (question 12). WebView2 le sert à `http://captation.localhost/`.
+pub(crate) fn refuser_la_captation(
+    _requete: &tauri::http::Request<Vec<u8>>,
+) -> tauri::http::Response<Vec<u8>> {
+    tauri::http::Response::builder()
+        .status(tauri::http::StatusCode::NOT_FOUND)
+        .body(Vec::new())
+        .expect("une réponse sans corps se construit")
+}
+
 /// L'établi : au démarrage, la racine des données s'ouvre sous le dossier de l'application, par
 /// le fil du fonds, et Tauri garde l'ouverture dans son état ; puis le gestionnaire sert les
-/// commandes.
+/// commandes, et le protocole `captation` refuse toute requête.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -161,6 +172,9 @@ pub fn run() {
             let dossier = systeme::dossier_de_l_application(app.handle())?;
             app.manage(systeme::ouvrir(&dossier));
             Ok(())
+        })
+        .register_uri_scheme_protocol("captation", |_contexte, requete| {
+            refuser_la_captation(&requete)
         })
         .invoke_handler(gestionnaire())
         .run(tauri::generate_context!())
@@ -185,7 +199,11 @@ pub(crate) mod tests {
                 .body(Vec::new())
                 .unwrap_or_else(|e| panic!("la requête {uri} se construit : {e}"));
             let reponse = refuser_la_captation(&requete);
-            assert_eq!(reponse.status(), tauri::http::StatusCode::NOT_FOUND, "{uri}");
+            assert_eq!(
+                reponse.status(),
+                tauri::http::StatusCode::NOT_FOUND,
+                "{uri}"
+            );
             assert!(reponse.body().is_empty(), "{uri}");
         }
     }
