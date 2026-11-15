@@ -1,0 +1,27 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "windows",
+  "description": "Les droits de la fenêtre principale sous Windows : chaque commande de l'application, nommée ; aucun droit du noyau de Tauri ni d'un greffon (§ 40 · 7.5)",
+  "platforms": [
+    "windows"
+  ],
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "allow-noter",
+    "allow-completer",
+    "allow-poser-une-etiquette",
+    "allow-oter-une-etiquette",
+    "allow-relier",
+    "allow-delier",
+    "allow-regrouper",
+    "allow-retirer",
+    "allow-retablir",
+    "allow-annuler",
+    "allow-vue-d-une-idee",
+    "allow-idees",
+    "allow-journal",
+    "allow-exporter-cahier"
+  ]
+}

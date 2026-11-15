@@ -72,8 +72,9 @@ jobs:
     runs-on: ubuntu-latest
     # Deux fois le plus long passage complet mesuré à froid (« No cache found. »), le graphe de
     # l'établi et le fonds de mesure compris : 5 min 53 s le 2026-11-15, PR #43 (exécution
-    # 43717435077) ; avant, 4 min 47 s le 2026-11-14, PR #40, sans le fonds de mesure (LE-29 de
-    # modele-projet).
+    # 43717435077) ; avant, 4 min 47 s le 2026-11-14, PR #40, sans le fonds de mesure ; depuis,
+    # 3 min 55 s le 2026-11-15, PR #44 (exécution 43733973477), le contrôle statique de
+    # l'interface compris (LE-29 de modele-projet).
     timeout-minutes: 12
     permissions:
       contents: read
@@ -167,7 +168,9 @@ jobs:
     # Deux fois le plus long passage complet mesuré à froid (« No cache found. »), le stockage, la
     # synchronisation, l'établi et le cahier compris : 29 min 42 s le 2026-11-14, PR #39, dont
     # 17 min 36 s pour installer trunk et tauri-cli ; 28 min 11 s le 2026-11-15, PR #43 (exécution
-    # 43717435077), la sentinelle d'I30 comprise, dont 16 min 11 s (LE-29 de modele-projet).
+    # 43717435077), la sentinelle d'I30 comprise, dont 16 min 11 s ; 23 min 20 s le 2026-11-15,
+    # PR #44 (exécution 43733973477), les tests d'I31 compris, dont 13 min 32 s (LE-29 de
+    # modele-projet).
     timeout-minutes: 60
     permissions:
       contents: read

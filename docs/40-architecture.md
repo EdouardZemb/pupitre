@@ -506,36 +506,38 @@ script de l'interface, dont le chargeur en ligne que Trunk écrit dans `index.ht
 |---|---|---|
 | `default-src` | `'self'` | Rien que les fichiers de l'application |
 | `script-src` | `'self' 'wasm-unsafe-eval'` | L'interface est un module WebAssembly, que la WebView compile ; son seul script en ligne, le chargeur de Trunk, n'est admis que par l'empreinte que Tauri ajoute ; ni `'unsafe-inline'`, ni `eval` |
-| `style-src` | `'self'` | La feuille de style de l'interface. Un style calculé se pose propriété par propriété (`style:left=…` en Leptos, soit `style.setProperty`), jamais par un attribut `style`, ni par `cssText`, que la CSP refuse. Les trois styles calculés d'INC-0 (`app/ui/src/vue_table.rs` : `place_du_recouvrement`, `place_de_la_palette` et `largeur_de_la_fiche`, que pose `app/ui/src/panneau_palette.rs`) sont passés en propriétés au lot 1, avant que la CSP ne soit posée |
-| `img-src`, `media-src` | `'self'`, et le protocole des captations, `captation`, qui s'écrit `http://captation.localhost` sous Windows et Android, comme `ipc` | Une photo, une prise, un stem : le côté natif les sert par leur empreinte, en lecture seule, et rien d'autre. Le protocole de fichiers de Tauri (`asset:`), qui sert tout un dossier, n'est pas employé. Si `useHttpsScheme` est un jour posé, la valeur passe en `https` |
-| `connect-src` | `'self'`, et le canal des commandes de Tauri (`ipc:`, `http://ipc.localhost`) | L'interface ne lit que ses propres fichiers, son module WebAssembly compris, et ne parle qu'au côté natif ; la synchronisation se fait de ce côté-là ([ADR-022](adr/adr-022-documents-cote-natif.md)) |
+| `style-src` | `'self'` | La feuille de style de l'interface. Un style calculé se pose propriété par propriété (`style:left=…` en Leptos, soit `style.setProperty`), jamais par un attribut `style`, que la CSP refuse, ni par `cssText`, que la CSP admet mais que le contrôle statique de l'interface refuse, pour qu'un style calculé ne se pose que d'une façon. Les trois styles calculés d'INC-0 (`app/ui/src/vue_table.rs` : `place_du_recouvrement`, `place_de_la_palette` et `largeur_de_la_fiche`, que pose `app/ui/src/panneau_palette.rs`) sont passés en propriétés au lot 1, avant que la CSP ne soit posée |
+| `img-src`, `media-src` | `'self'`, et le protocole des captations, `captation`, qui s'écrit `http://captation.localhost` sous Windows et Android, comme le canal des commandes | Une photo, une prise, un stem : le côté natif les sert par leur empreinte, en lecture seule, et rien d'autre ; jusqu'à la tranche 5 du lot 1, le gestionnaire du protocole refuse toute requête (404, corps vide). Le protocole de fichiers de Tauri (`asset:`), qui sert tout un dossier, n'est pas employé. Si `useHttpsScheme` est un jour posé, la valeur passe en `https` |
+| `connect-src` | `'self'`, et le canal des commandes de Tauri, `http://ipc.localhost`, sa forme sous Windows et Android ; `ipc:`, sa forme sur les plateformes qui ne sont pas des cibles, n'est pas admis | L'interface ne lit que ses propres fichiers, son module WebAssembly compris, et ne parle qu'au côté natif ; la synchronisation se fait de ce côté-là ([ADR-022](adr/adr-022-documents-cote-natif.md)) |
 | `object-src`, `frame-src`, `base-uri`, `form-action` | `'none'` | Rien à incorporer, rien à envoyer |
 
 La CSP exacte, que `tauri.conf.json` recopie :
 
 ```text
-default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' http://captation.localhost; media-src 'self' http://captation.localhost; connect-src 'self' ipc: http://ipc.localhost; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'
+default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' http://captation.localhost; media-src 'self' http://captation.localhost; connect-src 'self' http://ipc.localhost; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'
 ```
 
 La comparaison porte sur `tauri.conf.json`, avant que Tauri n'y ajoute, à la construction,
-les empreintes des scripts.
+les empreintes des scripts. Aucun `devCsp` : sous `cargo tauri dev`, la fenêtre charge
+`trunk serve` (`devUrl`), que Tauri ne sert pas, et aucune CSP ne s'y applique ; seule
+l'application construite porte la CSP, et aucun job ne lance `cargo tauri dev`.
 
 **Les droits de Tauri** ne permettent à l'interface que ce qu'ils nomment.
 
 - Chaque commande est déclarée au manifeste de l'application, dans `build.rs` : sans lui,
   Tauri permet toute commande.
 - Un fichier de droits par plateforme, sous `app/src-tauri/capabilities/`, nomme une à une
-  les commandes permises, et les seuls droits du noyau de Tauri que l'interface emploie,
-  comme l'écoute du signal par lequel le côté natif lui dit qu'un document a changé. Aucun
-  droit de greffon n'est donné à l'interface : un greffon, comme la boîte d'enregistrement
-  du cahier, s'emploie du côté natif.
+  les commandes permises, et les seuls droits du noyau de Tauri que l'interface emploie :
+  au lot 1, aucun ; l'écoute du signal par lequel le côté natif lui dit qu'un document a
+  changé viendra avec le lot 3. Aucun droit de greffon n'est donné à l'interface : un
+  greffon, comme la boîte d'enregistrement du cahier, s'emploie du côté natif.
 - Que l'API de Tauri soit exposée à l'interface (`withGlobalTauri`) ou non, une commande que
   les droits ne nomment pas est refusée : la frontière est celle des droits, et, pour le
   protocole des captations, celle de son gestionnaire.
 
 | Plateforme | Appareil | Ce que l'interface peut appeler |
 |---|---|---|
-| Windows | 💻 Établi | L'export du cahier des tables, depuis INC-0 ; au lot 1 d'INC-1, les opérations nommées et les requêtes du fonds, l'import, l'archive complète et la reprise depuis l'archive, la relance sur la démonstration ou sur le fonds, et, en mode démonstration seulement, réécrire le jeu factice ou engendrer le fonds de mesure |
+| Windows | 💻 Établi | L'export du cahier des tables, depuis INC-0 ; au lot 1 d'INC-1, les opérations nommées et les requêtes du fonds, l'import, l'archive complète et la reprise depuis l'archive, la relance sur la démonstration ou sur le fonds, et, en mode démonstration seulement, réécrire le jeu factice ou engendrer le fonds de mesure, une borne que le côté natif tient (tranche 7 du lot 1), les droits ne distinguant pas les modes |
 | Android | 📱 Carnet, puis 📖 lutrin | Rien, tant que la PR de conception du lot 2 n'a pas nommé les commandes du carnet |
 | Toute autre | — | Rien : aucune n'est une cible |
 
@@ -545,10 +547,11 @@ deux sous Android. Ce que le lutrin n'a pas, les opérations destructrices et le
 destructrice, quand elle viendra, se confirmera du côté natif, hors de l'interface : un code
 injecté ne peut pas confirmer à la place de Sacha.
 
-La liste exacte des commandes vit dans ces fichiers, et nulle part ailleurs : I31 la compare
-aux commandes de l'application, et la CSP au bloc de la CSP exacte, plus haut
-([§ 70 · 3](70-qualite-et-verification.md#3-les-invariants-et-leurs-tests)). Si un écran
-demande davantage, la PR qui l'ajoute le dit et l'écrit ici.
+La liste exacte des commandes vit dans `commandes::NOMS` : `build.rs` en tire
+le manifeste de l'application, chaque fichier de droits la recopie en `allow-<nom>`, chaque
+`_` devenu `-`, et I31 compare les trois, avec `generate_handler!` ; la CSP se compare au bloc
+de la CSP exacte, plus haut ([§ 70 · 3](70-qualite-et-verification.md#3-les-invariants-et-leurs-tests)).
+Si un écran demande davantage, la PR qui l'ajoute le dit et l'écrit ici.
 
 ---
 
