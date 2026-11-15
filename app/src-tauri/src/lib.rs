@@ -11,6 +11,7 @@ use noyau::table::CoucheSombre;
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
+mod commandes_de_l_etabli;
 // Rien ne l'appelle hors des tests avant la tâche 4 : l'allow tombe quand `run()` appelle le fil.
 #[allow(dead_code)]
 mod fil;
