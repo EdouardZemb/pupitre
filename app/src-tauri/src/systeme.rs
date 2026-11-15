@@ -70,4 +70,39 @@ mod tests {
         let dossier = crate::tests::dossier_jetable("racine-des-donnees");
         assert_eq!(racine_des_donnees(&dossier), dossier.join("donnees"));
     }
+
+    /// L'identifiant de l'application, lu dans `tauri.conf.json`.
+    fn identifiant_de_tauri_conf() -> String {
+        let conf: serde_json::Value = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tauri.conf.json"
+        )))
+        .expect("tauri.conf.json est du JSON");
+        conf["identifier"]
+            .as_str()
+            .expect("tauri.conf.json porte un identifiant")
+            .to_string()
+    }
+
+    #[test]
+    #[ignore = "le garde-fou d'I30 : l'étape « La sentinelle d'I30 » du job windows le lance"]
+    fn i30_le_dossier_que_tauri_resout_tombe_dans_la_sentinelle() {
+        let sentinelle = std::env::var("PUPITRE_SENTINELLE").expect(
+            "PUPITRE_SENTINELLE nomme la sentinelle : le garde-fou ne tourne que sous elle",
+        );
+        let identifiant = identifiant_de_tauri_conf();
+        assert_eq!(identifiant, "app.pupitre.etabli");
+        let mut contexte = tauri::test::mock_context(tauri::test::noop_assets());
+        contexte.config_mut().identifier = identifiant.clone();
+        let app = tauri::test::mock_builder().build(contexte).unwrap();
+        let dossier = dossier_de_l_application(app.handle()).unwrap();
+        assert!(
+            dossier.starts_with(&sentinelle),
+            "le dossier résolu n'est pas dans la sentinelle"
+        );
+        assert!(
+            dossier.ends_with("autre.identifiant"),
+            "le dossier résolu n'est pas celui de l'application"
+        );
+    }
 }

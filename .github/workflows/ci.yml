@@ -109,6 +109,19 @@ jobs:
             sortie=$(cargo tree -p interface -e no-dev --prefix none $cible)
             if grep -E "$interdits" <<<"$sortie"; then exit 1; fi
           done
+      # L'établi tel qu'il se livre, pour Windows, sa seule cible : ni pannes, ni en-memoire, ni
+      # protocol-asset (décision 7 ; I31). L'essai sur le stockage prouve que la recherche trouve une
+      # fonction quand ses dépendances de test l'activent, et que -e no-dev l'écarte sans elles.
+      - name: Le graphe de l'établi
+        run: |
+          interdits='feature "(en-memoire|pannes|protocol-asset)"'
+          sortie=$(cargo tree -p stockage -e features --prefix none)
+          grep -Eq '^stockage feature "pannes"' <<<"$sortie"
+          sortie=$(cargo tree -p stockage -e no-dev,features --prefix none)
+          if grep -Eq '^stockage feature "pannes"' <<<"$sortie"; then exit 1; fi
+          sortie=$(cargo tree -p etabli -e no-dev,features --prefix none --target x86_64-pc-windows-msvc)
+          grep -Eq '^tauri feature "' <<<"$sortie"
+          if grep -E "$interdits" <<<"$sortie"; then exit 1; fi
       - name: Format
         run: cargo fmt --all --check
       - name: Lint
@@ -184,6 +197,31 @@ jobs:
         run: cargo clippy -p etabli --all-targets -- -D warnings
       - name: Tests de l'établi
         run: cargo test -p etabli
+      # I30 (§ 70 · 3) : les tests de l'établi, relancés sous un dossier de l'application redirigé vers
+      # une sentinelle vide. USERPROFILE porte la sentinelle, que SHGetKnownFolderPath développe ; APPDATA et
+      # LOCALAPPDATA, ses sous-dossiers, créés d'abord (sans eux, l'appel échoue). CARGO_HOME et RUSTUP_HOME
+      # gardent leurs vrais dossiers, lus avant la redirection. L'essai prouve que la recherche voit un
+      # fichier caché ; $LASTEXITCODE se lit, puisqu'un exécutable en échec n'arrête pas PowerShell.
+      - name: La sentinelle d'I30
+        run: |
+          $cargo = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path $env:USERPROFILE '.cargo' }
+          $rustup = if ($env:RUSTUP_HOME) { $env:RUSTUP_HOME } else { Join-Path $env:USERPROFILE '.rustup' }
+          $essai = Join-Path $env:RUNNER_TEMP 'sentinelle-essai'
+          New-Item -ItemType Directory -Force $essai | Out-Null
+          (New-Item -ItemType File (Join-Path $essai 'cache')).Attributes = 'Hidden'
+          if (-not (Get-ChildItem -LiteralPath $essai -Recurse -File -Force)) { throw "l'essai ne voit pas le fichier caché" }
+          $s = Join-Path $env:RUNNER_TEMP 'sentinelle'
+          New-Item -ItemType Directory -Force (Join-Path $s 'AppData\Roaming'), (Join-Path $s 'AppData\Local') | Out-Null
+          $env:CARGO_HOME = $cargo
+          $env:RUSTUP_HOME = $rustup
+          $env:USERPROFILE = $s
+          $env:APPDATA = Join-Path $s 'AppData\Roaming'
+          $env:LOCALAPPDATA = Join-Path $s 'AppData\Local'
+          $env:PUPITRE_SENTINELLE = $s
+          cargo test -p etabli -- --include-ignored
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $paru = Get-ChildItem -LiteralPath $s -Recurse -File -Force
+          if ($paru) { $paru | ForEach-Object { $_.FullName.Substring($s.Length) }; throw 'un fichier a paru dans la sentinelle' }
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: etabli-installateur
