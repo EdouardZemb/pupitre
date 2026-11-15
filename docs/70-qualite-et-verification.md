@@ -373,8 +373,11 @@ qu'elle protège :
 poser avec l'application mobile. Dans la ligne 4, I17, I18, I19, I25, I26 et I27 ont leur test
 depuis INC-0 ; I01, I10 et I28, depuis la tranche 2 du lot 1 d'INC-1 ; I14 en a une part depuis
 H07, reprise et étendue en tranche 1, le reste venant en tranches 5 et 6 ; I30 a son garde-fou et son contrôle statique
-depuis la tranche 3 (PR #43), et son second test, la démonstration, vient en tranche 7. Les
-autres invariants attendent le code qu'ils verrouillent. Les lignes 5 et 6 restent à venir.
+depuis la tranche 3 (PR #43), et son second test, la démonstration, vient en tranche 7 ; I31 a
+ses tests de la CSP, des droits et du manifeste de l'application, et le contrôle statique de
+l'interface, depuis la tranche 3 (PR #44), et le test du protocole des captations, qui refuse
+jusque-là toute requête, vient en tranche 5. Les autres invariants attendent le code qu'ils
+verrouillent. Les lignes 5 et 6 restent à venir.
 
 **Une porte se corrige par le code ou le document qu'elle refuse, pas en l'affaiblissant**
 à son premier faux positif. On n'assouplit une règle que si le faux positif est structurel,
