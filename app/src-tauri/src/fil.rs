@@ -38,6 +38,13 @@ pub struct FilDuFonds {
     /// L'émetteur des demandes ; `None` une fois le fil fermé.
     emetteur: Mutex<Option<mpsc::Sender<Demande>>>,
     /// Le fil ; `None` une fois sa fin attendue.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "la tranche 6 ferme le fil avant de renommer `donnees/` ; les tests"
+        )
+    )]
     fil: Mutex<Option<JoinHandle<()>>>,
 }
 
@@ -143,6 +150,10 @@ where
 
 impl Ouverture {
     /// Demande `f` au fil, et attend sa réponse ; refusée, ou fil tombé : le refus.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "les tests ; les commandes passent par `demander`")
+    )]
     pub fn demander_bloquant<T: Send + 'static>(
         &self,
         f: impl for<'r> FnOnce(&mut ServicesSurFichiers<'r>, &mut Contexte<'_>) -> Reponse<T>
@@ -169,6 +180,13 @@ impl Ouverture {
     /// Ferme le fil : l'émetteur tombe, le fil finit sa demande en cours, rend les services, puis
     /// la racine des données et son verrou, et `fermer` attend sa fin. Sans effet sur une
     /// `Refusee`.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "la tranche 6 ferme le fil avant de renommer `donnees/` ; les tests"
+        )
+    )]
     pub fn fermer(&self) {
         if let Ouverture::Ouverte(fil) = self {
             fil.fermer();
@@ -195,6 +213,13 @@ impl FilDuFonds {
     /// dernier émetteur cloné, qu'une demande lâche dès son envoi ; puis sa fin s'attend. Le verrou
     /// de `fil` reste pris pendant l'attente : un second `fermer` attend la même fin, puis ne
     /// trouve plus rien à attendre.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "la tranche 6 ferme le fil avant de renommer `donnees/` ; les tests"
+        )
+    )]
     fn fermer(&self) {
         drop(
             self.emetteur
