@@ -70,11 +70,27 @@ fn controler_les_droits(droits: &Value, noms: &[&str]) -> Vec<String> {
     fautes
 }
 
-/// `build.rs` : `AppManifest::new().commands(commandes::NOMS)`, blancs ignorés, et aucun
-/// `default_permission`, qui permettrait tout.
+/// Le texte sans ses lignes de commentaire (dont le début, blancs ôtés, est `//`) : un appel ou un
+/// mot cité en commentaire ne compte ni pour ni contre.
+fn sans_commentaires(texte: &str) -> String {
+    texte
+        .lines()
+        .filter(|ligne| !ligne.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join(
+            "
+",
+        )
+}
+
+/// `build.rs` : `AppManifest::new().commands(commandes::NOMS)`, blancs ignorés, commentaires
+/// ignorés, et aucun `default_permission`, qui permettrait tout.
 fn controler_le_manifeste(build_rs: &str) -> Vec<String> {
     let mut fautes = Vec::new();
-    let sans_blancs: String = build_rs.chars().filter(|c| !c.is_whitespace()).collect();
+    let sans_blancs: String = sans_commentaires(build_rs)
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect();
     if !sans_blancs.contains("AppManifest::new().commands(commandes::NOMS)") {
         fautes.push(
             "build.rs ne tire pas le manifeste de l'application de commandes::NOMS".to_string(),
@@ -82,6 +98,113 @@ fn controler_le_manifeste(build_rs: &str) -> Vec<String> {
     }
     if sans_blancs.contains("default_permission") {
         fautes.push("build.rs pose un default_permission, qui permettrait tout".to_string());
+    }
+    fautes
+}
+
+/// Les sources que la CSP admet, comparées entières.
+const SOURCES_ADMISES: [&str; 5] = [
+    "'self'",
+    "'none'",
+    "'wasm-unsafe-eval'",
+    "http://captation.localhost",
+    "http://ipc.localhost",
+];
+
+/// La CSP : chaque directive (`;`) ; son premier mot est son nom, hors de la comparaison ; chacun
+/// des suivants est une source, et seules sont admises `SOURCES_ADMISES`, comparées entières.
+fn controler_la_csp(csp: &str) -> Vec<String> {
+    let mut fautes = Vec::new();
+    for directive in csp.split(';') {
+        let mut mots = directive.split_whitespace();
+        let Some(nom) = mots.next() else { continue };
+        for source in mots {
+            if !SOURCES_ADMISES.contains(&source) {
+                fautes.push(format!("CSP, {nom} : la source {source} n'est pas admise"));
+            }
+        }
+    }
+    fautes
+}
+
+/// La configuration : `app.security.csp` est une chaîne ; aucune clé interdite sous
+/// `app.security`, ni `useHttpsScheme` sous une fenêtre, sous l'une ou l'autre de leurs formes.
+fn controler_la_configuration(conf: &Value) -> Vec<String> {
+    let mut fautes = Vec::new();
+    let securite = &conf["app"]["security"];
+    if !securite["csp"].is_string() {
+        fautes.push("app.security.csp n'est pas une chaîne".to_string());
+    }
+    for cle in [
+        "dangerousDisableAssetCspModification",
+        "dangerous-disable-asset-csp-modification",
+        "assetProtocol",
+        "asset-protocol",
+        "devCsp",
+        "dev-csp",
+    ] {
+        if securite.get(cle).is_some() {
+            fautes.push(format!("app.security.{cle} est posée"));
+        }
+    }
+    if let Some(fenetres) = conf["app"]["windows"].as_array() {
+        for (rang, fenetre) in fenetres.iter().enumerate() {
+            for cle in ["useHttpsScheme", "use-https-scheme"] {
+                if fenetre.get(cle).is_some() {
+                    fautes.push(format!("app.windows[{rang}].{cle} est posée"));
+                }
+            }
+        }
+    }
+    fautes
+}
+
+/// `generate_handler![…]` de `src/lib.rs`, lignes de commentaire écartées : le dernier segment de
+/// chaque chemin, comme ensemble, égale `noms`.
+fn controler_le_gestionnaire(source_de_lib: &str, noms: &[&str]) -> Vec<String> {
+    let mut fautes = Vec::new();
+    let source = sans_commentaires(source_de_lib);
+    let Some(debut) = source.find("generate_handler![") else {
+        return vec!["generate_handler! est absent de src/lib.rs".to_string()];
+    };
+    let reste = &source[debut + "generate_handler![".len()..];
+    let Some(fin) = reste.find(']') else {
+        return vec!["generate_handler! n'est pas fermé".to_string()];
+    };
+    let portes: Vec<&str> = reste[..fin]
+        .split(',')
+        .map(str::trim)
+        .filter(|chemin| !chemin.is_empty())
+        .map(|chemin| chemin.rsplit("::").next().unwrap_or(chemin))
+        .collect();
+    for nom in noms {
+        if !portes.contains(nom) {
+            fautes.push(format!("{nom} manque à generate_handler!"));
+        }
+    }
+    for porte in &portes {
+        if !noms.contains(porte) {
+            fautes.push(format!(
+                "{porte} : generate_handler! nomme ce que NOMS n'a pas"
+            ));
+        }
+    }
+    fautes
+}
+
+/// Le `Cargo.toml` d'`etabli` : aucune fonction `protocol-asset`, lignes de commentaire écartées.
+fn controler_le_cargo_toml(cargo_toml: &str) -> Vec<String> {
+    let mut fautes = Vec::new();
+    let texte: String = cargo_toml
+        .lines()
+        .filter(|ligne| !ligne.trim_start().starts_with('#'))
+        .collect::<Vec<_>>()
+        .join(
+            "
+",
+        );
+    if texte.contains("protocol-asset") {
+        fautes.push("Cargo.toml tire la fonction protocol-asset".to_string());
     }
     fautes
 }
