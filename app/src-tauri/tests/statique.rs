@@ -1,0 +1,320 @@
+//! Contrôle statique d'I30 (§ 70 · 3) : hors du module `systeme` de l'établi, aucun code ne devine
+//! un chemin, ne lit l'horloge ni ne tire l'aléa ; l'acteur d'Automerge ne naît que dans les
+//! fichiers que le contrôle admet (`ACTEUR_ADMIS`). Le test lit sur le disque chaque `src/` de
+//! `crates/` et celui de l'établi ; une racine dont aucune source n'est lue est une faute.
+//! L'interface a sa propre règle.
+
+use std::fs;
+use std::path::{Path, PathBuf};
+
+/// Les dossiers de `crates/` que le contrôle doit trouver : une crate ajoutée est lue sans
+/// retouche, mais ce plancher garde un dossier renommé de passer sans rien lire.
+const AU_MOINS_DES_CRATES: usize = 6;
+
+/// L'établi, dont les sources sont lues, nommées depuis la racine du dépôt.
+const ETABLI: &str = "app/src-tauri/src/";
+
+/// Le seul fichier qui devine un chemin, lit l'horloge et tire l'aléa.
+const SYSTEME: &str = "app/src-tauri/src/systeme.rs";
+
+/// Le fichier de l'établi qui porte `dossier_jetable`, seul admis à nommer `temp_dir`, une fois.
+const LIB_DE_L_ETABLI: &str = "app/src-tauri/src/lib.rs";
+
+/// Les chemins devinés : le dossier de l'utilisateur, les dossiers du système, leurs variables
+/// d'environnement. Admis dans `SYSTEME` ; `temp_dir` l'est aussi, une fois, dans
+/// `LIB_DE_L_ETABLI`. Un chemin se reçoit.
+const CHEMINS_DEVINES: &[&str] = &[
+    "home_dir",
+    "temp_dir",
+    "data_dir",
+    "data_local_dir",
+    "config_dir",
+    "cache_dir",
+    "document_dir",
+    "app_data_dir",
+    "app_local_data_dir",
+    "app_config_dir",
+    "app_cache_dir",
+    "app_log_dir",
+    "download_dir",
+    "desktop_dir",
+    "audio_dir",
+    "picture_dir",
+    "video_dir",
+    "public_dir",
+    "template_dir",
+    "font_dir",
+    "runtime_dir",
+    "executable_dir",
+    "resource_dir",
+    "BaseDirectory",
+    "SHGetKnownFolderPath",
+    "GetTempPath",
+    "\"USERPROFILE\"",
+    "\"HOME\"",
+    "\"APPDATA\"",
+    "\"LOCALAPPDATA\"",
+    "\"TEMP\"",
+    "\"TMP\"",
+    "dirs::",
+];
+
+/// L'horloge, admise dans `SYSTEME`.
+const HORLOGE: &[&str] = &["SystemTime", "Instant", "UNIX_EPOCH"];
+
+/// L'aléa, admis dans `SYSTEME`.
+const ALEA: &[&str] = &["getrandom", "rand::", "OsRng", "thread_rng"];
+
+/// L'acteur d'Automerge : il naît de l'un de ces mots, ou d'une copie du document.
+const ACTEUR: &[&str] = &[
+    "ActorId::random",
+    "Automerge::new",
+    ".fork(",
+    "fork_at",
+    "Automerge::load",
+    "load_with_options",
+];
+
+/// Les seuls fichiers où l'acteur naît : les documents sur fichiers, le démarrage du fonds, et
+/// l'application des opérations nommées avec son adaptateur en mémoire.
+const ACTEUR_ADMIS: &[&str] = &[
+    "crates/stockage/src/documents.rs",
+    "crates/stockage/src/demarrage.rs",
+    "crates/services/src/application.rs",
+    "crates/services/src/en_memoire.rs",
+];
+
+/// Les fautes d'I30 sur `sources`, des paires (chemin, texte) nommées depuis la racine du dépôt.
+/// Une ligne dont le début, blancs ôtés, est `//` (commentaire, doc) ne compte pas ; tout le reste
+/// se lit en sous-chaîne, sensible à la casse. Chaque faute nomme le fichier, la ligne et le mot.
+fn controler(sources: &[(String, String)]) -> Vec<String> {
+    let mut fautes = Vec::new();
+    for (chemin, texte) in sources {
+        let mut temp_dir_vus = 0;
+        for (indice, ligne) in texte.lines().enumerate() {
+            if ligne.trim_start().starts_with("//") {
+                continue;
+            }
+            let mut faute = |mot: &str| {
+                fautes.push(format!("{chemin}:{} contient « {mot} »", indice + 1));
+            };
+            if chemin != SYSTEME {
+                for mot in CHEMINS_DEVINES.iter().filter(|mot| ligne.contains(**mot)) {
+                    if *mot == "temp_dir" && chemin == LIB_DE_L_ETABLI {
+                        temp_dir_vus += ligne.matches(mot).count();
+                        if temp_dir_vus <= 1 {
+                            continue;
+                        }
+                    }
+                    faute(mot);
+                }
+                for mot in HORLOGE
+                    .iter()
+                    .chain(ALEA)
+                    .filter(|mot| ligne.contains(**mot))
+                {
+                    faute(mot);
+                }
+            }
+            if !ACTEUR_ADMIS.contains(&chemin.as_str()) {
+                for mot in ACTEUR.iter().filter(|mot| ligne.contains(**mot)) {
+                    faute(mot);
+                }
+            }
+        }
+    }
+    fautes
+}
+
+/// Une source inventée, nommée depuis la racine du dépôt.
+fn source(chemin: &str, texte: &str) -> (String, String) {
+    (chemin.to_string(), texte.to_string())
+}
+
+fn lire(chemin: &Path) -> String {
+    fs::read_to_string(chemin).unwrap_or_else(|e| panic!("lecture de {} : {e}", chemin.display()))
+}
+
+/// Tous les fichiers `*.rs` sous `dossier`, en descendant dans les sous-dossiers.
+fn fichiers_rs(dossier: &Path, sortie: &mut Vec<PathBuf>) {
+    for entree in fs::read_dir(dossier).expect("lecture du dossier") {
+        let chemin = entree.expect("entrée").path();
+        if chemin.is_dir() {
+            fichiers_rs(&chemin, sortie);
+        } else if chemin.extension().is_some_and(|e| e == "rs") {
+            sortie.push(chemin);
+        }
+    }
+}
+
+/// `chemin`, relatif à `racine`, ses composants joints par `/`, sous Windows comme sous Linux.
+fn relatif(racine: &Path, chemin: &Path) -> String {
+    let reste = chemin
+        .strip_prefix(racine)
+        .expect("un chemin sous la racine");
+    reste
+        .components()
+        .map(|composant| composant.as_os_str().to_string_lossy())
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+/// La racine du dépôt, deux dossiers au-dessus de l'établi.
+fn racine_du_depot() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .expect("la racine du dépôt")
+}
+
+/// Les `src/` lus : celui de chaque dossier de `crates/`, listés à l'exécution, et celui de
+/// l'établi.
+fn dossiers_src(racine: &Path) -> Vec<PathBuf> {
+    let mut dossiers: Vec<PathBuf> = fs::read_dir(racine.join("crates"))
+        .expect("lecture de crates/")
+        .map(|entree| entree.expect("entrée").path().join("src"))
+        .filter(|src| src.is_dir())
+        .collect();
+    dossiers.push(racine.join("app/src-tauri/src"));
+    dossiers.sort();
+    dossiers
+}
+
+/// Les sources du dépôt, lues sur le disque, nommées depuis la racine du dépôt.
+fn sources_du_depot() -> Vec<(String, String)> {
+    let racine = racine_du_depot();
+    let mut fichiers = Vec::new();
+    for src in dossiers_src(&racine) {
+        fichiers_rs(&src, &mut fichiers);
+    }
+    fichiers.sort();
+    fichiers
+        .iter()
+        .map(|f| (relatif(&racine, f), lire(f)))
+        .collect()
+}
+
+/// `controler` refuse `sources` d'une seule faute, `attendue`, telle qu'il la dit : le fichier, la
+/// ligne et le mot.
+fn refuse(sources: &[(String, String)], attendue: &str) {
+    assert_eq!(controler(sources), vec![attendue.to_string()]);
+}
+
+#[test]
+fn i30_hors_de_systeme_ni_chemin_devine_ni_horloge_ni_alea() {
+    let fautes = controler(&sources_du_depot());
+    assert!(fautes.is_empty(), "{fautes:#?}");
+}
+
+#[test]
+fn i30_chaque_racine_lue_porte_des_sources() {
+    let racine = racine_du_depot();
+    let sources = sources_du_depot();
+    let crates: Vec<_> = dossiers_src(&racine)
+        .into_iter()
+        .map(|src| relatif(&racine, &src) + "/")
+        .filter(|src| src.starts_with("crates/"))
+        .collect();
+    assert!(
+        crates.len() >= AU_MOINS_DES_CRATES,
+        "moins de {AU_MOINS_DES_CRATES} crates lues : {crates:?}"
+    );
+    for src in crates.iter().map(String::as_str).chain([ETABLI]) {
+        assert!(
+            sources.iter().any(|(chemin, _)| chemin.starts_with(src)),
+            "aucune source lue sous {src}"
+        );
+    }
+}
+
+#[test]
+fn i30_chaque_controle_refuse_ce_qu_on_y_plante() {
+    let lib = "app/src-tauri/src/lib.rs";
+    let systeme = "app/src-tauri/src/systeme.rs";
+    // Le seul `temp_dir` admis de l'établi : un second est refusé, sur sa ligne à lui.
+    assert!(
+        controler(&[source(lib, "let d = std::env::temp_dir().join(nom);\n")]).is_empty(),
+        "le temp_dir de dossier_jetable est refusé"
+    );
+    refuse(
+        &[source(
+            lib,
+            "let d = std::env::temp_dir().join(nom);\nlet e = std::env::temp_dir();\n",
+        )],
+        "app/src-tauri/src/lib.rs:2 contient « temp_dir »",
+    );
+    // Un import groupé, qui ne nomme pas `std::env::temp_dir`.
+    let cahier = "crates/cahier/src/main.rs";
+    refuse(
+        &[source(
+            cahier,
+            "use std::{env, path::Path};\nfn f() { let _ = env::temp_dir(); }\n",
+        )],
+        "crates/cahier/src/main.rs:2 contient « temp_dir »",
+    );
+    refuse(
+        &[source(lib, "let d = app.path().home_dir();\n")],
+        "app/src-tauri/src/lib.rs:1 contient « home_dir »",
+    );
+    refuse(
+        &[source(
+            lib,
+            "let d = app.path().resolve(\"x\", BaseDirectory::Download);\n",
+        )],
+        "app/src-tauri/src/lib.rs:1 contient « BaseDirectory »",
+    );
+    let stockage = "crates/stockage/src/lib.rs";
+    refuse(
+        &[source(
+            stockage,
+            "let d = std::env::var(\"LOCALAPPDATA\");\n",
+        )],
+        "crates/stockage/src/lib.rs:1 contient « \"LOCALAPPDATA\" »",
+    );
+    let services = "crates/services/src/lib.rs";
+    refuse(
+        &[source(services, "let t = SystemTime::now();\n")],
+        "crates/services/src/lib.rs:1 contient « SystemTime »",
+    );
+    let documents = "crates/stockage/src/documents.rs";
+    refuse(
+        &[source(
+            documents,
+            "getrandom::fill(&mut octets).unwrap();\n",
+        )],
+        "crates/stockage/src/documents.rs:1 contient « getrandom »",
+    );
+    let synchro = "crates/synchro/src/lib.rs";
+    refuse(
+        &[source(synchro, "let doc = Automerge::new();\n")],
+        "crates/synchro/src/lib.rs:1 contient « Automerge::new »",
+    );
+    let lecture = "crates/services/src/lecture.rs";
+    refuse(
+        &[source(lecture, "let copie = doc.fork();\n")],
+        "crates/services/src/lecture.rs:1 contient « .fork( »",
+    );
+    // L'acteur n'est pas admis dans `systeme`, qui n'admet que les chemins, l'horloge et l'aléa.
+    refuse(
+        &[source(systeme, "let a = ActorId::random();\n")],
+        "app/src-tauri/src/systeme.rs:1 contient « ActorId::random »",
+    );
+    // `systeme` admet l'horloge ; les fichiers d'`ACTEUR_ADMIS` admettent l'acteur.
+    assert!(
+        controler(&[source(systeme, "let t = SystemTime::now();\n")]).is_empty(),
+        "systeme refuse l'horloge"
+    );
+    assert!(
+        controler(&[source(documents, "let doc = Automerge::new();\n")]).is_empty(),
+        "documents.rs refuse l'acteur"
+    );
+    // Un mot dans un commentaire ou une doc ne compte pas.
+    assert!(
+        controler(&[source(
+            lecture,
+            "/// home_dir\n    // SystemTime\nfn f() {}\n"
+        )])
+        .is_empty(),
+        "un commentaire est refusé"
+    );
+}

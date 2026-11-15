@@ -1,4 +1,6 @@
-//! L'établi : l'enveloppe Tauri de l'interface, et l'export du cahier des tables.
+//! L'établi : l'enveloppe Tauri de l'interface ; le fil du fonds, qui possède la racine des
+//! données et sert une à une les commandes que l'interface envoie ; et l'export du cahier des
+//! tables.
 
 use std::fs::File;
 use std::io::Write;
@@ -7,9 +9,12 @@ use std::path::Path;
 use noyau::rendu::Instrument;
 use noyau::rendu::pages::Date;
 use noyau::table::CoucheSombre;
-#[cfg(desktop)]
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
+
+mod commandes_de_l_etabli;
+mod fil;
+mod systeme;
 
 /// L'instrument que l'interface nomme : « guitare », « clavier » ou « les-deux ».
 fn lire_instrument(s: &str) -> Option<Instrument> {
@@ -83,8 +88,8 @@ fn ecrire_le_cahier(
 /// `Ok(None)` : la boîte a été fermée, rien n'est écrit ; `Ok(Some(nom du fichier))` ;
 /// `Err(message en français)`.
 #[tauri::command]
-async fn exporter_cahier(
-    app: tauri::AppHandle,
+async fn exporter_cahier<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
     date: String,
     instrument: String,
     couche: String,
@@ -123,17 +128,47 @@ async fn exporter_cahier(
     .map_err(|e| format!("l'export s'est interrompu : {e}"))?
 }
 
+/// Le gestionnaire des commandes : `generate_handler!`, qui nomme `exporter_cahier` et chaque
+/// commande de `commandes_de_l_etabli` ; `run()` et les tests le partagent.
+pub(crate) fn gestionnaire<R: tauri::Runtime>()
+-> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static {
+    tauri::generate_handler![
+        exporter_cahier,
+        commandes_de_l_etabli::noter,
+        commandes_de_l_etabli::completer,
+        commandes_de_l_etabli::poser_une_etiquette,
+        commandes_de_l_etabli::oter_une_etiquette,
+        commandes_de_l_etabli::relier,
+        commandes_de_l_etabli::delier,
+        commandes_de_l_etabli::regrouper,
+        commandes_de_l_etabli::retirer,
+        commandes_de_l_etabli::retablir,
+        commandes_de_l_etabli::annuler,
+        commandes_de_l_etabli::vue_d_une_idee,
+        commandes_de_l_etabli::idees,
+        commandes_de_l_etabli::journal,
+    ]
+}
+
+/// L'établi : au démarrage, la racine des données s'ouvre sous le dossier de l'application, par
+/// le fil du fonds, et Tauri garde l'ouverture dans son état ; puis le gestionnaire sert les
+/// commandes.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![exporter_cahier])
+        .setup(|app| {
+            let dossier = systeme::dossier_de_l_application(app.handle())?;
+            app.manage(systeme::ouvrir(&dossier));
+            Ok(())
+        })
+        .invoke_handler(gestionnaire())
         .run(tauri::generate_context!())
         .expect("l'établi ne démarre pas");
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::path::PathBuf;
 
@@ -165,7 +200,7 @@ mod tests {
     /// dossier de l'application (I30) : `pupitre-etabli-<nom>-<processus>`. Ce qu'un passage
     /// précédent y a laissé est effacé, puis le dossier est recréé, vide. C'est le seul endroit
     /// des tests d'`etabli` qui devine un chemin.
-    fn dossier_jetable(nom: &str) -> PathBuf {
+    pub(crate) fn dossier_jetable(nom: &str) -> PathBuf {
         let dossier =
             std::env::temp_dir().join(format!("pupitre-etabli-{nom}-{}", std::process::id()));
         match std::fs::remove_dir_all(&dossier) {

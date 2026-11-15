@@ -26,8 +26,9 @@ pub struct RacineDesDonnees {
     /// Le fichier `verrou`, tenu ouvert : le système lève le verrou quand il se ferme, donc
     /// quand la racine des données se ferme, et aussi à un arrêt brutal.
     _verrou: File,
-    /// Un [`Document`] du fonds vit dans ce processus. Un `AtomicBool`, pour que la racine des
-    /// données reste `Sync` (l'état de l'application, en tranche 3).
+    /// Un [`Document`] du fonds vit dans ce processus. Un `AtomicBool`, que la garde prend et rend
+    /// par `&self` (`prendre_la_garde`, `rendre_la_garde`). La racine des données ne quitte jamais
+    /// le fil du fonds de l'établi, qui la possède.
     fonds_ouvert: AtomicBool,
 }
 
