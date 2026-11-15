@@ -43,9 +43,10 @@ const STOCKAGE: &[&str] = &[
 const HORLOGE: &[&str] = &["Date::new_0", "Date::now", "performance"];
 
 /// Le décalage local : `getTimezoneOffset`, et chaque lecture à l'heure locale (l'année, le mois,
-/// le jour, le jour de la semaine, l'heure, les minutes, un texte à la manière du pays, `Intl`),
-/// admis dans les seules fonctions que nomme `admis_dans`. Une lecture en UTC (`getUTCDate`) n'en
-/// est pas une.
+/// le jour, le jour de la semaine, l'heure, les minutes, un texte à la manière du pays, `Intl`, la
+/// date ou l'heure en texte, une date construite à l'heure locale par
+/// `new_with_year_month_day…`), admis dans les seules fonctions que nomme `admis_dans`. Une
+/// lecture en UTC (`getUTCDate`) n'en est pas une.
 const DECALAGE_LOCAL: &[&str] = &[
     "get_timezone_offset",
     "getTimezoneOffset",
@@ -65,6 +66,11 @@ const DECALAGE_LOCAL: &[&str] = &[
     "toLocale",
     "Intl",
     "DateTimeFormat",
+    "to_date_string",
+    "toDateString",
+    "to_time_string",
+    "toTimeString",
+    "new_with_year_month_day",
 ];
 
 /// Les fonctions dont le contrôle suit le corps : les seules où un mot de `HORLOGE` ou de
@@ -644,6 +650,30 @@ fn i31_chaque_controle_refuse_ce_qu_on_y_plante() {
             "fn autre() {\n    let t = d.to_locale_date_string(\"fr\", &o);\n}\n",
         )],
         "app/ui/src/autre.rs:2 contient « to_locale »",
+    );
+    // L'heure en texte, et une date construite à l'heure locale, hors de `date_du_jour`.
+    refuse(
+        &[source(
+            autre,
+            "fn autre() {\n    let t = d.to_time_string();\n}\n",
+        )],
+        "app/ui/src/autre.rs:2 contient « to_time_string »",
+    );
+    refuse(
+        &[source(
+            autre,
+            "fn autre() {\n    let d = js_sys::Date::new_with_year_month_day(2026, 10, 1);\n}\n",
+        )],
+        "app/ui/src/autre.rs:2 contient « new_with_year_month_day »",
+    );
+    // Dans `date_du_jour`, elles sont admises comme les autres lectures à l'heure locale.
+    assert!(
+        controler(&[source(
+            autre,
+            "fn date_du_jour() -> String {\n    let d = js_sys::Date::new_0();\n    String::from(d.to_date_string())\n}\n",
+        )])
+        .is_empty(),
+        "to_date_string est refusée dans date_du_jour"
     );
     // Une lecture en UTC n'est pas une lecture à l'heure locale.
     assert!(
