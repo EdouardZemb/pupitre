@@ -91,6 +91,11 @@ impl Documents for DocumentsEnMemoire {
         self.lecture_seule.clone()
     }
 
+    /// Aucun : en mémoire, rien ne s'écrit sur un disque qui avertirait.
+    fn avertissements(&self) -> Vec<String> {
+        Vec::new()
+    }
+
     /// Le fonds ne naît qu'une fois : déjà né, `Raison::Impossible`, et rien ne change.
     fn faire_naitre(&mut self, naissance: &Operation, geste: &Operation) -> Ecriture {
         if self.automerge.is_some() {

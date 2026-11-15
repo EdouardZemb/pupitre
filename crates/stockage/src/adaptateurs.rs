@@ -66,6 +66,23 @@ impl Documents for FondsSurFichiers<'_> {
         Some(refus(Erreur::LectureSeule(raison.clone()), self.racine))
     }
 
+    /// Les avertissements du document ([`Document::avertissements`] : ceux de la naissance ou de
+    /// l'ouverture), chacun en texte par `texte_de`, chaque chemin dit relatif à la racine des
+    /// données, jamais par le `Display` d'un `Avertissement`, qui écrirait le chemin entier ; sans
+    /// document, aucun.
+    fn avertissements(&self) -> Vec<String> {
+        self.document
+            .as_ref()
+            .map(|document| {
+                document
+                    .avertissements()
+                    .iter()
+                    .map(|avertissement| texte_de(avertissement, self.racine))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     /// [`RacineDesDonnees::faire_naitre`] : le document né, et l'avertissement de sa naissance,
     /// s'il en vient un. Un document déjà ouvert ([`Erreur::FondsDejaOuvert`]), ou un fonds déjà
     /// né ([`Erreur::FondsDejaNe`]) : `Raison::Impossible`, et rien ne change.
