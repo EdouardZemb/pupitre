@@ -67,9 +67,9 @@ impl Documents for FondsSurFichiers<'_> {
     }
 
     /// Les avertissements du document ([`Document::avertissements`] : ceux de la naissance ou de
-    /// l'ouverture), chacun en texte par `texte_de`, chaque chemin dit relatif à la racine des
-    /// données, jamais par le `Display` d'un `Avertissement`, qui écrirait le chemin entier ; sans
-    /// document, aucun.
+    /// l'ouverture, et ceux que des réceptions refusées en chemin n'ont pu rendre), chacun en
+    /// texte par `texte_de`, chaque chemin dit relatif à la racine des données, jamais par le
+    /// `Display` d'un `Avertissement`, qui écrirait le chemin entier ; sans document, aucun.
     fn avertissements(&self) -> Vec<String> {
         self.document
             .as_ref()

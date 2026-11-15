@@ -30,7 +30,7 @@ use commandes::{
 };
 use noyau::donnees::boite::{self, EnBoite};
 use noyau::donnees::changement::Operation;
-use noyau::donnees::gestes::{self, GesteDeTri, IdeeLue, Impossible};
+use noyau::donnees::gestes::{self, CaptationLue, GesteDeTri, IdeeLue, Impossible};
 use noyau::donnees::identifiants::{ulid, uuid_v4};
 
 /// Ce que le côté natif donne à une commande qui écrit : l'heure du geste et l'aléa, des
@@ -352,11 +352,7 @@ impl<D: Documents, C: Captations> Services<D, C> {
         let fonds = self.documents.fonds().ok_or_else(|| idee_absente(idee))?;
         let lue = lecture::lire_l_idee(fonds, idee).ok_or_else(|| idee_absente(idee))?;
         let captations = lecture::captations_de(fonds, idee);
-        let prises: Vec<Option<u64>> = captations
-            .iter()
-            .filter(|captation| captation.sorte == gestes::Sorte::Prise)
-            .map(|captation| captation.duree_ms)
-            .collect();
+        let duree_ms = duree_des_prises(&captations);
         let mut liens: Vec<String> = lue
             .liens
             .iter()
@@ -383,7 +379,7 @@ impl<D: Documents, C: Captations> Services<D, C> {
                 })
                 .collect(),
             reliee,
-            duree_ms: noyau::donnees::idee::duree(&prises),
+            duree_ms,
             retiree: lue.retiree,
         })
     }
@@ -438,9 +434,9 @@ impl<D: Documents, C: Captations> Services<D, C> {
     }
 
     /// L'état du fonds : né ou non (`documents.fonds().is_some()`), la lecture seule
-    /// (`documents.lecture_seule()`), les avertissements de l'ouverture
-    /// (`documents.avertissements()`), et le message de l'opération du dernier geste de tri, celui
-    /// qu'annuler défait. En lecture seule comme ailleurs.
+    /// (`documents.lecture_seule()`), ses avertissements (`documents.avertissements()`), et le
+    /// message de l'opération du dernier geste de tri, celui qu'annuler défait. En lecture seule
+    /// comme ailleurs.
     pub fn etat_du_fonds(&self) -> Reponse<EtatDuFonds> {
         Ok(EtatDuFonds {
             ne: self.documents.fonds().is_some(),
@@ -483,10 +479,10 @@ fn idee_lue(fonds: &Automerge, idee: &str) -> Result<IdeeLue, Impossible> {
 /// le nombre de celles qui ne se lisent pas : les idées par `lecture::idees_et_illisibles`, leurs
 /// captations par `lecture::captations_par_idee`, leurs photos par
 /// `lecture::idees_avec_une_photo`, chacune lue une fois ; les contenus par
-/// `noyau::donnees::boite::contenus_de`, la durée, des seules prises, par
-/// `noyau::donnees::idee::duree`, et l'état de reliée par `noyau::donnees::idee::reliee`, l'autre
-/// bout de chaque lien dit retiré s'il est l'une des idées retirées lues, si bien qu'un bout
-/// illisible compte non retiré, comme dans `Services::vue_d_une_idee`.
+/// `noyau::donnees::boite::contenus_de`, la durée par `duree_des_prises`, et l'état de reliée par
+/// `noyau::donnees::idee::reliee`, l'autre bout de chaque lien dit retiré s'il est l'une des idées
+/// retirées lues, si bien qu'un bout illisible compte non retiré, comme dans
+/// `Services::vue_d_une_idee`.
 fn en_boite(fonds: &Automerge) -> (Vec<EnBoite>, usize) {
     let (idees, illisibles) = lecture::idees_et_illisibles(fonds);
     let mut captations = lecture::captations_par_idee(fonds);
@@ -500,24 +496,31 @@ fn en_boite(fonds: &Automerge) -> (Vec<EnBoite>, usize) {
         .into_iter()
         .map(|idee| {
             let siennes = captations.remove(&idee.id).unwrap_or_default();
-            let prises: Vec<Option<u64>> = siennes
-                .iter()
-                .filter(|captation| captation.sorte == gestes::Sorte::Prise)
-                .map(|captation| captation.duree_ms)
-                .collect();
             EnBoite {
                 contenus: boite::contenus_de(
                     &idee,
                     siennes.iter().map(|captation| captation.sorte),
                     photos.contains(&idee.id),
                 ),
-                duree_ms: noyau::donnees::idee::duree(&prises),
+                duree_ms: duree_des_prises(&siennes),
                 reliee: noyau::donnees::idee::reliee(&idee, |autre| retirees.contains(autre)),
                 idee,
             }
         })
         .collect();
     (lues, illisibles)
+}
+
+/// La durée d'une idée, de ses captations : celle de ses seules prises, par
+/// `noyau::donnees::idee::duree` (§ 30 · 9.2) ; un MIDI versé ou un texte versé n'y entre pas. La
+/// vue d'une idée et la boîte la tirent toutes deux d'ici.
+fn duree_des_prises(captations: &[CaptationLue]) -> Option<u64> {
+    let prises: Vec<Option<u64>> = captations
+        .iter()
+        .filter(|captation| captation.sorte == gestes::Sorte::Prise)
+        .map(|captation| captation.duree_ms)
+        .collect();
+    noyau::donnees::idee::duree(&prises)
 }
 
 /// Les lignes de la fenêtre qui commence au rang `debut` de `rangees` et en prend `nombre`, borné

@@ -402,15 +402,16 @@ pub struct VueDesRetirees {
     pub lignes: Vec<LigneDeLaBoite>,
 }
 
-/// L'état du fonds à l'ouverture, et après chaque commande : né ou non, la lecture seule, les
-/// avertissements de l'ouverture, et le message du geste qu'annuler vise.
+/// L'état du fonds à l'ouverture, et après chaque commande : né ou non, la lecture seule, ses
+/// avertissements, et le message du geste qu'annuler vise.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EtatDuFonds {
     /// Le fonds est né.
     pub ne: bool,
     /// Pourquoi le fonds n'écrit pas ; `None` s'il écrit.
     pub lecture_seule: Option<Refus>,
-    /// Les avertissements de la naissance ou de l'ouverture du fonds, lisibles.
+    /// Les avertissements de la naissance ou de l'ouverture du fonds, et ceux que des réceptions
+    /// refusées n'ont pu rendre, lisibles.
     pub avertissements: Vec<String>,
     /// Le message du dernier geste de tri, celui qu'annuler défait ; `None` sans geste à annuler.
     pub a_annuler: Option<String>,
