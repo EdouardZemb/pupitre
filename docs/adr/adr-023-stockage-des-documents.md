@@ -136,6 +136,16 @@ l'ADR-002 ne change pas.
   ([§ 41 · 6](../41-pile-technique.md#6-le-budget-de-dépendances)) ; Automerge, `sha2` et le
   système de fichiers suffisent au reste, renommage compris.
 
+> **Précision du 2026-11-15.** Le stockage ne déclare pas `getrandom` et ne tire aucun aléa ;
+> Automerge, pour ses acteurs, l'emporte dans son graphe. Les identifiants, la lignée comprise,
+> se forment dans les services, de l'aléa que chaque commande reçoit par le contexte du geste
+> (le contrat `Alea` des services). L'établi tire cet aléa par `getrandom`, dans son seul
+> module `systeme`, et le contrôle statique d'I30 refuse `getrandom` hors de ce module, dans
+> les `src/` des crates de `crates/` et de l'établi, `crates/stockage/src` compris
+> ([§ 70 · 3](../70-qualite-et-verification.md#3-les-invariants-et-leurs-tests)) ; le
+> [§ 41 · 6](../41-pile-technique.md#6-le-budget-de-dépendances) range ainsi `getrandom` sous
+> « Application (côté natif), nœud ». La décision ne change pas.
+
 ### Ce que ça coûte
 
 - La genèse et chaque migration se figent à leur publication, c'est-à-dire à la première
