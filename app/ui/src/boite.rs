@@ -120,6 +120,27 @@ fn couvre(
     debut <= premiere && fin <= debut + u64::from(demandee.nombre)
 }
 
+/// La fenêtre que demande une liste défilée de `defilement_px`, vue sur `hauteur_vue_px`, aux
+/// lignes de `hauteur_ligne_px` : celle de son défilement si `forcer`, ou si `derniere`, la
+/// dernière demandée, ne porte pas toutes les lignes vues parmi les `total` lues (`couvre`) ;
+/// sinon aucune. Elle n'est jamais bornée par le total lu, qu'un geste peut faire croître : la
+/// relecture d'après le geste, qui reprend la dernière fenêtre demandée, porte ainsi jusqu'à
+/// `MARGE` lignes nouvelles au bout de la liste.
+fn fenetre_a_demander(
+    derniere: Option<&Fenetre>,
+    defilement_px: f64,
+    hauteur_vue_px: f64,
+    hauteur_ligne_px: f64,
+    total: Option<u64>,
+    forcer: bool,
+) -> Option<Fenetre> {
+    let total = total.unwrap_or(u64::MAX);
+    let couverte =
+        derniere.is_some_and(|d| couvre(d, defilement_px, hauteur_vue_px, hauteur_ligne_px, total));
+    (forcer || !couverte)
+        .then(|| fenetre(defilement_px, hauteur_vue_px, hauteur_ligne_px, u64::MAX))
+}
+
 /// « Annuler : <message> », ou « Rien à annuler » (question 30).
 pub(crate) fn libelle_d_annulation(a_annuler: Option<&str>) -> String {
     match a_annuler {
@@ -348,15 +369,6 @@ impl Demandes {
     fn est_la_derniere(self, rang: u64) -> bool {
         self.rang.get_value() == rang
     }
-
-    /// Vrai si la dernière fenêtre demandée couvre les lignes vues (`couvre`).
-    fn couvrent(self, haut: f64, vue: f64, ligne: f64, total: u64) -> bool {
-        self.derniere.with_value(|derniere| {
-            derniere
-                .as_ref()
-                .is_some_and(|d| couvre(d, haut, vue, ligne, total))
-        })
-    }
 }
 
 /// Ce que la boîte garde tant que l'établi est ouvert, qu'elle se montre ou non : l'ordre et le
@@ -554,9 +566,8 @@ struct Ecran {
 }
 
 impl Ecran {
-    /// La fenêtre que demande la liste montée `liste` : celle de son défilement, si `forcer`, ou si
-    /// la dernière demandée (`demandes`) ne porte pas toutes les lignes vues. Le total, s'il est
-    /// connu et que rien ne force, la borne ; rien sans mesure.
+    /// La fenêtre que demande la liste montée `liste` (`fenetre_a_demander`), d'après la dernière
+    /// demandée (`demandes`) et le total lu ; rien sans mesure.
     fn a_demander(
         self,
         liste: NodeRef<html::Div>,
@@ -565,13 +576,9 @@ impl Ecran {
         forcer: bool,
     ) -> Option<Fenetre> {
         let (haut, vue, ligne) = mesures(liste, self.etalon)?;
-        let total = if forcer {
-            u64::MAX
-        } else {
-            total.unwrap_or(u64::MAX)
-        };
-        (forcer || !demandes.couvrent(haut, vue, ligne, total))
-            .then(|| fenetre(haut, vue, ligne, total))
+        demandes.derniere.with_value(|derniere| {
+            fenetre_a_demander(derniere.as_ref(), haut, vue, ligne, total, forcer)
+        })
     }
 
     /// Lit la fenêtre de la boîte que demande son défilement (`a_demander`).
