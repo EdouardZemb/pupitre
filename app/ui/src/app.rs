@@ -1,18 +1,22 @@
-//! L'établi : son état, et la place de l'en-tête, de la table et de la palette.
+//! L'établi : son état, sa page d'ouverture, et la place du bandeau, de l'en-tête, de la table et
+//! de la palette.
 
+use commandes::{ETAT_DU_FONDS, EtatDuFonds, Refus};
 use leptos::html;
 use leptos::prelude::*;
 use noyau::rendu::Instrument;
 use noyau::table::{CoucheSombre, Position, Table, table};
 use noyau::tonalite::Tonalite;
 
+use crate::bandeau::{Bandeau, Page, PageDuBandeau, VueDuBandeau, page_d_ouverture};
 use crate::entete::Entete;
+use crate::natif;
 use crate::panneau_palette::PanneauPalette;
 use crate::vue_table::VueTable;
 
 /// L'état de l'établi : la tonalité (do majeur), la couche sombre (masquée), l'instrument (les
-/// deux), la case touchée (aucune), et la palette, ouverte ou fermée. Rien n'en est gardé d'une
-/// ouverture à l'autre.
+/// deux), la case touchée (aucune), la palette, ouverte ou fermée, le bandeau (vide), et le dernier
+/// état du fonds reçu (aucun). Rien n'en est gardé d'une ouverture à l'autre.
 #[derive(Clone, Copy)]
 pub struct Etat {
     pub tonalite: RwSignal<Tonalite>,
@@ -22,6 +26,10 @@ pub struct Etat {
     pub palette: RwSignal<bool>,
     /// La table de la tonalité et de la couche choisies.
     pub table: Memo<Table>,
+    /// Le bandeau : l'état du fonds, le refus d'un geste ou d'une lecture, les avertissements.
+    pub bandeau: RwSignal<Bandeau>,
+    /// Le dernier état du fonds reçu, à l'ouverture ou après une commande ; aucun avant.
+    pub etat_du_fonds: RwSignal<Option<EtatDuFonds>>,
 }
 
 impl Etat {
@@ -36,7 +44,22 @@ impl Etat {
             touchee: RwSignal::new(None),
             palette: RwSignal::new(false),
             table: Memo::new(move |_| table(tonalite.get(), couche.get())),
+            bandeau: RwSignal::new(Bandeau::default()),
+            etat_du_fonds: RwSignal::new(None),
         }
+    }
+
+    /// L'état du fonds reçu, à l'ouverture ou après une commande : le bandeau le suit (à
+    /// l'ouverture, ses avertissements s'y ajoutent), et il devient le dernier reçu.
+    pub fn suivre_le_fonds(self, etat: EtatDuFonds, a_l_ouverture: bool) {
+        self.bandeau.update(|b| b.suivre(&etat, a_l_ouverture));
+        self.etat_du_fonds.set(Some(etat));
+    }
+
+    /// L'issue d'un geste, ou le refus d'une lecture, jamais une lecture réussie : le bandeau la
+    /// dit.
+    pub fn apres_un_geste(self, issue: &Result<Option<String>, Refus>) {
+        self.bandeau.update(|b| b.apres_un_geste(issue));
     }
 
     /// Une autre tonalité : la case touchée s'oublie, et la palette se ferme.
@@ -81,20 +104,39 @@ impl Etat {
     }
 }
 
-/// L'établi : l'en-tête en haut ; dessous, la table, et la place de la palette à sa droite.
+/// L'établi. Au montage, l'état du fonds se lit (`etat_du_fonds`), et décide de la page
+/// (`page_d_ouverture`) : l'établi, le bandeau en tête, puis l'en-tête, et dessous la table et la
+/// place de la palette à sa droite ; ou la page du seul bandeau. Rien ne s'affiche avant cette
+/// lecture. Lu, l'état du fonds passe au bandeau ; refusé, son refus aussi.
 #[component]
 pub fn App() -> impl IntoView {
     let etat = Etat::nouveau();
     // Le bouton « Palette » de la case touchée : la palette fermée lui rend le focus.
     let bouton_palette = NodeRef::<html::Button>::new();
-    view! {
-        <div class="etabli">
-            <Entete etat=etat />
-            <main class="plan">
-                <VueTable etat=etat bouton_palette=bouton_palette />
-                <PanneauPalette etat=etat bouton_palette=bouton_palette />
-            </main>
-        </div>
+    let page = RwSignal::new(None::<Page>);
+    leptos::task::spawn_local(async move {
+        let lu = natif::invoquer::<EtatDuFonds>(ETAT_DU_FONDS, None).await;
+        let ouverture = page_d_ouverture(&lu, natif::dans_l_application());
+        match lu {
+            Ok(fonds) => etat.suivre_le_fonds(fonds, true),
+            Err(refus) => etat.apres_un_geste(&Err(refus)),
+        }
+        page.set(Some(ouverture));
+    });
+    move || match page.get() {
+        None => ().into_any(),
+        Some(Page::BandeauSeul(texte)) => view! { <PageDuBandeau texte=texte /> }.into_any(),
+        Some(Page::Etabli) => view! {
+            <div class="etabli">
+                <VueDuBandeau bandeau=etat.bandeau />
+                <Entete etat=etat />
+                <main class="plan">
+                    <VueTable etat=etat bouton_palette=bouton_palette />
+                    <PanneauPalette etat=etat bouton_palette=bouton_palette />
+                </main>
+            </div>
+        }
+        .into_any(),
     }
 }
 

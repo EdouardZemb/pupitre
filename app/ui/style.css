@@ -113,6 +113,40 @@ button:disabled {
   text-overflow: ellipsis;
 }
 
+/* --- Le bandeau ------------------------------------------------------------------------- */
+
+/* En tête de l'établi, un message par source, l'état d'abord. La source se dit par le mot en
+   gras qui ouvre chaque message, jamais par une couleur. Sans message, le bandeau ne prend
+   aucune place ; son texte passe à la ligne, et « Fermer » sous lui, à 200 %. */
+.bandeau {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.message {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 1rem;
+  padding: 0.25rem 0.75rem;
+  border-bottom: 1px solid #000;
+}
+
+.message p {
+  flex: 1 1 20rem;
+  margin: 0;
+}
+
+/* La page du seul bandeau : le message, cadré, rien d'autre. */
+.bandeau-seul {
+  padding: 1rem;
+}
+
+.bandeau-seul .message {
+  border: 2px solid #000;
+}
+
 /* --- La table et la palette ------------------------------------------------------------- */
 
 /* Sous l'en-tête : la table, aussi grande que la fenêtre le permet à son rapport 209,5 : 157,

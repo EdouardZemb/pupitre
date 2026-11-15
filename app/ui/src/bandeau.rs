@@ -2,6 +2,212 @@
 //! avertissements, dits en tête de l'établi, chacun par un mot en tête, jamais par la seule
 //! couleur ; et la page d'ouverture, l'établi ou le seul bandeau (question 4).
 
+use commandes::{EtatDuFonds, Refus};
+use leptos::prelude::*;
+
+/// D'où vient un message du bandeau.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Source {
+    /// L'état du fonds : sa lecture seule, une version de schéma plus récente comprise.
+    Etat,
+    /// Le refus d'un geste, ou d'une lecture.
+    Refus,
+    /// Un avertissement : le geste est fait, ou le fonds ouvert, mais Sacha doit en savoir quelque
+    /// chose.
+    Avertissement,
+}
+
+impl Source {
+    /// Le mot en tête du message, qui dit sa source : la couleur ne la dit jamais seule.
+    pub fn mot(self) -> &'static str {
+        match self {
+            Source::Etat => "Lecture seule :",
+            Source::Refus => "Refusé :",
+            Source::Avertissement => "Avertissement :",
+        }
+    }
+
+    /// Le rôle du message : un refus est une alerte (`alert`) ; un état ou un avertissement, un
+    /// statut (`status`).
+    pub fn role(self) -> &'static str {
+        match self {
+            Source::Refus => "alert",
+            Source::Etat | Source::Avertissement => "status",
+        }
+    }
+}
+
+/// Un message du bandeau : sa source, son texte, sans le mot de sa source, et s'il se ferme.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct MessageDuBandeau {
+    pub source: Source,
+    pub texte: String,
+    pub fermable: bool,
+}
+
+/// Le bandeau (I29 ; question 31) : un état (lecture seule, version de schéma plus récente), qui ne
+/// se ferme pas ; un refus, et des avertissements, qui restent jusqu'au geste réussi suivant ou
+/// jusqu'à « Fermer ».
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Bandeau {
+    /// Pourquoi le fonds n'écrit pas ; `None` s'il écrit.
+    etat: Option<String>,
+    /// Le refus du dernier geste refusé, ou d'une lecture.
+    refus: Option<String>,
+    /// Les avertissements, dans l'ordre de leur arrivée.
+    avertissements: Vec<String>,
+}
+
+impl Bandeau {
+    /// L'état du fonds, relu à l'ouverture et après chaque commande : sa lecture seule devient
+    /// l'état ; à l'ouverture, ses avertissements s'ajoutent. Après une commande, ils ne s'ajoutent
+    /// pas : l'issue du geste porte déjà le sien (`apres_un_geste`).
+    pub fn suivre(&mut self, etat: &EtatDuFonds, a_l_ouverture: bool) {
+        self.etat = etat
+            .lecture_seule
+            .as_ref()
+            .map(|refus| refus.message.clone());
+        if a_l_ouverture {
+            self.avertissements.extend_from_slice(&etat.avertissements);
+        }
+    }
+
+    /// L'issue d'un geste : réussi, le refus et les avertissements d'avant s'effacent, puis le
+    /// sien s'ajoute ; refusé, son message devient le refus. Le refus d'une lecture y passe aussi,
+    /// jamais une lecture réussie.
+    pub fn apres_un_geste(&mut self, issue: &Result<Option<String>, Refus>) {
+        match issue {
+            Ok(avertissement) => {
+                self.refus = None;
+                self.avertissements.clear();
+                if let Some(avertissement) = avertissement {
+                    self.avertissements.push(avertissement.clone());
+                }
+            }
+            Err(refus) => self.refus = Some(refus.message.clone()),
+        }
+    }
+
+    /// Ferme le refus ou les avertissements ; l'état ne se ferme pas.
+    pub fn fermer(&mut self, source: Source) {
+        match source {
+            Source::Etat => {}
+            Source::Refus => self.refus = None,
+            Source::Avertissement => self.avertissements.clear(),
+        }
+    }
+
+    /// Les messages, un par source, l'état d'abord, puis le refus, puis les avertissements, qui
+    /// font un seul message, se ferment ensemble et se suivent, séparés d'une espace.
+    pub fn messages(&self) -> Vec<MessageDuBandeau> {
+        let avertissements =
+            (!self.avertissements.is_empty()).then(|| self.avertissements.join(" "));
+        [
+            (Source::Etat, self.etat.clone(), false),
+            (Source::Refus, self.refus.clone(), true),
+            (Source::Avertissement, avertissements, true),
+        ]
+        .into_iter()
+        .filter_map(|(source, texte, fermable)| {
+            texte.map(|texte| MessageDuBandeau {
+                source,
+                texte,
+                fermable,
+            })
+        })
+        .collect()
+    }
+}
+
+/// Ce que l'établi ouvre : tout, ou, dans l'application, devant un refus de l'état du fonds (une
+/// racine tenue, une racine que le disque refuse), la page du seul bandeau (question 4). Hors de
+/// l'application (l'interface servie seule, dans un navigateur), tout s'ouvre, comme la table
+/// d'INC-0, et la boîte dit son refus en bandeau.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Page {
+    /// L'établi entier, son bandeau en tête.
+    Etabli,
+    /// Le seul bandeau, qui dit ce refus.
+    BandeauSeul(String),
+}
+
+/// La page qu'ouvre l'état du fonds `etat`, lu à l'ouverture : son refus, dans l'application, la
+/// page du seul bandeau ; tout autre cas, l'établi.
+pub(crate) fn page_d_ouverture(
+    etat: &Result<EtatDuFonds, Refus>,
+    dans_l_application: bool,
+) -> Page {
+    match etat {
+        Err(refus) if dans_l_application => Page::BandeauSeul(refus.message.clone()),
+        _ => Page::Etabli,
+    }
+}
+
+/// Le texte d'un message : le mot de sa source, en gras, puis ce qu'il dit, sous le rôle de sa
+/// source.
+fn texte_du_message(source: Source, texte: String) -> impl IntoView {
+    let role = source.role();
+    let mot = source.mot();
+    view! {
+        <p role=role>
+            <strong>{mot}</strong>
+            " "
+            {texte}
+        </p>
+    }
+}
+
+/// Le bandeau, en tête de l'établi : chaque message en texte, et un bouton « Fermer » s'il se
+/// ferme. Sans message, il ne prend aucune place.
+#[component]
+pub fn VueDuBandeau(bandeau: RwSignal<Bandeau>) -> impl IntoView {
+    view! {
+        <div class="bandeau">
+            {move || {
+                bandeau
+                    .get()
+                    .messages()
+                    .into_iter()
+                    .map(|message| {
+                        let source = message.source;
+                        let fermer = message
+                            .fermable
+                            .then(|| {
+                                view! {
+                                    <button
+                                        type="button"
+                                        on:click=move |_| bandeau.update(|b| b.fermer(source))
+                                    >
+                                        "Fermer"
+                                    </button>
+                                }
+                            });
+                        view! {
+                            <div class="message">
+                                {texte_du_message(source, message.texte)}
+                                {fermer}
+                            </div>
+                        }
+                    })
+                    .collect_view()
+            }}
+        </div>
+    }
+}
+
+/// La page du seul bandeau (question 4) : le refus de l'état du fonds, qui ne se ferme pas ;
+/// l'établi ne s'ouvre pas, et aucune commande ne passe.
+#[component]
+pub fn PageDuBandeau(texte: String) -> impl IntoView {
+    view! {
+        <main class="bandeau-seul">
+            <div class="bandeau">
+                <div class="message">{texte_du_message(Source::Refus, texte)}</div>
+            </div>
+        </main>
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
