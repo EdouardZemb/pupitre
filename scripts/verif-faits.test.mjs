@@ -6,6 +6,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  comparerLaCsp,
   comptesAdr,
   comptesNommes,
   controlesDesWorkflows,
@@ -708,4 +709,30 @@ test("comptesNommes relève les comptes en lettres et en chiffres, et laisse les
   assert.deepEqual(comptesNommes(graphies, ["crates", "jobs", "décisions d'architecture"]).map((c) => [c.nom, c.valeur]), [
     ["crates", 6], ["jobs", 8], ["décisions d'architecture", 2],
   ]);
+});
+
+test("comparerLaCsp compare la CSP de tauri.conf.json au bloc du § 7.5, octet pour octet", () => {
+  const csp = "default-src 'self'; object-src 'none'; base-uri 'none'";
+  const titre = "### 7.5 Titre";
+  const s = section([
+    titre,
+    "",
+    "La CSP exacte, que `tauri.conf.json` recopie :",
+    "",
+    "```text",
+    csp,
+    "```",
+    "",
+    "La comparaison porte sur `tauri.conf.json`.",
+  ].join("\n"), titre);
+  const conf = (c) => ({ app: { security: { csp: c } } });
+  const fautes = (args) => comparerLaCsp(args).join("\n");
+  assert.deepEqual(comparerLaCsp({ conf: conf(csp), section: s, fichierDeWindows: false }), []);
+  assert.match(fautes({ conf: conf({ "default-src": "'self'" }), section: s, fichierDeWindows: false }), /n'est pas une chaîne/);
+  const autre = csp.replace("object-src 'none'", "object-src 'self'");
+  assert.match(fautes({ conf: conf(autre), section: s, fichierDeWindows: false }), /diffère/);
+  assert.match(fautes({ conf: conf(csp), section: s, fichierDeWindows: true }), /tauri\.windows\.conf\.json/);
+  const sans = section([titre, "", "Un texte sans bloc."].join("\n"), titre);
+  assert.match(fautes({ conf: conf(csp), section: sans, fichierDeWindows: false }), /bloc absent/);
+  assert.match(fautes({ conf: {}, section: s, fichierDeWindows: false }), /n'est pas une chaîne/);
 });
