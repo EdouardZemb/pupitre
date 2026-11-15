@@ -231,10 +231,8 @@ impl FilDuFonds {
                 .take(),
         );
         let mut fil = self.fil.lock().unwrap_or_else(PoisonError::into_inner);
-        if let Some(fin) = fil.take() {
-            // Un fil tombé rend sa panique : le refus des demandes suivantes la dit déjà.
-            let _ = fin.join();
-        }
+        // Le mutant : la fin du fil ne s'attend plus.
+        drop(fil.take());
     }
 }
 
@@ -350,9 +348,30 @@ mod tests {
     #[test]
     fn le_fil_ferme_la_racine_quand_on_le_ferme() {
         let racine = dossier_jetable("fil-ferme").join("donnees");
-        let premiere = ouvrir(racine.clone());
+        let premiere = std::sync::Arc::new(ouvrir(racine.clone()));
+        // Une demande est en cours quand `fermer` est appelé : le fil la finit, puis rend la
+        // racine des données et son verrou, et `fermer` attend sa fin. Sans cette attente, la
+        // racine des données est encore tenue quand `ouvrir` la demande de nouveau.
+        let (commence, a_commence) = mpsc::channel();
+        let demandeur = {
+            let premiere = premiere.clone();
+            std::thread::spawn(move || {
+                premiere.demander_bloquant(move |_, _| -> Reponse<()> {
+                    commence.send(()).unwrap();
+                    std::thread::sleep(std::time::Duration::from_millis(300));
+                    Ok(())
+                })
+            })
+        };
+        a_commence.recv().unwrap();
         premiere.fermer();
-        assert!(matches!(ouvrir(racine), Ouverture::Ouverte(_)));
+        if let Ouverture::Refusee(refus) = ouvrir(racine) {
+            panic!(
+                "après fermer, la racine des données est encore tenue : {}",
+                refus.message
+            );
+        }
+        assert_eq!(demandeur.join().unwrap(), Ok(()));
         let refus = premiere
             .demander_bloquant(noter_une("Une idée"))
             .unwrap_err();
@@ -411,7 +430,7 @@ mod tests {
     #[test]
     fn une_demande_qui_panique_laisse_un_refus_et_non_une_attente() {
         let racine = dossier_jetable("fil-panique").join("donnees");
-        let ouverture = ouvrir(racine);
+        let ouverture = ouvrir(racine.clone());
         let refus = ouverture
             .demander_bloquant(|_, _| -> Reponse<()> { panic!("un défaut planté") })
             .unwrap_err();
@@ -422,5 +441,13 @@ mod tests {
                 .unwrap_err(),
             refus
         );
+        // Le fil tombé a rendu la racine des données et son verrou.
+        ouverture.fermer();
+        if let Ouverture::Refusee(refus) = ouvrir(racine) {
+            panic!(
+                "après la panique, la racine des données est encore tenue : {}",
+                refus.message
+            );
+        }
     }
 }
