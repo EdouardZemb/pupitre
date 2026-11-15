@@ -145,6 +145,40 @@ de la vue (règle 21) à la tâche 16 ; les noms des droits (règle 22) à la t�
 | C16. « État », « droit », des mots de l'écran sans entrée | `Reliee` au code ; le glossaire gagne « Droits (de Tauri) », « Reliée (idée) », « Relier, délier », « interrogées » ; question 32 | 14, 20 |
 | C17. Les documents au-delà de la liste | Le § 41 · 6 (`js-sys`), le § 70 · 8, le § 40 · 7.5 (la démonstration, la liste des commandes) | 7, 13, 20 |
 
+### La relecture par une session neuve
+
+Une session neuve a relu ce plan le 2026-11-15, selon « La revue du plan » (`docs/modele/methode.md`), chaque
+mécanisme annoncé relu dans le code de `2a7714e`, chaque valeur recalculée, les noms de `tauri` 2.12.5 et de
+`tauri-build` 2.7.4 vérifiés sur docs.rs : vingt-trois constats (quatre bloquants, cinq majeurs, quatorze mineurs),
+tous retenus. Chacun a été cherché aussi ailleurs dans le plan, et la correction suit partout où la même croyance
+paraissait.
+
+| Constat | Décision de ce plan | Tâche |
+|---|---|---|
+| R1. Bloquant : la photographie de la racine tenue lisait le fichier `verrou`, que Windows peut refuser sous le verrou (`crates/stockage/tests/demarrage.rs:791-792`) | La photographie ne lit que `documents/` et `captations/`, et de `verrou` sa présence et sa taille ; une ligne d'outil | 3 |
+| R2. Bloquant : le stockage écrit un chemin avec `/` sous Windows aussi (`chemin_dit`), et le test le cherchait par `display()` | Le chemin comparé sous sa forme `/` ; le contrôle d'I29 natif cherche le nom du dossier jetable ; le refus de lecture seule comparé à un texte écrit ; une ligne d'outil | 3, 16, 17 |
+| R3. Bloquant : `exporter_cahier` prend `AppHandle<Wry>`, qui ne passe pas dans le gestionnaire générique | `exporter_cahier` devient générique sur `R: tauri::Runtime` ; une ligne d'outil | 4 |
+| R4. Bloquant : `NOMS` passe à quatorze en (c), quand `serialisation.rs:167` en exige treize ; le `Cargo.lock` sans origine | `serialisation.rs` passe à quatorze dans la tâche 9 ; le `Cargo.lock` de l'artefact, relu | 9 |
+| R5. Majeur : `Documents::avertissements` sur fichiers n'était éprouvé par aucun test ; `texte_de` non nommé | Chaque avertissement par `texte_de`, relatif à la racine des données ; `l_etat_du_fonds_dit_l_avertissement_de_la_naissance` | 16 |
+| R6. Majeur : « deux prises » ne se lit pas sur une ligne de la boîte, et le scénario n'était pas celui du test de la tranche 2 | Une fonction neuve, `deux_prises_regroupees_paraissent_ensemble_dans_la_boite`, et `cap02_3_la_boite_montre_ensemble_deux_prises_regroupees` ; les prises lues par la vue de l'idée | 16 |
+| R7. Majeur : une idée reliée, retirée, ne quitte pas le compte des non reliées | Les valeurs de `cap02_5_…` écrites, X reliée à Y seule | 16 |
+| R8. Majeur : le § 70 · 8 oubliait I01, I10 et la part d'I14 | La ligne 4 les nomme | 7 |
+| R9. Majeur : la doc de `decalage_a` disait « en secondes », quand son appelant attend des minutes | En minutes, la conversion du `Date` écrite | 18 |
+| R10. L'essai de `cargo tree` ne prouvait pas que `-e no-dev` écarte une fonction activée en test | Un second essai, sans les dépendances de test, qui ne doit pas la trouver | 6 |
+| R11. Des méthodes du résolveur de Tauri et `BaseDirectory` échappaient au contrôle d'I30 | Onze noms et `BaseDirectory` ajoutés, et une plantation | 5 |
+| R12. Les racines fixes ne liraient pas une crate native nouvelle | Chaque dossier de `crates/`, listé à l'exécution | 5 |
+| R13. Un `use` de `dossier_de_l_application` tomberait sous le contrôle d'I28 | Elle s'appelle par son chemin, jamais par un `use` | 2 |
+| R14. Le contrôle natif d'I29 ne disait pas s'il lit les commentaires | Il les ignore, comme celui d'I30, avec sa plantation | 17 |
+| R15. Le test des entiers sous 2⁵³ ne voyait pas les types nouveaux | `LigneDeLaBoite`, `VueDeLaBoite` et `VueDesRetirees` y entrent | 16 |
+| R16. `retirees` du noyau ne disait pas qu'il écarte les non retirées | Sa doc le dit, et le jeu gagne une idée non retirée | 14 |
+| R17. Deux idées du jeu avaient une durée sans prise | Elles gagnent une prise ; le filtre `Prise` recalculé | 14 |
+| R18. Hors de l'application, toute l'interface devenait la page du bandeau | Hors de l'application, tout s'ouvre, et la boîte dit son refus en bandeau (`dans_l_application`) | 18 |
+| R19. Le rouge attendu d'I31 dans `windows` après la tâche 16 n'était pas annoncé | Annoncé, jusqu'à la tâche 17 | 16 |
+| R20. Le nom de chaque directive de la CSP n'est pas une source | Le premier mot d'une directive, hors de la comparaison | 11 |
+| R21. `exporter_cahier` garde trois arguments | La ligne d'effet le dit | effets, 18 |
+| R22. « Aucune idée à envoyer » et « une version plus récente » sans test nommé | La couverture les nomme ; `un_etat_ne_se_ferme_pas` joue une version plus récente | 18, auto-relecture |
+| R23. La recherche de LE-2 oubliait `ranger`, `rangée`, `ordonner` | Ajoutés ; É5 **Ordre** et **Rangée** se distinguent nommément | 20 |
+
 ## Les écarts au plan maître
 
 Le plan maître le veut : un plan de tranche qui le contredit le dit dans sa PR, et la maîtrise d'ouvrage relit ce
@@ -367,8 +401,17 @@ dans la tâche qui possède le code.
   panique du fil, échoue aussi, jamais une attente sans fin — `une_demande_qui_panique_laisse_un_refus_et_non_une_attente`
   (tâche 3)
 - `File::try_lock`, le verrou de la racine des données — deux ouvertures dans un même processus se refusent comme
-  deux processus, chacune son descripteur — `un_second_processus_devant_une_racine_tenue_s_arrete_en_le_disant`
-  (tâche 3), qui ouvre deux fois la même racine dans le processus de test
+  deux processus, chacune son descripteur ; sous Windows, le verrou est obligatoire, et un autre descripteur peut se
+  voir refuser la lecture du fichier `verrou` tant que la racine est ouverte —
+  `un_second_processus_devant_une_racine_tenue_s_arrete_en_le_disant` (tâche 3), qui ouvre deux fois la même racine
+  dans le processus de test, et dont la photographie ne lit pas les octets de `verrou`
+- `chemin_dit`, le texte d'un chemin dans une erreur du stockage — ses composants se joignent par `/`, sous Windows
+  aussi, quand `Path::display` y écrit `\` — `une_racine_que_le_disque_refuse_se_dit_par_son_chemin` (tâche 3) et
+  `i29_une_ecriture_refusee_revient_en_refus_et_l_etat_le_dit` (tâche 17), qui comparent le chemin sous sa forme `/`,
+  ou cherchent le nom du dossier jetable, qui paraît sous les deux formes
+- `tauri::AppHandle` sans paramètre — vaut `AppHandle<Wry>` : une commande qui le prend ne passe pas dans un
+  gestionnaire générique — `les_commandes_passent_par_l_ipc_de_tauri` (tâche 4), dont le gestionnaire sert le
+  `MockRuntime` de `tauri::test`, `exporter_cahier` devenu générique
 - `tauri::test::mock_context` — son identifiant est vide, et `app_local_data_dir` y rend le dossier local lui-même,
   non celui de l'application — `i30_le_dossier_que_tauri_resout_tombe_dans_la_sentinelle` (tâche 6), qui pose
   l'identifiant de `tauri.conf.json` et exige un dossier qui finit par `app.pupitre.etabli`
@@ -384,7 +427,8 @@ dans la tâche qui possède le code.
 - `cargo tree -e features` — une fonction ne paraît que sur une ligne `<paquet> feature "<nom>"` ; sans `--target`,
   le graphe se résout pour l'hôte Linux, où l'établi ne se construit pas — l'étape « Le graphe de l'établi »
   (tâche 6), avec `--target x86_64-pc-windows-msvc`, et son essai sur `cargo tree -p stockage -e features`, qui doit
-  trouver `stockage feature "pannes"`
+  trouver `stockage feature "pannes"`, puis sur `cargo tree -p stockage -e no-dev,features`, qui, sans les
+  dépendances de test, ne doit pas la trouver
 - `#[ignore]` et `--include-ignored` — un test ignoré qui ne tourne jamais passe sans bruit — l'étape de la sentinelle
   (tâche 6) le lance par `--include-ignored`, et le test refuse de passer sans `PUPITRE_SENTINELLE`
 - `tauri-build`, `AppManifest::commands` — écrit `permissions/autogenerated/` dans la crate à chaque construction, et
@@ -429,12 +473,13 @@ dans la tâche qui possède le code.
   dernier — la reprise de la tranche 6, qui ferme avant de renommer `donnees/`, et le protocole des captations de la
   tranche 5, servi par le même fil — `le_fil_ferme_la_racine_quand_on_le_ferme` (tâche 3) : une seconde ouverture
   réussit après `fermer`
-- Chaque commande de Tauri prend un seul argument, `commande`, et rend une `Reponse` de `commandes` — l'interface,
+- Chaque commande de `commandes_de_l_etabli` prend au plus un argument, `commande`, et rend une `Reponse` de
+  `commandes` ; `exporter_cahier` garde ses trois arguments d'INC-0, que `export.rs` envoie toujours — l'interface,
   qui envoie `{"commande": …}` et lit l'objet `Refus` d'une promesse rejetée, et chaque tranche qui ajoute une
   commande — `les_commandes_passent_par_l_ipc_de_tauri` (tâche 4) et `refus_du_rejet` (tâche 18)
-- Le contrôle d'I30 lit les `src/` des crates natives, et l'interface a sa propre règle de l'horloge — toute PR
-  suivante qui ajoute un module natif, ou une lecture de l'horloge dans l'interface — les plantations des tâches 5
-  et 12
+- Le contrôle d'I30 lit les `src/` de chaque crate de `crates/` et d'`app/src-tauri`, et l'interface a sa propre
+  règle de l'horloge — toute PR suivante qui ajoute un module ou une crate native, ou une lecture de l'horloge dans
+  l'interface — `i30_chaque_racine_lue_porte_des_sources` et les plantations des tâches 5 et 12
 - La sentinelle relance tous les tests d'`etabli` sous `USERPROFILE` redirigé, dans PowerShell — le job `windows` et
   son délai — l'essai du fichier caché, l'étape verte et son temps relevé (tâches 6 et 7)
 - La CSP exacte perd `ipc:` — le § 40 · 7.5, `tauri.conf.json` et le job `documentation` — le point 9 de
@@ -450,7 +495,7 @@ dans la tâche qui possède le code.
   CAP-02, et la tranche 4, qui étend l'ordre et le filtre en requêtes — la recherche de LE-2, citée dans la PR (d)
   (tâche 20)
 - Le contrat `Documents` gagne `avertissements` — les deux adaptateurs, et celui qu'un lot suivant écrira — la suite
-  des commandes sur les deux paires (tâche 16)
+  des commandes sur les deux paires, et `l_etat_du_fonds_dit_l_avertissement_de_la_naissance` sur fichiers (tâche 16)
 - Une étiquette vide une fois ses blancs ôtés est refusée au noyau — le schéma de la `v0.3.0`, avant son gel, et le
   carnet au lot 2 — `une_etiquette_de_blancs_est_refusee` (tâche 14)
 - La commande de la boîte rend une fenêtre de `FENETRE_MAX` lignes au plus — l'interface, et la tranche 4, qui
@@ -650,6 +695,10 @@ pub fn dossier_de_l_application<R: tauri::Runtime>(app: &tauri::AppHandle<R>) ->
 pub fn racine_des_donnees(dossier: &Path) -> PathBuf;
 ```
 
+`dossier_de_l_application` s'appelle toujours par son chemin, `systeme::dossier_de_l_application(…)`, jamais par un
+`use`, ni seul ni groupé : le contrôle d'I28 refuse toute ligne `use` qui porte `application` hors des services
+(`crates/services/tests/statique.rs:190`), et il lit `app/src-tauri/src`.
+
 - [ ] **Étape 1 : relever la version de `getrandom`.** La dernière version publiée, sur crates.io ; la description
   de la PR la nomme, avec la date du relevé (décision 17). Le `Cargo.lock` en porte déjà deux (0.4.3, que tirent
   `automerge` et Leptos ; 0.3.4, que tire `tauri`) : la version déclarée ne doit pas en ajouter une troisième, sauf si
@@ -713,7 +762,8 @@ données reste `Sync` ; elle vit dans le fil du fonds de l'établi, qui la poss�
 // crates/stockage/src/adaptateurs.rs
 /// Le refus d'ouvrir la racine des données, qui n'a pas de racine à qui rapporter un chemin : la raison
 /// que donne `refus` à chaque variante (`RacineDesDonneesTenue` : `Raison::Impossible`), et le texte de
-/// l'erreur, qui nomme le dossier par son chemin entier (question 3).
+/// l'erreur, qui nomme le dossier par son chemin entier, ses composants joints par `/`, sous Windows aussi
+/// (`chemin_dit` ; question 3).
 pub fn refus_a_l_ouverture(erreur: Erreur) -> Refus;
 
 // app/src-tauri/src/fil.rs
@@ -756,8 +806,10 @@ demande suivante reçoit ce refus.
 
 - [ ] **Étape 1 : écrire les tests** (dans `fil.rs`, `#[cfg(test)]`, chacun sur `crate::tests::dossier_jetable`).
   `noter_une(texte)` est une fonction de test qui rend la fermeture de `noter`, `decalage_minutes: 60`.
-  `photographie(racine)` rend chaque fichier sous la racine des données, son chemin relatif et ses octets, dans
-  l'ordre des chemins.
+  `photographie(racine)` rend chaque fichier sous `documents/` et `captations/` de la racine des données, son chemin
+  relatif et ses octets, dans l'ordre des chemins ; le fichier `verrou` n'y entre que par sa présence et sa taille
+  (`std::fs::metadata`), jamais par ses octets : sous Windows, le verrou que tient la première ouverture peut en
+  refuser la lecture (`crates/stockage/tests/demarrage.rs:791-792`).
 
 ```rust
 #[test]
@@ -804,7 +856,11 @@ fn une_racine_que_le_disque_refuse_se_dit_par_son_chemin() {
     std::fs::write(&racine, b"un fichier, pas un dossier").unwrap();
     let Ouverture::Refusee(refus) = ouvrir(racine.clone()) else { panic!("l'ouverture devait être refusée") };
     assert_eq!(refus.raison, Raison::Disque);
-    assert!(refus.message.contains(&racine.display().to_string()), "{}", refus.message);
+    // Le stockage joint les composants du chemin par `/`, sous Windows aussi (`chemin_dit`), puis dit le
+    // constat du disque (`constat_du_disque`).
+    let dit = racine.display().to_string().replace('\\', "/");
+    assert!(refus.message.starts_with(&format!("{dit} ")) || refus.message.starts_with(&format!("{dit},")),
+        "{}", refus.message);
 }
 
 #[test]
@@ -853,7 +909,10 @@ fn une_demande_qui_panique_laisse_un_refus_et_non_une_attente() {
 ### Tâche 4 : les commandes de la tranche 2, servies par l'établi
 
 **Fichiers :** créer `app/src-tauri/src/commandes_de_l_etabli.rs` ; modifier `app/src-tauri/src/lib.rs` (`run`,
-`:127-133` ; `gestionnaire`).
+`:127-133` ; `gestionnaire` ; `exporter_cahier`, `:85-124`, devient générique : `async fn exporter_cahier<R:
+tauri::Runtime>(app: tauri::AppHandle<R>, date: String, instrument: String, couche: String) -> Result<Option<String>,
+String>`, son corps inchangé, puisque `DialogExt`, `get_webview_window` et `set_parent` valent pour tout `R` ; un
+`AppHandle` sans paramètre vaut `AppHandle<Wry>`, qui ne passe pas dans un gestionnaire générique).
 
 **Interfaces — consomme :** `Ouverture::demander` (tâche 3) ; les méthodes de `Services` et les types de
 `commandes`, tels que la tranche 2 les a posés.
@@ -902,10 +961,10 @@ app.manage(systeme::ouvrir(&dossier)); Ok(()) })`, puis `.invoke_handler(gestion
 
 **Fichiers :** créer `app/src-tauri/tests/statique.rs`.
 
-**Ce que le contrôle lit :** chaque `.rs` sous les racines `crates/noyau/src`, `crates/cahier/src`,
-`crates/stockage/src`, `crates/synchro/src`, `crates/commandes/src`, `crates/services/src` et `app/src-tauri/src`,
-à partir de `env!("CARGO_MANIFEST_DIR")/../..`, comme `RACINES_LUES` des services
-(`crates/services/tests/statique.rs:120`). Les lignes dont le début, blancs ôtés, est `//` (commentaires et docs)
+**Ce que le contrôle lit :** chaque `.rs` sous `src/` de chaque dossier de `crates/` (aujourd'hui `noyau`, `cahier`,
+`stockage`, `synchro`, `commandes` et `services`), listés à l'exécution, et sous `app/src-tauri/src`, à partir de
+`env!("CARGO_MANIFEST_DIR")/../..`, à la façon de `RACINES_LUES` des services
+(`crates/services/tests/statique.rs:120`) : une crate native ajoutée est lue sans retouche du contrôle. Les lignes dont le début, blancs ôtés, est `//` (commentaires et docs)
 ne comptent pas ; tout le reste se lit en sous-chaîne. L'interface n'y est pas : elle a sa propre règle (tâche 12 ;
 question 5).
 
@@ -914,19 +973,21 @@ nommée par son fichier, sa ligne et le mot trouvé :
 
 | Famille | Mots | Admis seulement dans |
 |---|---|---|
-| Les chemins devinés | `home_dir`, `temp_dir`, `data_dir`, `data_local_dir`, `config_dir`, `cache_dir`, `document_dir`, `app_data_dir`, `app_local_data_dir`, `app_config_dir`, `app_cache_dir`, `app_log_dir`, `SHGetKnownFolderPath`, `GetTempPath`, `"USERPROFILE"`, `"HOME"`, `"APPDATA"`, `"LOCALAPPDATA"`, `"TEMP"`, `"TMP"`, `dirs::` | `app/src-tauri/src/systeme.rs` ; et un seul `temp_dir`, dans `app/src-tauri/src/lib.rs` (celui de `dossier_jetable`) |
+| Les chemins devinés | `home_dir`, `temp_dir`, `data_dir`, `data_local_dir`, `config_dir`, `cache_dir`, `document_dir`, `app_data_dir`, `app_local_data_dir`, `app_config_dir`, `app_cache_dir`, `app_log_dir`, `download_dir`, `desktop_dir`, `audio_dir`, `picture_dir`, `video_dir`, `public_dir`, `template_dir`, `font_dir`, `runtime_dir`, `executable_dir`, `resource_dir`, `BaseDirectory`, `SHGetKnownFolderPath`, `GetTempPath`, `"USERPROFILE"`, `"HOME"`, `"APPDATA"`, `"LOCALAPPDATA"`, `"TEMP"`, `"TMP"`, `dirs::` | `app/src-tauri/src/systeme.rs` ; et un seul `temp_dir`, dans `app/src-tauri/src/lib.rs` (celui de `dossier_jetable`) |
 | L'horloge | `SystemTime`, `Instant`, `UNIX_EPOCH` | `app/src-tauri/src/systeme.rs` |
 | L'aléa | `getrandom`, `rand::`, `OsRng`, `thread_rng` | `app/src-tauri/src/systeme.rs` |
 | L'acteur d'Automerge | `ActorId::random`, `Automerge::new`, `.fork(`, `fork_at`, `Automerge::load`, `load_with_options` | `crates/stockage/src/documents.rs`, `crates/stockage/src/demarrage.rs`, `crates/services/src/application.rs`, `crates/services/src/en_memoire.rs` (question 6) |
 
 - [ ] **Étape 1 : écrire les tests.** `i30_hors_de_systeme_ni_chemin_devine_ni_horloge_ni_alea` lance `controler`
   sur les sources lues et exige une liste vide ; `i30_chaque_racine_lue_porte_des_sources` exige au moins une
-  source sous chaque racine (une racine renommée laisserait le contrôle passer sans rien lire) ;
+  source sous le `src/` de chaque dossier de `crates/`, au moins six dossiers, et dans `app/src-tauri/src` (une
+  racine renommée laisserait le contrôle passer sans rien lire) ;
   `i30_chaque_controle_refuse_ce_qu_on_y_plante` appelle `controler` sur des sources plantées, une faute par cas,
   et exige la faute nommée :
   - un second `std::env::temp_dir()` dans `app/src-tauri/src/lib.rs` ;
   - `use std::{env, path::Path};` puis `env::temp_dir()` dans `crates/cahier/src/main.rs` (l'import groupé) ;
   - `app.path().home_dir()` dans `app/src-tauri/src/lib.rs` ;
+  - `app.path().resolve("x", BaseDirectory::Download)` dans `app/src-tauri/src/lib.rs` ;
   - `std::env::var("LOCALAPPDATA")` dans `crates/stockage/src/lib.rs` ;
   - `SystemTime::now()` dans `crates/services/src/lib.rs` ;
   - `getrandom::fill(&mut octets)` dans `crates/stockage/src/documents.rs` ;
@@ -1002,13 +1063,15 @@ fn i30_le_dossier_que_tauri_resout_tombe_dans_la_sentinelle() {
 
 ```yaml
       # L'établi tel qu'il se livre, pour Windows, sa seule cible : ni pannes, ni en-memoire, ni
-      # protocol-asset (décision 7 ; I31). L'essai sur le stockage, ses dépendances de test comprises,
-      # prouve que la recherche trouve une fonction quand elle est là.
+      # protocol-asset (décision 7 ; I31). L'essai sur le stockage prouve que la recherche trouve une
+      # fonction quand ses dépendances de test l'activent, et que -e no-dev l'écarte sans elles.
       - name: Le graphe de l'établi
         run: |
           interdits='feature "(en-memoire|pannes|protocol-asset)"'
           sortie=$(cargo tree -p stockage -e features --prefix none)
           grep -Eq '^stockage feature "pannes"' <<<"$sortie"
+          sortie=$(cargo tree -p stockage -e no-dev,features --prefix none)
+          if grep -Eq '^stockage feature "pannes"' <<<"$sortie"; then exit 1; fi
           sortie=$(cargo tree -p etabli -e no-dev,features --prefix none --target x86_64-pc-windows-msvc)
           grep -Eq '^tauri feature "' <<<"$sortie"
           if grep -E "$interdits" <<<"$sortie"; then exit 1; fi
@@ -1039,8 +1102,9 @@ fn i30_le_dossier_que_tauri_resout_tombe_dans_la_sentinelle() {
   qui reçoit les chemins du système » nomme `systeme` ; la phrase ajoute l'horloge et l'aléa, et l'exception de
   l'acteur d'Automerge.
 - [ ] **Étape 2 : le § 70 · 8.** « Où en est le tableau, après INC-0 » devient « Où en est le tableau » : la ligne 4
-  dit qu'I28 a son test depuis la tranche 2 du lot 1 d'INC-1, et I30 son garde-fou et son contrôle statique depuis
-  cette PR, son second test (la démonstration) venant en tranche 7.
+  dit qu'I01, I10 et I28 ont leur test depuis la tranche 2 du lot 1 d'INC-1, qu'I14 en a une part depuis la tranche 1
+  (le reste en tranches 5 et 6), et qu'I30 a son garde-fou et son contrôle statique depuis cette PR, son second test
+  (la démonstration) venant en tranche 7. Les tâches 13 (I31) et 20 (I29) complètent ce même paragraphe.
 - [ ] **Étape 3 : `CONVENTIONS.md` et `CLAUDE.md`.** Ligne `verifier` : « Le graphe de l'établi » ; ligne `windows` :
   « La sentinelle d'I30 » et les tests d'I30. « Les crates », `etabli` : son module `systeme`, seul à lire le dossier
   de l'application, l'heure et l'aléa, et le fil du fonds, qui possède la racine des données et les services.
@@ -1116,7 +1180,8 @@ default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-
 ### Tâche 9 : le manifeste de l'application et les droits de Windows
 
 **Fichiers :** modifier `crates/commandes/src/lib.rs` (`NOMS`, `:15-32` : `"exporter_cahier"` y entre, et la doc
-dit que la liste est complète), `app/src-tauri/Cargo.toml` (`[build-dependencies]` : `commandes`, par chemin),
+dit que la liste est complète), `crates/commandes/tests/serialisation.rs` (`:167`, `NOMS.len()` passe de `13` à
+`14`), `app/src-tauri/Cargo.toml` (`[build-dependencies]` : `commandes`, par chemin),
 `app/src-tauri/build.rs`, `.gitignore`, `docs/40-architecture.md` (§ 7.5 : les droits, la table, `:548-551`) ;
 créer `app/src-tauri/capabilities/windows.json`, `app/src-tauri/tests/i31.rs` ; retirer
 `app/src-tauri/capabilities/default.json` (`git rm`).
@@ -1174,12 +1239,15 @@ fn controler_le_manifeste(build_rs: &str) -> Vec<String>;
     de l'application, chaque fichier de droits la recopie en `allow-<nom>`, chaque `_` devenu `-`, et I31 compare
     les trois, avec `generate_handler!` ; la CSP se compare au bloc de la CSP exacte, plus haut (§ 70 · 3). Si un
     écran demande davantage, la PR qui l'ajoute le dit et l'écrit ici. »
-- [ ] **Étape 4 : voir le vert.** « Construire l'installateur » vert (`try_build` accepte le manifeste et les
-  droits), puis « Tests de l'établi » : `i31.rs` `ok. 4 passed`. Sur le poste :
+- [ ] **Étape 4 : voir le vert.** « Cargo.lock à jour » de `verifier` échoue d'abord : prendre l'artefact
+  `cargo-lock`, le relire (`commandes` en dépendance de construction d'`etabli`), le committer, comme à la tâche 2.
+  Puis, à « Tests » de `verifier`, `les_noms_sont_uniques_et_en_snake_case` vert ; « Construire l'installateur » vert
+  (`try_build` accepte le manifeste et les droits), puis « Tests de l'établi » : `i31.rs` `ok. 4 passed`. Sur le poste :
   `git check-ignore -q app/src-tauri/permissions/autogenerated/allow-noter.toml`, code 0 (sans `-v`, qui rendrait 0
   aussi sur une négation).
-- [ ] **Étape 5 : committer** `git add crates/commandes/src/lib.rs app/src-tauri/Cargo.toml app/src-tauri/build.rs
-  app/src-tauri/capabilities/windows.json app/src-tauri/tests/i31.rs .gitignore docs/40-architecture.md Cargo.lock`,
+- [ ] **Étape 5 : committer** `git add crates/commandes/src/lib.rs crates/commandes/tests/serialisation.rs
+  app/src-tauri/Cargo.toml app/src-tauri/build.rs app/src-tauri/capabilities/windows.json app/src-tauri/tests/i31.rs
+  .gitignore docs/40-architecture.md Cargo.lock`,
   après `git rm app/src-tauri/capabilities/default.json` (`feat: le manifeste de l'application et les droits nommés de
   Windows`).
 
@@ -1216,7 +1284,8 @@ signature de la fermeture vérifiée sur docs.rs de `tauri` 2.12.5.
 **Interfaces — produit** (de plus, dans `i31.rs`) :
 
 ```rust
-/// La CSP : chaque directive (`;`), chaque source (blancs) ; seules sont admises `'self'`, `'none'`,
+/// La CSP : chaque directive (`;`) ; son premier mot est son nom, hors de la comparaison ; chacun des suivants
+/// (séparés par des blancs) est une source, et seules sont admises `'self'`, `'none'`,
 /// `'wasm-unsafe-eval'`, `http://captation.localhost` et `http://ipc.localhost`, comparées entières, si bien
 /// que `'unsafe-inline'`, `'unsafe-eval'` et toute autre origine sont refusées.
 fn controler_la_csp(csp: &str) -> Vec<String>;
@@ -1339,7 +1408,8 @@ pub fn ordonner(idees: &mut [EnBoite], ordre: Ordre);
 /// l'assiette (`idee::assiette` sur les non retirées, chacune portant la donnée, puis `illisibles` ajoutées
 /// aux seules considérées : question 19), et celles que retient `filtre` (aucun : toutes), rangées.
 pub fn boite(idees: Vec<EnBoite>, illisibles: usize, ordre: Ordre, filtre: Option<Contenu>) -> Boite;
-/// Les idées retirées, par la date du retrait, la plus récente d'abord, puis par l'identifiant.
+/// Les seules idées retirées de `idees`, par la date du retrait, la plus récente d'abord, puis par
+/// l'identifiant.
 pub fn retirees(idees: Vec<EnBoite>) -> Vec<EnBoite>;
 ```
 
@@ -1347,14 +1417,15 @@ Le module évite, jusque dans ses commentaires, les mots que refuse le contrôle
 (`crates/noyau/tests/statique.rs:22-48` : `Instant`, `File`, `io::`, `time::`, `HashMap`, `random`…).
 
 - [ ] **Étape 1 : écrire les tests** (`crates/noyau/tests/boite.rs`), sur un jeu inventé de six idées : `idee(id, le,
-  etiquettes, captee)` et `en_boite(idee, contenus, duree_ms, reliee)` sont des fonctions de test.
+  etiquettes, captee)` et `en_boite(idee, contenus, duree_ms, reliee)` sont des fonctions de test ;
+  `jeu_des_retirees()` rend F (retirée à 500), G (`01G`, retirée à 400), H (`01H`, retirée à 500) et E, non retirée.
 
 | Idée | `le` | Étiquettes | Contenus | Durée | Reliée | Provenance | Retirée |
 |---|---|---|---|---|---|---|---|
 | A, `01A` | 100 | `pont` | texte de l'idée, prise | 47 000 | non | captée | non |
 | B, `01B` | 300 | aucune | prise, MIDI versé | aucune | oui | importée | non |
-| C, `01C` | 200 | `Pont`, `refrain` | texte versé | 12 000 | non | importée | non |
-| D, `01D` | 300 | `élan` | texte de l'idée | 47 000 | oui | captée | non |
+| C, `01C` | 200 | `Pont`, `refrain` | prise, texte versé | 12 000 | non | importée | non |
+| D, `01D` | 300 | `élan` | texte de l'idée, prise | 47 000 | oui | captée | non |
 | E, `01E` | 200 | `pont` | texte de l'idée | aucune | non | captée | non |
 | F, `01F` | 400 | `pont` | prise | aucune | non | captée | à 500 |
 
@@ -1373,7 +1444,8 @@ fn chaque_ordre_est_total_et_se_departage_par_la_date_puis_l_identifiant() {
 #[test]
 fn le_filtre_retient_un_contenu_a_la_fois() {
     let ids = |filtre| ids_de(boite(jeu(), 0, Ordre::Date, Some(filtre)).retenues);
-    assert_eq!(ids(Contenu::Prise), ["01B", "01A"]); // F, retirée, n'entre jamais
+    // Une idée qui a une durée a une prise (`idee::duree`) ; B a une prise sans durée ; F, retirée, n'entre jamais.
+    assert_eq!(ids(Contenu::Prise), ["01B", "01D", "01C", "01A"]);
     assert_eq!(ids(Contenu::Photo), Vec::<&str>::new()); // « 0 idée » (LE-6, règle 6)
     assert_eq!(ids(Contenu::MidiVerse), ["01B"]);
     assert_eq!(ids(Contenu::TexteVerse), ["01C"]);
@@ -1398,7 +1470,7 @@ fn une_idee_illisible_compte_parmi_les_interrogees() {
 
 #[test]
 fn les_retirees_se_rangent_par_la_date_du_retrait() {
-    // F (retirée à 500), G (à 400), H (à 500, identifiant après F) : F, H, G.
+    // F (retirée à 500), G (à 400), H (à 500, identifiant après F) : F, H, G ; E, non retirée, n'y entre pas.
     assert_eq!(ids_de(retirees(jeu_des_retirees())), ["01F", "01H", "01G"]);
 }
 
@@ -1610,27 +1682,35 @@ pub fn retirees(&self, commande: &Fenetre) -> Reponse<VueDesRetirees>;
 pub fn etat_du_fonds(&self) -> Reponse<EtatDuFonds>;
 ```
 
-L'adaptateur sur fichiers rend en textes les avertissements de son document (`documents.rs:113`), l'adaptateur en
-mémoire aucun.
+L'adaptateur sur fichiers rend en textes les avertissements de son document (`documents.rs:113`, ceux de la
+naissance ou de l'ouverture), chacun par `texte_de` (`adaptateurs.rs:163`), chaque chemin relatif à la racine des
+données, jamais par le `Display` d'un `Avertissement`, qui écrirait le chemin absolu ; l'adaptateur en mémoire aucun.
 
 - [ ] **Étape 1 : écrire les tests de `commandes`.** Chaque type nouveau fait l'aller-retour par `serde_json` ;
   `les_noms_sont_uniques_et_en_snake_case` voit dix-sept noms ; `cap01_4_noter_ne_demande_aucun_titre` (une part :
   noter à l'établi) : les clés de `serde_json::to_value(Noter { … })` sont `["decalage_minutes", "texte"]`, rien
-  d'autre.
+  d'autre ; `les_entiers_d_une_reponse_restent_sous_2_puissance_53` gagne une `LigneDeLaBoite` à
+  `PREMIER_JANVIER_2100` (`le` et `retiree` à 4 102 444 800, `duree_ms` à 86 400 000), une `VueDeLaBoite` et une
+  `VueDesRetirees` dont chaque compte vaut `FENETRE_MAX`, chaque champ lu par `entier_sur`.
 - [ ] **Étape 2 : écrire les tests de la suite** (`crates/services/tests/suite/mod.rs`, sur les deux paires, chacun
   écrit dans les deux crates comme ceux de la tranche 2) :
   - `cap02_1_aucun_compteur_d_anciennete` : 50 idées notées à l'heure 1 600 000 000 (en 2020) ; la boîte rend
     `non_reliees == 50`, une assiette `{50, 50, 50}`, et `texte_du_compte` du noyau, « 50 idées non reliées · 50
     interrogées » ; une ligne se défait par un motif exhaustif, `let LigneDeLaBoite { idee, le, texte, etiquettes,
     duree_ms, reliee, provenance, retiree } = ligne;`, si bien qu'un champ d'ancienneté ajouté casse la compilation ;
-  - le test `cap02_3_…` de la tranche 2 se complète, et CAP-02 · 3 s'inscrit : P (une prise de 12 s) et Q (une prise
-    de 47 s), versées ; le compte vaut 2 ; Q regroupée dans P : la boîte montre P seule, deux prises, `duree_ms ==
-    Some(47_000)` ; Q, vidée, est retirée par le même geste ; le compte vaut 1 ; les empreintes ne changent pas
-    (LE-6, règle 4) ;
+  - CAP-02 · 3 s'inscrit, par une fonction neuve de la suite, `deux_prises_regroupees_paraissent_ensemble_dans_la_boite`,
+    appelée sur les deux paires par `cap02_3_la_boite_montre_ensemble_deux_prises_regroupees` (le test de la tranche 2,
+    `deux_prises_regroupees_restent_deux_captations`, reste tel quel) : P et Q, nées du versement de deux prises
+    (`fiche_wav(12_000)`, `fiche_wav(47_000)`) ; la boîte rend `non_reliees == 2` et deux lignes ; la prise de Q
+    regroupée dans P : les lignes de la boîte sont `[P]`, sa ligne porte `duree_ms == Some(47_000)` (`idee::duree`, la
+    plus longue des prises) ; `vue_d_une_idee(&p).captations` égale `prises(&[&p_emp, &q_emp])` ;
+    `vue_d_une_idee(&q).retiree` est `Some(HEURE)`, Q vidée et retirée par le même geste ; `non_reliees == 1` ;
+    `captations().relire` rend les octets de chaque prise (LE-6, règle 4) ;
   - `cap02_5_retirer_ote_l_idee_de_la_boite_et_retablir_l_y_rend` (une part : les requêtes viennent en tranche 4,
-    les photos au lot 2) : une idée qui porte un texte, une étiquette, un lien et une prise ; retirée, elle quitte
-    les lignes, le compte et l'assiette, et paraît dans `retirees` ; rétablie, sa ligne égale celle d'avant
-    (règle 5) ;
+    les photos au lot 2) : X porte un texte, une étiquette, une prise et un lien vers Y, seule autre idée ; avant :
+    deux lignes, X et Y, `non_reliees == 0`, l'assiette du compte `{2, 2, 2}` ; X retirée : les lignes sont `[Y]`,
+    `non_reliees == 1` (Y ne relie plus rien de non retiré), l'assiette `{1, 1, 1}`, et `retirees` rend `[X]`,
+    `total == 1` ; X rétablie : sa ligne égale celle d'avant, `non_reliees == 0`, l'assiette `{2, 2, 2}` (règle 5) ;
   - `cap07_4_le_nombre_d_idees_non_reliees_suit_chaque_geste` : A et B, 2 ; reliées, 0 ; C notée, 1 ; B retirée,
     2 (A redevient non reliée, B sort) ; B rétablie, 1 ; A et B déliées, 3 ; A reliée à B et à C, 0 ; B retirée,
     0 (A reste reliée à C) ; et la lecture de la boîte n'écrit rien : le journal a le même nombre d'entrées avant et
@@ -1651,7 +1731,13 @@ mémoire aucun.
 
   Sur la paire de fichiers seule, `l_etat_du_fonds_dit_la_lecture_seule` : un fichier du fonds altéré (par la façon
   des tests de la tranche 1), `lecture_seule` porte le refus, de raison `Raison::Illisible`, qui nomme le fichier
-  relatif à la racine des données. Sur la paire en mémoire seule, `une_idee_illisible_compte_a_part_dans_l_assiette` :
+  relatif à la racine des données, comparé à un texte écrit dans le test (`documents/fonds/…`, comme
+  `crates/stockage/tests/commandes_sur_fichiers.rs:429`), jamais à un `Path::join` affiché ; et
+  `l_etat_du_fonds_dit_l_avertissement_de_la_naissance` : la première note, coupée par `couper(Etape::RendreDurable,
+  1)`, comme `la_premiere_note_coupee_apres_le_renommage_fait_naitre_le_fonds_avec_un_avertissement`
+  (`commandes_sur_fichiers.rs:400-440`) ; puis `etat_du_fonds().avertissements` égale `["documents/fonds/complet.automerge
+  est en place, mais son renommage n'est pas rendu durable."]`, sans le chemin de la racine des données. Sur la paire
+  en mémoire seule, `une_idee_illisible_compte_a_part_dans_l_assiette` :
   un document écrit par le test, dont une idée porte `le` en texte, rouvert par `DocumentsEnMemoire::de` ; la boîte
   rend `considerees == portant + 1`, et `texte_du_compte` porte « · 1 illisible ».
 - [ ] **Étape 3 : voir le rouge** à « Lint » de `verifier` (`cannot find type VueDeLaBoite`, ou le premier nom
@@ -1661,7 +1747,10 @@ mémoire aucun.
   retiré lu dans la même liste (un bout illisible compte non retiré, comme `vue_d_une_idee`) ; les contenus par
   `contenus_de` ; puis le noyau, puis la fenêtre.
 - [ ] **Étape 5 : voir le vert.** « Tests » de `verifier` : `serialisation.rs`, `commandes_en_memoire.rs` et
-  `commandes_sur_fichiers.rs` `ok`, chaque test nommé relevé ; dans `windows`, `commandes_sur_fichiers.rs` `ok`.
+  `commandes_sur_fichiers.rs` `ok`, chaque test nommé relevé ; dans `windows`, `commandes_sur_fichiers.rs` `ok` à
+  « Tests du stockage et de la synchronisation (H07) » ; « Tests de l'établi » rouge, attendu, sur
+  `i31_les_droits_nomment_chaque_commande_et_rien_d_autre` et `i31_generate_handler_porte_chaque_nom` (les trois noms
+  ajoutés à `NOMS`), jusqu'à la tâche 17, qui le remet au vert dans la même PR.
 - [ ] **Étape 6 : committer** `git add crates/commandes/src/lib.rs crates/commandes/tests/serialisation.rs
   crates/services/src/contrats.rs crates/services/src/lecture.rs crates/services/src/lib.rs
   crates/services/src/en_memoire.rs crates/stockage/src/adaptateurs.rs crates/services/tests/suite/mod.rs
@@ -1681,11 +1770,14 @@ les refuse comme les autres, et l'interface y lit la racine tenue (tâche 18).
 - [ ] **Étape 1 : écrire les tests.** Dans `fil.rs`, `i29_une_ecriture_refusee_revient_en_refus_et_l_etat_le_dit` :
   une note, `fermer`, le fichier complet du fonds remplacé par `b"pas un document"`, une seconde ouverture ; noter
   rend un refus de raison `Raison::Illisible`, `etat_du_fonds` porte `lecture_seule`, et aucun de leurs messages ne
-  contient le chemin du dossier jetable (LE-6, règle 17). Dans `tests/statique.rs`,
+  contient le nom du dossier jetable (`dossier.file_name()`, `pupitre-etabli-<nom>-<processus>`), qui paraît quelle
+  que soit la forme du chemin, `\` ou `/` (LE-6, règle 17). Dans `tests/statique.rs`,
   `i29_ni_greffon_ni_api_de_notification_cote_natif` : ni `notification` (sans égard à la casse) dans
   `app/src-tauri/Cargo.toml` ni dans `app/src-tauri/src/`, ni `.message(` ni `MessageDialog` dans
-  `app/src-tauri/src/` (question 13 ; la boîte d'enregistrement, `.file()`, reste) ; et sa plantation : un
-  `tauri-plugin-notification = "2"`, un `app.dialog().message("…")`, un `MessageDialogBuilder`, refusés. Les tests
+  `app/src-tauri/src/` (question 13 ; la boîte d'enregistrement, `.file()`, reste). Comme celui d'I30, il ignore les
+  lignes qui commencent par `//`, blancs ôtés, et, dans `Cargo.toml`, celles qui commencent par `#`. Sa plantation :
+  un `tauri-plugin-notification = "2"`, un `app.dialog().message("…")`, un `MessageDialogBuilder`, refusés ; une ligne
+  `/// aucune notification (I29)`, sans faute. Les tests
   d'I31 (tâche 11) rougissent d'eux-mêmes tant que les trois noms de `NOMS` n'ont ni commande ni droit.
 - [ ] **Étape 2 : voir le rouge** à « Tests de l'établi » de `windows` : `i31_les_droits_nomment_chaque_commande_et_rien_d_autre`
   et `i31_generate_handler_porte_chaque_nom` (les trois noms de la tâche 16), puis le test d'I29 natif ; committer
@@ -1717,9 +1809,13 @@ pub(crate) async fn invoquer<R: serde::de::DeserializeOwned>(nom: &str, commande
 pub(crate) fn refus_du_rejet(rejet_en_json: Option<String>) -> Refus;
 /// Le décalage local du geste, en minutes : `decalage_depuis_js` de `Date::new_0().get_timezone_offset()`.
 pub(crate) fn decalage_du_geste() -> i32;
-/// Le décalage local de l'instant `le`, en secondes : `decalage_depuis_js` de
-/// `Date::new(le × 1 000).get_timezone_offset()` (question 24).
+/// Le décalage local de l'instant `le` (en secondes), rendu en minutes, celles qu'attend `date_de_la_liste` :
+/// `decalage_depuis_js` de `Date::new(&JsValue::from_f64(le as f64 * 1000.0)).get_timezone_offset()`
+/// (question 24).
 pub(crate) fn decalage_a(le: i64) -> i32;
+/// Vrai dans l'application : `window.__TAURI__.core.invoke` existe, comme le lit `invoke_de_tauri`
+/// (`export.rs`) ; `invoquer` rend hors de l'application le refus dit plus haut.
+pub(crate) fn dans_l_application() -> bool;
 /// `getTimezoneOffset` vaut UTC moins l'heure locale : `decalage_minutes` en est l'opposé (LE-6, règle 20).
 pub(crate) fn decalage_depuis_js(minutes_de_javascript: f64) -> i32;
 
@@ -1744,24 +1840,29 @@ impl Bandeau {
     /// Les messages, l'état d'abord, puis le refus, puis les avertissements.
     pub fn messages(&self) -> Vec<MessageDuBandeau>;
 }
-/// Ce que l'établi ouvre : tout, ou, devant un refus de l'état du fonds (une racine tenue, une racine que le
-/// disque refuse), la page du seul bandeau (question 4).
+/// Ce que l'établi ouvre : tout, ou, dans l'application, devant un refus de l'état du fonds (une racine tenue,
+/// une racine que le disque refuse), la page du seul bandeau (question 4). Hors de l'application (l'interface
+/// servie seule, dans un navigateur), tout s'ouvre, comme la table d'INC-0 aujourd'hui, et la boîte dit son
+/// refus en bandeau.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Page { Etabli, BandeauSeul(String) }
-pub(crate) fn page_d_ouverture(etat: &Result<EtatDuFonds, Refus>) -> Page;
+pub(crate) fn page_d_ouverture(etat: &Result<EtatDuFonds, Refus>, dans_l_application: bool) -> Page;
 ```
 
 Le bandeau se rend en tête de l'établi : chaque message en texte, `role="alert"` pour un refus, `role="status"`
 pour un état ou un avertissement, et un bouton « Fermer » s'il est fermable ; la source se dit aussi par un mot en
 tête (« Lecture seule : », « Refusé : », « Avertissement : »), jamais par la seule couleur. `App` lit
-`etat_du_fonds` au montage : `Page::BandeauSeul` rend la seule page du bandeau.
+`etat_du_fonds` au montage, puis `page_d_ouverture(&etat, natif::dans_l_application())` : `Page::BandeauSeul` rend la
+seule page du bandeau. `export.rs` garde ses trois arguments pour `exporter_cahier`, nommé par `EXPORTER_CAHIER`.
 
 - [ ] **Étape 1 : écrire les tests** (dans `bandeau.rs` et `natif.rs`, `#[cfg(test)]`, en natif, comme ceux d'`Etat`) :
   - `i29_une_ecriture_refusee_s_affiche_en_bandeau` : `apres_un_geste(&Err(Refus { raison: Raison::Disque, message:
     "<un texte de refus du disque>" }))` ; `messages()` rend ce seul message, `Source::Refus`, fermable ;
   - `un_refus_reste_jusqu_au_geste_reussi_suivant` : le refus, puis `Ok(None)`, aucun message ;
   - `un_etat_ne_se_ferme_pas` : `suivre` d'un état en lecture seule, puis `fermer(Source::Etat)` ; le message reste,
-    non fermable ;
+    non fermable ; de même pour un `EtatDuFonds` dont `lecture_seule` porte un `Refus` de raison
+    `Raison::VersionPlusRecente { version: 4 }` : `messages()` le rend en `Source::Etat`, non fermable, son texte
+    celui du refus ;
   - `les_etats_passent_avant_les_refus` : un état, un refus, un avertissement : `[Etat, Refus, Avertissement]` ;
   - `un_rejet_qui_n_est_pas_un_refus_se_dit_par_un_constat` : `refus_du_rejet(Some("\"Command noter not allowed by
     ACL\"".into()))` et `refus_du_rejet(None)` rendent « Le geste n'a pas abouti. » ; le JSON d'un `Refus` rend ce
@@ -1769,8 +1870,9 @@ tête (« Lecture seule : », « Refusé : », « Avertissement : »), jamais pa
   - `le_decalage_de_javascript_change_de_signe` : `decalage_depuis_js(-60.0) == 60`, `(-120.0) == 120`,
     `(300.0) == -300`, `(0.0) == 0` ;
   - `la_page_d_ouverture_d_une_racine_tenue_n_a_que_le_bandeau` : `page_d_ouverture(&Err(Refus { raison:
-    Raison::Impossible, message: "Un autre processus tient la racine des données.".into() }))` rend
-    `Page::BandeauSeul` de ce texte ; un état `Ok`, `Page::Etabli`.
+    Raison::Impossible, message: "Un autre processus tient la racine des données.".into() }), true)` rend
+    `Page::BandeauSeul` de ce texte ; un état `Ok`, `Page::Etabli` ; hors de l'application, le refus « Hors de
+    l'application, aucune commande ne passe. » avec `false`, `Page::Etabli`.
 
   Dans `app/ui/tests/statique.rs` : la règle de l'horloge admet `Date::new_0` dans `date_du_jour` et
   `decalage_du_geste`, et `get_timezone_offset`, `getTimezoneOffset` dans `decalage_du_geste` et `decalage_a` ; une
@@ -1860,8 +1962,10 @@ l'interface relit `etat_du_fonds` et la fenêtre de la boîte, et le bandeau re�
 `docs/registre.md` (LE-15), `CONVENTIONS.md`, `CLAUDE.md`, `ci.yml` (les délais), `mutants-complet.yml` (son délai).
 
 - [ ] **Étape 1 : la recherche de LE-2**, citée dans la description de la PR, pour chaque mot ajouté ou requalifié :
-  `tri`, `trier`, `ordre`, `bandeau`, `droit`, `reliée`, `relier`, `délier`, `interrogée`, chacune aussi sans accent
-  et sur la majuscule accentuée ; chaque emploi antérieur se requalifie.
+  `tri`, `trier`, `ordre`, `ordonner`, `ranger`, `range`, `rangée`, `bandeau`, `droit`, `reliée`, `relier`, `délier`,
+  `interrogée`, chacune aussi sans accent et sur la majuscule accentuée ; chaque emploi antérieur se requalifie.
+  L'entrée É5 **Ordre** (une suite candidate des morceaux d'un album, `docs/80-glossaire.md:85`) et l'entrée
+  **Rangée** (une ligne de la table, `:215`) se distinguent nommément de « Ordre (de la boîte) » et de « ranger ».
 - [ ] **Étape 2 : le glossaire** (questions 14, 17, 31, 32) : « Boîte d'idées » : « L'endroit où arrivent les idées,
   captées ou importées, et où elles restent, triées ou non ; seule une idée retirée la quitte » ; « Geste de tri »
   (compléter, étiqueter, relier, délier, regrouper, retirer, rétablir : il écrit, le journal le nomme, annuler le
@@ -1930,8 +2034,11 @@ l'interface relit `etat_du_fonds` et la fenêtre de la boîte, et le bandeau re�
 ## Auto-relecture
 
 - **La couverture.** Chaque puce de « Elle livre » du plan maître a sa tâche : les styles (1) ; l'assemblage (2 à 4) ;
-  I30 (5, 6) ; la boîte et ses commandes (14 à 17, 19) ; noter, annuler, le bandeau, I29, le `—` (15, 17 à 19) ; la
-  CSP, le manifeste, les droits, `exporter_cahier` (8, 9) ; I31 (9, 11, 12, 16, 19) et l'étape `cargo tree` (6).
+  I30 (5, 6) ; la boîte et ses commandes (14 à 17, 19) ; noter, annuler, le bandeau, I29, le `—` (15, 17 à 19), une
+  version de schéma plus récente au bandeau (`un_etat_ne_se_ferme_pas`, 18) ; aucune idée « à envoyer » :
+  `LigneDeLaBoite` n'a pas d'état d'envoi, ce que garde le motif exhaustif de `cap02_1_aucun_compteur_d_anciennete`
+  (16), et aucune case de la boîte ne le dit (19) ; la CSP, le manifeste, les droits, `exporter_cahier` (8, 9) ; I31
+  (9, 11, 12, 16, 19) et l'étape `cargo tree` (6).
   Chaque critère de sortie a son test nommé : CAP-01 · 4 (16, 19, en parts), CAP-01 · 6 (tranche 2, inscrit), CAP-02
   · 1 (16), CAP-02 · 3 (16), CAP-02 · 4 et 6 (tranche 2, en parts), CAP-02 · 5 pour la boîte (16, en part), CAP-02 · 7
   et 8 (tranche 2, inscrits), CAP-07 · 4 (16), I29 (17 dans `windows`, 18 dans `verifier`), I30 (5, 6, dans
