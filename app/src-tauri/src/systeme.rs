@@ -101,7 +101,7 @@ mod tests {
             "le dossier résolu n'est pas dans la sentinelle"
         );
         assert!(
-            dossier.ends_with("autre.identifiant"),
+            dossier.ends_with(&identifiant),
             "le dossier résolu n'est pas celui de l'application"
         );
     }
