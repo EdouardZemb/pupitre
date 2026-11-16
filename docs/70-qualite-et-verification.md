@@ -57,8 +57,9 @@ théorie. En INC-1 :
 **La mutation suit le noyau.** Le module qui porte l'une de ces règles entre dans
 `.cargo/mutants.toml` dans la PR qui l'écrit, et chacun de ses fichiers de tests rejoint la
 liste des tests que rejoue chaque mutant. Les deux passages de mutation, celui d'une PR et
-celui de chaque lundi, ont un délai de deux fois un passage complet mesuré : la PR qui étend
-le périmètre remesure ce passage, à froid, et corrige les deux délais avec sa mesure.
+celui de chaque lundi, ont un délai de deux fois le plus long passage complet mesuré à froid :
+la PR qui étend le périmètre remesure ce passage, et relève les deux délais si sa mesure est
+plus longue ; un délai ne baisse pas.
 
 ---
 
