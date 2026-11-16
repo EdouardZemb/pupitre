@@ -127,7 +127,12 @@ la notice qu'Android impose pendant un enregistrement au premier plan (I29).
   prise), et **garde l'idée**, reliée à ce qu'elle est devenue.
 - La boîte se range par date, étiquette, durée, état (reliée ou non) et provenance (captée ou
   importée, [§ 30 · 8.1](../30-modele-de-domaine.md#81-la-provenance)) ; par défaut, par date,
-  la plus récente d'abord. Elle se filtre par ce que l'idée contient : texte, prise, photo,
+  la plus récente d'abord. Par étiquette, elle se range sur la plus petite étiquette de chaque
+  idée, octet pour octet (une majuscule avant une minuscule, une lettre accentuée après z), les
+  idées sans étiquette en fin ; par durée, la plus longue d'abord, les idées sans durée en fin ;
+  par état, les non reliées d'abord ; par provenance, les captées d'abord ; à égalité, la plus
+  récente d'abord, puis l'identifiant.
+  Elle se filtre par ce que l'idée contient : texte, prise, photo,
   MIDI versé, texte versé. La durée d'une idée
   est celle de sa prise la plus longue, et `—` dès qu'une de ses prises n'a pas encore la
   sienne ([§ 30 · 9.2](../30-modele-de-domaine.md#92-prises-photos-et-analyses)) ; une idée

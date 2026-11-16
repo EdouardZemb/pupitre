@@ -381,9 +381,9 @@ ses tests de la CSP, des droits et du manifeste de l'application, et le contrôl
 l'interface, depuis la tranche 3 (PR #44) ; le protocole des captations refuse toute requête,
 ce qu'un test vérifie, et le test d'une empreinte connue ou inconnue vient en tranche 5 ; I29 a
 ses tests depuis la tranche 3 (PR #45), le contrôle statique, dans l'interface et côté natif,
-et l'écriture refusée, qui revient en refus par le fil du fonds sans nommer de chemin, et
-s'affiche en bandeau ; la sauvegarde en échec vient au lot 4 d'INC-1. Les autres invariants
-attendent le code qu'ils verrouillent. Les lignes 5 et 6 restent à venir.
+et l'écriture refusée, qui revient en refus par le fil du fonds sans nommer de chemin de la
+machine, et s'affiche en bandeau ; la sauvegarde en échec vient au lot 4 d'INC-1. Les autres
+invariants attendent le code qu'ils verrouillent. Les lignes 5 et 6 restent à venir.
 
 **Une porte se corrige par le code ou le document qu'elle refuse, pas en l'affaiblissant**
 à son premier faux positif. On n'assouplit une règle que si le faux positif est structurel,

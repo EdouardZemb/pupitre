@@ -14,7 +14,8 @@
 
   <!-- Colonne gauche : boîte d'idées -->
   <text x="34" y="100" font-size="17" font-weight="700" fill="#111">Boîte d'idées</text>
-  <text x="34" y="120" font-size="12" fill="#555">23 idées non reliées — aucun compteur d'ancienneté</text>
+  <text x="320" y="100" font-size="11" fill="#555" text-anchor="end">aucun compteur d'ancienneté</text>
+  <text x="34" y="120" font-size="12" fill="#555">23 idées non reliées · 31 interrogées</text>
 
   <g font-size="13" fill="#111">
     <rect x="30" y="136" width="290" height="70" rx="6" fill="#fff" stroke="#111"/>
