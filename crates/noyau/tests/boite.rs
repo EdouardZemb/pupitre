@@ -243,6 +243,17 @@ fn la_date_de_la_liste_porte_l_annee_au_decalage_donne() {
 }
 
 #[test]
+fn la_date_de_la_liste_suit_le_calendrier_hors_de_2026() {
+    // 2028 est bissextile : le 29 février 2028, à midi UTC.
+    assert_eq!(date_de_la_liste(1_835_438_400, 0), "29 févr. 2028");
+    // 2100 ne l'est pas : le jour qui suit le 28 février 2100 est le 1er mars, à minuit UTC.
+    assert_eq!(date_de_la_liste(4_107_542_400, 0), "1er mars 2100");
+    // Une seconde avant 1970 : `div_euclid` range l'instant au jour d'avant, le 31 décembre 1969 ;
+    // `/`, qui arrondit vers zéro, le rangerait au 1er janvier 1970.
+    assert_eq!(date_de_la_liste(-1, 0), "31 déc. 1969");
+}
+
+#[test]
 fn chaque_mois_a_son_abreviation() {
     // Le 15 de chaque mois de 2026, à midi UTC : 20 454 jours vont du 1er janvier 1970 au 1er janvier 2026.
     let mois = [

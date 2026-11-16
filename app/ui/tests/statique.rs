@@ -741,6 +741,38 @@ fn i29_ni_greffon_ni_api_de_notification_dans_l_interface() {
         ),
         vec!["app/ui/Cargo.toml:2 contient « Notification »".to_string()]
     );
+    // Une boîte de message de la WebView, chacune refusée par son mot ; le texte piégé des tests,
+    // `alert(1)`, n'en appelle aucune.
+    for (texte, mot) in [
+        (
+            "fenetre.alert_with_message(\"Refusé\").ok();\n",
+            "alert_with_message",
+        ),
+        (
+            "let oui = fenetre.confirm_with_message(\"Retirer ?\");\n",
+            "confirm_with_message",
+        ),
+        (
+            "let texte = fenetre.prompt_with_message(\"Texte\");\n",
+            "prompt_with_message",
+        ),
+    ] {
+        assert_eq!(
+            controler_i29(sain, &[source(autre, texte)]),
+            vec![format!("{autre}:1 contient « {mot} »")],
+            "{texte}"
+        );
+    }
+    assert!(
+        controler_i29(
+            sain,
+            &[source(
+                autre,
+                "let piege = \"<img src=x onerror=alert(1)>\";\n"
+            )]
+        )
+        .is_empty()
+    );
     // Les lignes `//` des sources, et `#` du manifeste, ne comptent pas.
     assert!(
         controler_i29(
