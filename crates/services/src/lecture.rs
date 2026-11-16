@@ -17,15 +17,19 @@ use noyau::donnees::teneur::{ErreurDeTeneur, Valeur, ecrire_la_teneur};
 
 /// L'idée `id`, telle qu'elle se lit : son identifiant, sa provenance (`provenance`, `par`, et
 /// `depuis` d'une idée importée), sa date (`le`), son texte, ses étiquettes, la date de son
-/// retrait et les clés des liens dont elle est un bout. `None` quand l'idée manque, ou qu'une de
-/// ses valeurs n'a pas le type du schéma : une idée illisible n'est pas une idée.
+/// retrait et les clés des liens dont elle est un bout. `None` quand l'idée manque, ou qu'elle est
+/// illisible (`idee_de`) : une idée illisible ne se lit pas, `idees_et_illisibles` la compte à
+/// part.
 pub fn lire_l_idee(doc: &Automerge, id: &str) -> Option<IdeeLue> {
     let idee = objet(doc, &objet(doc, &ROOT, IDEES)?, id)?;
     idee_de(doc, &idee, id, liens_de(doc, id))
 }
 
 /// L'idée `id`, telle qu'elle se lit de son objet `idee`, comme `lire_l_idee`, avec `liens`, les
-/// clés des liens dont elle est un bout.
+/// clés des liens dont elle est un bout. `None` quand l'une de ses valeurs manque (`par`,
+/// `provenance`, `le`, et `depuis` d'une idée importée), n'a pas le type du schéma, ou sort des
+/// valeurs qu'il connaît : un `par` qu'aucun appareil ne porte, une `provenance` ni `captee` ni
+/// `importee`.
 fn idee_de(doc: &Automerge, idee: &ObjId, id: &str, liens: BTreeSet<String>) -> Option<IdeeLue> {
     // `??` : le premier refuse une valeur d'un autre type, le second une valeur absente ; le
     // dernier `?`, un nom qu'aucun appareil ne porte.
@@ -127,10 +131,10 @@ pub fn idees(doc: &Automerge) -> Vec<IdeeLue> {
 
 /// Chaque idée qui se lit, retirée comprise, dans l'ordre des identifiants, et le nombre de
 /// celles qui ne se lisent pas : les clés d'`idees` dont la valeur n'est pas un objet à clés, ou
-/// dont une valeur n'a pas le type du schéma (`lire_l_idee`). Les liens se lisent en un seul
-/// passage sur `liens`, rangés par bout, et non par une recherche pour chaque idée : sur deux
-/// mille idées, la taille visée du fonds, chacune parcourrait toutes les clés des liens. Sans
-/// `idees` à la racine du document, aucune, et aucune illisible.
+/// qu'`idee_de` ne lit pas. Les liens se lisent en un seul passage sur `liens`, rangés par bout,
+/// et non par une recherche pour chaque idée : sur deux mille idées, la taille visée du fonds,
+/// chacune parcourrait toutes les clés des liens. Sans `idees` à la racine du document, aucune,
+/// et aucune illisible.
 pub fn idees_et_illisibles(doc: &Automerge) -> (Vec<IdeeLue>, usize) {
     let Some(idees) = objet(doc, &ROOT, IDEES) else {
         return (Vec::new(), 0);

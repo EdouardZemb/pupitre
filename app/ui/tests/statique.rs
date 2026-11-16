@@ -2,8 +2,9 @@
 //! HTML, ni style en attribut, ni stockage du navigateur ; elle ne lit l'horloge que dans
 //! `date_du_jour` et `decalage_du_geste`, la date à l'heure locale que dans `date_du_jour`, et le
 //! décalage local que dans `decalage_du_geste` et `decalage_a`. I29 : ni greffon ni API de
-//! notification. Les tests lisent sur le disque chaque `.rs` de `src/` et `index.html`, et, pour
-//! I29 seule, le `Cargo.toml` de l'interface ; un lieu dont aucune source n'est lue est une faute.
+//! notification, ni boîte de message. Les tests lisent sur le disque chaque `.rs` de `src/` et
+//! `index.html`, et, pour I29 seule, le `Cargo.toml` de l'interface ; un lieu dont aucune source
+//! n'est lue est une faute.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -96,6 +97,16 @@ const MANIFESTE: &str = "app/ui/Cargo.toml";
 /// Les mots d'I29 : le greffon (`tauri-plugin-notification`) et l'API de notification
 /// (`web_sys::Notification`, `window.Notification`), en sous-chaîne, sensible à la casse.
 const NOTIFICATION: &[&str] = &["Notification", "notification"];
+
+/// Les autres mots d'I29 : les boîtes de message de la WebView, qui diraient un échec hors du
+/// bandeau (`web_sys::Window::alert_with_message`, `confirm_with_message`, `prompt_with_message`),
+/// en sous-chaîne, sensible à la casse. `alert(` n'en est pas un : le texte piégé des tests,
+/// `alert(1)`, le porte.
+const BOITE_DE_MESSAGE: &[&str] = &[
+    "alert_with_message",
+    "confirm_with_message",
+    "prompt_with_message",
+];
 
 /// Où en est la lecture d'un fichier à la fin d'une ligne : dans le code, dans une chaîne, ou dans
 /// une chaîne brute ouverte par `r` et ce nombre de `#`.
@@ -319,11 +330,12 @@ fn controler(sources: &[(String, String)]) -> Vec<String> {
     fautes
 }
 
-/// Les fautes d'I29 (§ 70 · 3) : dans l'interface, ni greffon ni API de notification. `manifeste`
-/// est le `Cargo.toml` de l'interface, `sources` ses sources, nommées depuis la racine du dépôt.
-/// Une ligne de source dont le début, blancs ôtés, est `//`, et une ligne du manifeste dont le
-/// début est `#`, ne comptent pas. Chaque mot de `NOTIFICATION` se lit en sous-chaîne, sensible à
-/// la casse ; chaque faute nomme le fichier, la ligne et le mot.
+/// Les fautes d'I29 (§ 70 · 3) : dans l'interface, ni greffon ni API de notification, ni boîte de
+/// message. `manifeste` est le `Cargo.toml` de l'interface, `sources` ses sources, nommées depuis
+/// la racine du dépôt. Une ligne de source dont le début, blancs ôtés, est `//`, et une ligne du
+/// manifeste dont le début est `#`, ne comptent pas. Chaque mot de `NOTIFICATION` et de
+/// `BOITE_DE_MESSAGE` se lit en sous-chaîne, sensible à la casse ; chaque faute nomme le fichier,
+/// la ligne et le mot.
 fn controler_i29(manifeste: &str, sources: &[(String, String)]) -> Vec<String> {
     let mut fautes = Vec::new();
     let mut examiner = |chemin: &str, texte: &str, commentaire: &str| {
@@ -331,7 +343,11 @@ fn controler_i29(manifeste: &str, sources: &[(String, String)]) -> Vec<String> {
             if ligne.trim_start().starts_with(commentaire) {
                 continue;
             }
-            for mot in NOTIFICATION.iter().filter(|mot| ligne.contains(**mot)) {
+            for mot in NOTIFICATION
+                .iter()
+                .chain(BOITE_DE_MESSAGE)
+                .filter(|mot| ligne.contains(**mot))
+            {
                 fautes.push(format!("{chemin}:{} contient « {mot} »", indice + 1));
             }
         }

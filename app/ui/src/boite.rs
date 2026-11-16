@@ -537,11 +537,13 @@ async fn lire_les_retirees(
     }
 }
 
-/// Lit l'idée `id`, puis chacune de ses idées liées, pour les nommer ; chaque refus va au bandeau.
-/// La lecture finie, si l'idée est encore celle du volet et que nulle lecture plus récente ne l'a
-/// devancée, elle devient l'idée du volet ; le champ « Texte complété » part de son texte, s'il
-/// n'est pas déjà parti d'elle. L'idée posée, si le contrôle qui avait le focus a disparu (un geste
-/// de tri, l'idée devenue retirée), le focus va au titre du volet.
+/// Lit l'idée `id`, puis chacune de ses idées liées, pour les nommer. Le refus de l'idée va au
+/// bandeau ; une idée liée qui ne se lit pas se nomme `CASE_VIDE`, qui le dit déjà, et son refus
+/// ne va pas au bandeau. La lecture finie, si l'idée est encore celle du volet et que nulle
+/// lecture plus récente ne l'a devancée, elle devient l'idée du volet ; le champ « Texte
+/// complété » part de son texte, s'il n'est pas déjà parti d'elle. L'idée posée, si le contrôle
+/// qui avait le focus a disparu (un geste de tri, l'idée devenue retirée), le focus va au titre
+/// du volet.
 async fn lire_l_idee(etat: Etat, boite: EtatDeLaBoite, focus: RwSignal<Option<Cible>>, id: String) {
     boite
         .lectures_de_l_idee
@@ -568,10 +570,7 @@ async fn lire_l_idee(etat: Etat, boite: EtatDeLaBoite, focus: RwSignal<Option<Ci
         .await
         {
             Ok(liee) => nom_d_une_idee_liee(&liee),
-            Err(refus) => {
-                etat.apres_un_geste(&Err(refus));
-                CASE_VIDE.to_string()
-            }
+            Err(_) => CASE_VIDE.to_string(),
         };
         liens.push((autre.clone(), nom));
     }

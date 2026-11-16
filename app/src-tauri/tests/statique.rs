@@ -361,7 +361,7 @@ fn i30_chaque_controle_refuse_ce_qu_on_y_plante() {
 #[test]
 fn i29_ni_greffon_ni_api_de_notification_cote_natif() {
     let racine = racine_du_depot();
-    let manifeste = lire(&racine.join("app/src-tauri/Cargo.toml"));
+    let manifeste = lire(&racine.join(MANIFESTE_DE_L_ETABLI));
     let sources: Vec<_> = sources_du_depot()
         .into_iter()
         .filter(|(chemin, _)| chemin.starts_with(ETABLI))

@@ -124,7 +124,8 @@ fn chaque_ordre_est_total_et_se_departage_par_la_date_puis_l_identifiant() {
 #[test]
 fn le_filtre_retient_un_contenu_a_la_fois() {
     let ids = |filtre| ids_de(boite(jeu(), 0, Ordre::Date, Some(filtre)).retenues);
-    // Une idée qui a une durée a une prise (`idee::duree`) ; B a une prise sans durée ; F, retirée, n'entre jamais.
+    // Une idée qui a une durée a une prise (`idee::duree`) ; B a une prise sans durée ; F,
+    // retirée, n'entre jamais.
     assert_eq!(ids(Contenu::Prise), ["01B", "01D", "01C", "01A"]);
     assert_eq!(ids(Contenu::Photo), Vec::<&str>::new()); // « 0 idée » (LE-6, règle 6)
     assert_eq!(ids(Contenu::MidiVerse), ["01B"]);
@@ -164,7 +165,8 @@ fn une_idee_illisible_compte_parmi_les_interrogees() {
 
 #[test]
 fn les_retirees_se_rangent_par_la_date_du_retrait() {
-    // F (retirée à 500), G (à 400), H (à 500, identifiant après F) : F, H, G ; E, non retirée, n'y entre pas.
+    // F (retirée à 500), G (à 400), H (à 500, identifiant après F) : F, H, G ; E, non retirée,
+    // n'y entre pas.
     assert_eq!(ids_de(retirees(jeu_des_retirees())), ["01F", "01H", "01G"]);
 }
 
@@ -236,8 +238,8 @@ fn la_date_de_la_liste_porte_l_annee_au_decalage_donne() {
     assert_eq!(date_de_la_liste(1_793_748_600, 60), "4 nov. 2026");
     assert_eq!(date_de_la_liste(1_798_761_600, 0), "1er janv. 2027");
     assert_eq!(date_de_la_liste(1_798_761_600, -60), "31 déc. 2026");
-    // Une idée notée le 25 octobre 2026 à 0 h 30, heure d'été : au décalage de l'instant, +120, elle reste
-    // du 25 ; au décalage d'hiver, +60, elle serait du 24 (L11, la piste).
+    // Une idée notée le 25 octobre 2026 à 0 h 30, heure d'été : au décalage de l'instant, +120,
+    // elle reste du 25 ; au décalage d'hiver, +60, elle serait du 24 (L11, la piste).
     assert_eq!(date_de_la_liste(1_792_881_000, 120), "25 oct. 2026");
     assert_eq!(date_de_la_liste(1_792_881_000, 60), "24 oct. 2026");
 }
@@ -255,7 +257,8 @@ fn la_date_de_la_liste_suit_le_calendrier_hors_de_2026() {
 
 #[test]
 fn chaque_mois_a_son_abreviation() {
-    // Le 15 de chaque mois de 2026, à midi UTC : 20 454 jours vont du 1er janvier 1970 au 1er janvier 2026.
+    // Le 15 de chaque mois de 2026, à midi UTC : 20 454 jours vont du 1er janvier 1970 au
+    // 1er janvier 2026.
     let mois = [
         (14, "janv."),
         (45, "févr."),
