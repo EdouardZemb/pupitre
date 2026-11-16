@@ -274,8 +274,9 @@ du glyphe) pour répondre à « qu'est-ce qui est de ma main ? »
 - **Des constats, jamais des ordres.** « Le refrain arrive à la mesure 33 sur 45 » et
   non « avancez le refrain ». Un test vérifie l'absence d'impératif dans les libellés
   engendrés des diagnostics.
-- **Toujours l'assiette** d'un chiffre agrégé : « 3 morceaux en mi mineur, 6 dont la
-  tonalité n'est pas décidée ».
+- **Toujours l'assiette** d'un chiffre agrégé : « 3 morceaux en mi mineur · 6 dont la
+  tonalité n'est pas décidée · 41 interrogés »
+  ([CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds)).
 - **Le vocabulaire du [glossaire](80-glossaire.md)**, et lui seul.
 - **Aucune urgence fabriquée** : ni « vous n'avez pas ouvert ce morceau depuis 12 jours »,
   ni série, ni badge rouge.

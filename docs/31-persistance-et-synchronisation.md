@@ -835,7 +835,7 @@ Les en-têtes de morceau et d'album sont en **TOML**.
 |---|---|
 | Un enregistrement **tient sur une ligne** | Modifier un enregistrement touche une ligne du diff |
 | **Aucun alignement** en colonnes | Un alignement se refait, donc réécrit des lignes inchangées |
-| L'identifiant en premier | Trier, chercher, repérer à l'œil |
+| L'identifiant en premier | Ranger, chercher, repérer à l'œil |
 | Champs `clé=valeur`, **ordre stable** | Diff minimal, fichier lisible sans schéma |
 | Un champ vide s'écrit `clé=` | Distingue « vide » de « absent » |
 | Le texte libre après ` \| `, toujours en dernier | Un vers peut contenir `=`, `#`, `\|` : aucun échappement n'est nécessaire |

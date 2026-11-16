@@ -1,6 +1,6 @@
 # 90 — Questions ouvertes et arbitrages
 
-Ce document rassemble ce qui **n'est pas tranché**, trié par ce que chaque question
+Ce document rassemble ce qui **n'est pas tranché**, rangé par ce que chaque question
 débloque, avec son enjeu et une recommandation. Puis les **arbitrages** pris pendant la
 conception, avec ce que coûterait leur renversement : aucun n'est irréversible.
 

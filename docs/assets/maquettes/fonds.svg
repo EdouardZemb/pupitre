@@ -53,7 +53,7 @@
   <!-- Colonne centrale : morceaux -->
   <path d="M340 80 V575" stroke="#bbb"/>
   <text x="362" y="100" font-size="17" font-weight="700" fill="#111">Morceaux</text>
-  <text x="362" y="120" font-size="12" fill="#555">14 morceaux (compté) · 6 affichés · tri : dernière modification</text>
+  <text x="362" y="120" font-size="12" fill="#555">14 morceaux (compté) · 6 affichés · rangés par dernière modification</text>
 
   <g font-size="12" fill="#555">
     <text x="362" y="150">Titre</text>

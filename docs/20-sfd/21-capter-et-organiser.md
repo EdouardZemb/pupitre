@@ -125,9 +125,10 @@ la notice qu'Android impose pendant un enregistrement au premier plan (I29).
   présentée. Une capture faite par erreur ne s'annule pas : elle se retire.
 - Promouvoir crée l'objet, y verse la matière de l'idée (sa prise devient la première
   prise), et **garde l'idée**, reliée à ce qu'elle est devenue.
-- La boîte se trie par date, étiquette, durée, état (reliée ou non) et provenance (captée ou
-  importée, [§ 30 · 8.1](../30-modele-de-domaine.md#81-la-provenance)), et se filtre par ce
-  que l'idée contient : texte, prise, photo, MIDI versé, texte versé. La durée d'une idée
+- La boîte se range par date, étiquette, durée, état (reliée ou non) et provenance (captée ou
+  importée, [§ 30 · 8.1](../30-modele-de-domaine.md#81-la-provenance)) ; par défaut, par date,
+  la plus récente d'abord. Elle se filtre par ce que l'idée contient : texte, prise, photo,
+  MIDI versé, texte versé. La durée d'une idée
   est celle de sa prise la plus longue, et `—` dès qu'une de ses prises n'a pas encore la
   sienne ([§ 30 · 9.2](../30-modele-de-domaine.md#92-prises-photos-et-analyses)) ; une idée
   sans durée se range à part, jamais exclue.
@@ -442,7 +443,8 @@ cherche pas dans l'encre.
 **Règles**
 - Une ligne par morceau : titre retenu ou « sans titre », statut, tonalité, tempo, durée
   engendrée, **maturité** par dimension (six jauges sans couleur), dernière modification.
-- Tri libre ; par défaut, la dernière modification. Jamais un ordre alphabétique imposé.
+- Pour les morceaux, ordre libre ; par défaut, la dernière modification. Jamais un ordre
+  alphabétique imposé.
 - La boîte d'idées affiche le nombre d'idées non reliées, sans ancienneté. Les idées
   retirées n'y comptent pas ; leur liste est à un geste, et chacune s'y rétablit.
 - L'état de synchronisation est toujours visible
