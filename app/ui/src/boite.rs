@@ -148,6 +148,54 @@ fn fenetre_a_demander(
         .then(|| fenetre(defilement_px, hauteur_vue_px, hauteur_ligne_px, u64::MAX))
 }
 
+/// Le bord d'une liste par où le focus y entre, venu du dehors.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Bord {
+    Haut,
+    Bas,
+}
+
+/// La ligne qui prend le focus venu du dehors d'une liste sur sa ligne de rang `rang`, la liste
+/// défilée de `defilement_px` avant que `focus()` ne la fasse défiler, vue sur `hauteur_vue_px`,
+/// aux lignes de `hauteur_ligne_px`. Tab atteint d'abord la première ligne de la fenêtre lue, et
+/// Maj+Tab la dernière, chacune cachée dans sa marge, que `focus()` centrerait : une ligne
+/// entièrement cachée au-dessus de la vue cède le focus à la première ligne entièrement vue,
+/// `(Bord::Haut, rang)`, une ligne entièrement cachée au-dessous, à la dernière,
+/// `(Bord::Bas, rang)`. Une ligne vue, même en partie, le garde ; sans ligne entièrement vue, ou
+/// sans hauteur de ligne lisible, rien ne change.
+fn ligne_d_entree(
+    rang: u64,
+    defilement_px: f64,
+    hauteur_vue_px: f64,
+    hauteur_ligne_px: f64,
+) -> Option<(Bord, u64)> {
+    if !lisible(hauteur_ligne_px) {
+        return None;
+    }
+    let haut = defilement_px.max(0.0);
+    let bas = haut + hauteur_vue_px.max(0.0);
+    // Le haut de la ligne de rang `rang`, en pixels.
+    let haut_de = |rang: u64| rang as f64 * hauteur_ligne_px;
+    let (bord, cible) = if haut_de(rang.saturating_add(1)) <= haut {
+        (Bord::Haut, (haut / hauteur_ligne_px).ceil() as u64)
+    } else if haut_de(rang) >= bas {
+        (
+            Bord::Bas,
+            ((bas / hauteur_ligne_px).floor() as u64).checked_sub(1)?,
+        )
+    } else {
+        return None;
+    };
+    (haut_de(cible) >= haut && haut_de(cible.saturating_add(1)) <= bas).then_some((bord, cible))
+}
+
+/// L'idée de la ligne de rang `rang` dans sa liste, si la fenêtre lue `fenetre` la porte parmi ses
+/// lignes `lignes`.
+fn idee_de_rang(fenetre: &Fenetre, lignes: &[LigneDeLaBoite], rang: u64) -> Option<String> {
+    let place = usize::try_from(rang.checked_sub(u64::from(fenetre.debut))?).ok()?;
+    lignes.get(place).map(|ligne| ligne.idee.clone())
+}
+
 /// « Annuler : <message> », ou « Rien à annuler » (question 30).
 pub(crate) fn libelle_d_annulation(a_annuler: Option<&str>) -> String {
     match a_annuler {
@@ -372,11 +420,13 @@ struct IdeeOuverte {
 }
 
 /// Les demandes d'une liste en fenêtre : la dernière fenêtre demandée, et son rang ; une réponse
-/// qu'une demande plus récente a devancée s'ignore.
+/// qu'une demande plus récente a devancée s'ignore. Et le défilement de la liste à sa dernière
+/// mesure, que `entrer_dans_la_liste` lui rend.
 #[derive(Clone, Copy)]
 struct Demandes {
     derniere: StoredValue<Option<Fenetre>>,
     rang: StoredValue<u64>,
+    defilement: StoredValue<f64>,
 }
 
 impl Demandes {
@@ -384,6 +434,7 @@ impl Demandes {
         Demandes {
             derniere: StoredValue::new(None),
             rang: StoredValue::new(0),
+            defilement: StoredValue::new(0.0),
         }
     }
 
@@ -846,7 +897,7 @@ struct Ecran {
 
 impl Ecran {
     /// La fenêtre que demande la liste montée `liste` (`fenetre_a_demander`), d'après la dernière
-    /// demandée (`demandes`) et le total lu ; rien sans mesure.
+    /// demandée (`demandes`) et le total lu ; rien sans mesure. Le défilement mesuré s'y note.
     fn a_demander(
         self,
         liste: NodeRef<html::Div>,
@@ -855,6 +906,7 @@ impl Ecran {
         forcer: bool,
     ) -> Option<Fenetre> {
         let (haut, vue, ligne) = mesures(liste, self.etalon)?;
+        demandes.defilement.set_value(haut);
         demandes.derniere.with_value(|derniere| {
             fenetre_a_demander(derniere.as_ref(), haut, vue, ligne, total, forcer)
         })
@@ -883,6 +935,65 @@ impl Ecran {
                 self.etat, self.boite, self.focus, fenetre,
             ));
         }
+    }
+
+    /// Le focus venu du dehors de la liste `liste` (`ev`) sur sa ligne de rang `rang` : si
+    /// `ligne_d_entree` le cède à une ligne entièrement vue, la liste reprend le défilement noté à
+    /// sa dernière mesure, d'avant que `focus()` ne la fasse défiler, et le focus va à cette ligne
+    /// sans la faire défiler ; vrai alors. Le focus venu de la liste elle-même, la région qui le
+    /// prend avant ses lignes, vient du dehors.
+    fn entrer_dans_la_liste(self, ev: &leptos::ev::FocusEvent, liste: Liste, rang: u64) -> bool {
+        let (conteneur, demandes) = match liste {
+            Liste::Boite => (self.liste, self.boite.demandes),
+            Liste::Retirees => (self.liste_des_retirees, self.boite.demandes_des_retirees),
+        };
+        let (Some(conteneur), Some(etalon)) =
+            (conteneur.get_untracked(), self.etalon.get_untracked())
+        else {
+            return false;
+        };
+        let region: &Node = conteneur.as_ref();
+        let du_dehors = ev
+            .related_target()
+            .and_then(|venu| venu.dyn_into::<Node>().ok())
+            .is_none_or(|venu| venu.is_same_node(Some(region)) || !region.contains(Some(&venu)));
+        if !du_dehors {
+            return false;
+        }
+        let defilement = demandes.defilement.get_value();
+        let Some((bord, cible)) = ligne_d_entree(
+            rang,
+            defilement,
+            f64::from(conteneur.client_height()),
+            f64::from(etalon.client_height()) / LIGNES_DE_L_ETALON,
+        ) else {
+            return false;
+        };
+        let idee = match liste {
+            Liste::Boite => self.boite.lue.with_untracked(|lue| {
+                lue.as_ref()
+                    .and_then(|lue| idee_de_rang(&lue.fenetre, &lue.vue.lignes, cible))
+            }),
+            Liste::Retirees => self.boite.retirees.with_untracked(|lues| {
+                lues.as_ref()
+                    .and_then(|lues| idee_de_rang(&lues.fenetre, &lues.vue.lignes, cible))
+            }),
+        };
+        let Some(idee) = idee else {
+            return false;
+        };
+        let commande = match (liste, bord) {
+            (Liste::Boite, Bord::Haut) => Commande::Choisir,
+            (Liste::Boite, Bord::Bas) => Commande::Cocher,
+            (Liste::Retirees, _) => Commande::Retablir,
+        };
+        // Le défilement noté vient de `scroll_top`, en pixels entiers.
+        conteneur.set_scroll_top(defilement as i32);
+        self.focus.set(Some(Cible::Ligne {
+            gardee: Gardee { idee, commande },
+            defilement: Defilement::Garde,
+        }));
+        true
     }
 
     /// Un autre ordre ou un autre contenu : la liste revient au début, et sa fenêtre se relit.
@@ -1158,7 +1269,8 @@ impl Ecran {
 /// l'application, jamais une minuterie (I18) : chaque ligne a la hauteur fixe `--ligne`, que
 /// l'étalon mesure ; la piste a la hauteur de toutes les lignes, et seules celles de la fenêtre lue
 /// s'y posent, à leur rang. Chaque contrôle est un bouton, une case ou un champ, nommé ; le focus
-/// suit les volets (`Cible`), et revient à la ligne qui l'a perdu quand la fenêtre se pose
+/// suit les volets (`Cible`), entre dans une liste sur une ligne entièrement vue
+/// (`entrer_dans_la_liste`), et revient à la ligne qui l'a perdu quand la fenêtre se pose
 /// (`rendre_le_focus_perdu`).
 #[component]
 pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
@@ -1479,13 +1591,29 @@ fn ligne_de_la_boite(
         let id = id.clone();
         move |_| ecran.ouvrir(id.clone())
     };
+    // Le rang de la ligne dans la liste, compté de zéro.
+    let rang_dans_la_liste = move || {
+        let debut = boite
+            .lue
+            .with_untracked(|lue| lue.as_ref().map_or(0, |lue| lue.fenetre.debut));
+        u64::from(debut) + index.get_untracked() as u64
+    };
+    // Le focus venu du dehors sur une ligne cachée va à une ligne vue, qui se garde à son tour.
     let bouton_pris = {
         let id = id.clone();
-        move |_| ecran.garder(&id, Commande::Choisir)
+        move |ev: leptos::ev::FocusEvent| {
+            if !ecran.entrer_dans_la_liste(&ev, Liste::Boite, rang_dans_la_liste()) {
+                ecran.garder(&id, Commande::Choisir);
+            }
+        }
     };
     let case_prise = {
         let id = id.clone();
-        move |_| ecran.garder(&id, Commande::Cocher)
+        move |ev: leptos::ev::FocusEvent| {
+            if !ecran.entrer_dans_la_liste(&ev, Liste::Boite, rang_dans_la_liste()) {
+                ecran.garder(&id, Commande::Cocher);
+            }
+        }
     };
     let cocher = move |ev: leptos::ev::Event| {
         let coche = event_target_checked(&ev);
@@ -1579,9 +1707,21 @@ fn ligne_retiree(ecran: Ecran, index: ReadSignal<usize>, ligne: LigneDeLaBoite) 
         Commande::Retablir => bouton.get().map(Into::into),
         Commande::Choisir | Commande::Cocher => None,
     });
+    // Le rang de la ligne dans la liste, compté de zéro.
+    let rang_dans_la_liste = move || {
+        let debut = boite
+            .retirees
+            .with_untracked(|lues| lues.as_ref().map_or(0, |lues| lues.fenetre.debut));
+        u64::from(debut) + index.get_untracked() as u64
+    };
+    // Le focus venu du dehors sur une ligne cachée va à une ligne vue, qui se garde à son tour.
     let bouton_pris = {
         let id = id.clone();
-        move |_| ecran.garder(&id, Commande::Retablir)
+        move |ev: leptos::ev::FocusEvent| {
+            if !ecran.entrer_dans_la_liste(&ev, Liste::Retirees, rang_dans_la_liste()) {
+                ecran.garder(&id, Commande::Retablir);
+            }
+        }
     };
     let rang = move || {
         let debut = boite
