@@ -2315,4 +2315,50 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn le_focus_venu_du_dehors_entre_sur_une_ligne_entierement_vue() {
+        // Des lignes de 40 px, une vue de 320 px défilée de 1 296 px : les lignes 33 à 39 sont
+        // entièrement vues, la 32 et la 40 en partie.
+        let a = |rang| ligne_d_entree(rang, 1_296.0, 320.0, 40.0);
+        // Tab atteint d'abord la première ligne de la fenêtre, cachée dans la marge du haut.
+        assert_eq!(a(27), Some((Bord::Haut, 33)));
+        assert_eq!(a(31), Some((Bord::Haut, 33)));
+        // Une ligne vue, même en partie, garde le focus.
+        assert_eq!(a(32), None);
+        assert_eq!(a(33), None);
+        assert_eq!(a(39), None);
+        assert_eq!(a(40), None);
+        // Maj+Tab, venu d'en dessous, atteint d'abord la dernière ligne de la fenêtre.
+        assert_eq!(a(41), Some((Bord::Bas, 39)));
+        assert_eq!(a(45), Some((Bord::Bas, 39)));
+        // La liste en haut : la première ligne est vue, rien ne change.
+        assert_eq!(ligne_d_entree(0, 0.0, 320.0, 40.0), None);
+        assert_eq!(ligne_d_entree(12, 0.0, 320.0, 40.0), Some((Bord::Bas, 7)));
+        // Une vue plus basse qu'une ligne n'en voit aucune entière : rien ne change.
+        assert_eq!(ligne_d_entree(0, 50.0, 30.0, 40.0), None);
+        assert_eq!(ligne_d_entree(5, 50.0, 30.0, 40.0), None);
+        // Sans hauteur de ligne lisible, rien ne change.
+        assert_eq!(ligne_d_entree(0, 1_296.0, 320.0, 0.0), None);
+        assert_eq!(ligne_d_entree(0, 1_296.0, 320.0, f64::NAN), None);
+    }
+
+    #[test]
+    fn l_idee_d_un_rang_se_lit_dans_la_fenetre() {
+        let lignes: Vec<LigneDeLaBoite> = ["a", "b", "c"]
+            .iter()
+            .map(|id| LigneDeLaBoite {
+                idee: id.to_string(),
+                ..ligne(None, &[])
+            })
+            .collect();
+        let fenetre = Fenetre {
+            debut: 10,
+            nombre: 3,
+        };
+        assert_eq!(idee_de_rang(&fenetre, &lignes, 10).as_deref(), Some("a"));
+        assert_eq!(idee_de_rang(&fenetre, &lignes, 12).as_deref(), Some("c"));
+        assert_eq!(idee_de_rang(&fenetre, &lignes, 9), None);
+        assert_eq!(idee_de_rang(&fenetre, &lignes, 13), None);
+    }
 }
