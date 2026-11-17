@@ -940,9 +940,17 @@ impl Ecran {
     /// Le focus venu du dehors de la liste `liste` (`ev`) sur sa ligne de rang `rang` : si
     /// `ligne_d_entree` le cède à une ligne entièrement vue, la liste reprend le défilement noté à
     /// sa dernière mesure, d'avant que `focus()` ne la fasse défiler, et le focus va à cette ligne
-    /// sans la faire défiler ; vrai alors. Le focus venu de la liste elle-même, la région qui le
-    /// prend avant ses lignes, vient du dehors.
-    fn entrer_dans_la_liste(self, ev: &leptos::ev::FocusEvent, liste: Liste, rang: u64) -> bool {
+    /// sans la faire défiler. Le focus venu de la liste elle-même, la région qui le prend avant ses
+    /// lignes, vient du dehors, comme celui qui revient à l'application (Alt+Tab) sur une ligne
+    /// que la molette a cachée. Le focus que l'écran rend lui-même à une ligne (`Cible::Ligne`, en
+    /// cours) ne se détourne pas.
+    fn entrer_dans_la_liste(self, ev: &leptos::ev::FocusEvent, liste: Liste, rang: u64) {
+        if self
+            .focus
+            .with_untracked(|cible| matches!(cible, Some(Cible::Ligne { .. })))
+        {
+            return;
+        }
         let (conteneur, demandes) = match liste {
             Liste::Boite => (self.liste, self.boite.demandes),
             Liste::Retirees => (self.liste_des_retirees, self.boite.demandes_des_retirees),
@@ -950,7 +958,7 @@ impl Ecran {
         let (Some(conteneur), Some(etalon)) =
             (conteneur.get_untracked(), self.etalon.get_untracked())
         else {
-            return false;
+            return;
         };
         let region: &Node = conteneur.as_ref();
         let du_dehors = ev
@@ -958,7 +966,7 @@ impl Ecran {
             .and_then(|venu| venu.dyn_into::<Node>().ok())
             .is_none_or(|venu| venu.is_same_node(Some(region)) || !region.contains(Some(&venu)));
         if !du_dehors {
-            return false;
+            return;
         }
         let defilement = demandes.defilement.get_value();
         let Some((bord, cible)) = ligne_d_entree(
@@ -967,7 +975,7 @@ impl Ecran {
             f64::from(conteneur.client_height()),
             f64::from(etalon.client_height()) / LIGNES_DE_L_ETALON,
         ) else {
-            return false;
+            return;
         };
         let idee = match liste {
             Liste::Boite => self.boite.lue.with_untracked(|lue| {
@@ -980,7 +988,7 @@ impl Ecran {
             }),
         };
         let Some(idee) = idee else {
-            return false;
+            return;
         };
         let commande = match (liste, bord) {
             (Liste::Boite, Bord::Haut) => Commande::Choisir,
@@ -993,7 +1001,6 @@ impl Ecran {
             gardee: Gardee { idee, commande },
             defilement: Defilement::Garde,
         }));
-        true
     }
 
     /// Un autre ordre ou un autre contenu : la liste revient au début, et sa fenêtre se relit.
@@ -1598,21 +1605,20 @@ fn ligne_de_la_boite(
             .with_untracked(|lue| lue.as_ref().map_or(0, |lue| lue.fenetre.debut));
         u64::from(debut) + index.get_untracked() as u64
     };
-    // Le focus venu du dehors sur une ligne cachée va à une ligne vue, qui se garde à son tour.
+    // La commande prise se garde ; venu du dehors sur une ligne cachée, le focus va ensuite à une
+    // ligne vue, qui se garde à son tour.
     let bouton_pris = {
         let id = id.clone();
         move |ev: leptos::ev::FocusEvent| {
-            if !ecran.entrer_dans_la_liste(&ev, Liste::Boite, rang_dans_la_liste()) {
-                ecran.garder(&id, Commande::Choisir);
-            }
+            ecran.garder(&id, Commande::Choisir);
+            ecran.entrer_dans_la_liste(&ev, Liste::Boite, rang_dans_la_liste());
         }
     };
     let case_prise = {
         let id = id.clone();
         move |ev: leptos::ev::FocusEvent| {
-            if !ecran.entrer_dans_la_liste(&ev, Liste::Boite, rang_dans_la_liste()) {
-                ecran.garder(&id, Commande::Cocher);
-            }
+            ecran.garder(&id, Commande::Cocher);
+            ecran.entrer_dans_la_liste(&ev, Liste::Boite, rang_dans_la_liste());
         }
     };
     let cocher = move |ev: leptos::ev::Event| {
@@ -1714,13 +1720,13 @@ fn ligne_retiree(ecran: Ecran, index: ReadSignal<usize>, ligne: LigneDeLaBoite) 
             .with_untracked(|lues| lues.as_ref().map_or(0, |lues| lues.fenetre.debut));
         u64::from(debut) + index.get_untracked() as u64
     };
-    // Le focus venu du dehors sur une ligne cachée va à une ligne vue, qui se garde à son tour.
+    // La commande prise se garde ; venu du dehors sur une ligne cachée, le focus va ensuite à une
+    // ligne vue, qui se garde à son tour.
     let bouton_pris = {
         let id = id.clone();
         move |ev: leptos::ev::FocusEvent| {
-            if !ecran.entrer_dans_la_liste(&ev, Liste::Retirees, rang_dans_la_liste()) {
-                ecran.garder(&id, Commande::Retablir);
-            }
+            ecran.garder(&id, Commande::Retablir);
+            ecran.entrer_dans_la_liste(&ev, Liste::Retirees, rang_dans_la_liste());
         }
     };
     let rang = move || {
@@ -2469,9 +2475,16 @@ mod tests {
         assert_eq!(a(33), None);
         assert_eq!(a(39), None);
         assert_eq!(a(40), None);
-        // Maj+Tab, venu d'en dessous, atteint d'abord la dernière ligne de la fenêtre.
+        // Maj+Tab, venu d'en dessous, atteint d'abord une ligne cachée dans la marge du bas.
         assert_eq!(a(41), Some((Bord::Bas, 39)));
-        assert_eq!(a(45), Some((Bord::Bas, 39)));
+        assert_eq!(a(44), Some((Bord::Bas, 39)));
+        // Aux bords exacts, une vue de 1 280 à 1 600 px : la ligne 31 finit au haut de la vue, la
+        // ligne 40 commence à son bas ; les lignes 32 et 39 sont entièrement vues.
+        let b = |rang| ligne_d_entree(rang, 1_280.0, 320.0, 40.0);
+        assert_eq!(b(31), Some((Bord::Haut, 32)));
+        assert_eq!(b(32), None);
+        assert_eq!(b(39), None);
+        assert_eq!(b(40), Some((Bord::Bas, 39)));
         // La liste en haut : la première ligne est vue, rien ne change.
         assert_eq!(ligne_d_entree(0, 0.0, 320.0, 40.0), None);
         assert_eq!(ligne_d_entree(12, 0.0, 320.0, 40.0), Some((Bord::Bas, 7)));
