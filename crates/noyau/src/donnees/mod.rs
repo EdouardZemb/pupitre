@@ -11,5 +11,6 @@ pub mod fonds;
 pub mod gestes;
 pub mod idee;
 pub mod identifiants;
+pub mod repli;
 pub mod teneur;
 pub mod version;
