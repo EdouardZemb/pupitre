@@ -166,6 +166,10 @@ Chacun a été cherché aussi ailleurs dans le plan, et la correction suit parto
 | R9. Mineur : « l'évaluation sans index » est un index neuf | La doc de `boite_sans_index` le dit, et pourquoi le test tient ; la PR (a) le dit | 4 |
 | R10. Mineur : `aucun_compteur_d_anciennete` défait la vue par un motif exhaustif, et `assiette_de` bâtit l'assiette (`suite/mod.rs:2555`, `:2473`) | Les deux champs neufs nommés dans le motif ; `illisibles: 0` | 4 |
 
+Un relecteur neuf a vérifié les corrections : R5 restait incomplet (l'écoute ne savait pas dire si la cible est la
+recherche), et trois défauts nouveaux paraissaient ; tous corrigés : `est_la_recherche` et `ID_DE_LA_RECHERCHE`, testés
+(tâche 11) ; la doc d'`EtatDeLaRequete`, tenue par `Etat` ; ce que dit le corps de la PR (a), R2 et R9 compris (tâche 10).
+
 ## Les écarts au plan maître
 
 Le plan maître le veut : un plan de tranche qui le contredit le dit dans sa PR, et la maîtrise d'ouvrage relit ce
@@ -459,7 +463,7 @@ crates/services/tests/suite/mod.rs (a) cap06_7 à 10, cap02_5 (part), i09, i13, 
 crates/services/tests/commandes_en_memoire.rs, crates/stockage/tests/commandes_sur_fichiers.rs   (a) les tests nommés ;
                                    le test à deux répliques (mémoire seule)
 app/src-tauri/capabilities/windows.json, src/lib.rs, src/commandes_de_l_etabli.rs   (a)
-app/ui/src/recherche.rs            (b) EtatDeLaRequete, DUREES, ETATS, PROVENANCES, requete_de_l_ecran, jour_du_champ,
+app/ui/src/recherche.rs            (b) EtatDeLaRequete, DUREES, ETATS, PROVENANCES, ID_DE_LA_RECHERCHE, est_la_recherche, jour_du_champ,
                                    bornes_de_la_requete, slash_cherche, echap_ferme
 app/ui/src/app.rs                  (b) Vue { Fonds, Table }, l'état de la requête, l'écoute de `/`
 app/ui/src/entete.rs               (b) la recherche, l'état de synchronisation, « Afficher »
@@ -1444,8 +1448,9 @@ fn le_meme_journal_a_la_meme_empreinte() {
   règle de LE-6 recopiée, chaque mécanisme annoncé relu. Puis les corrections, leur relecture sur la tête qui part. Le
   corps dit : les tests réécrits (ceux de `boite()`, `le_filtre_et_l_ordre_passent_au_noyau`, les gestes à deux
   décalages) ; la dépendance de test nouvelle ; qu'un fonds importé répondra surtout « sans texte » (question 4) ; que
-  le repli ne couvre que sa table ; que la construction de l'index compte dans l'ouverture ; « Écarts à la spec :
-  Aucun. ». `gh pr ready`, puis la fusion par squash, `--match-head-commit` nommant la tête relue.
+  le repli ne couvre que sa table ; que la construction de l'index compte dans l'ouverture ; que `boite_sans_index` est
+  un index neuf, non une évaluation sans index, et pourquoi le test d'I13 tient (R9) ; qu'un bout de lien illisible se
+  délie au décalage du geste (R2) ; « Écarts à la spec : Aucun. ». `gh pr ready`, puis la fusion par squash, `--match-head-commit` nommant la tête relue.
 
 ## PR (b) · la vue du fonds
 
@@ -1464,8 +1469,8 @@ glossaire ; `docs/pistes.md` ; le registre (LE-16) ; `CONVENTIONS.md` ; `CLAUDE.
 **Interfaces — produit** (`app/ui/src/recherche.rs`) :
 
 ```rust
-/// La requête en cours, que l'en-tête et le fonds partagent, née dans `App` pour survivre au
-/// changement de vue : le texte cherché, la période (la valeur de chaque champ de date), l'étiquette,
+/// La requête en cours, que l'en-tête et le fonds partagent, tenue par `Etat` (`Etat::nouveau` la crée) pour
+/// survivre au changement de vue : le texte cherché, la période (la valeur de chaque champ de date), l'étiquette,
 /// et le rang choisi de chaque réglage.
 #[derive(Clone, Copy)]
 pub(crate) struct EtatDeLaRequete {
@@ -1486,6 +1491,11 @@ impl EtatDeLaRequete {
     /// Les réglages qui disent `requete`, ceux d'un jour illisible ou d'un seuil absent de `DUREES` vidés.
     pub(crate) fn poser(self, requete: &Requete);
 }
+/// L'`id` du champ de recherche de l'en-tête, seul champ où Échap garde son sens du navigateur.
+pub(crate) const ID_DE_LA_RECHERCHE: &str = "recherche";
+/// La cible d'un événement, dite par son `id`, est le champ de recherche ; tout autre champ de texte, ou une cible sans
+/// `id`, ne l'est pas.
+pub(crate) fn est_la_recherche(id_de_la_cible: Option<&str>) -> bool;
 /// Le jour d'un champ de date : « AAAA-MM-JJ », ou `None` pour un champ vide ou incomplet.
 pub(crate) fn jour_du_champ(valeur: &str) -> Option<Jour>;
 /// Les bornes de la période de `requete`, au décalage que `decalage` dit de chaque instant.
@@ -1523,6 +1533,10 @@ fn echap_ne_ferme_que_le_volet_ouvert() {
     assert!(!echap_ferme("Escape", true, true, false));
     assert!(!echap_ferme("Esc", false, true, false));
     assert!(!echap_ferme("Escape", false, true, true)); // dans la recherche, Échap vide le champ
+    assert!(est_la_recherche(Some(ID_DE_LA_RECHERCHE)));
+    assert!(!est_la_recherche(Some("note")));
+    assert!(!est_la_recherche(Some("")));
+    assert!(!est_la_recherche(None));
 }
 
 #[test]
@@ -1584,7 +1598,7 @@ nœud · aucune archive"` (26 caractères, `œ` U+0153, le point médian U+00B7 
     requête « eglise » ;
   - `l_etat_de_synchronisation_dit_sans_noeud_aucune_archive` : la constante, 26 caractères, 28 octets.
 - [ ] **Étape 2 : voir le rouge** à « Lint » (`no variant Fonds`), committer (`test: l'établi s'ouvre sur le fonds`).
-- [ ] **Étape 3 : écrire le code.** `Entete` porte, avant « Afficher », un champ `<input type="search">` libellé
+- [ ] **Étape 3 : écrire le code.** `Entete` porte, avant « Afficher », un champ `<input type="search">`, d'`id` `ID_DE_LA_RECHERCHE`, libellé
   « Chercher dans le texte des idées », `aria-keyshortcuts="/"`, et une aide liée par `aria-describedby` (« / porte le
   focus ici, depuis le fonds comme depuis la table ») ; chaque frappe (`on:input`) appelle `etat.chercher`, sans
   minuterie ; l'état de synchronisation, un paragraphe, toujours visible, sur le fonds comme sur la table. « Afficher »
@@ -1633,7 +1647,7 @@ nœud · aucune archive"` (26 caractères, `œ` U+0153, le point médian U+00B7 
 
 **Fichiers :** modifier `app/ui/src/boite.rs`, `app/ui/style.css`.
 
-**Interfaces — consomme :** `echap_ferme` (tâche 11) ; `Volet`, `fermer_le_volet`, `fermer_l_idee` (`boite.rs:1104`,
+**Interfaces — consomme :** `echap_ferme`, `est_la_recherche` (tâche 11) ; `Volet`, `fermer_le_volet`, `fermer_l_idee` (`boite.rs:1104`,
 `:1111`) ; `EtatDuFonds::lecture_seule`.
 
 - [ ] **Étape 1 : écrire les tests** :
@@ -1646,7 +1660,9 @@ nœud · aucune archive"` (26 caractères, `œ` U+0153, le point médian U+00B7 
     que « Fermer », pour le volet de l'idée (la ligne qui l'a ouvert) et pour celui des retirées (le bouton « Idées
     retirées »).
 - [ ] **Étape 2 : voir le rouge**, committer (`test: Échap et le fonds vide`).
-- [ ] **Étape 3 : écrire le code.** L'écoute de `keydown` de la boîte (`:1324`) joue aussi Échap par `echap_ferme`, le
+- [ ] **Étape 3 : écrire le code.** L'écoute de `keydown` de la boîte (`:1324`) joue aussi Échap par `echap_ferme`, son
+  `dans_la_recherche` valant `est_la_recherche` de l'`id` de la cible de l'événement (`Element::id`, une chaîne vide
+  pour une cible sans `id`), le
   volet de l'idée, celui des retirées et celui du journal (tâche 16) ; la page du fonds vide prend la place de la liste
   quand `assiette_du_compte.considerees` vaut 0, Pupitre neuf compris, au-dessous du champ « Noter une idée », qui reste
   sauf en lecture seule ; le bouton « Idées retirées » reste (question 26). Une recherche qui ne trouve rien n'est pas
