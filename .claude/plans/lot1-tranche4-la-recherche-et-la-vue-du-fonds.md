@@ -17,7 +17,7 @@ synchronisation, « Afficher » : Fonds ou Table), `/` et Échap, les critères 
 requêtes enregistrées et le journal à l'écran ; puis l'essai installé.
 
 **Pile :** Rust 1.99.1, édition 2024 ; `tauri` 2.12.5 ; Leptos 0.8.23 ; `automerge` 0.12.0 ; nouvelle : `serde_json`
-1.0.154, en dépendance de test des services (déjà au `Cargo.lock`, par l'interface et l'établi) ; tests : `proptest`
+1.0.154, en dépendance de test des services et du stockage (déjà au `Cargo.lock`, par l'interface et l'établi) ; tests : `proptest`
 1.12.0 ; en CI, `cargo-mutants` 27.1.0, trunk 0.22.1, tauri-cli 2.12.4.
 
 **Spécification :** le plan maître, section « Tranche 4 · la recherche et la vue du fonds », ses décisions 9, 10, 17,
@@ -146,6 +146,26 @@ nom d'origine (règle 18) à la tâche 10 ; les critères de sortie (règle 19) 
 | C14. Ce que reçoivent les autres tranches et lots | « Effets cherchés » | effets |
 | C15. Neuf voies divergentes | Chaque voie suit la colonne « Ce qui tranche » ; la commande `boite` étendue, sans `chercher` ; question 21 | toutes |
 
+### La relecture par une session neuve
+
+Une session neuve a relu ce plan le 2026-11-17, selon « La revue du plan » (`docs/modele/methode.md`), chaque
+mécanisme annoncé relu dans le code de `bc0daca`, chaque valeur recalculée (la table de repli, les instants, les
+réponses des jeux, l'empreinte du journal) : dix constats (un bloquant, deux majeurs, sept mineurs), tous retenus.
+Chacun a été cherché aussi ailleurs dans le plan, et la correction suit partout où la même croyance paraissait.
+
+| Constat | Décision de ce plan | Tâche |
+|---|---|---|
+| R1. Bloquant : la suite des commandes, que trois tests du stockage incluent, appelle `serde_json`, absent des dépendances de test du stockage (`crates/stockage/Cargo.toml`) | `serde_json` en dépendance de test du stockage aussi ; la ligne d'« Effets cherchés » nomme le stockage ; le § 41 · 6 ne change pas, son budget ne comptant pas les dépendances de test | 4, 10 |
+| R2. Majeur : délier part du volet, qui ne garde pas la naissance de l'autre bout, et rétablir part de la liste des retirées (`app/ui/src/boite.rs:417-420`, `:1212`, `:1260`) | `commande_de_lien` ; le volet garde la naissance de chaque idée liée ; rétablir depuis la liste prend le `le` de sa ligne ; un bout illisible prend le décalage du geste, limite dite | 9 |
+| R3. Majeur : « Contenu : » restait sur un signal de la boîte que la commande ne lirait plus, et `CONTENUS` est privé (`boite.rs:53`, `:463`) | `CONTENUS` en `pub(crate)` ; « Contenu : » passe à la requête ; `BoiteLue` garde la requête lue | 11, 13 |
+| R4. Mineur : `mesure.rs` écrit `Relier` et `Regrouper` (`crates/services/src/mesure.rs:94`, `:144`) | Ajouté aux fichiers de la tâche, le second décalage à 0 | 9 |
+| R5. Mineur : sous WebView2, Échap vide un `<input type="search">` | Dans la recherche, Échap garde ce sens et ne ferme aucun volet ; une ligne d'outil ; un point de l'essai | 11, 18 |
+| R6. Mineur : le point de revue 1 n'éprouvait pas la note que la requête trouve | Une seconde note, « l’église du soir », que la liste montre | 5 |
+| R7. Mineur : `EtatDeLaRequete` créé par `App` et par `Etat::nouveau` | Par `Etat::nouveau` seul | 12 |
+| R8. Mineur : la doc de `Requete::texte` mêlait le texte saisi et ses mots | Le texte saisi, tel quel ; ses mots par `repli::mots` | 3 |
+| R9. Mineur : « l'évaluation sans index » est un index neuf | La doc de `boite_sans_index` le dit, et pourquoi le test tient ; la PR (a) le dit | 4 |
+| R10. Mineur : `aucun_compteur_d_anciennete` défait la vue par un motif exhaustif, et `assiette_de` bâtit l'assiette (`suite/mod.rs:2555`, `:2473`) | Les deux champs neufs nommés dans le motif ; `illisibles: 0` | 4 |
+
 ## Les écarts au plan maître
 
 Le plan maître le veut : un plan de tranche qui le contredit le dit dans sa PR, et la maîtrise d'ouvrage relit ce
@@ -263,7 +283,9 @@ est refusé (`Impossible::MemeNom`), comme compléter par le même texte ; un no
 « sans … » nulle ne s'écrit pas, comme les illisibles depuis la tranche 3 ; l'écran offre trois seuils de durée (30 s,
 une minute, 5 min) ; un seuil au-delà de 2⁵³ − 1 secondes se refuse (`Impossible::SeuilTropLong`) ; les étiquettes
 du fonds viennent avec la vue de la boîte ; la commande `boite` garde son nom ; `retenues` garde le sien ;
-`serde_json` en dépendance de test des services, pour l'empreinte d'I13.
+`serde_json` en dépendance de test des services et du stockage, pour l'empreinte d'I13 : la suite des commandes, qui la
+calcule, est incluse par trois tests du stockage (`commandes_sur_fichiers.rs`, `references.rs`, `repliques.rs`), et un
+test ne voit que les dépendances de son crate.
 
 ---
 
@@ -282,7 +304,8 @@ dans la tâche qui possède le code.
    `une_requete_plus_recente_se_nomme_et_ne_se_lance_pas`, tâche 15.
 4. **Supprimer la requête en cours** : ses critères restent à l'écran, seule la liste des requêtes enregistrées change.
    `supprimer_la_requete_en_cours_laisse_ses_criteres`, tâche 15.
-5. **Échap sans volet ouvert**, ou dans un champ pendant une composition : rien ne se ferme, le focus ne bouge pas.
+5. **Échap sans volet ouvert**, dans un champ pendant une composition, ou dans la recherche : rien ne se ferme, le
+   focus ne bouge pas.
    `echap_ne_ferme_que_le_volet_ouvert`, tâche 11.
 
 ## Mécanismes annoncés
@@ -369,6 +392,7 @@ dans la tâche qui possède le code.
 - l'effacement d'une clé sous Automerge, concurrent d'une écriture dans l'objet qu'elle nomme — l'écriture ne fait pas renaître l'objet — `un_renommage_concurrent_d_une_suppression_ne_laisse_aucune_requete_sans_critere` (tâche 7)
 - `KeyboardEvent.key` sous un clavier AZERTY — `/` vient de Maj + `:`, la touche dont `code` vaut `Slash` y donne `!`, et AltGr arrive comme Ctrl + Alt — `slash_porte_le_focus_hors_d_un_champ_seulement` (tâche 11)
 - le focus posé pendant `keydown` — sans `preventDefault`, la frappe se poursuit dans le champ qui le reçoit — aucun test sans DOM ne le peut : l'essai installé (tâche 18) tape `/` hors d'un champ et lit la recherche vide
+- `<input type="search">` sous WebView2 — Échap y vide le champ, action par défaut de `keydown`, et l'`input` qui suit relance la recherche, vide — `echap_ne_ferme_que_le_volet_ouvert` (tâche 11), et l'essai installé (tâche 18) : Échap dans la recherche, un volet ouvert puis aucun
 - `<input type="date">` — rend `AAAA-MM-JJ`, ou une chaîne vide quand le champ est vide ou incomplet — `un_champ_de_date_vide_ne_borne_pas` (tâche 11)
 - `aria-live="polite"` — annonce chaque changement de la région, une frappe après l'autre si chaque réponse la change — aucun test sans DOM ne le peut : l'essai installé (tâche 18), au lecteur d'écran
 - les contrôles statiques du noyau et des services, en sous-chaîne — refusent `Instant`, `File`, `io::` ou `time::` jusque dans un commentaire en français — `statique.rs` du noyau et des services, verts après chaque tâche qui y écrit
@@ -389,9 +413,9 @@ dans la tâche qui possède le code.
 - La table de repli est au noyau, que l'interface compile en WebAssembly — le carnet du lot 2 (Android), où le même repli rendra les mêmes réponses — `la_table_est_rangee_et_chaque_entree_se_replie` (tâche 1)
 - Quatre modules neufs du noyau sous mutation — le job `mutants`, son délai, et celui de `mutants-complet.yml` — le délai remesuré (tâches 10 et 17)
 - L'établi s'ouvre sur le fonds — la tranche 7 (« jusqu'à la boîte d'idées affichée ») et l'essai de la tranche 8 — `l_etabli_s_ouvre_sur_le_fonds_et_quitter_la_table_ferme_sa_palette` (tâche 12)
-- `/` et Échap s'écoutent sur la fenêtre, hors d'un champ de texte — chaque écran qui ajoutera un champ de texte — `slash_porte_le_focus_hors_d_un_champ_seulement` et `echap_ne_ferme_que_le_volet_ouvert` (tâche 11)
+- `/` et Échap s'écoutent sur la fenêtre, `/` hors d'un champ de texte, Échap partout sauf dans la recherche — chaque écran qui ajoutera un champ de texte — `slash_porte_le_focus_hors_d_un_champ_seulement` et `echap_ne_ferme_que_le_volet_ouvert` (tâche 11)
 - « Sans nœud · aucune archive » est une constante de l'en-tête — la tranche 6, qui le lira dans `appareil.txt` — l'essai installé (tâche 18)
-- `serde_json` entre en dépendance de test des services — le `Cargo.lock` et le § 41 · 6 — l'étape « Cargo.lock à jour » de `verifier`, et la ligne du § 41 · 6 (tâche 4)
+- `serde_json` entre en dépendance de test des services et du stockage — le `Cargo.lock` (les dépendances des paquets `services` et `stockage`), et les trois tests du stockage qui incluent la suite — l'étape « Cargo.lock à jour » de `verifier`, et le job `windows`, qui compile `commandes_sur_fichiers.rs`, `references.rs` et `repliques.rs` (tâche 4)
 
 ## Revues
 
@@ -427,6 +451,7 @@ crates/commandes/src/lib.rs        (a) Jour, Bornes, Etat, ProvenanceDeLIdee, Re
                                    Relier, Regrouper ; quatre noms
 crates/commandes/tests/serialisation.rs   (a)
 crates/services/Cargo.toml         (a) [dev-dependencies] serde_json
+crates/stockage/Cargo.toml         (a) [dev-dependencies] serde_json
 crates/services/src/lib.rs         (a) l'index tenu, boite, boite_sans_index, requetes_enregistrees, enregistrer,
                                    renommer, supprimer, journal_en_fenetre, les conversions
 crates/services/src/lecture.rs     (a) requetes_enregistrees
@@ -711,8 +736,8 @@ pub enum Etat { Reliee, NonReliee }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ProvenanceDeLIdee { Captee, Importee }
 /// Une requête (CAP-06) : une clé par sorte de critère, chacune facultative ; tous posés, ils se
-/// combinent par « et » (question 7). `texte` : les mots cherchés tels que saisis (`repli::mots`), sans
-/// mot aucun critère. `du`, `au` : la période, que la réponse juge sur les bornes qu'on lui donne.
+/// combinent par « et » (question 7). `texte` : le texte saisi, tel quel ; ses mots (`repli::mots`) sont
+/// les fragments cherchés, et sans mot, il ne pose aucun critère. `du`, `au` : la période, que la réponse juge sur les bornes qu'on lui donne.
 /// `plus_de_secondes` : la durée affichée, en secondes entières, strictement plus grande (question 8).
 /// `etiquette` : comparée octet pour octet (question 10).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -946,7 +971,9 @@ fn le_texte_de_la_reponse_ordonne_ses_parts_et_s_accorde() {
 ### Tâche 4 : la requête dans les commandes et les services ; l'index tenu
 
 **Fichiers :** modifier `crates/commandes/src/lib.rs`, `crates/commandes/tests/serialisation.rs`,
-`crates/services/Cargo.toml` (`serde_json = "1.0.154"` dans `[dev-dependencies]`), `crates/services/src/lib.rs`,
+`crates/services/Cargo.toml` (`serde_json = "1.0.154"` dans `[dev-dependencies]`), `crates/stockage/Cargo.toml`
+(`serde_json = "1.0.154"` dans `[dev-dependencies]`, son commentaire complété : la suite des commandes, incluse, calcule
+l'empreinte d'I13 par `serde_json`), `crates/services/src/lib.rs`,
 `crates/noyau/src/donnees/boite.rs` (`boite`, `Boite` et `texte_du_filtre` retirés), `crates/noyau/tests/boite.rs` (les
 quatre tests de `boite()` retirés, que `sans_critere_l_index_rend_la_boite` reprend, valeur pour valeur ; dans
 `le_compte_et_le_filtre_disent_leur_assiette_et_s_accordent`, renommé `le_compte_dit_son_assiette_et_s_accorde`, les trois
@@ -989,8 +1016,9 @@ pub struct VueDeLaBoite {
 impl<D: Documents, C: Captations> Services<D, C> {
     /// La boîte, réponse de la requête en cours (question 21), par l'index tenu.
     pub fn boite(&self, commande: &commandes::Boite) -> Reponse<VueDeLaBoite>;
-    /// La même réponse, d'un index bâti à l'appel du fonds lu : l'évaluation sans index que le test
-    /// d'I13 compare à l'index tenu.
+    /// La même réponse, d'un index neuf, bâti à l'appel du fonds lu, sans l'index tenu : « l'évaluation sans index »
+    /// de la question 13 se lit ainsi, l'index tenu n'étant jamais mis à jour par morceaux, mais rebâti en entier
+    /// (question 14) ; un défaut de `construire` ou de `repondre` se voit aux tests de la tâche 3.
     pub fn boite_sans_index(&self, commande: &commandes::Boite) -> Reponse<VueDeLaBoite>;
 }
 ```
@@ -1007,7 +1035,9 @@ le rebâtit. La doc de `Services` le dit.
   la requête `contenu: Some(Prise)` rend les mêmes lignes que le filtre d'avant, et une requête de texte
   (« pont ») sur trois idées notées rend la seule qui le porte, `sans.texte` à `Some(0)`, `etiquettes_du_fonds` vide ;
   les autres tests de la suite prennent les noms nouveaux (`requete`, `assiette_de_la_requete`), sans changer leurs
-  valeurs ; `une_idee_illisible_compte_a_part_dans_l_assiette` (`commandes_en_memoire.rs:311`) attend
+  valeurs ; `aucun_compteur_d_anciennete` (`suite/mod.rs:2555`) gagne `sans` et `etiquettes_du_fonds` dans son motif :
+  `sans` vaut `Sans::default()`, `etiquettes_du_fonds` est vide, et sa doc dit qu'aucun des deux ne date une idée ;
+  `assiette_de` (`:2473`) pose `illisibles: 0` ; `une_idee_illisible_compte_a_part_dans_l_assiette` (`commandes_en_memoire.rs:311`) attend
   `Assiette { considerees: 2, portant: 1, decidees: 1, illisibles: 1 }`.
 - [ ] **Étape 2 : voir le rouge** à « Lint » (`no field requete on type Boite`), committer (`test: la requête dans la
   commande de la boîte`).
@@ -1062,7 +1092,8 @@ une idée de deux prises, deux prises regroupées, comme `deux_prises_regroupees
     `boite_sans_index` ; puis le fonds rouvert (`paire.rouvrir`) rend les mêmes empreintes ;
   - `chercher_n_ecrit_rien` : les têtes du fonds (`get_heads`) et le journal, égaux avant et après chaque requête du jeu ;
   - `noter_pendant_une_requete_la_laisse_en_place` (point de revue 1) : sous la requête « eglise », noter « pont du
-    soir » : la vue suivante, sous la même requête, ne la montre pas, et `non_reliees` monte d'un.
+    soir » : la vue suivante, sous la même requête, ne la montre pas, et `non_reliees` monte d'un ; puis noter
+    « l’église du soir » : la vue suivante la montre, `retenues` monte d'un, `non_reliees` d'un encore.
 
   `jeu_de_requetes()` : la requête vide ; « eglise » ; l'étiquette `pont` ; plus d'une minute ; les non reliées ; les
   importées ; le contenu `Prise` ; « pont » et les non reliées ensemble.
@@ -1258,7 +1289,9 @@ en lecture seule comme ailleurs, sans fonds rend une liste vide, rangée par `ra
 **Fichiers :** créer `crates/noyau/src/donnees/journal.rs`, `crates/noyau/tests/journal.rs` ; modifier
 `crates/noyau/src/donnees/mod.rs`, `crates/noyau/src/donnees/gestes.rs` (`relier`, `delier`, `regrouper`),
 `crates/noyau/tests/gestes.rs`, `crates/commandes/src/lib.rs`, `crates/commandes/tests/serialisation.rs`,
-`crates/services/src/lib.rs`, `crates/services/tests/suite/mod.rs` (les commandes de geste, le journal),
+`crates/services/src/lib.rs`, `crates/services/src/mesure.rs` (`Relier`, `:94`, et `Regrouper`, `:144` : le second
+décalage à 0, comme le premier ; le poids du test 13 ne change pas, les messages gardant leur longueur),
+`crates/services/tests/suite/mod.rs` (les commandes de geste, le journal),
 `app/src-tauri/src/commandes_de_l_etabli.rs` (`journal`, `:123-127`), `app/ui/src/boite.rs` (les décalages envoyés),
 `.cargo/mutants.toml` (`journal.rs`, `"--test", "journal"`, le compte).
 
@@ -1345,15 +1378,20 @@ fn le_meme_journal_a_la_meme_empreinte() {
   `relier_les_cochees` : une fonction pure qui fait la commande `Relier` de deux idées cochées, chacune avec sa
   naissance, par un décalage donné ; avec `|le| if le < 1_792_890_000 { 120 } else { 60 }`, deux idées nées à
   1 792 881 000 et 1 794 906 000 donnent `decalage_minutes` 120 et `decalage_b_minutes` 60 ; une ou trois cochées,
-  `None`.
+  `None`. Elle appelle `commande_de_lien(a: (String, i64), b: (String, i64), decalage: impl Fn(i64) -> i32) -> Relier`,
+  que délier appelle aussi ; `delier_depuis_le_volet_date_chaque_bout` : l'idée du volet née à 1 792 881 000, l'autre
+  bout à 1 794 906 000, le même décalage : `decalage_minutes` 120, `decalage_b_minutes` 60.
 - [ ] **Étape 2 : voir le rouge** à « Lint » (`unresolved import noyau::donnees::journal`), committer (`test: le journal
   rangé, daté et son empreinte ; chaque idée datée à son instant`).
 - [ ] **Étape 3 : écrire le code.** `heure_du_journal` partage le calcul civil de `date_civile` pour l'heure (`(heure +
   décalage × 60)` modulo 86 400) ; `journal_en_fenetre` lit `lecture::journal`, range, borne la fenêtre à
   `FENETRE_MAX` ; l'enveloppe `journal` de l'établi prend `commande: Fenetre` et rend `VueDuJournal`. L'interface :
-  `cochees` garde la naissance de chaque idée cochée (`Vec<(String, i64)>`) ; compléter, étiqueter, retirer et rétablir
-  envoient `natif::decalage_a(le)` de l'idée du volet, relier et délier `relier_les_cochees(…, natif::decalage_a)` ;
-  noter garde `decalage_du_geste`.
+  `cochees` garde la naissance de chaque idée cochée (`Vec<(String, i64)>`) ; `IdeeOuverte.liens` garde celle de chaque
+  idée liée (`Vec<(String, String, Option<i64>)>`, de `liee.le` dans `lire_l_idee`), `None` pour un bout qui ne s'est pas
+  lu. Compléter, étiqueter, et retirer ou rétablir depuis le volet envoient `natif::decalage_a(le)` de l'idée du volet ;
+  rétablir depuis la liste des retirées, celui du `le` de sa ligne ; relier, `relier_les_cochees(…, natif::decalage_a)` ;
+  délier, `commande_de_lien` de l'idée du volet et de l'autre bout, un bout sans naissance prenant
+  `natif::decalage_du_geste()`, limite que la PR (a) dit ; noter garde `decalage_du_geste`.
 - [ ] **Étape 4 : voir le vert.** `journal.rs` `ok. 3 passed`, `gestes.rs` du noyau un test de plus, la suite et
   `serialisation.rs` verts ; dans `windows`, « Lint de l'établi » et `i31.rs` verts ; `mutants` sans survivant.
 - [ ] **Étape 5 : committer** les fichiers de la tâche (`feat: le journal à fenêtre, son empreinte, et chaque idée datée
@@ -1393,7 +1431,7 @@ fn le_meme_journal_a_la_meme_empreinte() {
   efface une idée ou une captation ; supprimer une requête enregistrée n'en est pas une). `docs/pistes.md` : « L'écart
   d'un jour » sort ; « Chercher par nom d'origine » s'étend au contenu d'un texte versé ; deux pistes neuves, « Chercher
   par origine déclarée » (se déclenche en tranche 5) et « Une proposition trouvée » (`~` contre « pas décidée », INC-2,
-  LE-6 L17). § 41 · 6 : `serde_json` en dépendance de test des services, si le tableau nomme les dépendances de test.
+  LE-6 L17). § 41 · 6 : rien, son budget ne comptant pas les dépendances de test ; la PR (a) dit la dépendance de test nouvelle.
 - [ ] **Étape 5 : les portes.** Le § 40 · 7.5, relu : son tableau nomme déjà « les opérations nommées et les requêtes
   du fonds », que les quatre commandes nouvelles sont ; il ne change pas, et la PR le dit. `CONVENTIONS.md` : `mutants` (les modules `repli`, `requete`, `index`, `journal`),
   `verifier` (I09, I13 dans la suite) ; `CLAUDE.md` : « Les crates » (le noyau : le repli, les requêtes, l'index, le
@@ -1418,7 +1456,7 @@ glossaire ; `docs/pistes.md` ; le registre (LE-16) ; `CONVENTIONS.md` ; `CLAUDE.
 ### Tâche 11 : la requête de l'écran et ses touches, en fonctions pures
 
 **Fichiers :** créer `app/ui/src/recherche.rs` ; modifier `app/ui/src/main.rs` (`mod recherche`), `app/ui/src/boite.rs`
-(`dans_un_champ_de_texte` en `pub(crate)`, `:349`).
+(`dans_un_champ_de_texte`, `:349`, et `CONTENUS`, `:53`, en `pub(crate)`).
 
 **Interfaces — consomme :** `commandes::{Requete, Jour, Bornes, Etat, ProvenanceDeLIdee, Contenu}` ;
 `noyau::donnees::requete::{Jour::depuis_iso, bornes_de_la_periode}` (tâche 2) ; `natif::decalage_a`.
@@ -1456,8 +1494,9 @@ pub(crate) fn bornes_de_la_requete(requete: &Requete, decalage: impl Fn(i64) -> 
 /// Ctrl + Alt), ni tenue, ni en composition, hors d'un champ de texte ; Maj admise.
 pub(crate) fn slash_cherche(touche: &str, ctrl: bool, alt: bool, meta: bool, tenue: bool,
     en_composition: bool, dans_un_champ: bool) -> bool;
-/// Échap ferme le volet ouvert (question 25) : la touche `Escape`, un volet ouvert, hors d'une composition.
-pub(crate) fn echap_ferme(touche: &str, en_composition: bool, volet_ouvert: bool) -> bool;
+/// Échap ferme le volet ouvert (question 25) : la touche `Escape`, un volet ouvert, hors d'une composition, hors de la
+/// recherche, où Échap garde son sens du navigateur : vider le champ, sans fermer de volet.
+pub(crate) fn echap_ferme(touche: &str, en_composition: bool, volet_ouvert: bool, dans_la_recherche: bool) -> bool;
 ```
 
 - [ ] **Étape 1 : écrire les tests** (dans `recherche.rs`, `#[cfg(test)]`) :
@@ -1479,10 +1518,11 @@ fn slash_porte_le_focus_hors_d_un_champ_seulement() {
 
 #[test]
 fn echap_ne_ferme_que_le_volet_ouvert() {
-    assert!(echap_ferme("Escape", false, true));
-    assert!(!echap_ferme("Escape", false, false));
-    assert!(!echap_ferme("Escape", true, true));
-    assert!(!echap_ferme("Esc", false, true));
+    assert!(echap_ferme("Escape", false, true, false));
+    assert!(!echap_ferme("Escape", false, false, false));
+    assert!(!echap_ferme("Escape", true, true, false));
+    assert!(!echap_ferme("Esc", false, true, false));
+    assert!(!echap_ferme("Escape", false, true, true)); // dans la recherche, Échap vide le champ
 }
 
 #[test]
@@ -1548,8 +1588,8 @@ nœud · aucune archive"` (26 caractères, `œ` U+0153, le point médian U+00B7 
   « Chercher dans le texte des idées », `aria-keyshortcuts="/"`, et une aide liée par `aria-describedby` (« / porte le
   focus ici, depuis le fonds comme depuis la table ») ; chaque frappe (`on:input`) appelle `etat.chercher`, sans
   minuterie ; l'état de synchronisation, un paragraphe, toujours visible, sur le fonds comme sur la table. « Afficher »
-  choisit « Fonds » ou « Table ». `App` crée `EtatDeLaRequete` à côté de l'état de la boîte, et écoute `keydown` sur la
-  fenêtre : `slash_cherche` vrai, `prevent_default`, puis le focus dans le champ (un `NodeRef` que l'en-tête reçoit).
+  choisit « Fonds » ou « Table ». `Etat::nouveau` crée `EtatDeLaRequete` (`etat.requete`), qu'`App` ne crée pas à part ;
+  `App` écoute `keydown` sur la fenêtre : `slash_cherche` vrai, `prevent_default`, puis le focus dans le champ (un `NodeRef` que l'en-tête reçoit).
   La boîte d'idées devient la zone « Boîte d'idées » de la vue du fonds, qui la porte entière.
 - [ ] **Étape 4 : voir le vert**, les tests de l'interface et ses contrôles statiques.
 - [ ] **Étape 5 : committer** `git add app/ui/src/app.rs app/ui/src/entete.rs app/ui/style.css` (`feat: l'en-tête de
@@ -1564,8 +1604,8 @@ nœud · aucune archive"` (26 caractères, `œ` U+0153, le point médian U+00B7 
 
 - [ ] **Étape 1 : écrire les tests** (`boite.rs`, `#[cfg(test)]`) :
   - `la_commande_porte_la_requete_en_cours_et_ses_bornes` : une fonction pure, `commande_de_la_boite(ordre, requete,
-    decalage, fenetre) -> Boite`, que `lire_la_boite` appelle : la requête « eglise » du 25 octobre au 25 octobre, avec
-    le décalage de Paris (tâche 11), donne `bornes` (1 792 879 200, 1 792 969 200), et la fenêtre reçue ;
+    decalage, fenetre) -> Boite`, que `lire_la_boite` appelle : la requête « eglise » du 25 octobre au 25 octobre, contenu
+    `Some(Contenu::Prise)`, avec le décalage de Paris (tâche 11), donne la requête telle quelle dans `Boite.requete`, donne `bornes` (1 792 879 200, 1 792 969 200), et la fenêtre reçue ;
   - `la_reponse_ne_se_dit_que_d_une_requete_posee` : `texte_de_la_requete(vue, requete) -> Option<String>` : `None`
     pour `Requete::default()` ; pour une requête de texte, `texte_de_la_reponse` de la vue (« 2 idées · 2 sans texte ·
     6 interrogées » sur une vue écrite par le test) ;
@@ -1581,7 +1621,10 @@ nœud · aucune archive"` (26 caractères, `œ` U+0153, le point médian U+00B7 
   (des choix en ligne, comme « Ranger par »). Chaque changement d'un réglage ou du texte ramène la liste au début
   (`au_debut`) et redemande ; `demander_la_boite` lit la requête en cours. Le compte : la première ligne, celle des non reliées,
   inchangée ; la seconde, `texte_de_la_requete`. La région du compte reste `aria-live="polite"` : chaque réponse en
-  remplace le texte (question 27). Une ligne ouvre l'idée entière, comme avant (question 5).
+  remplace le texte (question 27). Une ligne ouvre l'idée entière, comme avant (question 5). « Contenu : » passe à la requête :
+  `EtatDeLaBoite.contenu` (`:463`) se retire, ses boutons lisent et écrivent `etat.requete.contenu` ; `BoiteLue` garde la
+  requête lue avec sa vue (`BoiteLue { fenetre, requete, vue }`, `filtree` retiré), que `texte_de_la_requete` lit. Une
+  requête posée par `poser` se voit ainsi dans « Contenu : ».
 - [ ] **Étape 4 : voir le vert.**
 - [ ] **Étape 5 : committer** `git add app/ui/src/boite.rs app/ui/style.css` (`feat: les critères à l'écran, la boîte
   réponse de la requête en cours`).
@@ -1709,7 +1752,8 @@ nœud · aucune archive"` (26 caractères, `œ` U+0153, le point médian U+00B7 
   - « eglise » trouve « Église du port » ; le compte s'annonce au lecteur d'écran, sans s'empiler à chaque frappe ;
   - chaque critère, puis deux ensemble ; une période sur un jour ;
   - une requête enregistrée, lancée, renommée, supprimée ; un nom piégé et une étiquette piégée s'affichent tels quels ;
-  - Échap ferme le volet de l'idée, des retirées, du journal ;
+  - Échap ferme le volet de l'idée, des retirées, du journal ; dans la recherche, il vide le champ et ne ferme aucun
+    volet ;
   - le journal du fonds : la genèse en `—`, le nombre d'entrées et l'empreinte courte, relevés, puis les mêmes après
     une réouverture ;
   - un fonds neuf (un second dossier de données, si la maîtrise d'ouvrage le veut) montre la page du fonds vide.
