@@ -235,3 +235,12 @@ fn le_debut_du_jour_suit_le_decalage_du_moment() {
     assert_eq!(debut_du_jour(j("2026-10-25"), paris), 1_792_879_200);
     assert_eq!(debut_du_jour(j("2026-10-26"), paris), 1_792_969_200);
 }
+
+#[test]
+fn le_debut_du_jour_relit_le_decalage_a_l_instant_approche() {
+    // Un décalage de 60 minutes dès M − 1 800 s : à minuit UTC (M) il vaut 60, et l'instant
+    // approché, M − 3 600 s, tombe avant le changement, où il vaut 0 : le début du jour est M.
+    let m = j("2026-10-25").minuit_utc();
+    let decalage = |t: i64| if t >= m - 1_800 { 60 } else { 0 };
+    assert_eq!(debut_du_jour(j("2026-10-25"), decalage), m);
+}
