@@ -74,7 +74,8 @@ jobs:
     # l'établi et le fonds de mesure compris : 5 min 53 s le 2026-11-15, PR #43 (exécution
     # 43717435077) ; avant, 4 min 47 s le 2026-11-14, PR #40, sans le fonds de mesure ; depuis,
     # 3 min 55 s le 2026-11-15, PR #44 (exécution 43733973477), le contrôle statique de
-    # l'interface compris (LE-29 de modele-projet).
+    # l'interface compris, et 4 min 11 s le 2026-11-16, PR #45 (exécution 43775887636), la boîte,
+    # le bandeau et I29 compris (LE-29 de modele-projet).
     timeout-minutes: 12
     permissions:
       contents: read
@@ -169,8 +170,9 @@ jobs:
     # synchronisation, l'établi et le cahier compris : 29 min 42 s le 2026-11-14, PR #39, dont
     # 17 min 36 s pour installer trunk et tauri-cli ; 28 min 11 s le 2026-11-15, PR #43 (exécution
     # 43717435077), la sentinelle d'I30 comprise, dont 16 min 11 s ; 23 min 20 s le 2026-11-15,
-    # PR #44 (exécution 43733973477), les tests d'I31 compris, dont 13 min 32 s (LE-29 de
-    # modele-projet).
+    # PR #44 (exécution 43733973477), les tests d'I31 compris, dont 13 min 32 s ; 28 min 56 s le
+    # 2026-11-16, PR #45 (exécution 43775887636), la boîte, le bandeau et I29 compris, dont
+    # 16 min 17 s (LE-29 de modele-projet).
     timeout-minutes: 60
     permissions:
       contents: read
@@ -250,11 +252,13 @@ jobs:
   mutants:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    # Deux fois le passage complet mesuré à froid (« No cache found. »), 549 mutants sur quatre
-    # cœurs, les règles d'une idée comprises : 23 min 59 s le 2026-11-14, PR #38, chaque mutant
-    # construisant aussi les tests du rendu (LE-29 de modele-projet). Le job d'une PR mute, au
-    # pire, autant. À remesurer quand le périmètre de la mutation s'étend.
-    timeout-minutes: 48
+    # Deux fois le plus long passage complet mesuré à froid (« No cache found. »), sur quatre
+    # cœurs, chaque mutant construisant aussi les tests du rendu : 638 mutants, la boîte comprise,
+    # en 35 min 14 s le 2026-11-16, PR #45 (exécution 43775891270) ; avant, 488 en 28 min 53 s,
+    # PR #37, et 549 en 23 min 59 s, PR #38, le 2026-11-14 (LE-29 de modele-projet). Le job d'une
+    # PR mute, au pire, autant ; à froid, celui de la PR #45 a muté 102 mutants en 6 min 23 s
+    # (exécution 43775887636). À remesurer quand le périmètre de la mutation s'étend.
+    timeout-minutes: 71
     permissions:
       contents: read
     steps:

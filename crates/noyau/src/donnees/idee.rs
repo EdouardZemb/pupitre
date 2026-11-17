@@ -32,7 +32,8 @@ pub fn bouts_du_lien(cle: &str) -> Option<(&str, &str)> {
         .split_once(':')
 }
 
-/// Reliée : au moins un lien dont l'autre bout n'est pas une idée retirée (§ 30 · 9.1).
+/// Reliée : au moins un lien dont l'autre bout n'est pas une idée retirée (§ 30 · 9.1) ; au lot 1,
+/// le lien « apparenté » seul, jusqu'à « devenue » (INC-2).
 pub fn reliee(idee: &IdeeLue, retiree: impl Fn(&str) -> bool) -> bool {
     idee.liens.iter().any(|cle| {
         bouts_du_lien(cle).is_some_and(|(a, b)| {

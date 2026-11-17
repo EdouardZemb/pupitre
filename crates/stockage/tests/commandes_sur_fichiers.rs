@@ -5,15 +5,16 @@
 //! qui se refait, un geste de tri refusé par le disque, qui ne change pas ce qu'annuler vise, un
 //! geste de tri et son annulation coupés après le renommage, faits avec un avertissement, un
 //! fichier d'ajout altéré et une captation coupée, chaque refus ou avertissement disant ses
-//! chemins relatifs à la racine des données, et la migration de test, la même dans la suite et
-//! dans les aides du stockage.
+//! chemins relatifs à la racine des données, l'état du fonds qui dit sa lecture seule et
+//! l'avertissement de sa naissance, de même, la boîte qui se lit en lecture seule, et la migration
+//! de test, la même dans la suite et dans les aides du stockage.
 
 #[path = "../../services/tests/suite/mod.rs"]
 mod suite;
 
 mod commun;
 
-use commandes::{EntreeDuJournal, Faite, Notee};
+use commandes::{Appareil, EntreeDuJournal, Faite, LigneDeLaBoite, Notee, Provenance};
 use noyau::donnees::acces::Acces;
 use noyau::donnees::gestes;
 use noyau::donnees::version::Migration;
@@ -283,6 +284,82 @@ fn aucun_counter_ni_objet_text_dans_un_document_des_operations() {
     suite::aucun_counter_ni_objet_text_dans_un_document_des_operations(&mut PaireSurFichiers {
         racine: &racine,
     });
+}
+
+#[test]
+fn cap02_1_aucun_compteur_d_anciennete() {
+    let racine = racine_jetable("commandes-cap02-1");
+    suite::aucun_compteur_d_anciennete(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn cap02_3_la_boite_montre_ensemble_deux_prises_regroupees() {
+    let racine = racine_jetable("commandes-cap02-3-la-boite");
+    suite::deux_prises_regroupees_paraissent_ensemble_dans_la_boite(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn cap02_5_retirer_ote_l_idee_de_la_boite_et_retablir_l_y_rend() {
+    let racine = racine_jetable("commandes-cap02-5-la-boite");
+    suite::retirer_ote_l_idee_de_la_boite_et_retablir_l_y_rend(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn cap07_4_le_nombre_d_idees_non_reliees_suit_chaque_geste() {
+    let racine = racine_jetable("commandes-cap07-4");
+    suite::le_nombre_d_idees_non_reliees_suit_chaque_geste(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn i31_un_texte_piege_revient_tel_quel() {
+    let racine = racine_jetable("commandes-i31-texte-piege");
+    suite::un_texte_piege_revient_tel_quel(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn une_fenetre_hors_du_fonds_rend_les_comptes_et_aucune_ligne_de_trop() {
+    let racine = racine_jetable("commandes-fenetre-hors-du-fonds");
+    suite::une_fenetre_hors_du_fonds_rend_les_comptes_et_aucune_ligne_de_trop(
+        &mut PaireSurFichiers { racine: &racine },
+    );
+}
+
+#[test]
+fn la_boite_d_un_pupitre_neuf() {
+    let racine = racine_jetable("commandes-boite-d-un-pupitre-neuf");
+    suite::la_boite_d_un_pupitre_neuf(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn une_ligne_borne_son_texte() {
+    let racine = racine_jetable("commandes-ligne-bornee");
+    suite::une_ligne_borne_son_texte(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn l_etat_du_fonds_dit_le_geste_qu_annuler_vise() {
+    let racine = racine_jetable("commandes-etat-geste-a-annuler");
+    suite::l_etat_du_fonds_dit_le_geste_qu_annuler_vise(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn les_retirees_se_rangent_par_la_date_du_retrait() {
+    let racine = racine_jetable("commandes-retirees-par-date");
+    suite::les_retirees_se_rangent_par_la_date_du_retrait(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn le_filtre_et_l_ordre_passent_au_noyau() {
+    let racine = racine_jetable("commandes-filtre-et-ordre");
+    suite::le_filtre_et_l_ordre_passent_au_noyau(&mut PaireSurFichiers { racine: &racine });
 }
 
 #[test]
@@ -753,5 +830,97 @@ fn un_geste_de_tri_et_son_annulation_coupes_apres_le_renommage_rendent_un_averti
     assert_eq!(
         services.vue_d_une_idee(IDEE).map(|vue| vue.texte),
         Ok(Some("Un refrain qui monte, en ré".to_string()))
+    );
+}
+
+/// Deux notes, puis un octet changé au milieu du fichier d'ajout de la seconde : rouvert, l'état
+/// du fonds le dit né, en lecture seule, du refus `Raison::Illisible`, qui nomme le fichier
+/// d'ajout par son chemin relatif à la racine des données, écrit ici en texte ; et la boîte se lit
+/// en lecture seule : elle montre la seule note d'avant l'altération, non reliée.
+#[test]
+fn l_etat_du_fonds_dit_la_lecture_seule() {
+    let racine = racine_jetable("commandes-etat-lecture-seule");
+    let mut paire = PaireSurFichiers { racine: &racine };
+    let mut services = paire.neufs();
+    let mut alea = alea_de_test();
+    let mut contexte = contexte_de_test(&mut alea);
+    services
+        .noter(&une_note("Un refrain qui monte, en ré"), &mut contexte)
+        .expect("la note A est faite");
+    services
+        .noter(&une_note("Un pont en mi mineur"), &mut contexte)
+        .expect("la note B est faite");
+    drop(services);
+    let ajouts = commun::dossier_des_ajouts(racine.chemin());
+    let noms = commun::entrees(&ajouts);
+    assert_eq!(
+        noms.len(),
+        1,
+        "la note B, un seul fichier d'ajout : {noms:?}"
+    );
+    commun::alterer_l_octet_du_milieu(&ajouts.join(&noms[0]));
+
+    let services = paire.neufs();
+    let etat = services.etat_du_fonds().expect("l'état du fonds se lit");
+    assert!(etat.ne);
+    assert_eq!(
+        etat.lecture_seule,
+        Some(Refus {
+            raison: Raison::Illisible,
+            message: format!(
+                "Le contenu de documents/fonds/ajouts/{} ne donne pas l'empreinte que porte son \
+                 nom : il n'est pas chargé, et le document se lit sans écrire ni échanger.",
+                noms[0]
+            ),
+        })
+    );
+    let vue = services
+        .boite(&suite::toute_la_boite())
+        .expect("la boîte se lit en lecture seule");
+    assert_eq!(
+        vue.lignes,
+        vec![LigneDeLaBoite {
+            idee: IDEE.to_string(),
+            le: suite::HEURE,
+            texte: Some("Un refrain qui monte, en ré".to_string()),
+            etiquettes: Vec::new(),
+            duree_ms: None,
+            reliee: false,
+            provenance: Provenance::Captee {
+                par: Appareil::Etabli,
+            },
+            retiree: None,
+        }]
+    );
+    assert_eq!(vue.non_reliees, 1);
+}
+
+/// La première note, coupée après le renommage du fichier complet de la naissance, comme
+/// `la_premiere_note_coupee_apres_le_renommage_fait_naitre_le_fonds_avec_un_avertissement` :
+/// l'état du fonds porte l'avertissement de la naissance, qui nomme le fichier complet par son
+/// chemin relatif à la racine des données, sans le chemin de la racine des données.
+#[test]
+fn l_etat_du_fonds_dit_l_avertissement_de_la_naissance() {
+    let racine = racine_jetable("commandes-etat-avertissement-de-la-naissance");
+    let mut paire = PaireSurFichiers { racine: &racine };
+    let mut services = paire.neufs();
+    let mut alea = alea_de_test();
+    {
+        let _panne = couper(Etape::RendreDurable, 1);
+        services
+            .noter(
+                &une_note("Un refrain qui monte, en ré"),
+                &mut contexte_de_test(&mut alea),
+            )
+            .expect("la première note est faite");
+    }
+
+    assert_eq!(
+        services.etat_du_fonds().map(|etat| etat.avertissements),
+        Ok(vec![
+            "documents/fonds/complet.automerge est en place, mais son renommage n'est pas rendu \
+             durable."
+                .to_string()
+        ])
     );
 }

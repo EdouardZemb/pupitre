@@ -22,6 +22,9 @@
     "allow-vue-d-une-idee",
     "allow-idees",
     "allow-journal",
+    "allow-boite",
+    "allow-retirees",
+    "allow-etat-du-fonds",
     "allow-exporter-cahier"
   ]
 }

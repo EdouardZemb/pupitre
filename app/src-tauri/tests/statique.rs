@@ -14,6 +14,9 @@ const AU_MOINS_DES_CRATES: usize = 6;
 /// L'établi, dont les sources sont lues, nommées depuis la racine du dépôt.
 const ETABLI: &str = "app/src-tauri/src/";
 
+/// Le manifeste de l'établi, nommé depuis la racine du dépôt, que lit le contrôle d'I29.
+const MANIFESTE_DE_L_ETABLI: &str = "app/src-tauri/Cargo.toml";
+
 /// Le seul fichier qui devine un chemin, lit l'horloge et tire l'aléa.
 const SYSTEME: &str = "app/src-tauri/src/systeme.rs";
 
@@ -122,6 +125,42 @@ fn controler(sources: &[(String, String)]) -> Vec<String> {
                 }
             }
         }
+    }
+    fautes
+}
+
+/// Les fautes d'I29 (§ 70 · 3) : côté natif, ni greffon ni API de notification, ni boîte de
+/// message. `manifeste` est le `Cargo.toml` de l'établi, `sources` ses sources, nommées depuis la
+/// racine du dépôt. Une ligne de source dont le début, blancs ôtés, est `//`, et une ligne du
+/// manifeste dont le début est `#`, ne comptent pas. `notification` se lit sans égard à la casse,
+/// `.message(` et `MessageDialog` en sous-chaîne ; la boîte d'enregistrement, `.file()`, reste.
+fn controler_i29(manifeste: &str, sources: &[(String, String)]) -> Vec<String> {
+    let mut fautes = Vec::new();
+    let mut examiner = |chemin: &str, texte: &str, commentaire: &str, mots: &[&str]| {
+        for (indice, ligne) in texte.lines().enumerate() {
+            if ligne.trim_start().starts_with(commentaire) {
+                continue;
+            }
+            for mot in mots {
+                let trouve = if *mot == "notification" {
+                    ligne.to_lowercase().contains(mot)
+                } else {
+                    ligne.contains(mot)
+                };
+                if trouve {
+                    fautes.push(format!("{chemin}:{} contient « {mot} »", indice + 1));
+                }
+            }
+        }
+    };
+    examiner(MANIFESTE_DE_L_ETABLI, manifeste, "#", &["notification"]);
+    for (chemin, texte) in sources {
+        examiner(
+            chemin,
+            texte,
+            "//",
+            &["notification", ".message(", "MessageDialog"],
+        );
     }
     fautes
 }
@@ -316,5 +355,64 @@ fn i30_chaque_controle_refuse_ce_qu_on_y_plante() {
         )])
         .is_empty(),
         "un commentaire est refusé"
+    );
+}
+
+#[test]
+fn i29_ni_greffon_ni_api_de_notification_cote_natif() {
+    let racine = racine_du_depot();
+    let manifeste = lire(&racine.join(MANIFESTE_DE_L_ETABLI));
+    let sources: Vec<_> = sources_du_depot()
+        .into_iter()
+        .filter(|(chemin, _)| chemin.starts_with(ETABLI))
+        .collect();
+    let fautes = controler_i29(&manifeste, &sources);
+    assert!(fautes.is_empty(), "{fautes:#?}");
+}
+
+#[test]
+fn i29_chaque_controle_refuse_ce_qu_on_y_plante() {
+    let lib = "app/src-tauri/src/lib.rs";
+    let sain = "[dependencies]\ntauri = \"2\"\n";
+    let aucune = Vec::<(String, String)>::new();
+    assert!(controler_i29(sain, &aucune).is_empty());
+    // Le greffon des notifications, dans le manifeste, sans égard à la casse.
+    assert_eq!(
+        controler_i29(
+            "[dependencies]\ntauri-plugin-notification = \"2\"\n",
+            &aucune
+        ),
+        vec!["app/src-tauri/Cargo.toml:2 contient « notification »".to_string()]
+    );
+    assert_eq!(
+        controler_i29("[dependencies]\nNotification = \"2\"\n", &aucune),
+        vec!["app/src-tauri/Cargo.toml:2 contient « notification »".to_string()]
+    );
+    // Dans les sources : le greffon, une boîte de message, son constructeur.
+    for (texte, mot) in [
+        ("use tauri_plugin_notification::init;\n", "notification"),
+        (
+            "app.dialog().message(\"Bonjour\").show(|_| {});\n",
+            ".message(",
+        ),
+        ("let b = MessageDialogBuilder::new();\n", "MessageDialog"),
+    ] {
+        assert_eq!(
+            controler_i29(sain, &[source(lib, texte)]),
+            vec![format!("{lib}:1 contient « {mot} »")],
+            "{texte}"
+        );
+    }
+    // Les lignes `//` des sources, et `#` du manifeste, ne comptent pas ; la boîte
+    // d'enregistrement, `.file()`, reste admise.
+    assert!(
+        controler_i29(
+            "# notification\n[dependencies]\n",
+            &[source(
+                lib,
+                "/// aucune notification (I29)\n    // .message(\nlet d = app.dialog().file();\n"
+            )]
+        )
+        .is_empty()
     );
 }

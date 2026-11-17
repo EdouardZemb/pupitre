@@ -12,7 +12,7 @@
   "app": {
     "withGlobalTauri": true,
     "windows": [
-      { "label": "main", "title": "pupitre", "width": 1440, "height": 900 }
+      { "label": "main", "title": "pupitre", "width": 1440, "height": 900, "maximized": true }
     ],
     "security": {
       "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' http://captation.localhost; media-src 'self' http://captation.localhost; connect-src 'self' http://ipc.localhost; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'"

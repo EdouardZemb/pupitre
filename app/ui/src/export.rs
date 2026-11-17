@@ -1,13 +1,16 @@
 //! L'export du cahier des tables : l'interface demande à l'établi de l'écrire, par la commande
-//! `exporter_cahier` de Tauri, avec la date du jour, l'instrument et la couche sombre choisis.
-//! Hors de l'application, le bouton le dit, et ne fait rien.
+//! `exporter_cahier` de Tauri (`EXPORTER_CAHIER`), avec la date du jour, l'instrument et la
+//! couche sombre choisis. Hors de l'application, le bouton le dit, et ne fait rien.
 
+use commandes::EXPORTER_CAHIER;
 use js_sys::{Function, Object, Promise, Reflect};
 use leptos::prelude::*;
 use noyau::rendu::Instrument;
 use noyau::table::CoucheSombre;
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
+
+use crate::natif::invoke_de_tauri;
 
 /// L'instrument tel que la commande le lit : « guitare », « clavier » ou « les-deux ».
 pub(crate) fn nom_d_instrument(i: Instrument) -> &'static str {
@@ -47,14 +50,6 @@ fn date_du_jour() -> String {
     date_iso(d.get_full_year(), d.get_month() + 1, d.get_date())
 }
 
-/// `window.__TAURI__.core` et sa fonction `invoke`, dans l'application ; ailleurs, rien.
-fn invoke_de_tauri() -> Option<(JsValue, Function)> {
-    let tauri = Reflect::get(&js_sys::global(), &JsValue::from_str("__TAURI__")).ok()?;
-    let core = Reflect::get(&tauri, &JsValue::from_str("core")).ok()?;
-    let invoke = Reflect::get(&core, &JsValue::from_str("invoke")).ok()?;
-    Some((core, invoke.dyn_into::<Function>().ok()?))
-}
-
 /// Le texte d'un refus : celui de la commande, en français, ou celui d'une erreur JavaScript.
 fn texte_du_refus(e: &JsValue) -> String {
     e.as_string()
@@ -83,7 +78,7 @@ async fn exporter(
         .map_err(|e| texte_du_refus(&e))?;
     }
     let promesse = invoke
-        .call2(&core, &JsValue::from_str("exporter_cahier"), &arguments)
+        .call2(&core, &JsValue::from_str(EXPORTER_CAHIER), &arguments)
         .map_err(|e| texte_du_refus(&e))?
         .dyn_into::<Promise>()
         .map_err(|_| "l'établi n'a pas lancé l'export".to_string())?;

@@ -1,20 +1,40 @@
-//! L'établi : son état, et la place de l'en-tête, de la table et de la palette.
+//! L'établi : son état, sa page d'ouverture, et la place du bandeau, de l'en-tête, puis de la table
+//! et de la palette, ou de la boîte d'idées.
 
+use commandes::{ETAT_DU_FONDS, EtatDuFonds, Refus};
 use leptos::html;
 use leptos::prelude::*;
 use noyau::rendu::Instrument;
 use noyau::table::{CoucheSombre, Position, Table, table};
 use noyau::tonalite::Tonalite;
 
+use crate::bandeau::{
+    Bandeau, Page, PageDuBandeau, ReperesDuBandeau, VueDuBandeau, page_d_ouverture, rendre_le_focus,
+};
+use crate::boite::{BoiteDIdees, EtatDeLaBoite};
 use crate::entete::Entete;
+use crate::natif;
 use crate::panneau_palette::PanneauPalette;
 use crate::vue_table::VueTable;
 
-/// L'état de l'établi : la tonalité (do majeur), la couche sombre (masquée), l'instrument (les
-/// deux), la case touchée (aucune), et la palette, ouverte ou fermée. Rien n'en est gardé d'une
+/// Ce que l'établi montre sous son en-tête : la table d'INC-0, ou la boîte d'idées.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Vue {
+    /// La table de la tonalité, et sa palette.
+    #[default]
+    Table,
+    /// La boîte d'idées.
+    Boite,
+}
+
+/// L'état de l'établi : la vue (la table), la tonalité (do majeur), la couche sombre (masquée),
+/// l'instrument (les deux), la case touchée (aucune), la palette, ouverte ou fermée, le bandeau
+/// (vide) et ses repères, et le dernier état du fonds reçu (aucun). Rien n'en est gardé d'une
 /// ouverture à l'autre.
 #[derive(Clone, Copy)]
 pub struct Etat {
+    /// Ce que l'établi montre sous son en-tête.
+    pub vue: RwSignal<Vue>,
     pub tonalite: RwSignal<Tonalite>,
     pub couche: RwSignal<CoucheSombre>,
     pub instrument: RwSignal<Instrument>,
@@ -22,6 +42,12 @@ pub struct Etat {
     pub palette: RwSignal<bool>,
     /// La table de la tonalité et de la couche choisies.
     pub table: Memo<Table>,
+    /// Le bandeau : l'état du fonds, le refus d'un geste ou d'une lecture, les avertissements.
+    pub bandeau: RwSignal<Bandeau>,
+    /// Le dernier état du fonds reçu, à l'ouverture ou après une commande ; aucun avant.
+    pub etat_du_fonds: RwSignal<Option<EtatDuFonds>>,
+    /// Les repères du bandeau monté, qui reçoivent le focus après l'issue d'un geste.
+    pub reperes_du_bandeau: ReperesDuBandeau,
 }
 
 impl Etat {
@@ -30,13 +56,41 @@ impl Etat {
         let tonalite = RwSignal::new(Tonalite::les_24()[0]);
         let couche = RwSignal::new(CoucheSombre::Masquee);
         Etat {
+            vue: RwSignal::new(Vue::default()),
             tonalite,
             couche,
             instrument: RwSignal::new(Instrument::LesDeux),
             touchee: RwSignal::new(None),
             palette: RwSignal::new(false),
             table: Memo::new(move |_| table(tonalite.get(), couche.get())),
+            bandeau: RwSignal::new(Bandeau::default()),
+            etat_du_fonds: RwSignal::new(None),
+            reperes_du_bandeau: ReperesDuBandeau::nouveaux(),
         }
+    }
+
+    /// L'état du fonds reçu, à l'ouverture ou après une commande : le bandeau le suit (à
+    /// l'ouverture, ses avertissements s'y ajoutent), et il devient le dernier reçu.
+    pub fn suivre_le_fonds(self, etat: EtatDuFonds, a_l_ouverture: bool) {
+        self.bandeau.update(|b| b.suivre(&etat, a_l_ouverture));
+        self.etat_du_fonds.set(Some(etat));
+    }
+
+    /// L'issue d'un geste, ou le refus d'une lecture, jamais une lecture réussie : le bandeau la
+    /// dit ; si le « Fermer » qui avait le focus vient de se cacher, le bandeau le rend
+    /// (`rendre_le_focus`).
+    pub fn apres_un_geste(self, issue: &Result<Option<String>, Refus>) {
+        self.bandeau.update(|b| b.apres_un_geste(issue));
+        rendre_le_focus(self.bandeau, self.reperes_du_bandeau);
+    }
+
+    /// Montre la table ou la boîte d'idées. Quitter la table ferme sa palette, et la case reste
+    /// touchée : la table revenue ne rend pas le focus à une palette restée ouverte.
+    pub fn choisir_vue(self, v: Vue) {
+        if v != Vue::Table {
+            self.palette.set(false);
+        }
+        self.vue.set(v);
     }
 
     /// Une autre tonalité : la case touchée s'oublie, et la palette se ferme.
@@ -81,20 +135,48 @@ impl Etat {
     }
 }
 
-/// L'établi : l'en-tête en haut ; dessous, la table, et la place de la palette à sa droite.
+/// L'établi. Au montage, l'état du fonds se lit (`etat_du_fonds`), et décide de la page
+/// (`page_d_ouverture`) : l'établi, le bandeau en tête, puis l'en-tête, et dessous la vue choisie,
+/// la table et la place de la palette à sa droite, ou la boîte d'idées ; ou la page du seul
+/// bandeau. Rien ne s'affiche avant cette lecture. Lu, l'état du fonds passe au bandeau ; refusé,
+/// son refus aussi. L'état de la boîte naît ici, et vit tant que l'établi est ouvert, que la
+/// boîte se montre ou non.
 #[component]
 pub fn App() -> impl IntoView {
     let etat = Etat::nouveau();
+    let boite = EtatDeLaBoite::nouveau();
     // Le bouton « Palette » de la case touchée : la palette fermée lui rend le focus.
     let bouton_palette = NodeRef::<html::Button>::new();
-    view! {
-        <div class="etabli">
-            <Entete etat=etat />
-            <main class="plan">
-                <VueTable etat=etat bouton_palette=bouton_palette />
-                <PanneauPalette etat=etat bouton_palette=bouton_palette />
-            </main>
-        </div>
+    let page = RwSignal::new(None::<Page>);
+    leptos::task::spawn_local(async move {
+        let lu = natif::invoquer::<EtatDuFonds>(ETAT_DU_FONDS, None).await;
+        let ouverture = page_d_ouverture(&lu, natif::dans_l_application());
+        match lu {
+            Ok(fonds) => etat.suivre_le_fonds(fonds, true),
+            Err(refus) => etat.apres_un_geste(&Err(refus)),
+        }
+        page.set(Some(ouverture));
+    });
+    move || match page.get() {
+        None => ().into_any(),
+        Some(Page::BandeauSeul(texte)) => view! { <PageDuBandeau texte=texte /> }.into_any(),
+        Some(Page::Etabli) => view! {
+            <div class="etabli">
+                <VueDuBandeau bandeau=etat.bandeau reperes=etat.reperes_du_bandeau />
+                <Entete etat=etat />
+                {move || match etat.vue.get() {
+                    Vue::Table => view! {
+                        <main class="plan">
+                            <VueTable etat=etat bouton_palette=bouton_palette />
+                            <PanneauPalette etat=etat bouton_palette=bouton_palette />
+                        </main>
+                    }
+                    .into_any(),
+                    Vue::Boite => view! { <BoiteDIdees etat=etat boite=boite /> }.into_any(),
+                }}
+            </div>
+        }
+        .into_any(),
     }
 }
 
@@ -159,6 +241,22 @@ mod tests {
         etat.choisir_instrument(Instrument::Guitare);
         assert_eq!(etat.touchee.get_untracked(), Some(A7));
         assert!(etat.palette.get_untracked());
+    }
+
+    #[test]
+    fn l_etabli_s_ouvre_sur_la_table_et_la_quitter_ferme_la_palette() {
+        let etat = touchee_et_palette_ouverte();
+        assert_eq!(etat.vue.get_untracked(), Vue::Table);
+        // La boîte d'idées : la palette se ferme, la case reste touchée.
+        etat.choisir_vue(Vue::Boite);
+        assert_eq!(etat.vue.get_untracked(), Vue::Boite);
+        assert!(!etat.palette.get_untracked());
+        assert_eq!(etat.touchee.get_untracked(), Some(A7));
+        // De retour à la table, la palette reste fermée, la case touchée.
+        etat.choisir_vue(Vue::Table);
+        assert_eq!(etat.vue.get_untracked(), Vue::Table);
+        assert!(!etat.palette.get_untracked());
+        assert_eq!(etat.touchee.get_untracked(), Some(A7));
     }
 
     /// La valeur d'une propriété de la feuille de style : `--page-l: 209.5;` donne 209,5.

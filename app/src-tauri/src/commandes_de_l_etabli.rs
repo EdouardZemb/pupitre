@@ -1,11 +1,12 @@
-//! Les commandes de la tranche 2, servies par l'établi : chacune envoie au fil du fonds
-//! (`Ouverture::demander`) l'appel de la méthode de même nom des services, et rend sa `Reponse`,
-//! aux types de `commandes`. Chacune prend l'état, l'ouverture du fonds, et au plus un argument,
-//! nommé `commande` : un seul mot, que le camelCase des arguments de Tauri ne change pas.
+//! Les commandes de la tranche 2 et les lectures de la boîte (tranche 3), servies par l'établi :
+//! chacune envoie au fil du fonds (`Ouverture::demander`) l'appel de la méthode de même nom des
+//! services, et rend sa `Reponse`, aux types de `commandes`. Chacune prend l'état, l'ouverture
+//! du fonds, et au plus un argument, nommé `commande` : un seul mot, que le camelCase des
+//! arguments de Tauri ne change pas.
 
 use commandes::{
-    Completer, EntreeDuJournal, Etiqueter, Faite, Notee, Noter, Regrouper, Relier, Reponse, Viser,
-    VueDUneIdee,
+    Boite, Completer, EntreeDuJournal, EtatDuFonds, Etiqueter, Faite, Fenetre, Notee, Noter,
+    Regrouper, Relier, Reponse, Viser, VueDUneIdee, VueDeLaBoite, VueDesRetirees,
 };
 
 use crate::fil::Ouverture;
@@ -123,6 +124,37 @@ pub async fn idees(ouverture: tauri::State<'_, Ouverture>) -> Reponse<Vec<String
 #[tauri::command]
 pub async fn journal(ouverture: tauri::State<'_, Ouverture>) -> Reponse<Vec<EntreeDuJournal>> {
     ouverture.demander(|services, _| services.journal()).await
+}
+
+/// La boîte d'idées : les non reliées, le filtre, la fenêtre de lignes (`Services::boite`).
+#[tauri::command]
+pub async fn boite(
+    ouverture: tauri::State<'_, Ouverture>,
+    commande: Boite,
+) -> Reponse<VueDeLaBoite> {
+    ouverture
+        .demander(move |services, _| services.boite(&commande))
+        .await
+}
+
+/// Les idées retirées, la plus récemment retirée d'abord (`Services::retirees`).
+#[tauri::command]
+pub async fn retirees(
+    ouverture: tauri::State<'_, Ouverture>,
+    commande: Fenetre,
+) -> Reponse<VueDesRetirees> {
+    ouverture
+        .demander(move |services, _| services.retirees(&commande))
+        .await
+}
+
+/// L'état du fonds : né ou non, lecture seule, avertissements, geste à annuler
+/// (`Services::etat_du_fonds`).
+#[tauri::command]
+pub async fn etat_du_fonds(ouverture: tauri::State<'_, Ouverture>) -> Reponse<EtatDuFonds> {
+    ouverture
+        .demander(|services, _| services.etat_du_fonds())
+        .await
 }
 
 #[cfg(test)]

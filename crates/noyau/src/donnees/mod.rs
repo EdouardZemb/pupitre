@@ -2,6 +2,7 @@
 //! stockage et de la synchronisation s'en servent (§ 40 · 3).
 
 pub mod acces;
+pub mod boite;
 pub mod changement;
 pub mod compaction;
 pub mod copie;

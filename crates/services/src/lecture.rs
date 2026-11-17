@@ -1,15 +1,15 @@
 //! La lecture du fonds (§ 31 · 3) : le fonds lu, que le noyau reçoit (`IdeeLue`, `CaptationLue`),
-//! le journal, la version de schéma, les empreintes que nomme le document et sa teneur, tirés du
-//! document sans y écrire. Une valeur se reconnaît à sa variante, jamais par conversion : une idée
-//! dont une valeur n'a pas le type du schéma ne se lit pas. Un conteneur absent de la racine du
-//! document se lit vide.
+//! idée par idée ou en un seul passage pour la boîte, le journal, la version de schéma, les
+//! empreintes que nomme le document et sa teneur, tirés du document sans y écrire. Une valeur se
+//! reconnaît à sa variante, jamais par conversion : une idée dont une valeur n'a pas le type du
+//! schéma ne se lit pas. Un conteneur absent de la racine du document se lit vide.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use automerge::{Automerge, ObjId, ObjType, ROOT, ReadDoc, ScalarValue, Value};
 use noyau::donnees::fonds::{
     CAPTEE, CONTENEURS_NOMMANT_UNE_CAPTATION, DEPUIS, DUREE, ETIQUETTES, IDEE, IDEES, IMPORTEE, LE,
-    LIENS, PAR, PROVENANCE, RETIREE, TEXTE, VERSION_DE_SCHEMA,
+    LIENS, PAR, PHOTOS, PROVENANCE, RETIREE, TEXTE, VERSION_DE_SCHEMA,
 };
 use noyau::donnees::gestes::{Appareil, CaptationLue, IdeeLue, Provenance, Sorte};
 use noyau::donnees::idee;
@@ -17,25 +17,35 @@ use noyau::donnees::teneur::{ErreurDeTeneur, Valeur, ecrire_la_teneur};
 
 /// L'idée `id`, telle qu'elle se lit : son identifiant, sa provenance (`provenance`, `par`, et
 /// `depuis` d'une idée importée), sa date (`le`), son texte, ses étiquettes, la date de son
-/// retrait et les clés des liens dont elle est un bout. `None` quand l'idée manque, ou qu'une de
-/// ses valeurs n'a pas le type du schéma : une idée illisible n'est pas une idée.
+/// retrait et les clés des liens dont elle est un bout. `None` quand l'idée manque, ou qu'elle est
+/// illisible (`idee_de`) : une idée illisible ne se lit pas, `idees_et_illisibles` la compte à
+/// part.
 pub fn lire_l_idee(doc: &Automerge, id: &str) -> Option<IdeeLue> {
     let idee = objet(doc, &objet(doc, &ROOT, IDEES)?, id)?;
+    idee_de(doc, &idee, id, liens_de(doc, id))
+}
+
+/// L'idée `id`, telle qu'elle se lit de son objet `idee`, comme `lire_l_idee`, avec `liens`, les
+/// clés des liens dont elle est un bout. `None` quand l'une de ses valeurs manque (`par`,
+/// `provenance`, `le`, et `depuis` d'une idée importée), n'a pas le type du schéma, ou sort des
+/// valeurs qu'il connaît : un `par` qu'aucun appareil ne porte, une `provenance` ni `captee` ni
+/// `importee`.
+fn idee_de(doc: &Automerge, idee: &ObjId, id: &str, liens: BTreeSet<String>) -> Option<IdeeLue> {
     // `??` : le premier refuse une valeur d'un autre type, le second une valeur absente ; le
     // dernier `?`, un nom qu'aucun appareil ne porte.
-    let par = Appareil::depuis_nom(&valeur(doc, &idee, PAR, chaine)??)?;
-    let provenance = match valeur(doc, &idee, PROVENANCE, chaine)??.as_str() {
+    let par = Appareil::depuis_nom(&valeur(doc, idee, PAR, chaine)??)?;
+    let provenance = match valeur(doc, idee, PROVENANCE, chaine)??.as_str() {
         CAPTEE => Provenance::Captee { par },
         IMPORTEE => Provenance::Importee {
             par,
-            depuis: valeur(doc, &idee, DEPUIS, chaine)??,
+            depuis: valeur(doc, idee, DEPUIS, chaine)??,
         },
         _ => return None,
     };
-    let le = valeur(doc, &idee, LE, entier)??;
-    let texte = valeur(doc, &idee, TEXTE, chaine)?;
-    let retiree = valeur(doc, &idee, RETIREE, entier)?;
-    let etiquettes = match doc.get(&idee, ETIQUETTES) {
+    let le = valeur(doc, idee, LE, entier)??;
+    let texte = valeur(doc, idee, TEXTE, chaine)?;
+    let retiree = valeur(doc, idee, RETIREE, entier)?;
+    let etiquettes = match doc.get(idee, ETIQUETTES) {
         Ok(None) => BTreeSet::new(),
         Ok(Some((Value::Object(ObjType::Map), etiquettes))) => doc.keys(&etiquettes).collect(),
         _ => return None,
@@ -47,7 +57,7 @@ pub fn lire_l_idee(doc: &Automerge, id: &str) -> Option<IdeeLue> {
         texte,
         etiquettes,
         retiree,
-        liens: liens_de(doc, id),
+        liens,
     })
 }
 
@@ -67,41 +77,79 @@ pub fn lire_la_captation(doc: &Automerge, sorte: Sorte, empreinte: &str) -> Opti
 pub fn captations_de(doc: &Automerge, id: &str) -> Vec<CaptationLue> {
     let mut captations = Vec::new();
     for sorte in Sorte::TOUTES {
-        let Some(conteneur) = objet(doc, &ROOT, sorte.conteneur()) else {
-            continue;
-        };
-        // De chaque empreinte, son idée et sa durée, telles qu'elles se lisent.
-        let mut faits: BTreeMap<String, (Option<String>, Option<u64>)> = BTreeMap::new();
-        for element in doc.map_range(&conteneur, ..) {
-            let Value::Scalar(simple) = element.value.into_value() else {
-                continue;
-            };
-            let Some((empreinte, fait)) = element.key.split_once('/') else {
-                continue;
-            };
-            let entree = faits.entry(empreinte.to_string()).or_default();
-            match fait {
-                IDEE => entree.0 = chaine(&simple),
-                DUREE => entree.1 = naturel(&simple),
-                _ => {}
-            }
-        }
-        captations.extend(faits.into_iter().filter_map(|(empreinte, (idee, duree))| {
-            let idee = idee.filter(|idee| idee == id)?;
-            Some(captation(sorte, empreinte, idee, duree))
-        }));
+        captations.extend(faits_de_la_sorte(doc, sorte).into_iter().filter_map(
+            |(empreinte, (idee, duree))| {
+                let idee = idee.filter(|idee| idee == id)?;
+                Some(captation(sorte, empreinte, idee, duree))
+            },
+        ));
     }
     captations
 }
 
-/// Chaque idée qui se lit, retirée comprise, dans l'ordre des identifiants.
-pub fn idees(doc: &Automerge) -> Vec<IdeeLue> {
-    let Some(idees) = objet(doc, &ROOT, IDEES) else {
-        return Vec::new();
+/// Les captations de chaque idée, en un seul passage sur les trois conteneurs : sous
+/// l'identifiant que porte `<empreinte>/idee`, ses captations dans l'ordre (sorte, empreinte),
+/// comme `captations_de`. Une empreinte dont `<empreinte>/idee` n'est pas une chaîne n'est la
+/// captation d'aucune idée ; un conteneur absent de la racine du document se saute.
+pub fn captations_par_idee(doc: &Automerge) -> BTreeMap<String, Vec<CaptationLue>> {
+    let mut par_idee: BTreeMap<String, Vec<CaptationLue>> = BTreeMap::new();
+    for sorte in Sorte::TOUTES {
+        for (empreinte, (idee, duree)) in faits_de_la_sorte(doc, sorte) {
+            if let Some(idee) = idee {
+                par_idee
+                    .entry(idee.clone())
+                    .or_default()
+                    .push(captation(sorte, empreinte, idee, duree));
+            }
+        }
+    }
+    par_idee
+}
+
+/// Les idées que nomme une clé `<empreinte>/idee` du conteneur `photos`, sa valeur une chaîne
+/// (vide au lot 1) ; un conteneur absent de la racine du document, aucune.
+pub fn idees_avec_une_photo(doc: &Automerge) -> BTreeSet<String> {
+    let Some(photos) = objet(doc, &ROOT, PHOTOS) else {
+        return BTreeSet::new();
     };
-    doc.keys(&idees)
-        .filter_map(|id| lire_l_idee(doc, &id))
+    doc.map_range(&photos, ..)
+        .filter_map(|element| {
+            let Value::Scalar(simple) = element.value.into_value() else {
+                return None;
+            };
+            let (_, fait) = element.key.split_once('/')?;
+            if fait == IDEE { chaine(&simple) } else { None }
+        })
         .collect()
+}
+
+/// Chaque idée qui se lit, retirée comprise, dans l'ordre des identifiants
+/// (`idees_et_illisibles`).
+pub fn idees(doc: &Automerge) -> Vec<IdeeLue> {
+    idees_et_illisibles(doc).0
+}
+
+/// Chaque idée qui se lit, retirée comprise, dans l'ordre des identifiants, et le nombre de
+/// celles qui ne se lisent pas : les clés d'`idees` dont la valeur n'est pas un objet à clés, ou
+/// qu'`idee_de` ne lit pas. Les liens se lisent en un seul passage sur `liens`, rangés par bout,
+/// et non par une recherche pour chaque idée : sur deux mille idées, la taille visée du fonds,
+/// chacune parcourrait toutes les clés des liens. Sans `idees` à la racine du document, aucune,
+/// et aucune illisible.
+pub fn idees_et_illisibles(doc: &Automerge) -> (Vec<IdeeLue>, usize) {
+    let Some(idees) = objet(doc, &ROOT, IDEES) else {
+        return (Vec::new(), 0);
+    };
+    let mut liens = liens_par_bout(doc);
+    let mut lues = Vec::new();
+    let mut illisibles = 0;
+    for id in doc.keys(&idees) {
+        let liens_de_l_idee = liens.remove(&id).unwrap_or_default();
+        match objet(doc, &idees, &id).and_then(|idee| idee_de(doc, &idee, &id, liens_de_l_idee)) {
+            Some(lue) => lues.push(lue),
+            None => illisibles += 1,
+        }
+    }
+    (lues, illisibles)
 }
 
 /// (message, heure) de chaque modification, dans l'ordre de `get_changes(&[])` ; une modification
@@ -264,4 +312,54 @@ fn liens_de(doc: &Automerge, id: &str) -> BTreeSet<String> {
     doc.keys(&liens)
         .filter(|cle| idee::bouts_du_lien(cle).is_some_and(|(a, b)| a == id || b == id))
         .collect()
+}
+
+/// Les clés de `LIENS`, rangées sous chacun de leurs deux bouts, en un seul passage, selon la même
+/// règle que `liens_de` : sous un identifiant, les clés que `liens_de` rendrait pour lui. Sans
+/// liens à la racine du document, aucune.
+fn liens_par_bout(doc: &Automerge) -> BTreeMap<String, BTreeSet<String>> {
+    let mut par_bout: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    let Some(liens) = objet(doc, &ROOT, LIENS) else {
+        return par_bout;
+    };
+    for cle in doc.keys(&liens) {
+        if let Some((a, b)) = idee::bouts_du_lien(&cle) {
+            for bout in [a, b] {
+                par_bout
+                    .entry(bout.to_string())
+                    .or_default()
+                    .insert(cle.clone());
+            }
+        }
+    }
+    par_bout
+}
+
+/// De chaque empreinte du conteneur de `sorte`, son idée et sa durée, telles qu'elles se lisent :
+/// le conteneur se parcourt par `map_range`, en un passage, chaque clé coupée au premier `/`, et
+/// une valeur qui n'est pas simple se saute. Un conteneur absent de la racine du document,
+/// aucune.
+fn faits_de_la_sorte(
+    doc: &Automerge,
+    sorte: Sorte,
+) -> BTreeMap<String, (Option<String>, Option<u64>)> {
+    let mut faits: BTreeMap<String, (Option<String>, Option<u64>)> = BTreeMap::new();
+    let Some(conteneur) = objet(doc, &ROOT, sorte.conteneur()) else {
+        return faits;
+    };
+    for element in doc.map_range(&conteneur, ..) {
+        let Value::Scalar(simple) = element.value.into_value() else {
+            continue;
+        };
+        let Some((empreinte, fait)) = element.key.split_once('/') else {
+            continue;
+        };
+        let entree = faits.entry(empreinte.to_string()).or_default();
+        match fait {
+            IDEE => entree.0 = chaine(&simple),
+            DUREE => entree.1 = naturel(&simple),
+            _ => {}
+        }
+    }
+    faits
 }

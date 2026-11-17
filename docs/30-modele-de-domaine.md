@@ -630,7 +630,7 @@ un MIDI versé ou un texte versé :
   croître, puisque verser le même contenu sous un autre nom y ajoute ce nom. Le premier vu,
   par date d'import, puis dans l'ordre de ses octets, s'affiche ; celui d'une prise en stems
   est le nom de son dossier. Ils sont
-  écrits dans le document du fonds, à côté de l'empreinte, pour trier et chercher sans la
+  écrits dans le document du fonds, à côté de l'empreinte, pour ranger et chercher sans la
   captation, qu'un appareil n'a pas toujours
   ([§ 31 · 6.2](31-persistance-et-synchronisation.md#62-ce-quun-appareil-garde)). Tant qu'un
   fait n'est pas lu, il vaut `—` ([ADR-006](adr/adr-006-le-partiel-est-normal.md)) ;
@@ -729,7 +729,7 @@ lu par aucun diagnostic ([ADR-006](adr/adr-006-le-partiel-est-normal.md)).
   ([§ 31 · 4.1](31-persistance-et-synchronisation.md#41-la-topologie)), et aucun ne
   saurait numéroter seul sans heurter les autres. Un numéro attribué ne change plus : une
   décision révisée garde le sien, passe au statut `révisée` et pointe vers sa remplaçante. Les
-  questions se trient **par ce qu'elles débloquent**.
+  questions se rangent **par ce qu'elles débloquent**.
 - Le compte des questions ouvertes s'engendre de leur statut, jamais d'un motif de texte.
 
 ---

@@ -16,6 +16,9 @@ pub trait Documents {
     fn fonds(&self) -> Option<&Automerge>;
     /// Pourquoi le fonds n'écrit pas ; `None` s'il écrit.
     fn lecture_seule(&self) -> Option<Refus>;
+    /// Les avertissements de la naissance ou de l'ouverture du fonds, et ceux que des réceptions
+    /// refusées n'ont pu rendre, en français ; aucun, en mémoire.
+    fn avertissements(&self) -> Vec<String>;
     /// La genèse, `naissance`, puis `geste`, en un premier fichier complet ; refusé, rien ne reste.
     fn faire_naitre(&mut self, naissance: &Operation, geste: &Operation) -> Ecriture;
     /// `operation`, en une modification atomique, avec son message et son heure.

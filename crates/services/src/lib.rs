@@ -20,13 +20,17 @@ pub mod mesure;
 pub use commandes::{Raison, Refus};
 pub use contrats::{Alea, Captations, Documents, Ecriture};
 
+use std::collections::BTreeSet;
+
 use automerge::Automerge;
 use commandes::{
-    Captation, Completer, EntreeDuJournal, Etiqueter, Faite, Notee, Noter, Regrouper, Relier,
-    Reponse, Viser, VueDUneIdee,
+    Captation, Completer, EntreeDuJournal, EtatDuFonds, Etiqueter, FENETRE_MAX, Faite, Fenetre,
+    LONGUEUR_D_UNE_LIGNE, LigneDeLaBoite, Notee, Noter, Regrouper, Relier, Reponse, Viser,
+    VueDUneIdee, VueDeLaBoite, VueDesRetirees,
 };
+use noyau::donnees::boite::{self, EnBoite};
 use noyau::donnees::changement::Operation;
-use noyau::donnees::gestes::{self, GesteDeTri, IdeeLue, Impossible};
+use noyau::donnees::gestes::{self, CaptationLue, GesteDeTri, IdeeLue, Impossible};
 use noyau::donnees::identifiants::{ulid, uuid_v4};
 
 /// Ce que le côté natif donne à une commande qui écrit : l'heure du geste et l'aléa, des
@@ -348,11 +352,7 @@ impl<D: Documents, C: Captations> Services<D, C> {
         let fonds = self.documents.fonds().ok_or_else(|| idee_absente(idee))?;
         let lue = lecture::lire_l_idee(fonds, idee).ok_or_else(|| idee_absente(idee))?;
         let captations = lecture::captations_de(fonds, idee);
-        let prises: Vec<Option<u64>> = captations
-            .iter()
-            .filter(|captation| captation.sorte == gestes::Sorte::Prise)
-            .map(|captation| captation.duree_ms)
-            .collect();
+        let duree_ms = duree_des_prises(&captations);
         let mut liens: Vec<String> = lue
             .liens
             .iter()
@@ -379,7 +379,7 @@ impl<D: Documents, C: Captations> Services<D, C> {
                 })
                 .collect(),
             reliee,
-            duree_ms: noyau::donnees::idee::duree(&prises),
+            duree_ms,
             retiree: lue.retiree,
         })
     }
@@ -395,6 +395,58 @@ impl<D: Documents, C: Captations> Services<D, C> {
             .into_iter()
             .map(|(message, heure)| EntreeDuJournal { message, heure })
             .collect())
+    }
+
+    /// La boîte : chaque idée lue une fois (`lecture::idees_et_illisibles`), ses contenus, sa
+    /// durée et son état de reliée (`en_boite`), puis `noyau::donnees::boite::boite`, dans l'ordre
+    /// et selon le filtre de `commande`, puis la fenêtre (`nombre` borné à `FENETRE_MAX`), chaque
+    /// texte borné à `LONGUEUR_D_UNE_LIGNE` caractères. Les deux assiettes de la vue,
+    /// `assiette_du_compte` et `assiette_du_filtre`, sont l'unique assiette que calcule la boîte
+    /// du noyau. Sans fonds : aucune ligne, les comptes à 0. En lecture seule comme ailleurs.
+    pub fn boite(&self, commande: &commandes::Boite) -> Reponse<VueDeLaBoite> {
+        let (idees, illisibles) = self.documents.fonds().map(en_boite).unwrap_or_default();
+        let rangee = boite::boite(
+            idees,
+            illisibles,
+            ordre_du_noyau(&commande.ordre),
+            commande.filtre.as_ref().map(contenu_du_noyau),
+        );
+        let assiette = assiette_des_commandes(rangee.assiette);
+        Ok(VueDeLaBoite {
+            non_reliees: compte(rangee.non_reliees),
+            assiette_du_compte: assiette.clone(),
+            retenues: compte(rangee.retenues.len()),
+            assiette_du_filtre: assiette,
+            lignes: fenetre(rangee.retenues, commande.debut, commande.nombre),
+        })
+    }
+
+    /// Les idées retirées, rangées par `noyau::donnees::boite::retirees`, la plus récemment
+    /// retirée d'abord, leur nombre, et la fenêtre de leurs lignes, comme celle de la boîte. Sans
+    /// fonds : aucune. En lecture seule comme ailleurs.
+    pub fn retirees(&self, commande: &Fenetre) -> Reponse<VueDesRetirees> {
+        let (idees, _) = self.documents.fonds().map(en_boite).unwrap_or_default();
+        let rangees = boite::retirees(idees);
+        Ok(VueDesRetirees {
+            total: compte(rangees.len()),
+            lignes: fenetre(rangees, commande.debut, commande.nombre),
+        })
+    }
+
+    /// L'état du fonds : né ou non (`documents.fonds().is_some()`), la lecture seule
+    /// (`documents.lecture_seule()`), ses avertissements (`documents.avertissements()`), et le
+    /// message de l'opération du dernier geste de tri, celui qu'annuler défait. En lecture seule
+    /// comme ailleurs.
+    pub fn etat_du_fonds(&self) -> Reponse<EtatDuFonds> {
+        Ok(EtatDuFonds {
+            ne: self.documents.fonds().is_some(),
+            lecture_seule: self.documents.lecture_seule(),
+            avertissements: self.documents.avertissements(),
+            a_annuler: self
+                .dernier_geste
+                .as_ref()
+                .map(|geste| geste.operation.message.clone()),
+        })
     }
 
     /// Un geste de tri, conduit (voir `Services`) : `idee`, l'identifiant que vise la commande,
@@ -421,6 +473,122 @@ impl<D: Documents, C: Captations> Services<D, C> {
 /// (`gestes::presente`).
 fn idee_lue(fonds: &Automerge, idee: &str) -> Result<IdeeLue, Impossible> {
     gestes::presente(idee, lecture::lire_l_idee(fonds, idee))
+}
+
+/// Chaque idée de `fonds` qui se lit, retirée comprise, telle que la boîte du noyau la reçoit, et
+/// le nombre de celles qui ne se lisent pas : les idées par `lecture::idees_et_illisibles`, leurs
+/// captations par `lecture::captations_par_idee`, leurs photos par
+/// `lecture::idees_avec_une_photo`, chacune lue une fois ; les contenus par
+/// `noyau::donnees::boite::contenus_de`, la durée par `duree_des_prises`, et l'état de reliée par
+/// `noyau::donnees::idee::reliee`, l'autre bout de chaque lien dit retiré s'il est l'une des idées
+/// retirées lues, si bien qu'un bout illisible compte non retiré, comme dans
+/// `Services::vue_d_une_idee`.
+fn en_boite(fonds: &Automerge) -> (Vec<EnBoite>, usize) {
+    let (idees, illisibles) = lecture::idees_et_illisibles(fonds);
+    let mut captations = lecture::captations_par_idee(fonds);
+    let photos = lecture::idees_avec_une_photo(fonds);
+    let retirees: BTreeSet<String> = idees
+        .iter()
+        .filter(|idee| idee.retiree.is_some())
+        .map(|idee| idee.id.clone())
+        .collect();
+    let lues = idees
+        .into_iter()
+        .map(|idee| {
+            let siennes = captations.remove(&idee.id).unwrap_or_default();
+            EnBoite {
+                contenus: boite::contenus_de(
+                    &idee,
+                    siennes.iter().map(|captation| captation.sorte),
+                    photos.contains(&idee.id),
+                ),
+                duree_ms: duree_des_prises(&siennes),
+                reliee: noyau::donnees::idee::reliee(&idee, |autre| retirees.contains(autre)),
+                idee,
+            }
+        })
+        .collect();
+    (lues, illisibles)
+}
+
+/// La durée d'une idée, de ses captations : celle de ses seules prises, par
+/// `noyau::donnees::idee::duree` (§ 30 · 9.2) ; un MIDI versé ou un texte versé n'y entre pas. La
+/// vue d'une idée et la boîte la tirent toutes deux d'ici.
+fn duree_des_prises(captations: &[CaptationLue]) -> Option<u64> {
+    let prises: Vec<Option<u64>> = captations
+        .iter()
+        .filter(|captation| captation.sorte == gestes::Sorte::Prise)
+        .map(|captation| captation.duree_ms)
+        .collect();
+    noyau::donnees::idee::duree(&prises)
+}
+
+/// Les lignes de la fenêtre qui commence au rang `debut` de `rangees` et en prend `nombre`, borné
+/// à `FENETRE_MAX` ; une fenêtre qui commence après la dernière n'en rend aucune.
+fn fenetre(rangees: Vec<EnBoite>, debut: u32, nombre: u32) -> Vec<LigneDeLaBoite> {
+    let debut = usize::try_from(debut).unwrap_or(usize::MAX);
+    let nombre = usize::try_from(nombre.min(FENETRE_MAX)).unwrap_or(usize::MAX);
+    rangees
+        .into_iter()
+        .skip(debut)
+        .take(nombre)
+        .map(ligne)
+        .collect()
+}
+
+/// La ligne d'une idée de la boîte : ce qu'elle montre, son texte borné à `LONGUEUR_D_UNE_LIGNE`
+/// caractères, ses étiquettes dans l'ordre de leurs octets.
+fn ligne(dans_la_boite: EnBoite) -> LigneDeLaBoite {
+    let idee = dans_la_boite.idee;
+    LigneDeLaBoite {
+        idee: idee.id,
+        le: idee.le,
+        texte: idee
+            .texte
+            .map(|texte| texte.chars().take(LONGUEUR_D_UNE_LIGNE).collect()),
+        etiquettes: idee.etiquettes.into_iter().collect(),
+        duree_ms: dans_la_boite.duree_ms,
+        reliee: dans_la_boite.reliee,
+        provenance: provenance_des_commandes(idee.provenance),
+        retiree: idee.retiree,
+    }
+}
+
+/// Un compte d'idées, en entier d'une réponse ; au-delà d'`u64`, que n'atteint aucun compte,
+/// `u64::MAX`.
+fn compte(n: usize) -> u64 {
+    u64::try_from(n).unwrap_or(u64::MAX)
+}
+
+/// L'assiette des commandes qui répond à celle du noyau, chaque champ par `compte`.
+fn assiette_des_commandes(assiette: noyau::donnees::idee::Assiette) -> commandes::Assiette {
+    commandes::Assiette {
+        considerees: compte(assiette.considerees),
+        portant: compte(assiette.portant),
+        decidees: compte(assiette.decidees),
+    }
+}
+
+/// L'ordre du noyau qui répond à celui des commandes.
+fn ordre_du_noyau(ordre: &commandes::Ordre) -> boite::Ordre {
+    match ordre {
+        commandes::Ordre::Date => boite::Ordre::Date,
+        commandes::Ordre::Etiquette => boite::Ordre::Etiquette,
+        commandes::Ordre::Duree => boite::Ordre::Duree,
+        commandes::Ordre::Reliee => boite::Ordre::Reliee,
+        commandes::Ordre::Provenance => boite::Ordre::Provenance,
+    }
+}
+
+/// Le contenu du noyau qui répond à celui des commandes.
+fn contenu_du_noyau(contenu: &commandes::Contenu) -> boite::Contenu {
+    match contenu {
+        commandes::Contenu::TexteDeLIdee => boite::Contenu::TexteDeLIdee,
+        commandes::Contenu::Prise => boite::Contenu::Prise,
+        commandes::Contenu::Photo => boite::Contenu::Photo,
+        commandes::Contenu::MidiVerse => boite::Contenu::MidiVerse,
+        commandes::Contenu::TexteVerse => boite::Contenu::TexteVerse,
+    }
 }
 
 /// La naissance d'un fonds, à l'heure du contexte : l'ULID du document, celui de la lignée, puis

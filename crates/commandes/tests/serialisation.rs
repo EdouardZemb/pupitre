@@ -6,8 +6,10 @@ use std::collections::BTreeSet;
 use std::fmt::Debug;
 
 use commandes::{
-    Appareil, Captation, Completer, ENTIER_SUR, EntreeDuJournal, Etiqueter, Faite, NOMS, Notee,
-    Noter, Provenance, Raison, Refus, Regrouper, Relier, Reponse, Sorte, Viser, VueDUneIdee,
+    Appareil, Assiette, BOITE, Boite, Captation, Completer, Contenu, ENTIER_SUR, ETAT_DU_FONDS,
+    EntreeDuJournal, EtatDuFonds, Etiqueter, FENETRE_MAX, Faite, Fenetre, LigneDeLaBoite, NOMS,
+    Notee, Noter, Ordre, Provenance, RETIREES, Raison, Refus, Regrouper, Relier, Reponse, Sorte,
+    Viser, VueDUneIdee, VueDeLaBoite, VueDesRetirees,
 };
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -61,6 +63,31 @@ fn refus() -> Refus {
     Refus {
         raison: Raison::VersionPlusRecente { version: 2 },
         message: "Ce fonds vient d'une version plus récente de l'application.".to_string(),
+    }
+}
+
+fn ligne(le: i64, duree_ms: Option<u64>, retiree: Option<i64>) -> LigneDeLaBoite {
+    LigneDeLaBoite {
+        idee: IDEE.to_string(),
+        le,
+        texte: Some("Un refrain qui monte, en ré".to_string()),
+        etiquettes: vec!["refrain".to_string(), "à finir".to_string()],
+        duree_ms,
+        reliee: true,
+        provenance: Provenance::Importee {
+            par: Appareil::Etabli,
+            depuis: IMPORT.to_string(),
+        },
+        retiree,
+    }
+}
+
+/// Une assiette dont chaque compte vaut `n`.
+fn assiette(n: u64) -> Assiette {
+    Assiette {
+        considerees: n,
+        portant: n,
+        decidees: n,
     }
 }
 
@@ -160,11 +187,110 @@ fn chaque_type_fait_l_aller_retour_par_serde_json() {
         message: "Idée du 14 novembre notée".to_string(),
         heure: HEURE,
     });
+    for ordre in [
+        Ordre::Date,
+        Ordre::Etiquette,
+        Ordre::Duree,
+        Ordre::Reliee,
+        Ordre::Provenance,
+    ] {
+        aller_retour(ordre);
+    }
+    for contenu in [
+        Contenu::TexteDeLIdee,
+        Contenu::Prise,
+        Contenu::Photo,
+        Contenu::MidiVerse,
+        Contenu::TexteVerse,
+    ] {
+        aller_retour(contenu);
+    }
+    aller_retour(Boite {
+        ordre: Ordre::Duree,
+        filtre: Some(Contenu::Prise),
+        debut: 40,
+        nombre: 20,
+    });
+    aller_retour(Boite {
+        ordre: Ordre::Date,
+        filtre: None,
+        debut: 0,
+        nombre: FENETRE_MAX,
+    });
+    aller_retour(Fenetre {
+        debut: 0,
+        nombre: FENETRE_MAX,
+    });
+    aller_retour(Assiette {
+        considerees: 3,
+        portant: 2,
+        decidees: 2,
+    });
+    aller_retour(ligne(HEURE, Some(42_000), None));
+    aller_retour(LigneDeLaBoite {
+        texte: None,
+        etiquettes: Vec::new(),
+        reliee: false,
+        provenance: Provenance::Captee {
+            par: Appareil::Carnet,
+        },
+        ..ligne(HEURE, None, Some(HEURE + 3_600))
+    });
+    aller_retour(VueDeLaBoite {
+        non_reliees: 1,
+        assiette_du_compte: assiette(2),
+        retenues: 2,
+        assiette_du_filtre: assiette(2),
+        lignes: vec![ligne(HEURE, Some(42_000), None)],
+    });
+    aller_retour(VueDesRetirees {
+        total: 1,
+        lignes: vec![ligne(HEURE, None, Some(HEURE + 3_600))],
+    });
+    aller_retour(EtatDuFonds {
+        ne: false,
+        lecture_seule: None,
+        avertissements: Vec::new(),
+        a_annuler: None,
+    });
+    aller_retour(EtatDuFonds {
+        ne: true,
+        lecture_seule: Some(refus()),
+        avertissements: vec!["Un avertissement inventé.".to_string()],
+        a_annuler: Some("Idée du 14 novembre : étiquette #pont posée".to_string()),
+    });
+}
+
+/// CAP-01 · 4, une part : noter, à l'établi, ne demande que le texte et le décalage local, ni
+/// titre, ni étiquette. Les clés se comparent triées : l'ordre des clés d'un objet de
+/// `serde_json` dépend de ses fonctions (`preserve_order`), que l'espace de travail peut unifier.
+#[test]
+fn cap01_4_noter_ne_demande_aucun_titre() {
+    let valeur = serde_json::to_value(Noter {
+        texte: "Un refrain qui monte, en ré".to_string(),
+        decalage_minutes: 60,
+    })
+    .expect("la note se sérialise");
+    let mut cles: Vec<&str> = valeur
+        .as_object()
+        .expect("une note est un objet")
+        .keys()
+        .map(String::as_str)
+        .collect();
+    cles.sort_unstable();
+    assert_eq!(cles, ["decalage_minutes", "texte"]);
 }
 
 #[test]
 fn les_noms_sont_uniques_et_en_snake_case() {
-    assert_eq!(NOMS.len(), 14);
+    assert_eq!(NOMS.len(), 17);
+    assert_eq!(
+        [BOITE, RETIREES, ETAT_DU_FONDS],
+        ["boite", "retirees", "etat_du_fonds"]
+    );
+    for nom in [BOITE, RETIREES, ETAT_DU_FONDS] {
+        assert!(NOMS.contains(&nom), "« {nom} » manque à {NOMS:?}");
+    }
     let uniques: BTreeSet<&str> = NOMS.iter().copied().collect();
     assert_eq!(uniques.len(), NOMS.len(), "un nom en double dans {NOMS:?}");
     for nom in NOMS {
@@ -216,4 +342,44 @@ fn les_entiers_d_une_reponse_restent_sous_2_puissance_53() {
         heure: PREMIER_JANVIER_2100,
     });
     assert_eq!(entier_sur(&json["heure"]), 4_102_444_800);
+
+    let la_ligne = ligne(
+        PREMIER_JANVIER_2100,
+        Some(86_400_000),
+        Some(PREMIER_JANVIER_2100),
+    );
+    let json = en_json(&la_ligne);
+    assert_eq!(entier_sur(&json["le"]), 4_102_444_800);
+    assert_eq!(entier_sur(&json["duree_ms"]), 86_400_000);
+    assert_eq!(entier_sur(&json["retiree"]), 4_102_444_800);
+
+    // Chaque compte d'idées à `FENETRE_MAX` : ce n'est pas sa borne, que donne le nombre des
+    // idées du fonds, mais un entier de la même sorte, écrit de même.
+    let compte = u64::from(FENETRE_MAX);
+    let json = en_json(&VueDeLaBoite {
+        non_reliees: compte,
+        assiette_du_compte: assiette(compte),
+        retenues: compte,
+        assiette_du_filtre: assiette(compte),
+        lignes: vec![la_ligne.clone()],
+    });
+    assert_eq!(entier_sur(&json["non_reliees"]), 200);
+    assert_eq!(entier_sur(&json["retenues"]), 200);
+    for cle in ["assiette_du_compte", "assiette_du_filtre"] {
+        for champ in ["considerees", "portant", "decidees"] {
+            assert_eq!(entier_sur(&json[cle][champ]), 200, "{cle}.{champ}");
+        }
+    }
+    assert_eq!(entier_sur(&json["lignes"][0]["le"]), 4_102_444_800);
+    assert_eq!(entier_sur(&json["lignes"][0]["duree_ms"]), 86_400_000);
+    assert_eq!(entier_sur(&json["lignes"][0]["retiree"]), 4_102_444_800);
+
+    let json = en_json(&VueDesRetirees {
+        total: compte,
+        lignes: vec![la_ligne],
+    });
+    assert_eq!(entier_sur(&json["total"]), 200);
+    assert_eq!(entier_sur(&json["lignes"][0]["le"]), 4_102_444_800);
+    assert_eq!(entier_sur(&json["lignes"][0]["duree_ms"]), 86_400_000);
+    assert_eq!(entier_sur(&json["lignes"][0]["retiree"]), 4_102_444_800);
 }

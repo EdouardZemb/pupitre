@@ -1,16 +1,17 @@
-//! L'en-tête de l'établi : la tonalité, les 24 d'un geste ; la couche sombre, affichée ou
-//! masquée ; l'instrument ; et l'export du cahier des tables.
+//! L'en-tête de l'établi : le sélecteur, la table ou la boîte d'idées ; puis, avec la table, la
+//! tonalité, les 24 d'un geste ; la couche sombre, affichée ou masquée ; l'instrument ; et
+//! l'export du cahier des tables.
 
 use leptos::prelude::*;
 use noyau::rendu::Instrument;
 use noyau::table::CoucheSombre;
 use noyau::tonalite::Tonalite;
 
-use crate::app::Etat;
+use crate::app::{Etat, Vue};
 use crate::export::BoutonExport;
 
 /// Un choix parmi d'autres, d'un geste : un bouton radio et son libellé.
-fn choix<T>(
+pub(crate) fn choix<T>(
     groupe: &'static str,
     valeur: T,
     libelle: String,
@@ -79,25 +80,44 @@ pub fn Entete(etat: Etat) -> impl IntoView {
             move |i| etat.choisir_instrument(i),
         )
     });
+    // Le sélecteur : la table d'INC-0, ou la boîte d'idées.
+    let vues = [(Vue::Table, "Table"), (Vue::Boite, "Boîte d'idées")].map(|(v, libelle)| {
+        choix(
+            "vue",
+            v,
+            libelle.to_string(),
+            None,
+            etat.vue.into(),
+            move |v| etat.choisir_vue(v),
+        )
+    });
+    // Les réglages de la table restent montés, cachés avec elle : un export en cours garde son
+    // état.
     view! {
         <header class="entete">
             <fieldset>
-                <legend>"Tonalité"</legend>
-                <div class="tonalites">
-                    <span class="mode" aria-hidden="true">"majeur"</span>
-                    <span class="mode" aria-hidden="true">"mineur"</span>
-                    {tonalites.into_iter().collect_view()}
-                </div>
+                <legend>"Afficher"</legend>
+                <div class="choix-en-ligne">{vues.into_iter().collect_view()}</div>
             </fieldset>
-            <fieldset>
-                <legend>"Couche sombre"</legend>
-                <div class="choix-en-ligne">{couches.into_iter().collect_view()}</div>
-            </fieldset>
-            <fieldset>
-                <legend>"Instrument"</legend>
-                <div class="choix-en-ligne">{instruments.into_iter().collect_view()}</div>
-            </fieldset>
-            <BoutonExport instrument=etat.instrument couche=etat.couche />
+            <div class="reglages-de-la-table" hidden=move || etat.vue.get() != Vue::Table>
+                <fieldset>
+                    <legend>"Tonalité"</legend>
+                    <div class="tonalites">
+                        <span class="mode" aria-hidden="true">"majeur"</span>
+                        <span class="mode" aria-hidden="true">"mineur"</span>
+                        {tonalites.into_iter().collect_view()}
+                    </div>
+                </fieldset>
+                <fieldset>
+                    <legend>"Couche sombre"</legend>
+                    <div class="choix-en-ligne">{couches.into_iter().collect_view()}</div>
+                </fieldset>
+                <fieldset>
+                    <legend>"Instrument"</legend>
+                    <div class="choix-en-ligne">{instruments.into_iter().collect_view()}</div>
+                </fieldset>
+                <BoutonExport instrument=etat.instrument couche=etat.couche />
+            </div>
         </header>
     }
 }

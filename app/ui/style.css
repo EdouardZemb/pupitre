@@ -85,8 +85,10 @@ button {
   cursor: pointer;
 }
 
-/* Désactivé, un bouton le dit par son cadre en tirets, et non par un gris. */
-button:disabled {
+/* Désactivé, un bouton le dit par son cadre en tirets, et non par un gris. Inactif mais gardant le
+   focus (`aria-disabled`), de même. */
+button:disabled,
+button[aria-disabled="true"] {
   color: #000;
   border-style: dashed;
   cursor: default;
@@ -111,6 +113,69 @@ button:disabled {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+/* Les réglages de la table ne se montrent qu'avec elle ; montés, ils restent parmi les réglages
+   de l'en-tête. */
+.reglages-de-la-table {
+  display: contents;
+}
+
+.reglages-de-la-table[hidden] {
+  display: none;
+}
+
+/* --- Le bandeau ------------------------------------------------------------------------- */
+
+/* En tête de l'établi, trois emplacements fixes, un par source, l'état d'abord. La source se dit
+   par le mot en gras qui ouvre chaque ligne, jamais par une couleur. Sans message, le bandeau ne
+   prend aucune place ; son texte passe à la ligne, et « Fermer » sous lui, à 200 %. */
+.bandeau {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Le bandeau prend le focus quand le dernier « Fermer » s'en va : son contour en tirets se trace
+   en dedans, que le bord de la fenêtre ne coupe pas ; vide, sans hauteur, il se trace dehors, et
+   son bord bas paraît en haut de la fenêtre. */
+.bandeau:focus-visible {
+  outline-offset: -0.1875rem;
+}
+
+.bandeau:focus-visible:not(:has(.message)) {
+  outline-offset: 0;
+}
+
+/* Un emplacement reste monté, sa région aussi, même vide : il ne prend alors aucune place. Son
+   cadre et sa marge ne se posent (`message`) que s'il porte un message. */
+.emplacement {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 1rem;
+}
+
+.emplacement.message {
+  padding: 0.25rem 0.75rem;
+  border-bottom: 1px solid #000;
+}
+
+.region {
+  flex: 1 1 20rem;
+}
+
+.region p {
+  margin: 0;
+}
+
+/* La page du seul bandeau : le message, cadré, rien d'autre. */
+.bandeau-seul {
+  padding: 1rem;
+}
+
+.bandeau-seul .message {
+  border: 2px solid #000;
 }
 
 /* --- La table et la palette ------------------------------------------------------------- */
@@ -205,4 +270,287 @@ button:disabled {
   margin: 0.5rem;
   padding: 0.5rem;
   border: 2px solid #000;
+}
+
+/* --- La boîte d'idées ------------------------------------------------------------------- */
+
+/* Sous l'en-tête : en tête, le champ de note, les comptes, l'ordre, le contenu et les gestes ;
+   dessous, la liste, et à sa droite le volet. `--ligne` est la hauteur fixe d'une ligne de la
+   liste ; l'étalon, hors du flux et sans place, en mesure cent. */
+.boite {
+  --ligne: 2.5rem;
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.etalon {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.etalon > div {
+  height: calc(100 * var(--ligne));
+}
+
+.boite-haut {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem 1.5rem;
+}
+
+/* Un champ : son libellé au-dessus de lui. */
+.champ {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.noter {
+  flex: 1 1 100%;
+}
+
+input[type="text"],
+textarea {
+  font: inherit;
+  color: #000;
+  background: #fff;
+  border: 1px solid #000;
+  padding: 0.25rem 0.5rem;
+}
+
+textarea {
+  resize: vertical;
+}
+
+.comptes {
+  flex-basis: 100%;
+}
+
+.comptes p {
+  margin: 0;
+}
+
+/* Un réglage de la boîte : son nom, puis ses choix, sur une ligne, sans cadre. */
+.reglage {
+  border: 0;
+  padding: 0;
+}
+
+.reglage legend {
+  float: left;
+  padding: 0;
+  margin-right: 0.5rem;
+}
+
+.gestes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Le corps passe à la ligne : à 200 %, le volet passe sous la liste. Une rangée y prend au moins
+   la hauteur de son contenu : la colonne de la liste et le volet se mesurent donc sans leur
+   contenu (`contain: size`), et chacun défile en lui-même au lieu de faire défiler la page. Leur
+   base de flex reste une longueur : sans contenu, une base `auto` serait nulle, et le volet ne
+   passerait plus sous la liste. */
+.boite-corps {
+  flex: 1;
+  min-height: 12rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.colonne-liste {
+  flex: 2 1 28rem;
+  min-width: 0;
+  min-height: 12rem;
+  contain: size;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #000;
+}
+
+/* Les cases d'une ligne, et leurs titres, en colonnes de même proportion : à 200 %, chacune se
+   resserre, et son texte se coupe. */
+.cellules {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns:
+    minmax(0, 7fr) minmax(0, 20fr) minmax(0, 9fr) minmax(0, 5fr) minmax(0, 7fr)
+    minmax(0, 6fr);
+  column-gap: 0.75rem;
+  align-items: center;
+  padding: 0 0.5rem;
+}
+
+.cellules.retiree {
+  grid-template-columns: minmax(0, 7fr) minmax(0, 20fr) minmax(0, 9fr);
+}
+
+.cellule {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.cocher {
+  flex: none;
+  width: 4.5rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Les titres des colonnes, hors de la liste : la gouttière de sa barre de défilement, réservée
+   ici comme là, les garde alignés sur ses lignes. */
+.colonnes {
+  flex: none;
+  display: flex;
+  overflow: hidden;
+  scrollbar-gutter: stable;
+  font-weight: bold;
+  border-bottom: 1px solid #000;
+  padding: 0.25rem 0;
+}
+
+/* La liste défile ; la piste a la hauteur de toutes ses lignes, et seules celles de la fenêtre
+   lue s'y posent, à leur rang. */
+.liste {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.liste:focus-visible {
+  outline-offset: -0.1875rem;
+}
+
+.piste {
+  position: relative;
+}
+
+.lignes {
+  position: absolute;
+  left: 0;
+  right: 0;
+}
+
+.ligne {
+  box-sizing: border-box;
+  height: var(--ligne);
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid #000;
+}
+
+/* Le bouton d'une ligne la couvre, hors de sa case à cocher ; choisie, elle se dit en gras. Son
+   contour en tirets se trace en dedans, que le bord de la liste ne coupe pas. */
+.choisir {
+  border: 0;
+  text-align: left;
+}
+
+.choisir:focus-visible {
+  outline-offset: -0.1875rem;
+}
+
+.choisir[aria-current="true"] {
+  font-weight: bold;
+}
+
+input[type="checkbox"] {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+  accent-color: #000;
+}
+
+.retablir {
+  flex: none;
+  align-self: center;
+  margin: 0 0.5rem;
+  padding: 0.125rem 0.5rem;
+}
+
+/* Le volet : l'idée choisie, ou les idées retirées. */
+.volet {
+  flex: 1 1 20rem;
+  min-width: 0;
+  min-height: 12rem;
+  contain: size;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border: 1px solid #000;
+  padding: 0.5rem 0.75rem;
+  overflow-y: auto;
+}
+
+.volet-des-retirees {
+  overflow: hidden;
+}
+
+.volet-des-retirees .liste {
+  min-height: 8rem;
+  border-top: 1px solid #000;
+}
+
+.volet-haut {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.volet h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.volet h3 {
+  margin: 0.5rem 0 0;
+  font-size: 1rem;
+}
+
+.volet p {
+  margin: 0;
+}
+
+.texte-entier {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.puces {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.puces li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.puces span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }

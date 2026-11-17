@@ -12,26 +12,72 @@
 
 use serde::{Deserialize, Serialize};
 
+// Chaque nom de commande, une constante ; `NOMS` les liste toutes, dans cet ordre.
+
+/// Noter une idée (`Noter`).
+pub const NOTER: &str = "noter";
+/// Compléter le texte d'une idée (`Completer`).
+pub const COMPLETER: &str = "completer";
+/// Poser une étiquette sur une idée (`Etiqueter`).
+pub const POSER_UNE_ETIQUETTE: &str = "poser_une_etiquette";
+/// Ôter une étiquette d'une idée (`Etiqueter`).
+pub const OTER_UNE_ETIQUETTE: &str = "oter_une_etiquette";
+/// Relier deux idées (`Relier`).
+pub const RELIER: &str = "relier";
+/// Délier deux idées (`Relier`).
+pub const DELIER: &str = "delier";
+/// Regrouper une captation dans une idée (`Regrouper`).
+pub const REGROUPER: &str = "regrouper";
+/// Retirer une idée (`Viser`).
+pub const RETIRER: &str = "retirer";
+/// Rétablir une idée retirée (`Viser`).
+pub const RETABLIR: &str = "retablir";
+/// Annuler le dernier geste de tri.
+pub const ANNULER: &str = "annuler";
+/// Lire la vue d'une idée (`VueDUneIdee`).
+pub const VUE_D_UNE_IDEE: &str = "vue_d_une_idee";
+/// Lire les idées non retirées.
+pub const IDEES: &str = "idees";
+/// Lire le journal du fonds (`EntreeDuJournal`).
+pub const JOURNAL: &str = "journal";
+/// Lire la boîte (`Boite`, `VueDeLaBoite`).
+pub const BOITE: &str = "boite";
+/// Lire les idées retirées (`Fenetre`, `VueDesRetirees`).
+pub const RETIREES: &str = "retirees";
+/// Lire l'état du fonds (`EtatDuFonds`).
+pub const ETAT_DU_FONDS: &str = "etat_du_fonds";
+/// Exporter le cahier des tables, la commande de l'établi depuis INC-0.
+pub const EXPORTER_CAHIER: &str = "exporter_cahier";
+
 /// Les noms de toutes les commandes de l'application : les opérations nommées et les lectures du
 /// fonds, que cette crate type, et `exporter_cahier`, la commande de l'établi qui exporte le cahier
 /// des tables depuis INC-0. La liste est complète : `build.rs` en tire le manifeste de l'application,
 /// et chaque fichier de droits la recopie.
 pub const NOMS: &[&str] = &[
-    "noter",
-    "completer",
-    "poser_une_etiquette",
-    "oter_une_etiquette",
-    "relier",
-    "delier",
-    "regrouper",
-    "retirer",
-    "retablir",
-    "annuler",
-    "vue_d_une_idee",
-    "idees",
-    "journal",
-    "exporter_cahier",
+    NOTER,
+    COMPLETER,
+    POSER_UNE_ETIQUETTE,
+    OTER_UNE_ETIQUETTE,
+    RELIER,
+    DELIER,
+    REGROUPER,
+    RETIRER,
+    RETABLIR,
+    ANNULER,
+    VUE_D_UNE_IDEE,
+    IDEES,
+    JOURNAL,
+    BOITE,
+    RETIREES,
+    ETAT_DU_FONDS,
+    EXPORTER_CAHIER,
 ];
+
+/// Le plus grand nombre de lignes qu'une fenêtre rend (ADR-022 : des vues petites).
+pub const FENETRE_MAX: u32 = 200;
+
+/// Le plus grand nombre de caractères du texte d'une ligne ; la vue de l'idée le porte entier.
+pub const LONGUEUR_D_UNE_LIGNE: usize = 200;
 
 /// Le plus grand entier que `JSON.parse` relit à l'identique : 2⁵³ − 1. Le noyau, qui ne voit pas
 /// cette crate, le répète (`noyau::donnees::gestes::ENTIER_SUR`) : un test de chacune le compare
@@ -236,4 +282,137 @@ pub struct EntreeDuJournal {
     /// L'heure de l'opération, en secondes depuis 1970 (`Operation::heure`), bornée comme
     /// `VueDUneIdee::le`.
     pub heure: i64,
+}
+
+/// L'ordre de la boîte : il n'écrit rien et ne s'annule pas ; le tri est un geste (question 17).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Ordre {
+    /// La date, la plus récente d'abord.
+    Date,
+    /// L'étiquette, sur la plus petite de l'idée.
+    Etiquette,
+    /// La durée, la plus longue d'abord.
+    Duree,
+    /// Les non reliées d'abord.
+    Reliee,
+    /// Les captées d'abord.
+    Provenance,
+}
+
+/// Un contenu que le filtre de la boîte retient (CAP-02) : le texte de l'idée, une prise, une
+/// photo, un MIDI versé, un texte versé (question 22).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Contenu {
+    /// Le texte de l'idée.
+    TexteDeLIdee,
+    /// Une prise.
+    Prise,
+    /// Une photo.
+    Photo,
+    /// Un MIDI versé.
+    MidiVerse,
+    /// Un texte versé.
+    TexteVerse,
+}
+
+/// Lire la boîte : l'ordre, le filtre, et la fenêtre demandée.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Boite {
+    /// L'ordre des lignes.
+    pub ordre: Ordre,
+    /// Le contenu que le filtre retient ; aucun, toutes les idées.
+    pub filtre: Option<Contenu>,
+    /// Le rang de la première ligne de la fenêtre, compté de 0.
+    pub debut: u32,
+    /// Le nombre de lignes demandées, que la réponse borne à `FENETRE_MAX`.
+    pub nombre: u32,
+}
+
+/// Une fenêtre de lignes : son début et son nombre.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Fenetre {
+    /// Le rang de la première ligne de la fenêtre, compté de 0.
+    pub debut: u32,
+    /// Le nombre de lignes demandées, que la réponse borne à `FENETRE_MAX`.
+    pub nombre: u32,
+}
+
+/// L'assiette d'un compte (I09) : considérées, portant, décidées ; considérées − portant, au lot 1,
+/// ce sont les idées illisibles. Chaque champ est un compte d'idées : il ne dépasse pas le nombre
+/// des idées du fonds, dont chacune est une clé du document, bien en deçà d'`ENTIER_SUR`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Assiette {
+    /// Les idées considérées, un compte d'idées : les idées non retirées, et les idées
+    /// illisibles.
+    pub considerees: u64,
+    /// Celles qui portent la donnée, un compte d'idées.
+    pub portant: u64,
+    /// Celles dont la donnée est décidée, un compte d'idées ; au lot 1, toute donnée portée est
+    /// décidée.
+    pub decidees: u64,
+}
+
+/// Une ligne de la boîte, ou des idées retirées : ce que la ligne montre, sans ancienneté
+/// (CAP-02 · 1).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LigneDeLaBoite {
+    /// L'identifiant de l'idée, un ULID.
+    pub idee: String,
+    /// La date de sa naissance, en secondes depuis 1970, bornée comme `VueDUneIdee::le`.
+    pub le: i64,
+    /// Son texte, s'il y en a un, borné à `LONGUEUR_D_UNE_LIGNE` caractères.
+    pub texte: Option<String>,
+    /// Ses étiquettes, dans l'ordre de leurs octets.
+    pub etiquettes: Vec<String>,
+    /// Sa durée, en millisecondes, bornée comme `VueDUneIdee::duree_ms`.
+    pub duree_ms: Option<u64>,
+    /// Reliée, comme `VueDUneIdee::reliee`.
+    pub reliee: bool,
+    /// Sa provenance.
+    pub provenance: Provenance,
+    /// La date de son retrait, en secondes depuis 1970, si elle est retirée, bornée comme
+    /// `VueDUneIdee::retiree`.
+    pub retiree: Option<i64>,
+}
+
+/// La vue de la boîte : le compte des non reliées et son assiette, le nombre que retient le filtre
+/// et son assiette, et les seules lignes de la fenêtre.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VueDeLaBoite {
+    /// Les idées non retirées et non reliées, que le filtre ne change pas : un compte d'idées.
+    pub non_reliees: u64,
+    /// L'assiette du compte des non reliées.
+    pub assiette_du_compte: Assiette,
+    /// Les idées que retient le filtre, toutes sans filtre : un compte d'idées.
+    pub retenues: u64,
+    /// L'assiette du nombre que retient le filtre : au lot 1, celle du compte, la seule que
+    /// calcule la boîte du noyau.
+    pub assiette_du_filtre: Assiette,
+    /// Les lignes de la fenêtre, `FENETRE_MAX` au plus.
+    pub lignes: Vec<LigneDeLaBoite>,
+}
+
+/// La vue des idées retirées : leur nombre, que l'écran ne montre pas (il règle la hauteur de la
+/// liste), et les lignes de la fenêtre.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VueDesRetirees {
+    /// Les idées retirées : un compte d'idées.
+    pub total: u64,
+    /// Les lignes de la fenêtre, `FENETRE_MAX` au plus.
+    pub lignes: Vec<LigneDeLaBoite>,
+}
+
+/// L'état du fonds à l'ouverture, et après chaque commande : né ou non, la lecture seule, ses
+/// avertissements, et le message du geste qu'annuler vise.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EtatDuFonds {
+    /// Le fonds est né.
+    pub ne: bool,
+    /// Pourquoi le fonds n'écrit pas ; `None` s'il écrit.
+    pub lecture_seule: Option<Refus>,
+    /// Les avertissements de la naissance ou de l'ouverture du fonds, et ceux que des réceptions
+    /// refusées n'ont pu rendre, lisibles.
+    pub avertissements: Vec<String>,
+    /// Le message du dernier geste de tri, celui qu'annuler défait ; `None` sans geste à annuler.
+    pub a_annuler: Option<String>,
 }

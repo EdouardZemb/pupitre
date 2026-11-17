@@ -528,7 +528,7 @@ fn presente_rend_l_idee_lue_ou_la_dit_absente() {
     assert_eq!(absente, Err(Impossible::IdeeAbsente { idee: A.into() }));
     assert_eq!(
         absente.unwrap_err().to_string(),
-        "Aucune idée ne porte l'identifiant 01HF7YAT00000000000000000A."
+        "Aucune idée ne porte cet identifiant."
     );
 }
 
@@ -563,7 +563,7 @@ fn un_geste_de_tri_qui_touche_une_idee_retiree_est_refuse() {
     assert_eq!(retirer(&a, HEURE, 0), retiree);
     assert_eq!(
         Impossible::IdeeRetiree { idee: A.into() }.to_string(),
-        "L'idée 01HF7YAT00000000000000000A est retirée."
+        "Cette idée est retirée."
     );
 }
 
@@ -573,7 +573,7 @@ fn retablir_une_idee_qui_n_est_pas_retiree_est_refuse() {
     assert_eq!(refus, Err(Impossible::IdeeNonRetiree { idee: A.into() }));
     assert_eq!(
         refus.unwrap_err().to_string(),
-        "L'idée 01HF7YAT00000000000000000A n'est pas retirée."
+        "Cette idée n'est pas retirée."
     );
 }
 
@@ -615,6 +615,24 @@ fn une_etiquette_vide_est_refusee() {
     assert_eq!(
         Impossible::EtiquetteVide.to_string(),
         "L'étiquette est vide."
+    );
+}
+
+#[test]
+fn une_etiquette_de_blancs_est_refusee() {
+    assert_eq!(
+        poser_une_etiquette(&idee(A), "   ", HEURE, 0),
+        Err(Impossible::EtiquetteVide)
+    );
+    assert_eq!(
+        oter_une_etiquette(&idee(A), "  ", HEURE, 0),
+        Err(Impossible::EtiquetteVide)
+    );
+    // Une étiquette qui porte des blancs passe, gardée telle quelle : son identité reste ses octets.
+    let geste = poser_une_etiquette(&idee(A), "pont ", HEURE, 0).unwrap();
+    assert_eq!(
+        geste.operation.changements,
+        vec![poser(&["idees", A, "etiquettes", "pont "], Simple::Vrai)]
     );
 }
 
