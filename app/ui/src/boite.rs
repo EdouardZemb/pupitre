@@ -1,10 +1,11 @@
 //! La boîte d'idées à l'écran (CAP-02 ; questions 25 à 30). En tête, le champ « Noter une idée »,
 //! toujours présent, le compte, et sous un filtre son nombre, « Ranger par : », « Contenu : » et
 //! les gestes : relier, annuler, les idées retirées. Dessous, la liste en fenêtre, des lignes de
-//! hauteur fixe que suit le seul événement de défilement (I18) ; à sa droite, le volet de l'idée
-//! choisie, ou celui des idées retirées. Après chaque commande, l'interface relit l'état du fonds
-//! et les fenêtres, et le bandeau reçoit l'issue ; seul le refus d'une lecture y passe, jamais une
-//! lecture réussie. `Ctrl+Z`, hors d'un champ de texte, annule le dernier geste de tri.
+//! hauteur fixe que suivent son défilement et la taille de la fenêtre, jamais une minuterie
+//! (I18) ; à sa droite, le volet de l'idée choisie, ou celui des idées retirées. Après chaque
+//! commande, l'interface relit l'état du fonds et les fenêtres, et le bandeau reçoit l'issue ;
+//! seul le refus d'une lecture y passe, jamais une lecture réussie. `Ctrl+Z`, hors d'un champ de
+//! texte, annule le dernier geste de tri.
 
 use commandes::{
     ANNULER, Assiette, BOITE, Boite, COMPLETER, Completer, Contenu, DELIER, ETAT_DU_FONDS,
@@ -1153,11 +1154,11 @@ impl Ecran {
 }
 
 /// La boîte d'idées. Montée, elle lit la fenêtre que sa liste montre ; un autre ordre ou un autre
-/// contenu la ramène au début. La liste suit le seul événement de défilement (I18) : chaque ligne
-/// a la hauteur fixe `--ligne`, que l'étalon mesure ; la piste a la hauteur de toutes les lignes,
-/// et seules celles de la fenêtre lue s'y posent, à leur rang. Chaque contrôle est un bouton, une
-/// case ou un champ, nommé ; le focus suit les volets (`Cible`), et revient à la ligne qui l'a
-/// perdu quand la fenêtre se pose (`rendre_le_focus_perdu`).
+/// contenu la ramène au début. La liste suit son défilement et la taille de la fenêtre, jamais une
+/// minuterie (I18) : chaque ligne a la hauteur fixe `--ligne`, que l'étalon mesure ; la piste a la
+/// hauteur de toutes les lignes, et seules celles de la fenêtre lue s'y posent, à leur rang. Chaque
+/// contrôle est un bouton, une case ou un champ, nommé ; le focus suit les volets (`Cible`), et
+/// revient à la ligne qui l'a perdu quand la fenêtre se pose (`rendre_le_focus_perdu`).
 #[component]
 pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
     let ecran = Ecran {
@@ -1206,8 +1207,20 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
             ecran.annuler();
         }
     });
+    // La fenêtre change de taille, la liste vue aussi : chaque liste montrée demande la fenêtre de
+    // lignes qui la couvre, si la dernière demandée ne la couvre plus (`fenetre_a_demander`).
+    let redimensionnement = window_event_listener(leptos::ev::resize, move |_| {
+        ecran.demander_la_boite(false);
+        if boite
+            .volet
+            .with_untracked(|volet| *volet == Volet::Retirees)
+        {
+            ecran.demander_les_retirees(false);
+        }
+    });
     on_cleanup(move || {
         ecouteur.remove();
+        redimensionnement.remove();
         boite.gardee.set_value(None);
     });
     // Le focus pris par un élément de la boîte qui n'est pas d'une ligne : aucune ligne n'est plus
@@ -2282,9 +2295,10 @@ mod tests {
 
     #[test]
     fn la_liste_et_le_volet_ne_grandissent_pas_avec_leur_contenu() {
-        // `.boite-corps` passe à la ligne (`flex-wrap: wrap`) : chaque rangée y prend la hauteur
-        // de son contenu, non celle de la boîte. Sans `contain: size`, la liste grandit avec sa
-        // piste, la page défile à sa place, et sa fenêtre ne se relit plus ; le volet de même.
+        // `.boite-corps` passe à la ligne (`flex-wrap: wrap`) : chaque rangée y prend au moins la
+        // hauteur de son contenu. Sans `contain: size`, la liste grandit avec sa piste, la page
+        // défile à sa place, et la liste, qui ne défile plus, ne demande plus d'autre fenêtre de
+        // lignes ; le volet ne défile pas non plus.
         let css = include_str!("../style.css");
         for selecteur in [".colonne-liste", ".volet"] {
             let tete = format!("\n{selecteur} {{");
