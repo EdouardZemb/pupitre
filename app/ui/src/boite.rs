@@ -2279,4 +2279,24 @@ mod tests {
             "{etalon} manque à la feuille de style"
         );
     }
+
+    #[test]
+    fn la_liste_et_le_volet_ne_grandissent_pas_avec_leur_contenu() {
+        // `.boite-corps` passe à la ligne (`flex-wrap: wrap`) : chaque rangée y prend la hauteur
+        // de son contenu, non celle de la boîte. Sans `contain: size`, la liste grandit avec sa
+        // piste, la page défile à sa place, et sa fenêtre ne se relit plus ; le volet de même.
+        let css = include_str!("../style.css");
+        for selecteur in [".colonne-liste", ".volet"] {
+            let tete = format!("\n{selecteur} {{");
+            let debut = css
+                .find(&tete)
+                .unwrap_or_else(|| panic!("la règle {selecteur} manque à la feuille de style"));
+            let regle = &css[debut..];
+            let regle = &regle[..regle.find('}').unwrap_or(regle.len())];
+            assert!(
+                regle.contains("contain: size;"),
+                "la règle {selecteur} ne porte pas `contain: size;`"
+            );
+        }
+    }
 }
