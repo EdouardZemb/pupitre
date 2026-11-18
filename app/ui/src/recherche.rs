@@ -7,7 +7,7 @@
     )
 )]
 
-use commandes::{Bornes, Contenu, Etat, Jour, ProvenanceDeLIdee, Requete};
+use commandes::{Bornes, Etat, Jour, ProvenanceDeLIdee, Requete};
 use leptos::prelude::*;
 use noyau::donnees::requete::{self, Jour as JourDuNoyau};
 
@@ -183,6 +183,8 @@ pub(crate) fn echap_ferme(
 
 #[cfg(test)]
 mod tests {
+    use commandes::Contenu;
+
     use super::*;
 
     #[test]
