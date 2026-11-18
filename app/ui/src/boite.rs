@@ -49,7 +49,7 @@ const ORDRES: [(Ordre, &str); 5] = [
 ];
 
 /// Les choix de « Contenu : », chacun avec son libellé ; tout d'abord, sans filtre (question 22).
-const CONTENUS: [(Option<Contenu>, &str); 6] = [
+pub(crate) const CONTENUS: [(Option<Contenu>, &str); 6] = [
     (None, "tout"),
     (Some(Contenu::TexteDeLIdee), "texte de l'idée"),
     (Some(Contenu::Prise), "prise"),
@@ -415,7 +415,7 @@ fn cle_de_la_ligne(ligne: &LigneDeLaBoite) -> String {
 
 /// Vrai si la touche part d'un champ de texte, reconnu à la cible de l'événement : un
 /// `<textarea>`, ou un `<input>` qui n'est ni une case à cocher, ni un bouton radio, ni un bouton.
-fn dans_un_champ_de_texte(ev: &leptos::ev::KeyboardEvent) -> bool {
+pub(crate) fn dans_un_champ_de_texte(ev: &leptos::ev::KeyboardEvent) -> bool {
     let Some(cible) = ev.target() else {
         return false;
     };
