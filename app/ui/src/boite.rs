@@ -404,7 +404,9 @@ fn sans_au_noyau(sans: &commandes::Sans) -> requete::Sans {
 }
 
 /// La requête pose au moins un critère : un mot dans son texte (`repli::mots`), ou un critère hors
-/// du texte. Comme `Requete::est_vide` au noyau, un texte sans mot, « … », n'en pose aucun.
+/// du texte ; un texte sans mot, « … », n'en pose aucun. C'est l'inverse de `Requete::est_vide` du
+/// noyau, recopié sur la requête des commandes, que l'interface ne convertit pas : la règle reste
+/// hors mutation, et le test `pose_un_critere_dit_comme_le_noyau` garde qu'elle suit `est_vide`.
 fn pose_un_critere(requete: &Requete) -> bool {
     !mots(&requete.texte).is_empty()
         || *requete
@@ -416,7 +418,8 @@ fn pose_un_critere(requete: &Requete) -> bool {
 
 /// La réponse de la requête lue `requete`, que dit sa vue `vue` (`texte_de_la_reponse`) : le
 /// nombre des idées trouvées, ses parts « sans … », ses illisibles et ses interrogées. Une requête
-/// qui ne pose aucun critère n'en a pas : sa liste est toute la boîte.
+/// qui ne pose aucun critère rend toute la boîte d'idées, qui est sa réponse : aucun texte de
+/// réponse ne se dit.
 fn texte_de_la_requete(vue: &VueDeLaBoite, requete: &Requete) -> Option<String> {
     pose_un_critere(requete).then(|| {
         let (retenues, assiette, illisibles) = au_noyau(vue.retenues, &vue.assiette_de_la_requete);

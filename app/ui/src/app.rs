@@ -97,10 +97,14 @@ impl Etat {
         self.vue.set(v);
     }
 
-    /// Cherche `texte` : il devient le texte de la requête, et le fonds se montre.
+    /// Cherche `texte` : il devient le texte de la requête, et le fonds se montre, s'il ne se
+    /// montre pas déjà. Une écriture de la vue, même de la même valeur, rebâtirait la boîte d'idées
+    /// à chaque frappe : sur le fonds, la vue ne s'écrit pas.
     pub fn chercher(self, texte: String) {
         self.requete.texte.set(texte);
-        self.choisir_vue(Vue::Fonds);
+        if self.vue.get_untracked() != Vue::Fonds {
+            self.choisir_vue(Vue::Fonds);
+        }
     }
 
     /// Une autre tonalité : la case touchée s'oublie, et la palette se ferme.
