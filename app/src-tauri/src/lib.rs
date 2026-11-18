@@ -150,6 +150,10 @@ pub(crate) fn gestionnaire<R: tauri::Runtime>()
         commandes_de_l_etabli::boite,
         commandes_de_l_etabli::retirees,
         commandes_de_l_etabli::etat_du_fonds,
+        commandes_de_l_etabli::requetes_enregistrees,
+        commandes_de_l_etabli::enregistrer_une_requete,
+        commandes_de_l_etabli::renommer_une_requete,
+        commandes_de_l_etabli::supprimer_une_requete,
     ]
 }
 

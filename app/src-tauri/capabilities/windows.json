@@ -25,6 +25,10 @@
     "allow-boite",
     "allow-retirees",
     "allow-etat-du-fonds",
+    "allow-requetes-enregistrees",
+    "allow-enregistrer-une-requete",
+    "allow-renommer-une-requete",
+    "allow-supprimer-une-requete",
     "allow-exporter-cahier"
   ]
 }
