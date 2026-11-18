@@ -468,7 +468,7 @@ fn un_renommage_concurrent_d_une_suppression_ne_laisse_aucune_requete_sans_crite
 /// mémoire : la requête du contenu « photo » ne trouve que cette idée, et la boîte compte toujours
 /// ses deux idées non reliées.
 #[test]
-fn le_filtre_photo_lit_le_conteneur_des_photos() {
+fn la_requete_du_contenu_photo_lit_le_conteneur_des_photos() {
     let documents =
         DocumentsEnMemoire::de(&suite::un_document_dont_une_idee_porte_une_photo(), &[])
             .expect("le document s'ouvre");
