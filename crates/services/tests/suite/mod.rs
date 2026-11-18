@@ -2747,6 +2747,49 @@ pub fn un_document_dont_une_idee_porte_une_photo() -> Vec<u8> {
     doc.save()
 }
 
+/// La requête enregistrée « Ponts lents » que plante
+/// `un_document_aux_requetes_d_une_version_plus_recente` : une sorte de critère inconnue.
+pub const REQUETE_PLUS_RECENTE: &str = "01HF7YAT000000000000000011";
+/// La requête enregistrée « Église » que plante le même document : son texte est un objet.
+pub const REQUETE_AU_TEXTE_EN_OBJET: &str = "01HF7YAT000000000000000012";
+
+/// Un document de test (`un_document_de_test`), où le test plante, sous `requetes_enregistrees`,
+/// ce qu'aucune opération de cette version n'écrit : « Ponts lents » (`REQUETE_PLUS_RECENTE`), le
+/// texte « pont » et une sorte de critère inconnue, `tempo`, comme d'une version plus récente de
+/// Pupitre ; « Église » (`REQUETE_AU_TEXTE_EN_OBJET`), dont le texte est un objet ; une requête sans
+/// nom, son texte seul ; et une valeur simple, qui n'est pas un objet. Rend les octets du document
+/// (`save()`).
+pub fn un_document_aux_requetes_d_une_version_plus_recente() -> Vec<u8> {
+    let mut doc = un_document_de_test();
+    let requetes = objet_au_bout(&doc, &[REQUETES_ENREGISTREES]);
+    let mut tx = doc.transaction();
+    let plus_recente = tx
+        .put_object(&requetes, REQUETE_PLUS_RECENTE, ObjType::Map)
+        .expect("créer la requête d'une version plus récente");
+    tx.put(&plus_recente, NOM, "Ponts lents")
+        .expect("poser son nom");
+    tx.put(&plus_recente, TEXTE, "pont")
+        .expect("poser son texte");
+    tx.put(&plus_recente, "tempo", "lent")
+        .expect("poser une sorte de critère inconnue");
+    let texte_en_objet = tx
+        .put_object(&requetes, REQUETE_AU_TEXTE_EN_OBJET, ObjType::Map)
+        .expect("créer la requête au texte en objet");
+    tx.put(&texte_en_objet, NOM, "Église")
+        .expect("poser son nom");
+    tx.put_object(&texte_en_objet, TEXTE, ObjType::Map)
+        .expect("poser son texte en objet");
+    let sans_nom = tx
+        .put_object(&requetes, "01HF7YAT000000000000000013", ObjType::Map)
+        .expect("créer la requête sans nom");
+    tx.put(&sans_nom, TEXTE, "pont").expect("poser son texte");
+    tx.put(&requetes, "01HF7YAT000000000000000014", "une valeur simple")
+        .expect("poser une valeur simple sous les requêtes enregistrées");
+    let (plantation, _) = tx.commit();
+    plantation.expect("la plantation est une modification");
+    doc.save()
+}
+
 /// CAP-02 · 1 : cinquante idées non reliées, notées en 2020, plus de trois ans avant `HEURE`. La
 /// boîte en compte cinquante, sur une assiette de cinquante, « 50 idées non reliées · 50
 /// interrogées », et ses lignes ne portent que ce que montre une ligne, sans ancienneté : la vue,

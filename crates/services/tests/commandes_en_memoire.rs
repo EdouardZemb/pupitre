@@ -1,8 +1,8 @@
 //! La suite des commandes sur la paire d'adaptateurs en mémoire : chaque test de la suite,
 //! rejoué sur `DocumentsEnMemoire` et `CaptationsEnMemoire` ; puis, sur cette paire seule, les
 //! services du carnet, un renommage d'une requête enregistrée concurrent de sa suppression, sur
-//! deux répliques, une idée illisible dans l'assiette de la boîte, la requête des photos et le
-//! générateur du fonds de mesure.
+//! deux répliques, les requêtes enregistrées d'une version plus récente, une idée illisible dans
+//! l'assiette de la boîte, la requête des photos et le générateur du fonds de mesure.
 
 mod suite;
 
@@ -484,6 +484,40 @@ fn le_filtre_photo_lit_le_conteneur_des_photos() {
     );
     assert_eq!(vue.retenues, 1);
     assert_eq!(vue.non_reliees, 2);
+}
+
+/// Un document écrit par le test (`suite::un_document_aux_requetes_d_une_version_plus_recente`),
+/// rouvert en mémoire : la liste des requêtes enregistrées rend « Église », dont le texte est un
+/// objet, puis « Ponts lents », qui porte une sorte de critère inconnue, rangées par nom replié,
+/// chacune nommée, sa requête `None`, comme d'une version plus récente de Pupitre (question 17) ;
+/// ni la requête sans nom ni la valeur simple n'y paraissent.
+#[test]
+fn une_requete_d_une_version_plus_recente_parait_nommee_sans_requete() {
+    let documents = DocumentsEnMemoire::de(
+        &suite::un_document_aux_requetes_d_une_version_plus_recente(),
+        &[],
+    )
+    .expect("le document s'ouvre");
+    let services = Services::new(
+        documents,
+        CaptationsEnMemoire::default(),
+        gestes::Appareil::Etabli,
+    );
+    assert_eq!(
+        services.requetes_enregistrees(),
+        Ok(vec![
+            commandes::RequeteEnregistree {
+                id: suite::REQUETE_AU_TEXTE_EN_OBJET.to_string(),
+                nom: "Église".to_string(),
+                requete: None,
+            },
+            commandes::RequeteEnregistree {
+                id: suite::REQUETE_PLUS_RECENTE.to_string(),
+                nom: "Ponts lents".to_string(),
+                requete: None,
+            },
+        ])
+    );
 }
 
 /// Un document écrit par le test, dont l'idée `SECONDE_IDEE` porte sa date en texte
