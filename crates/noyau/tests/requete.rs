@@ -267,6 +267,10 @@ fn le_texte_de_la_reponse_ordonne_ses_parts_et_s_accorde() {
         "1 idée · 1 interrogée"
     );
     assert_eq!(
+        texte_de_la_reponse(1, a(4, 4), 0, Sans::default()),
+        "1 idée · 4 interrogées"
+    );
+    assert_eq!(
         texte_de_la_reponse(2, a(5, 4), 1, Sans::default()),
         "2 idées · 1 illisible · 5 interrogées"
     );

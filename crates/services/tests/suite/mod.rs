@@ -23,9 +23,10 @@ use automerge::{
     ActorId, Automerge, Change, ChangeHash, ObjId, ObjType, Prop, ROOT, ReadDoc, ScalarValue, Value,
 };
 use commandes::{
-    Assiette, Boite, Bornes, Captation, Completer, Contenu, EntreeDuJournal, EtatDuFonds,
-    Etiqueter, FENETRE_MAX, Faite, Fenetre, LigneDeLaBoite, Notee, Noter, Ordre, Raison, Refus,
-    Regrouper, Relier, Reponse, Requete, Sans, Viser, VueDUneIdee, VueDeLaBoite, VueDesRetirees,
+    Assiette, Boite, Bornes, Captation, Completer, Contenu, EntreeDuJournal, Etat, EtatDuFonds,
+    Etiqueter, FENETRE_MAX, Faite, Fenetre, LigneDeLaBoite, Notee, Noter, Ordre, ProvenanceDeLIdee,
+    Raison, Refus, Regrouper, Relier, Reponse, Requete, Sans, Viser, VueDUneIdee, VueDeLaBoite,
+    VueDesRetirees,
 };
 use noyau::donnees::boite::texte_du_compte;
 use noyau::donnees::changement::{Changement, Operation, Simple};
@@ -3131,6 +3132,9 @@ pub fn les_retirees_se_rangent_par_la_date_du_retrait<P: Paire>(paire: &mut P) {
 /// trois non reliées, B, D et E, et les étiquettes du fonds, `couplet` puis `refrain` ; la requête
 /// d'un contenu ne trouve que ses idées, par date, et laisse les trois non reliées : le texte de
 /// l'idée, A ; une prise, C puis B ; une photo, aucune ; un MIDI versé, D ; un texte versé, E.
+/// La requête d'un état ou d'une provenance ne trouve, par date, que ses idées : les non reliées,
+/// E, D, B ; les reliées, C, A ; la captée, A ; les importées, E, D, C, B : un bras inversé de
+/// l'état ou de la provenance de la requête, dans sa conversion vers le noyau, se voit.
 /// Chaque ordre range les cinq selon `noyau::donnees::boite::ordonner`, à égalité par la date, la
 /// plus récente d'abord, puis par l'identifiant : par date, E, D, C, B, A ; par étiquette, D
 /// (`couplet`), E (`refrain`), puis les sans étiquette, C, B, A ; par durée, C, B, puis les sans
@@ -3243,6 +3247,55 @@ pub fn la_requete_passe_au_noyau<P: Paire>(paire: &mut P, paire_des_notes: &mut 
         );
         assert_eq!(vue.retenues, retenues, "le contenu {contenu:?}");
         assert_eq!(vue.non_reliees, 3, "le contenu {contenu:?}");
+    }
+
+    for (requete, attendues) in [
+        (
+            Requete {
+                etat: Some(Etat::NonReliee),
+                ..Requete::default()
+            },
+            vec![e.clone(), d.clone(), b.clone()],
+        ),
+        (
+            Requete {
+                etat: Some(Etat::Reliee),
+                ..Requete::default()
+            },
+            vec![c.clone(), a.clone()],
+        ),
+        (
+            Requete {
+                provenance: Some(ProvenanceDeLIdee::Captee),
+                ..Requete::default()
+            },
+            vec![a.clone()],
+        ),
+        (
+            Requete {
+                provenance: Some(ProvenanceDeLIdee::Importee),
+                ..Requete::default()
+            },
+            vec![e.clone(), d.clone(), c.clone(), b.clone()],
+        ),
+    ] {
+        let vue = services
+            .boite(&Boite {
+                requete: requete.clone(),
+                ..toute_la_boite()
+            })
+            .expect("la boîte se lit");
+        assert_eq!(
+            idees_des_lignes(&vue.lignes),
+            attendues,
+            "la requête {requete:?}"
+        );
+        assert_eq!(
+            vue.retenues,
+            u64::try_from(attendues.len()).expect("un compte"),
+            "la requête {requete:?}"
+        );
+        assert_eq!(vue.non_reliees, 3, "la requête {requete:?}");
     }
 
     let mut suites = BTreeSet::new();
