@@ -397,6 +397,9 @@ de problème.
     aucune date relative ;
   - l'**étiquette** se compare octet pour octet, sans repli : « pont » ne trouve ni « Pont »,
     ni « ponts », ni « pont-levis ». L'écran la choisit parmi les étiquettes du fonds ;
+    l'étiquette que la requête en cours a choisie y reste offerte tant qu'elle est choisie,
+    même si le fonds ne la porte plus (ôtée de sa dernière idée, ou posée par une requête
+    enregistrée lancée) ;
   - la **durée** se juge à la seconde affichée, strictement : « plus d'une minute » trouve
     une idée affichée « 1:01 », jamais une affichée « 1:00 », même de 60,9 s. Une idée dont
     une prise n'a pas encore sa durée est sans durée
@@ -505,20 +508,31 @@ cherche pas dans l'encre.
 - La boîte d'idées affiche le nombre d'idées non reliées, sans ancienneté. Les idées
   retirées n'y comptent pas ; leur liste est à un geste, et chacune s'y rétablit.
 - L'état de synchronisation est toujours visible
-  ([§ 31 · 4.3](../31-persistance-et-synchronisation.md#43-létat-visible-de-la-synchronisation)) ;
-  dès qu'un nœud est appairé, il donne le nombre de captations à envoyer. La santé du nœud
-  est à un geste.
+  ([§ 31 · 4.3](../31-persistance-et-synchronisation.md#43-létat-visible-de-la-synchronisation)) :
+  sur l'établi, l'en-tête de l'établi le porte, sur le fonds comme sur la table. Dès qu'un
+  nœud est appairé, il donne le nombre de captations à envoyer. La santé du nœud est à un
+  geste.
 - La maquette de l'écran est au [§ 50 · 3.1](../50-interfaces-et-appareils.md#31-le-fonds).
 
 **Ne fait pas** — ne note pas les morceaux ; ne met rien en avant « à travailler
 aujourd'hui ».
 
 **Cas limites**
-- Fonds vide : une page explique les premiers gestes (capter, importer, créer). Dans un
-  Pupitre neuf, dont la racine des données n'a encore aucun document
+- Fonds vide : aucune idée n'est interrogée. Un Pupitre neuf, dont la racine des données
+  n'a encore aucun document
   ([§ 31 · 2.3](../31-persistance-et-synchronisation.md#23-la-genèse-et-le-point-de-départ-du-fonds)),
-  elle propose aussi de réimporter une archive complète
-  ([SYN-07](29-socle-donnees-appareils.md#syn-07--exporter-et-importer) · 4).
+  montre la même page. Elle dit, par des constats, jamais par des ordres
+  ([§ 50 · 5](../50-interfaces-et-appareils.md#5-les-textes-de-linterface)), que le fonds ne
+  porte encore aucune idée, et les premiers gestes : noter ou capter une idée, sauf en lecture
+  seule, où elle renvoie au bandeau, qui dit pourquoi ; importer un fonds
+  ([CAP-03](#cap-03--importer-un-fonds-existant)) ; créer un morceau ; et, dans un Pupitre
+  neuf, réimporter une archive complète
+  ([SYN-07](29-socle-donnees-appareils.md#syn-07--exporter-et-importer) · 4). Au lot 1
+  d'INC-1, elle dit noter ; importer et réimporter y viennent aux tranches 5 et 6 du lot,
+  créer un morceau avec INC-2. Le champ « Noter une idée » reste présent, lecture seule
+  comprise : le geste y est refusé, et le bandeau le dit (I29). Les idées retirées restent à
+  un geste. Une requête qui ne trouve rien n'est pas un fonds vide : ses idées sont
+  interrogées, la liste est vide, et la réponse le dit (« 0 idée · 12 interrogées »).
 - Morceau à identité seule : une ligne lisible, avec des `—`.
 
 **Critères d'acceptation**
