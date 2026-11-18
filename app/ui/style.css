@@ -292,14 +292,19 @@ button[aria-disabled="true"] {
 
 /* --- La boîte d'idées ------------------------------------------------------------------- */
 
-/* Sous l'en-tête : en tête, le champ de note, les comptes, l'ordre, le contenu et les gestes ;
-   dessous, la liste, et à sa droite le volet. `--ligne` est la hauteur fixe d'une ligne de la
-   liste ; l'étalon, hors du flux et sans place, en mesure cent. */
+/* Sous l'en-tête de l'établi : en tête, le champ de note, les comptes, « Ranger par : », les
+   critères de la requête en cours, les requêtes enregistrées et les gestes ; dessous, la liste,
+   ou la page d'un fonds vide, et à sa droite le volet. Plus haute que la place sous l'en-tête
+   (un petit écran, 200 %), la boîte défile en elle-même : l'en-tête, et l'état de
+   synchronisation qu'il porte, restent vus au lieu de partir avec la page. La liste et le volet
+   gardent chacun leur défilement. `--ligne` est la hauteur fixe d'une ligne de la liste ;
+   l'étalon, hors du flux et sans place, en mesure cent. */
 .boite {
   --ligne: 2.5rem;
   position: relative;
   flex: 1;
   min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -417,9 +422,10 @@ textarea {
 
 /* Le corps passe à la ligne : à 200 %, le volet passe sous la liste. Une rangée y prend au moins
    la hauteur de son contenu : la colonne de la liste et le volet se mesurent donc sans leur
-   contenu (`contain: size`), et chacun défile en lui-même au lieu de faire défiler la page. Leur
-   base de flex reste une longueur : sans contenu, une base `auto` serait nulle, et le volet ne
-   passerait plus sous la liste. */
+   contenu (`contain: size`), et chacun défile en lui-même au lieu d'allonger la boîte ; deux
+   rangées plus hautes que le corps, la boîte défile jusqu'au volet. Leur base de flex reste une
+   longueur : sans contenu, une base `auto` serait nulle, et le volet ne passerait plus sous la
+   liste. */
 .boite-corps {
   flex: 1;
   min-height: 12rem;
@@ -563,7 +569,8 @@ input[type="checkbox"] {
   padding: 0.125rem 0.5rem;
 }
 
-/* Le volet : l'idée choisie, ou les idées retirées. */
+/* Le volet : l'idée choisie, les idées retirées, ou le journal du fonds. Les deux derniers
+   portent une liste en fenêtre, qui défile seule. */
 .volet {
   flex: 1 1 20rem;
   min-width: 0;

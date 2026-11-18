@@ -1,13 +1,17 @@
-//! La boîte d'idées à l'écran (CAP-02, CAP-06 ; questions 25 à 30). En tête, le champ « Noter une
-//! idée », toujours présent, le compte, et sous une requête qui pose un critère sa réponse,
-//! « Ranger par : », les critères de la requête en cours (« Contenu : », « Date : »,
-//! « Étiquette : », « Durée : », « État : », « Provenance : ») et les gestes : relier, annuler, les
-//! idées retirées. Dessous, la liste en fenêtre, réponse de la requête en cours, des lignes de
-//! hauteur fixe que suivent son défilement et la taille de la fenêtre de l'application, jamais une
-//! minuterie (I18) ; à sa droite, le volet de l'idée choisie, ou celui des idées retirées.
-//! Après chaque commande, l'interface relit l'état du fonds et les fenêtres, et le bandeau reçoit
-//! l'issue ; seul le refus d'une lecture y passe, jamais une lecture réussie. `Ctrl+Z`, hors d'un
-//! champ de texte, annule le dernier geste de tri.
+//! La boîte d'idées à l'écran, zone du fonds (CAP-02, CAP-06, CAP-07 ; questions 25 à 30). En
+//! tête, le champ « Noter une idée », toujours présent, le compte, et sous une requête qui pose un
+//! critère sa réponse, « Ranger par : », les critères de la requête en cours (« Contenu : »,
+//! « Date : », « Étiquette : », « Durée : », « État : », « Provenance : »), les requêtes
+//! enregistrées (les choisir, en enregistrer une, la renommer, la supprimer) et les gestes :
+//! relier, annuler, les idées retirées, le journal du fonds. Dessous, la liste en fenêtre, réponse
+//! de la requête en cours, des lignes de hauteur fixe que suivent son défilement et la taille de
+//! la fenêtre de l'application, jamais une minuterie (I18) ; sans idée interrogée, la page du
+//! fonds vide la cache et dit, par des constats, ce qu'il en est. À droite de la liste, le volet
+//! de l'idée choisie, celui des idées retirées, ou celui du journal du fonds, en lecture seule ;
+//! Échap ferme le volet ouvert comme « Fermer », sauf dans la recherche. Après chaque commande,
+//! l'interface relit l'état du fonds et les fenêtres, et le bandeau reçoit l'issue ; seul le
+//! refus d'une lecture y passe, jamais une lecture réussie. `Ctrl+Z`, hors d'un champ de texte,
+//! annule le dernier geste de tri.
 
 use commandes::{
     ANNULER, Assiette, BOITE, Boite, COMPLETER, Completer, Contenu, DELIER,
@@ -215,15 +219,16 @@ pub(crate) fn libelle_d_annulation(a_annuler: Option<&str>) -> String {
 }
 
 /// La page d'un fonds vide, quand aucune idée n'est interrogée (`considerees` vaut 0, Pupitre neuf
-/// compris) : deux constats, jamais un ordre. En lecture seule, le second renvoie au bandeau.
-/// Une recherche qui ne trouve rien n'est pas un fonds vide : ses idées sont interrogées, et la
-/// liste vide dit son compte.
+/// compris) : deux constats, jamais un ordre. Le premier dit la boîte d'idées vide, ce qui reste
+/// vrai quand toutes les idées sont retirées : seule une idée retirée quitte la boîte, et le fonds
+/// la garde. En lecture seule, le second renvoie au bandeau. Une recherche qui ne trouve rien
+/// n'est pas un fonds vide : ses idées sont interrogées, et la liste vide dit son compte.
 pub(crate) fn page_du_fonds_vide(
     considerees: u64,
     lecture_seule: bool,
 ) -> Option<[&'static str; 2]> {
     (considerees == 0).then_some([
-        "Le fonds ne porte encore aucune idée.",
+        "La boîte d'idées est vide.",
         if lecture_seule {
             "Le fonds est en lecture seule : le bandeau dit pourquoi."
         } else {
@@ -448,6 +453,14 @@ const NOTE_D_UNE_REQUETE_PLUS_RECENTE: &str =
 /// choisie elle se renomme ou se supprime. Son bouton lit les deux phrases (`aria-describedby`).
 const PRECISION_D_UNE_REQUETE_PLUS_RECENTE: &str =
     "Elle ne se lance pas : choisie, elle se renomme ou se supprime.";
+
+/// Le constat d'une liste de requêtes enregistrées lue et vide, de la forme d'« Aucune idée
+/// retirée. ». Rien avant la première lecture, ou quand la lecture est refusée, puisque rien n'en
+/// est su ; rien non plus quand la liste porte une requête.
+fn constat_des_requetes(lues: Option<&[RequeteEnregistree]>) -> Option<&'static str> {
+    lues.is_some_and(<[RequeteEnregistree]>::is_empty)
+        .then_some("Aucune requête enregistrée.")
+}
 
 /// Ce que montre une requête enregistrée : son nom et, si elle vient d'une version plus récente
 /// (`requete: None`), la note qui dit qu'elle ne se lance pas.
@@ -702,8 +715,9 @@ pub(crate) struct EtatDeLaBoite {
     /// Un geste de tri, ou l'annulation, est parti, sans relecture encore : une seconde activation
     /// s'ignore.
     geste_en_vol: StoredValue<bool>,
-    /// Les requêtes enregistrées, rangées par nom par la commande qui les lit.
-    requetes: RwSignal<Vec<RequeteEnregistree>>,
+    /// Les requêtes enregistrées lues, rangées par nom par la commande qui les lit ; aucune avant
+    /// la première lecture.
+    requetes: RwSignal<Option<Vec<RequeteEnregistree>>>,
     /// L'identifiant de la requête enregistrée choisie, sur laquelle portent « Renommer » et
     /// « Supprimer ».
     requete_choisie: RwSignal<Option<String>>,
@@ -736,7 +750,7 @@ impl EtatDeLaBoite {
             etiquette: RwSignal::new(String::new()),
             gardee: StoredValue::new(None),
             geste_en_vol: StoredValue::new(false),
-            requetes: RwSignal::new(Vec::new()),
+            requetes: RwSignal::new(None),
             requete_choisie: RwSignal::new(None),
             nom_de_la_requete: RwSignal::new(String::new()),
             requete_en_vol: StoredValue::new(false),
@@ -789,7 +803,11 @@ impl EtatDeLaBoite {
     /// le choix et le champ « Nom » se vident. La requête de l'écran (`Etat::requete`) reste : seule
     /// la liste des requêtes enregistrées change.
     fn oublier_la_requete(self, id: &str) {
-        self.requetes.update(|liste| liste.retain(|r| r.id != id));
+        self.requetes.update(|lues| {
+            if let Some(liste) = lues {
+                liste.retain(|r| r.id != id);
+            }
+        });
         if self
             .requete_choisie
             .with_untracked(|choisie| choisie.as_deref() == Some(id))
@@ -985,7 +1003,7 @@ enum GesteDeRequete {
 /// relit à l'ouverture de la boîte et après chaque geste fait d'une requête enregistrée.
 async fn lire_les_requetes(etat: Etat, boite: EtatDeLaBoite) {
     match natif::invoquer::<Vec<RequeteEnregistree>>(REQUETES_ENREGISTREES, None).await {
-        Ok(lues) => boite.requetes.set(lues),
+        Ok(lues) => boite.requetes.set(Some(lues)),
         Err(refus) => etat.apres_un_geste(&Err(refus)),
     }
 }
@@ -1243,6 +1261,22 @@ fn cible_repliee(cible: Cible, fonds_vide: bool) -> Cible {
     }
 }
 
+/// Où va le focus quand la page du fonds vide paraît ou s'en va (`vide`) : paraissant, elle cache
+/// la liste, qui ne peut plus garder le focus ; s'il est sur elle (`liste_a_le_focus`), il va au
+/// champ « Noter une idée », avant que le navigateur ne le perde. C'est le cas de la dernière idée
+/// retirée : son geste a rendu le focus à la liste avant la relecture qui vide le fonds
+/// (`cible_repliee` lisait encore l'ancienne fenêtre). Le fonds non vide, ou le focus ailleurs :
+/// il reste où il est.
+fn cible_quand_le_fonds_se_vide(vide: bool, liste_a_le_focus: bool) -> Option<Cible> {
+    (vide && liste_a_le_focus).then_some(Cible::ChampDeNote)
+}
+
+/// Aucune idée n'est interrogée dans la fenêtre lue `lue` : la page du fonds vide se montre
+/// (`page_du_fonds_vide`) ; rien de lu, elle ne se montre pas.
+fn fonds_vide_dans(lue: Option<&BoiteLue>) -> bool {
+    lue.is_some_and(|lue| lue.vue.assiette_du_compte.considerees == 0)
+}
+
 /// Ce que partagent les vues de la boîte : l'état de l'établi, celui de la boîte, le focus à
 /// rendre, et les repères de ses éléments montés.
 #[derive(Clone, Copy)]
@@ -1264,12 +1298,22 @@ struct Ecran {
 }
 
 impl Ecran {
-    /// Aucune idée n'est interrogée : la page du fonds vide se montre (`page_du_fonds_vide`).
+    /// Aucune idée n'est interrogée : la page du fonds vide se montre (`fonds_vide_dans`).
     fn fonds_vide(self) -> bool {
-        self.boite.lue.with_untracked(|lue| {
-            lue.as_ref()
-                .is_some_and(|lue| lue.vue.assiette_du_compte.considerees == 0)
-        })
+        self.boite
+            .lue
+            .with_untracked(|lue| fonds_vide_dans(lue.as_ref()))
+    }
+
+    /// Vrai si la liste de la boîte, montée, a le focus.
+    fn la_liste_a_le_focus(self) -> bool {
+        let Some(liste) = self.liste.get_untracked() else {
+            return false;
+        };
+        let liste: &Node = liste.as_ref();
+        document()
+            .active_element()
+            .is_some_and(|actif| actif.is_same_node(Some(liste)))
     }
 
     /// La fenêtre que demande la liste montée `liste` (`fenetre_a_demander`), d'après la dernière
@@ -1812,7 +1856,8 @@ fn choix_d_un_critere<T>(
 /// un signal de `Etat::requete`, « AAAA-MM-JJ », ou vide pour un champ vide ou incomplet ; et il
 /// prend toute autre valeur que le signal reçoit (une requête posée). Un champ qui porte déjà la
 /// valeur du signal ne se réécrit pas : incomplet, il vide la requête de son jour sans perdre ce
-/// qui y est tapé.
+/// qui y est tapé. Son `max`, le 31 décembre 9999, borne l'année à quatre chiffres : une année à
+/// cinq chiffres ne passerait pas l'aller-retour ISO, et la requête perdrait sa borne sans le dire.
 fn champ_de_date(libelle: &'static str, valeur: RwSignal<String>) -> impl IntoView {
     let champ = NodeRef::<html::Input>::new();
     Effect::new(move |_| {
@@ -1828,6 +1873,7 @@ fn champ_de_date(libelle: &'static str, valeur: RwSignal<String>) -> impl IntoVi
             {libelle}
             <input
                 type="date"
+                max="9999-12-31"
                 node_ref=champ
                 on:input=move |ev| valeur.set(event_target_value(&ev))
             />
@@ -1896,6 +1942,16 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
         {
             let _ = element.focus();
             ecran.focus.set(None);
+        }
+    });
+    // La page du fonds vide paraît ou s'en va. Paraissant, elle cache la liste : si la liste a le
+    // focus, il va au champ « Noter une idée » (`cible_quand_le_fonds_se_vide`). L'effet ne suit
+    // que ce passage, pas chaque fenêtre lue.
+    let fonds_vide_lu = Memo::new(move |_| boite.lue.with(|lue| fonds_vide_dans(lue.as_ref())));
+    Effect::new(move |_| {
+        let vide = fonds_vide_lu.get();
+        if let Some(cible) = cible_quand_le_fonds_se_vide(vide, ecran.la_liste_a_le_focus()) {
+            ecran.focus.set(Some(cible));
         }
     });
     // `Ctrl+Z`, hors d'un champ de texte, annule le dernier geste de tri tant que la boîte se
@@ -2024,7 +2080,12 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
     let enregistrement_possible =
         move || enregistrer_possible(&etat.requete.requete(), &boite.nom_de_la_requete.get());
     let une_requete_est_choisie = move || boite.requete_choisie.with(Option::is_some);
-    let requetes_enregistrees = move || boite.requetes.get();
+    let requetes_enregistrees = move || boite.requetes.get().unwrap_or_default();
+    let constat_des_requetes_lues = move || {
+        boite
+            .requetes
+            .with(|lues| constat_des_requetes(lues.as_deref()))
+    };
     let retirees_ouvertes = move || boite.volet.with(|volet| *volet == Volet::Retirees);
     let journal_ouvert = move || boite.volet.with(|volet| *volet == Volet::Journal);
     let idee_ouverte = move || boite.volet.with(|volet| matches!(volet, Volet::Idee(_)));
@@ -2138,6 +2199,9 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
                 </fieldset>
                 <section class="requetes-enregistrees" aria-labelledby="titre-des-requetes">
                     <h2 id="titre-des-requetes">"Requêtes enregistrées"</h2>
+                    <p hidden=move || constat_des_requetes_lues().is_none()>
+                        {constat_des_requetes_lues}
+                    </p>
                     <ul class="requetes">
                         <For
                             each=requetes_enregistrees
@@ -2621,7 +2685,11 @@ fn VoletDeLIdee(ecran: Ecran) -> impl IntoView {
                 <h2 id="titre-de-l-idee" tabindex="-1" node_ref=ecran.titre_de_l_idee>
                     {titre}
                 </h2>
-                <button type="button" on:click=move |_| ecran.fermer_l_idee()>
+                <button
+                    type="button"
+                    aria-keyshortcuts="Escape"
+                    on:click=move |_| ecran.fermer_l_idee()
+                >
                     "Fermer"
                 </button>
             </div>
@@ -2769,6 +2837,7 @@ fn VoletDesRetirees(ecran: Ecran) -> impl IntoView {
                 </h2>
                 <button
                     type="button"
+                    aria-keyshortcuts="Escape"
                     on:click=move |_| ecran.fermer_par_echap()
                 >
                     "Fermer"
@@ -2860,7 +2929,11 @@ fn VoletDuJournal(ecran: Ecran) -> impl IntoView {
                 <h2 id="titre-du-journal" tabindex="-1" node_ref=ecran.titre_du_journal>
                     "Journal du fonds"
                 </h2>
-                <button type="button" on:click=move |_| ecran.fermer_par_echap()>
+                <button
+                    type="button"
+                    aria-keyshortcuts="Escape"
+                    on:click=move |_| ecran.fermer_par_echap()
+                >
                     "Fermer"
                 </button>
             </div>

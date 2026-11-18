@@ -28,10 +28,10 @@ pub enum Vue {
     Table,
 }
 
-/// L'état de l'établi : la vue (le fonds), la tonalité (do majeur), la couche sombre (masquée),
-/// l'instrument (les deux), la case touchée (aucune), la palette, ouverte ou fermée, le bandeau
-/// (vide) et ses repères, et le dernier état du fonds reçu (aucun). Rien n'en est gardé d'une
-/// ouverture à l'autre.
+/// L'état de l'établi : la vue (le fonds), la requête en cours (sans critère), la tonalité (do
+/// majeur), la couche sombre (masquée), l'instrument (les deux), la case touchée (aucune), la
+/// palette, ouverte ou fermée, le bandeau (vide) et ses repères, et le dernier état du fonds reçu
+/// (aucun). Rien n'en est gardé d'une ouverture à l'autre.
 #[derive(Clone, Copy)]
 pub struct Etat {
     /// Ce que l'établi montre sous son en-tête.
