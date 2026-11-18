@@ -3432,4 +3432,92 @@ mod tests {
             assert_eq!(pose_un_critere(&des_commandes), pose, "{nom}");
         }
     }
+
+    /// Une requête enregistrée inventée, lisible ou, sans requête, d'une version plus récente.
+    fn enregistree(nom: &str, requete: Option<Requete>) -> RequeteEnregistree {
+        RequeteEnregistree {
+            id: "requete-inventee".to_string(),
+            nom: nom.to_string(),
+            requete,
+        }
+    }
+
+    #[test]
+    fn une_requete_plus_recente_se_nomme_et_ne_se_lance_pas() {
+        let owner = Owner::new();
+        owner.set();
+        let lisible = Requete {
+            texte: "pont".into(),
+            etat: Some(commandes::Etat::NonReliee),
+            ..Requete::default()
+        };
+        // Une requête lisible se nomme, sans note, et se lance : ses réglages se posent.
+        assert_eq!(
+            ce_que_dit_la_requete(&enregistree("Les ponts", Some(lisible.clone()))),
+            ("Les ponts".to_string(), None)
+        );
+        let etat = EtatDeLaRequete::nouveau();
+        assert!(lancer(
+            etat,
+            &enregistree("Les ponts", Some(lisible.clone()))
+        ));
+        assert_eq!(etat.requete(), lisible);
+        // Une requête d'une version plus récente se nomme, avec sa note, et ne change rien.
+        let plus_recente = enregistree("Venue d'ailleurs", None);
+        assert_eq!(
+            ce_que_dit_la_requete(&plus_recente),
+            (
+                "Venue d'ailleurs".to_string(),
+                Some("Cette requête vient d'une version plus récente de Pupitre.")
+            )
+        );
+        assert!(!lancer(etat, &plus_recente));
+        assert_eq!(etat.requete(), lisible);
+    }
+
+    #[test]
+    fn supprimer_la_requete_en_cours_laisse_ses_criteres() {
+        let owner = Owner::new();
+        owner.set();
+        let boite = EtatDeLaBoite::nouveau();
+        let etat = EtatDeLaRequete::nouveau();
+        let lancee = Requete {
+            texte: "refrain".into(),
+            du: jour_du_champ("2026-10-25"),
+            etiquette: Some("pont".into()),
+            plus_de_secondes: Some(60),
+            ..Requete::default()
+        };
+        let enregistree = enregistree("Mes refrains", Some(lancee.clone()));
+        boite.requetes.set(vec![enregistree.clone()]);
+        assert!(lancer(etat, &enregistree));
+        boite.choisir_la_requete(&enregistree);
+        // Supprimée : la liste des requêtes enregistrées change, la requête de l'écran, non.
+        boite.oublier_la_requete(&enregistree.id);
+        assert!(boite.requetes.get().is_empty());
+        assert_eq!(boite.requete_choisie.get(), None);
+        assert_eq!(etat.requete(), lancee);
+        assert_eq!(etat.texte.get(), "refrain");
+        assert_eq!(etat.du.get(), "2026-10-25");
+        assert_eq!(etat.etiquette.get(), Some("pont".to_string()));
+        assert_eq!(etat.duree.get(), 2);
+    }
+
+    #[test]
+    fn enregistrer_ne_s_offre_qu_a_une_requete_posee() {
+        let posee = Requete {
+            texte: "refrain".into(),
+            ..Requete::default()
+        };
+        assert!(enregistrer_possible(&posee, "Mes refrains"));
+        assert!(!enregistrer_possible(&Requete::default(), "Mes refrains"));
+        assert!(!enregistrer_possible(&posee, ""));
+        assert!(!enregistrer_possible(&posee, " 	 "));
+        // Un texte sans mot ne pose aucun critère.
+        let sans_mot = Requete {
+            texte: " … ".into(),
+            ..Requete::default()
+        };
+        assert!(!enregistrer_possible(&sans_mot, "Mes refrains"));
+    }
 }
