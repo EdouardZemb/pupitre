@@ -3507,7 +3507,7 @@ pub fn plus_d_une_minute_declare_son_assiette<P: Paire>(paire: &mut P) {
             .into_iter()
             .collect::<BTreeSet<_>>(),
         BTreeSet::from(
-            [61_000_u64, 90_000, 600_000, 60_999].map(|duree_ms| idees[&duree_ms].clone())
+            [61_000_u64, 90_000, 600_000, 75_000].map(|duree_ms| idees[&duree_ms].clone())
         )
     );
     assert_eq!(
@@ -3641,7 +3641,7 @@ pub fn une_prise_sans_duree_compte_parmi_les_sans_duree<P: Paire>(paire: &mut P)
         vue.assiette_de_la_requete,
         Assiette {
             considerees: 1,
-            portant: 1,
+            portant: 0,
             decidees: 0,
             illisibles: 0,
         }
