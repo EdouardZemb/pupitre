@@ -457,5 +457,6 @@ pub fn ranger_les_requetes(requetes: &mut [RequeteEnregistreeLue]) {
         replier(&a.nom)
             .cmp(&replier(&b.nom))
             .then_with(|| a.nom.cmp(&b.nom))
+            .then_with(|| a.id.cmp(&b.id))
     });
 }
