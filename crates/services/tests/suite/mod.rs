@@ -3368,15 +3368,16 @@ pub fn la_boite_d_un_pupitre_neuf<P: Paire>(paire: &mut P) {
     );
 }
 
-/// Un texte de 250 `é` : la ligne de la boîte en porte les 200 premiers caractères, et la vue de
-/// l'idée les 250.
+/// Un texte de 250 `é`, puis « pont » : la ligne de la boîte en porte les 200 premiers caractères,
+/// et la vue de l'idée le texte entier. La recherche lit tout le texte : « pont », placé après le
+/// 200ᵉ caractère, trouve l'idée, et un index bâti des textes coupés se verrait.
 pub fn une_ligne_borne_son_texte<P: Paire>(paire: &mut P) {
     let mut services = paire.neufs();
     let mut alea = AleaDeTest {
         graine: 0,
         appels: 0,
     };
-    let long = "é".repeat(250);
+    let long = format!("{} pont", "é".repeat(250));
     let idee = services
         .noter(&une_note(&long), &mut contexte_de_test(&mut alea))
         .expect("la note est faite")
@@ -3393,6 +3394,12 @@ pub fn une_ligne_borne_son_texte<P: Paire>(paire: &mut P) {
         services.vue_d_une_idee(&idee).map(|vue| vue.texte),
         Ok(Some(long))
     );
+
+    let pont = services
+        .boite(&boite_de_la_requete(cherche("pont")))
+        .expect("la boîte se lit");
+    assert_eq!(idees_des_lignes(&pont.lignes), vec![idee]);
+    assert_eq!(pont.retenues, 1);
 }
 
 /// A notée : aucun geste à annuler. Une étiquette posée sur A : l'état du fonds dit le message de
@@ -3498,6 +3505,9 @@ pub fn les_retirees_se_rangent_par_la_date_du_retrait<P: Paire>(paire: &mut P) {
 /// La requête d'un état ou d'une provenance ne trouve, par date, que ses idées : les non reliées,
 /// E, D, B ; les reliées, C, A ; la captée, A ; les importées, E, D, C, B : un bras inversé de
 /// l'état ou de la provenance de la requête, dans sa conversion vers le noyau, se voit.
+/// Les bornes de `HEURE + 60`, comprise, à `HEURE + 180`, exclue, ne trouvent, par date, que C et
+/// B : A, née avant, D, née à la borne exclue, et E, née après, n'y sont pas ; des bornes
+/// échangées, perdues ou réduites à l'une d'elles, dans leur conversion vers le noyau, se voient.
 /// Chaque ordre range les cinq selon `noyau::donnees::boite::ordonner`, à égalité par la date, la
 /// plus récente d'abord, puis par l'identifiant : par date, E, D, C, B, A ; par étiquette, D
 /// (`couplet`), E (`refrain`), puis les sans étiquette, C, B, A ; par durée, C, B, puis les sans
@@ -3660,6 +3670,21 @@ pub fn la_requete_passe_au_noyau<P: Paire>(paire: &mut P, paire_des_notes: &mut 
         );
         assert_eq!(vue.non_reliees, 3, "la requête {requete:?}");
     }
+
+    let periode = services
+        .boite(&Boite {
+            bornes: Bornes {
+                des: Some(HEURE + 60),
+                avant: Some(HEURE + 180),
+            },
+            ..toute_la_boite()
+        })
+        .expect("la boîte se lit");
+    assert_eq!(
+        idees_des_lignes(&periode.lignes),
+        vec![c.clone(), b.clone()]
+    );
+    assert_eq!(periode.retenues, 2);
 
     let mut suites = BTreeSet::new();
     for (ordre, attendue) in [
