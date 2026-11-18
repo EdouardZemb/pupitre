@@ -72,6 +72,11 @@ fn une_note_au_decalage_local_dit_le_jour_decale() {
 }
 
 #[test]
+fn chaque_idee_d_un_geste_se_date_a_son_propre_decalage() {
+    suite::chaque_idee_d_un_geste_se_date_a_son_propre_decalage(&mut PaireEnMemoire);
+}
+
+#[test]
 fn une_empreinte_qu_aucune_captation_ne_porte_ne_se_relit_pas() {
     suite::une_empreinte_qu_aucune_captation_ne_porte_ne_se_relit_pas(&mut PaireEnMemoire);
 }

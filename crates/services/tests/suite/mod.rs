@@ -1215,6 +1215,88 @@ pub fn une_note_au_decalage_local_dit_le_jour_decale<P: Paire>(paire: &mut P) {
     assert_eq!(vue.le, HEURE);
 }
 
+/// Un geste qui nomme deux idées : les services passent au noyau le décalage de chacune, celui
+/// qui la date, jamais l'un pour l'autre. Deux notes et une prise versée, toutes nées à `HEURE`
+/// (22 h 13 UTC, le 14 novembre) : à 120 minutes, une idée est du 15 novembre ; à 0, du 14.
+/// Relier à (120, 0), délier à (0, 120), regrouper la prise dans la première note à 120 pour la
+/// cible et 0 pour la source qu'il retire : chaque message dit deux jours distincts, si bien qu'un
+/// décalage passé deux fois, ou les deux échangés, se voit au journal.
+pub fn chaque_idee_d_un_geste_se_date_a_son_propre_decalage<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    services
+        .noter(&une_note("Un refrain qui monte, en ré"), &mut contexte)
+        .expect("la note est faite");
+    services
+        .noter(&une_note("Un pont en mi mineur"), &mut contexte)
+        .expect("la note est faite");
+    let versee = verser_une_prise(
+        &mut services,
+        PRISE_DE_TEST,
+        &fiche_wav(42_000),
+        &mut contexte,
+    );
+    let derniere_entree = |services: &Services<P::D, P::C>| {
+        services
+            .journal()
+            .expect("le journal se lit")
+            .last()
+            .cloned()
+    };
+
+    let relier = Relier {
+        decalage_minutes: 120,
+        decalage_b_minutes: 0,
+        ..lien(IDEE, SECONDE_IDEE)
+    };
+    services
+        .relier(&relier, &mut contexte)
+        .expect("les idées se relient");
+    assert_eq!(
+        derniere_entree(&services),
+        Some(entree(
+            "Idée du 15 novembre reliée à l'idée du 14 novembre",
+            HEURE
+        ))
+    );
+
+    let delier = Relier {
+        decalage_minutes: 0,
+        decalage_b_minutes: 120,
+        ..lien(IDEE, SECONDE_IDEE)
+    };
+    services
+        .delier(&delier, &mut contexte)
+        .expect("les idées se délient");
+    assert_eq!(
+        derniere_entree(&services),
+        Some(entree(
+            "Idée du 14 novembre déliée de l'idée du 15 novembre",
+            HEURE
+        ))
+    );
+
+    let regrouper = Regrouper {
+        decalage_minutes: 120,
+        decalage_source_minutes: 0,
+        ..regroupement(&versee.empreinte, IDEE)
+    };
+    services
+        .regrouper(&regrouper, &mut contexte)
+        .expect("la prise se regroupe");
+    assert_eq!(
+        derniere_entree(&services),
+        Some(entree(
+            "Idée du 15 novembre : prise regroupée, idée du 14 novembre retirée",
+            HEURE
+        ))
+    );
+}
+
 /// Une empreinte qu'aucune captation ne porte ne se relit pas : `Raison::Impossible`, sur des
 /// services neufs comme après qu'une autre captation est versée.
 pub fn une_empreinte_qu_aucune_captation_ne_porte_ne_se_relit_pas<P: Paire>(paire: &mut P) {

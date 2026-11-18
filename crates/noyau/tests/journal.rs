@@ -56,4 +56,19 @@ fn le_meme_journal_a_la_meme_empreinte() {
     let mut autre = journal.clone();
     autre[2].1 += 1;
     assert_ne!(empreinte_du_journal(&autre), e);
+
+    // À égalité d'heure, le message départage, octet pour octet (« Fonds créé » avant « Idée du
+    // 25 octobre notée ») : deux entrées de même heure, reçues dans un ordre ou dans l'autre, font
+    // la même empreinte, celle du texte rangé. Sans ce départage, l'ordre reçu ici, « Idée … »
+    // d'abord, rendrait une autre empreinte.
+    let meme_heure = [
+        ("Genèse du fonds".to_string(), 0),
+        ("Idée du 25 octobre notée".to_string(), 1_792_888_200),
+        ("Fonds créé".to_string(), 1_792_888_200),
+    ];
+    let rangee = "8d75e62aba898294764c9b2fc99fb92337318daebebfa8528888c08667b8f3e8";
+    assert_eq!(empreinte_du_journal(&meme_heure), rangee);
+    let mut dans_l_autre_ordre = meme_heure.clone();
+    dans_l_autre_ordre.swap(1, 2);
+    assert_eq!(empreinte_du_journal(&dans_l_autre_ordre), rangee);
 }
