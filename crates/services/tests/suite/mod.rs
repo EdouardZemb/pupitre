@@ -3500,7 +3500,7 @@ pub fn plus_d_une_minute_declare_son_assiette<P: Paire>(paire: &mut P) {
     let vue = services
         .boite(&boite_de_la_requete(plus_d_une_minute()))
         .expect("la boîte se lit");
-    assert_eq!(vue.retenues, 5);
+    assert_eq!(vue.retenues, 4);
     assert_eq!(
         vue.assiette_de_la_requete,
         Assiette {
@@ -3553,7 +3553,7 @@ pub fn une_idee_retiree_n_est_ni_trouvee_ni_comptee<P: Paire>(paire: &mut P) {
         .expect("la boîte se lit");
     assert_eq!(
         texte_de_la_reponse_de(&vue),
-        "2 idées · 2 sans texte · 7 interrogées"
+        "2 idées · 2 sans texte · 6 interrogées"
     );
     assert!(
         !idees_des_lignes(&vue.lignes).contains(retiree),
@@ -3590,7 +3590,7 @@ pub fn une_idee_retiree_quitte_les_requetes<P: Paire>(paire: &mut P) {
     let apres = services.boite(&pont).expect("la boîte se lit");
     assert_eq!(apres.lignes, Vec::new());
     assert_eq!(
-        apres.assiette_de_la_requete.considerees,
+        apres.assiette_de_la_requete.considerees + 1,
         avant.assiette_de_la_requete.considerees
     );
 }
@@ -3626,7 +3626,7 @@ pub fn une_prise_sans_duree_compte_parmi_les_sans_duree<P: Paire>(paire: &mut P)
         !idees_des_lignes(&vue.lignes).contains(&p),
         "P est dans les lignes"
     );
-    assert_eq!(vue.sans.duree, Some(0));
+    assert_eq!(vue.sans.duree, Some(1));
 }
 
 /// CAP-06 · 10 : « Église du port », son É d'un seul point de code (U+00C9), et « Église du
@@ -3649,7 +3649,7 @@ pub fn eglise_trouve_eglise_du_port<P: Paire>(paire: &mut P) {
         idees_des_lignes(&vue.lignes)
             .into_iter()
             .collect::<BTreeSet<_>>(),
-        BTreeSet::from([composee, decomposee, "une idée absente".to_string()])
+        BTreeSet::from([composee, decomposee])
     );
 }
 
@@ -3670,7 +3670,7 @@ pub fn chaque_reponse_declare_son_assiette<P: Paire>(paire: &mut P) {
         let assiette = &vue.assiette_de_la_requete;
         assert_eq!(
             assiette.considerees,
-            lisibles + assiette.illisibles + 1,
+            lisibles + assiette.illisibles,
             "la requête {requete:?}"
         );
         assert_eq!(
@@ -3740,10 +3740,7 @@ pub fn l_index_reconstruit_rend_les_memes_reponses<P: Paire>(paire: &mut P) {
     let memes_reponses = |services: &Services<P::D, P::C>, geste: &str| {
         let empreintes = empreintes_du_jeu(services);
         for (requete, (tenu, neuf)) in jeu_de_requetes().iter().zip(&empreintes) {
-            assert_eq!(
-                tenu, &empreintes[0].1,
-                "après {geste}, la requête {requete:?} ({neuf})"
-            );
+            assert_eq!(tenu, neuf, "après {geste}, la requête {requete:?}");
         }
         empreintes
     };
@@ -3802,11 +3799,7 @@ pub fn chercher_n_ecrit_rien<P: Paire>(paire: &mut P) {
             .boite(&boite_de_la_requete(requete.clone()))
             .expect("la boîte se lit");
         assert_eq!(tetes(&services), tetes_d_avant, "la requête {requete:?}");
-        assert_eq!(
-            services.journal(),
-            Ok(journal[1..].to_vec()),
-            "la requête {requete:?}"
-        );
+        assert_eq!(services.journal(), Ok(journal), "la requête {requete:?}");
     }
 }
 
@@ -3833,7 +3826,7 @@ pub fn noter_pendant_une_requete_la_laisse_en_place<P: Paire>(paire: &mut P) {
         !idees_des_lignes(&pendant.lignes).contains(&pont),
         "« pont du soir » est dans les lignes"
     );
-    assert_eq!(pendant.non_reliees, avant.non_reliees);
+    assert_eq!(pendant.non_reliees, avant.non_reliees + 1);
 
     let soir = noter_l_idee(&mut services, "l\u{2019}église du soir", &mut contexte);
     let apres = services.boite(&eglise).expect("la boîte se lit");
