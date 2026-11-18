@@ -1,14 +1,16 @@
-//! La boîte d'idées à l'écran (CAP-02 ; questions 25 à 30). En tête, le champ « Noter une idée »,
-//! toujours présent, le compte, et sous un filtre son nombre, « Ranger par : », « Contenu : » et
-//! les gestes : relier, annuler, les idées retirées. Dessous, la liste en fenêtre, des lignes de
-//! hauteur fixe que suivent son défilement et la taille de la fenêtre de l'application, jamais
-//! une minuterie (I18) ; à sa droite, le volet de l'idée choisie, ou celui des idées retirées.
+//! La boîte d'idées à l'écran (CAP-02, CAP-06 ; questions 25 à 30). En tête, le champ « Noter une
+//! idée », toujours présent, le compte, et sous une requête qui pose un critère sa réponse,
+//! « Ranger par : », les critères de la requête en cours (« Contenu : », « Date : »,
+//! « Étiquette : », « Durée : », « État : », « Provenance : ») et les gestes : relier, annuler, les
+//! idées retirées. Dessous, la liste en fenêtre, réponse de la requête en cours, des lignes de
+//! hauteur fixe que suivent son défilement et la taille de la fenêtre de l'application, jamais une
+//! minuterie (I18) ; à sa droite, le volet de l'idée choisie, ou celui des idées retirées.
 //! Après chaque commande, l'interface relit l'état du fonds et les fenêtres, et le bandeau reçoit
 //! l'issue ; seul le refus d'une lecture y passe, jamais une lecture réussie. `Ctrl+Z`, hors d'un
 //! champ de texte, annule le dernier geste de tri.
 
 use commandes::{
-    ANNULER, Assiette, BOITE, Boite, Bornes, COMPLETER, Completer, Contenu, DELIER, ETAT_DU_FONDS,
+    ANNULER, Assiette, BOITE, Boite, COMPLETER, Completer, Contenu, DELIER, ETAT_DU_FONDS,
     EtatDuFonds, Etiqueter, FENETRE_MAX, Faite, Fenetre, LONGUEUR_D_UNE_LIGNE, LigneDeLaBoite,
     NOTER, Notee, Noter, OTER_UNE_ETIQUETTE, Ordre, POSER_UNE_ETIQUETTE, Provenance, RELIER,
     RETABLIR, RETIREES, RETIRER, Relier, Requete, VUE_D_UNE_IDEE, Viser, VueDUneIdee, VueDeLaBoite,
@@ -19,6 +21,7 @@ use leptos::prelude::*;
 use leptos::web_sys::{Element, HtmlElement, HtmlInputElement, HtmlTextAreaElement, Node};
 use noyau::donnees::boite::{date_de_la_liste, duree_affichee, etiquette_saisie, texte_du_compte};
 use noyau::donnees::idee;
+use noyau::donnees::repli::mots;
 use noyau::donnees::requete::{self, texte_de_la_reponse};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -27,6 +30,7 @@ use wasm_bindgen::JsCast;
 use crate::app::Etat;
 use crate::entete::choix;
 use crate::natif;
+use crate::recherche::{DUREES, ETATS, PROVENANCES, bornes_de_la_requete};
 
 /// La marge de la fenêtre, en lignes, de chaque côté de ce qui se voit.
 pub(crate) const MARGE: u32 = 5;
@@ -48,7 +52,8 @@ const ORDRES: [(Ordre, &str); 5] = [
     (Ordre::Provenance, "provenance"),
 ];
 
-/// Les choix de « Contenu : », chacun avec son libellé ; tout d'abord, sans filtre (question 22).
+/// Les choix de « Contenu : », chacun avec son libellé ; tout d'abord, sans critère de contenu
+/// (question 22).
 pub(crate) const CONTENUS: [(Option<Contenu>, &str); 6] = [
     (None, "tout"),
     (Some(Contenu::TexteDeLIdee), "texte de l'idée"),
@@ -315,9 +320,36 @@ pub(crate) fn etiquettes_de_la_ligne(ligne: &LigneDeLaBoite) -> String {
     ligne
         .etiquettes
         .iter()
-        .map(|etiquette| format!("#{etiquette}"))
+        .map(String::as_str)
+        .map(etiquette_ecrite)
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+/// L'étiquette `nom` écrite comme la liste l'écrit, et comme « Étiquette : » l'offre : `#nom`.
+fn etiquette_ecrite(nom: &str) -> String {
+    format!("#{nom}")
+}
+
+/// L'étiquette que dit la valeur du choix fait dans « Étiquette : » : « Toutes », de valeur vide,
+/// n'en pose aucune (`None`), puisqu'une étiquette vide ne trouverait rien ; une autre valeur est
+/// le nom de l'étiquette.
+fn etiquette_du_choix(valeur: &str) -> Option<String> {
+    (!valeur.is_empty()).then(|| valeur.to_string())
+}
+
+/// Les étiquettes que « Étiquette : » offre après « Toutes » : celles du fonds, `du_fonds`, et
+/// l'étiquette `choisie` si le fonds ne la porte plus (une étiquette ôtée, une requête posée),
+/// pour que le choix fait se voie ; chacune une fois, dans l'ordre de leurs octets.
+fn etiquettes_a_choisir(du_fonds: &[String], choisie: Option<&str>) -> Vec<String> {
+    let mut etiquettes = du_fonds.to_vec();
+    if let Some(choisie) = choisie
+        && !etiquettes.iter().any(|etiquette| etiquette == choisie)
+    {
+        etiquettes.push(choisie.to_string());
+        etiquettes.sort();
+    }
+    etiquettes
 }
 
 pub(crate) fn etat_de_la_ligne(ligne: &LigneDeLaBoite) -> &'static str {
@@ -369,6 +401,27 @@ fn sans_au_noyau(sans: &commandes::Sans) -> requete::Sans {
         duree: sans.duree.map(en_usize),
         texte: sans.texte.map(en_usize),
     }
+}
+
+/// La requête pose au moins un critère : un mot dans son texte (`repli::mots`), ou un critère hors
+/// du texte. Comme `Requete::est_vide` au noyau, un texte sans mot, « … », n'en pose aucun.
+fn pose_un_critere(requete: &Requete) -> bool {
+    !mots(&requete.texte).is_empty()
+        || *requete
+            != Requete {
+                texte: requete.texte.clone(),
+                ..Requete::default()
+            }
+}
+
+/// La réponse de la requête lue `requete`, que dit sa vue `vue` (`texte_de_la_reponse`) : le
+/// nombre des idées trouvées, ses parts « sans … », ses illisibles et ses interrogées. Une requête
+/// qui ne pose aucun critère n'en a pas : sa liste est toute la boîte.
+fn texte_de_la_requete(vue: &VueDeLaBoite, requete: &Requete) -> Option<String> {
+    pose_un_critere(requete).then(|| {
+        let (retenues, assiette, illisibles) = au_noyau(vue.retenues, &vue.assiette_de_la_requete);
+        texte_de_la_reponse(retenues, assiette, illisibles, sans_au_noyau(&vue.sans))
+    })
 }
 
 /// La date de la liste de l'instant `le`, au décalage local de cet instant (question 24).
@@ -456,12 +509,12 @@ fn argument<T: Serialize>(commande: &T) -> Option<serde_json::Value> {
     serde_json::to_value(commande).ok()
 }
 
-/// Une fenêtre de la boîte, lue : la fenêtre demandée, si sa requête cherchait un contenu, et la
-/// vue rendue.
+/// Une fenêtre de la boîte, lue : la fenêtre demandée, la requête qui l'a lue, et la vue rendue,
+/// sa réponse (`texte_de_la_requete`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct BoiteLue {
     fenetre: Fenetre,
-    filtree: bool,
+    requete: Requete,
     vue: VueDeLaBoite,
 }
 
@@ -521,16 +574,15 @@ impl Demandes {
     }
 }
 
-/// Ce que la boîte garde tant que l'établi est ouvert, qu'elle se montre ou non : l'ordre et le
-/// contenu choisis, la fenêtre lue, les lignes cochées, le volet et son idée, les idées retirées
-/// lues, et les champs en cours. Rien n'en est gardé d'une ouverture à l'autre. L'établi le crée,
-/// hors de la boîte : une réponse arrivée la boîte cachée trouve où s'écrire.
+/// Ce que la boîte garde tant que l'établi est ouvert, qu'elle se montre ou non : l'ordre choisi,
+/// la fenêtre lue, les lignes cochées, le volet et son idée, les idées retirées lues, et les champs
+/// en cours. La requête en cours, elle, est à l'établi (`Etat::requete`). Rien n'en est gardé
+/// d'une ouverture à l'autre. L'établi le crée, hors de la boîte : une réponse arrivée la boîte
+/// cachée trouve où s'écrire.
 #[derive(Clone, Copy)]
 pub(crate) struct EtatDeLaBoite {
     /// Le rang de l'ordre dans `ORDRES`.
     ordre: RwSignal<usize>,
-    /// Le rang du contenu dans `CONTENUS`.
-    contenu: RwSignal<usize>,
     lue: RwSignal<Option<BoiteLue>>,
     demandes: Demandes,
     /// Les idées cochées pour relier, dans l'ordre où elles l'ont été, chacune avec sa naissance,
@@ -560,11 +612,10 @@ pub(crate) struct EtatDeLaBoite {
 }
 
 impl EtatDeLaBoite {
-    /// La boîte rangée par date, sans filtre, rien de lu ni de coché, aucun volet.
+    /// La boîte rangée par date, rien de lu ni de coché, aucun volet.
     pub(crate) fn nouveau() -> Self {
         EtatDeLaBoite {
             ordre: RwSignal::new(0),
-            contenu: RwSignal::new(0),
             lue: RwSignal::new(None),
             demandes: Demandes::nouvelles(),
             cochees: RwSignal::new(Vec::new()),
@@ -602,29 +653,44 @@ impl EtatDeLaBoite {
     }
 }
 
-/// Lit la fenêtre `fenetre` de la boîte, dans l'ordre choisi, par la requête du contenu choisi,
-/// sans borne de date. Une réponse qu'une demande plus récente a devancée s'ignore ; un refus va
-/// au bandeau. La fenêtre posée, et ses lignes rendues au tick suivant, le focus perdu se rend
+/// La commande qui lit la fenêtre `fenetre` de la boîte, rangée par `ordre`, réponse de la requête
+/// `requete`, telle quelle, et les bornes de sa date, tirées de ses jours au décalage que
+/// `decalage` dit de chaque instant (`bornes_de_la_requete`, `natif::decalage_a`).
+fn commande_de_la_boite(
+    ordre: Ordre,
+    requete: &Requete,
+    decalage: impl Fn(i64) -> i32,
+    fenetre: &Fenetre,
+) -> Boite {
+    Boite {
+        ordre,
+        requete: requete.clone(),
+        bornes: bornes_de_la_requete(requete, decalage),
+        debut: fenetre.debut,
+        nombre: fenetre.nombre,
+    }
+}
+
+/// La requête en cours, lue sans suivre ses réglages : une lecture de la boîte la porte.
+fn requete_en_cours(etat: Etat) -> Requete {
+    untrack(|| etat.requete.requete())
+}
+
+/// Lit la fenêtre `fenetre` de la boîte, dans l'ordre choisi, réponse de la requête `requete`
+/// (`commande_de_la_boite`). Une réponse qu'une demande plus récente a devancée s'ignore : chaque
+/// frappe demande, et seule la dernière réponse compte ; un refus va au bandeau. La fenêtre posée,
+/// avec la requête qui l'a lue, et ses lignes rendues au tick suivant, le focus perdu se rend
 /// (`rendre_le_focus_perdu`).
 async fn lire_la_boite(
     etat: Etat,
     boite: EtatDeLaBoite,
     focus: RwSignal<Option<Cible>>,
     fenetre: Fenetre,
+    requete: Requete,
 ) {
     let rang = boite.demandes.demander(&fenetre);
-    let contenu = CONTENUS[boite.contenu.get_untracked()].0.clone();
-    let filtree = contenu.is_some();
-    let commande = Boite {
-        ordre: ORDRES[boite.ordre.get_untracked()].0.clone(),
-        requete: Requete {
-            contenu,
-            ..Requete::default()
-        },
-        bornes: Bornes::default(),
-        debut: fenetre.debut,
-        nombre: fenetre.nombre,
-    };
+    let ordre = ORDRES[boite.ordre.get_untracked()].0.clone();
+    let commande = commande_de_la_boite(ordre, &requete, natif::decalage_a, &fenetre);
     let lu = natif::invoquer::<VueDeLaBoite>(BOITE, argument(&commande)).await;
     if !boite.demandes.est_la_derniere(rang) {
         return;
@@ -633,7 +699,7 @@ async fn lire_la_boite(
         Ok(vue) => {
             boite.lue.set(Some(BoiteLue {
                 fenetre,
-                filtree,
+                requete,
                 vue,
             }));
             leptos::task::tick().await;
@@ -723,15 +789,15 @@ async fn lire_l_idee(etat: Etat, boite: EtatDeLaBoite, focus: RwSignal<Option<Ci
 }
 
 /// Après une commande : l'état du fonds, hors de l'ouverture (`suivre_le_fonds`), puis la dernière
-/// fenêtre demandée de la boîte, celle des idées retirées si leur volet est ouvert, et l'idée du
-/// volet ; chaque lecture rend le focus perdu, par `focus`.
+/// fenêtre demandée de la boîte, réponse de la requête en cours, celle des idées retirées si leur
+/// volet est ouvert, et l'idée du volet ; chaque lecture rend le focus perdu, par `focus`.
 async fn relire(etat: Etat, boite: EtatDeLaBoite, focus: RwSignal<Option<Cible>>) {
     match natif::invoquer::<EtatDuFonds>(ETAT_DU_FONDS, None).await {
         Ok(fonds) => etat.suivre_le_fonds(fonds, false),
         Err(refus) => etat.apres_un_geste(&Err(refus)),
     }
     if let Some(fenetre) = boite.demandes.derniere.get_value() {
-        lire_la_boite(etat, boite, focus, fenetre).await;
+        lire_la_boite(etat, boite, focus, fenetre, requete_en_cours(etat)).await;
     }
     match boite.volet.get_untracked() {
         Volet::Retirees => {
@@ -988,14 +1054,18 @@ impl Ecran {
         })
     }
 
-    /// Lit la fenêtre de la boîte que demande son défilement (`a_demander`).
+    /// Lit la fenêtre de la boîte que demande son défilement (`a_demander`), réponse de la requête
+    /// en cours, lue à la demande.
     fn demander_la_boite(self, forcer: bool) {
         let total = self
             .boite
             .lue
             .with_untracked(|lue| lue.as_ref().map(|lue| lue.vue.retenues));
         if let Some(fenetre) = self.a_demander(self.liste, self.boite.demandes, total, forcer) {
-            leptos::task::spawn_local(lire_la_boite(self.etat, self.boite, self.focus, fenetre));
+            let requete = requete_en_cours(self.etat);
+            leptos::task::spawn_local(lire_la_boite(
+                self.etat, self.boite, self.focus, fenetre, requete,
+            ));
         }
     }
 
@@ -1079,7 +1149,8 @@ impl Ecran {
         }));
     }
 
-    /// Un autre ordre ou un autre contenu : la liste revient au début, et sa fenêtre se relit.
+    /// Un autre ordre, ou un réglage de la requête en cours changé, son texte ou un critère : la
+    /// liste revient au début, et sa fenêtre se relit.
     fn au_debut(self) {
         if let Some(liste) = self.liste.get_untracked() {
             liste.set_scroll_top(0);
@@ -1122,10 +1193,9 @@ impl Ecran {
         self.geste::<Faite>(nom, commande, |faite| faite.avertissement, en_vol, apres);
     }
 
-    /// Note l'idée `noter`, sous le drapeau des notes. Faite, le champ se vide, s'il porte encore
-    /// la note partie.
+    /// Note l'idée `noter`, sous le drapeau des notes. Faite, elle se conclut
+    /// (`conclure_la_note`).
     fn noter(self, noter: Noter) {
-        let note = self.boite.note;
         let partie = noter.texte.clone();
         self.geste::<Notee>(
             NOTER,
@@ -1134,14 +1204,21 @@ impl Ecran {
             self.boite.note_en_cours,
             move |faite| {
                 if faite {
-                    note.update(|champ| {
-                        if champ.trim() == partie {
-                            champ.clear();
-                        }
-                    });
+                    self.conclure_la_note(&partie);
                 }
             },
         );
+    }
+
+    /// La note `partie` faite : le champ « Noter une idée » se vide, s'il la porte encore. La
+    /// requête en cours reste telle quelle, et la relecture qui suit la note la montre dans la
+    /// liste si elle la satisfait (point de revue 1).
+    fn conclure_la_note(self, partie: &str) {
+        self.boite.note.update(|champ| {
+            if champ.trim() == partie {
+                champ.clear();
+            }
+        });
     }
 
     /// Annule le dernier geste de tri ; sans geste à annuler, le refus le dit.
@@ -1370,8 +1447,60 @@ impl Ecran {
     }
 }
 
-/// La boîte d'idées. Montée, elle lit la fenêtre que sa liste montre ; un autre ordre ou un autre
-/// contenu la ramène au début. La liste suit son défilement et la taille de la fenêtre de
+/// Les choix en ligne d'un critère de la requête en cours, de groupe `groupe`, un par libellé de
+/// son tableau `tableau` (`CONTENUS`, `DUREES`, `ETATS`, `PROVENANCES`), dans son ordre : le choix
+/// fait écrit son rang dans `rang`, un signal de `Etat::requete`.
+fn choix_d_un_critere<T>(
+    groupe: &'static str,
+    tableau: &'static [(Option<T>, &'static str)],
+    rang: RwSignal<usize>,
+) -> impl IntoView {
+    tableau
+        .iter()
+        .enumerate()
+        .map(|(valeur, (_, libelle))| {
+            choix(
+                groupe,
+                valeur,
+                libelle.to_string(),
+                None,
+                rang.into(),
+                move |choisie| rang.set(choisie),
+            )
+        })
+        .collect_view()
+}
+
+/// Un champ de date de « Date : », libellé `libelle` : la frappe écrit sa valeur dans `valeur`,
+/// un signal de `Etat::requete`, « AAAA-MM-JJ », ou vide pour un champ vide ou incomplet ; et il
+/// prend toute autre valeur que le signal reçoit (une requête posée). Un champ qui porte déjà la
+/// valeur du signal ne se réécrit pas : incomplet, il vide la requête de son jour sans perdre ce
+/// qui y est tapé.
+fn champ_de_date(libelle: &'static str, valeur: RwSignal<String>) -> impl IntoView {
+    let champ = NodeRef::<html::Input>::new();
+    Effect::new(move |_| {
+        let voulue = valeur.get();
+        if let Some(champ) = champ.get()
+            && champ.value() != voulue
+        {
+            champ.set_value(&voulue);
+        }
+    });
+    view! {
+        <label class="choix">
+            {libelle}
+            <input
+                type="date"
+                node_ref=champ
+                on:input=move |ev| valeur.set(event_target_value(&ev))
+            />
+        </label>
+    }
+}
+
+/// La boîte d'idées. Montée, elle lit la fenêtre que sa liste montre, réponse de la requête en
+/// cours ; un autre ordre, ou un réglage de la requête changé, son texte dans l'en-tête ou un
+/// critère, la ramène au début. La liste suit son défilement et la taille de la fenêtre de
 /// l'application, jamais une minuterie (I18) : chaque ligne a la hauteur fixe `--ligne`, que
 /// l'étalon mesure ; la piste a la hauteur de toutes les lignes, et seules celles de la fenêtre lue
 /// s'y posent, à leur rang. Chaque contrôle est un bouton, une case ou un champ, nommé ; le focus
@@ -1391,10 +1520,13 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
         titre_de_l_idee: NodeRef::new(),
         titre_des_retirees: NodeRef::new(),
     };
-    // Montés, la liste et l'étalon donnent la fenêtre à lire.
+    // Montés, la liste et l'étalon donnent la fenêtre à lire. Chaque changement de la requête en
+    // cours, son texte dans l'en-tête ou un critère, ramène la liste au début et la relit
+    // (`au_debut`) : une demande par frappe, dont seule la dernière réponse compte.
     Effect::new(move |_| {
+        let _suivie = etat.requete.requete();
         if ecran.liste.get().is_some() && ecran.etalon.get().is_some() {
-            ecran.demander_la_boite(true);
+            ecran.au_debut();
         }
     });
     // Le focus demandé va à sa cible, dès qu'elle est montée dans le document.
@@ -1470,17 +1602,10 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
             lue.as_ref().map(|lue| {
                 let (non_reliees, assiette, _) =
                     au_noyau(lue.vue.non_reliees, &lue.vue.assiette_du_compte);
-                let reponse = lue.filtree.then(|| {
-                    let (retenues, assiette, illisibles) =
-                        au_noyau(lue.vue.retenues, &lue.vue.assiette_de_la_requete);
-                    texte_de_la_reponse(
-                        retenues,
-                        assiette,
-                        illisibles,
-                        sans_au_noyau(&lue.vue.sans),
-                    )
-                });
-                (texte_du_compte(non_reliees, assiette), reponse)
+                (
+                    texte_du_compte(non_reliees, assiette),
+                    texte_de_la_requete(&lue.vue, &lue.requete),
+                )
             })
         })
     };
@@ -1501,23 +1626,29 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
             )
         })
         .collect_view();
-    let contenus = CONTENUS
-        .iter()
-        .enumerate()
-        .map(|(rang, (_, libelle))| {
-            choix(
-                "contenu",
-                rang,
-                libelle.to_string(),
-                None,
-                boite.contenu.into(),
-                move |rang| {
-                    boite.contenu.set(rang);
-                    ecran.au_debut();
-                },
-            )
-        })
-        .collect_view();
+    // Les critères de la requête en cours : chacun change un signal de `Etat::requete`, et l'effet
+    // du montage ramène la liste au début.
+    let requete = etat.requete;
+    let contenus = choix_d_un_critere("contenu", &CONTENUS, requete.contenu);
+    let durees = choix_d_un_critere("duree", &DUREES, requete.duree);
+    let etats = choix_d_un_critere("etat", &ETATS, requete.etat);
+    let provenances = choix_d_un_critere("provenance", &PROVENANCES, requete.provenance);
+    let etiquettes = move || {
+        let du_fonds = boite.lue.with(|lue| {
+            lue.as_ref()
+                .map(|lue| lue.vue.etiquettes_du_fonds.clone())
+                .unwrap_or_default()
+        });
+        requete
+            .etiquette
+            .with(|choisie| etiquettes_a_choisir(&du_fonds, choisie.as_deref()))
+    };
+    let toutes = move || requete.etiquette.with(Option::is_none);
+    let est_choisie = move |nom: &str| {
+        requete
+            .etiquette
+            .with(|choisie| choisie.as_deref() == Some(nom))
+    };
     let deux_cochees = move || boite.cochees.with(|cochees| cochees.len() == 2);
     let annulation = move || {
         etat.etat_du_fonds
@@ -1573,6 +1704,53 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
                 <fieldset class="reglage">
                     <legend>"Contenu :"</legend>
                     <div class="choix-en-ligne">{contenus}</div>
+                </fieldset>
+                <fieldset class="reglage">
+                    <legend>"Date :"</legend>
+                    <div class="choix-en-ligne">
+                        {champ_de_date("du", requete.du)}
+                        {champ_de_date("au", requete.au)}
+                    </div>
+                </fieldset>
+                <fieldset class="reglage">
+                    <legend id="legende-de-l-etiquette">"Étiquette :"</legend>
+                    <select
+                        aria-labelledby="legende-de-l-etiquette"
+                        on:change=move |ev| {
+                            requete.etiquette.set(etiquette_du_choix(&event_target_value(&ev)))
+                        }
+                    >
+                        <option value="" prop:selected=toutes>
+                            "Toutes"
+                        </option>
+                        <For
+                            each=etiquettes
+                            key=|nom: &String| nom.clone()
+                            children=move |nom: String| {
+                                let choisie = {
+                                    let nom = nom.clone();
+                                    move || est_choisie(&nom)
+                                };
+                                view! {
+                                    <option value=nom.clone() prop:selected=choisie>
+                                        {etiquette_ecrite(&nom)}
+                                    </option>
+                                }
+                            }
+                        />
+                    </select>
+                </fieldset>
+                <fieldset class="reglage">
+                    <legend>"Durée :"</legend>
+                    <div class="choix-en-ligne">{durees}</div>
+                </fieldset>
+                <fieldset class="reglage">
+                    <legend>"État :"</legend>
+                    <div class="choix-en-ligne">{etats}</div>
+                </fieldset>
+                <fieldset class="reglage">
+                    <legend>"Provenance :"</legend>
+                    <div class="choix-en-ligne">{provenances}</div>
                 </fieldset>
                 <div class="gestes">
                     <button

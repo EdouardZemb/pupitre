@@ -338,13 +338,21 @@ button[aria-disabled="true"] {
   flex: 1 1 100%;
 }
 
+/* Les champs de la boîte, ceux des critères compris : « Date : » et « Étiquette : ». */
 input[type="text"],
+input[type="date"],
+select,
 textarea {
   font: inherit;
   color: #000;
   background: #fff;
   border: 1px solid #000;
   padding: 0.25rem 0.5rem;
+}
+
+/* Un champ de date suit son libellé, « du » ou « au », sur la même ligne. */
+.choix input[type="date"] {
+  margin-left: 0.25rem;
 }
 
 textarea {
