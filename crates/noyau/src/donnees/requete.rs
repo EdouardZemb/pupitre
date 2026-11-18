@@ -16,7 +16,11 @@ use super::gestes::{ENTIER_SUR, Impossible, chemin, oter, poser};
 use super::idee::Assiette;
 use super::repli::{mots, replier};
 
-/// Un jour civil (question 9) : l'année, le mois de 1 à 12, le jour de 1 à 31.
+/// Un jour civil (question 9) : l'année, le mois de 1 à 12, le jour de 1 à 31. Rien ne garde qu'il
+/// existe : un jour qui ne passe pas l'aller-retour ISO (`en_iso`, puis `depuis_iso`), un
+/// 30 février ou une année hors de 0000 à 9999, s'écrit dans une requête enregistrée, puis se
+/// relit comme une requête venue d'une version plus récente (`requete: None`). L'interface ne
+/// forme ses jours que par `depuis_iso`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Jour {
     pub annee: i32,
@@ -361,7 +365,10 @@ pub struct RequeteEnregistreeLue {
 /// conteneur), son nom (sans ses blancs autour) et une clé par critère posé, dans la même
 /// opération ; le texte n'est posé que s'il a un mot. Message : « Requête « <nom> » enregistrée ».
 /// Un nom vide : `NomVide` ; aucun critère : `RequeteSansCritere` ; un seuil au-delà d'`ENTIER_SUR` :
-/// `SeuilTropLong`.
+/// `SeuilTropLong`. Un jour qui ne passe pas l'aller-retour ISO (un 30 février, une année hors de
+/// 0000 à 9999) s'écrit, puis se relit comme une requête venue d'une version plus récente
+/// (`requete: None`, `lire_une_requete`) ; l'interface ne forme ses jours que par
+/// `Jour::depuis_iso`.
 pub fn enregistrer_une_requete(
     id: &str,
     nom: &str,

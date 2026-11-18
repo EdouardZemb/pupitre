@@ -86,7 +86,9 @@ pub struct Versee {
 /// de la boîte compare les têtes du fonds aux têtes gardées : différentes, ou sans index tenu,
 /// l'index se rebâtit en entier du fonds lu (`en_boite`), jamais par morceaux ; sans fonds, la
 /// lecture prend un index vide, et rien n'est gardé. Aucune écriture ne le touche (question 14) :
-/// une écriture faite change les têtes, et la lecture qui suit le rebâtit.
+/// une écriture faite change les têtes, et la lecture qui suit le rebâtit. Les têtes ne suffisent
+/// à dire l'index à jour que tant qu'`en_boite` ne lit que le document : ce qu'elle lirait
+/// ailleurs pourrait changer sans changer les têtes.
 pub struct Services<D: Documents, C: Captations> {
     documents: D,
     captations: C,

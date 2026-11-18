@@ -46,7 +46,10 @@ pub fn heure_du_journal(heure: i64, decalage_minutes: i32) -> String {
 
 /// « Le même journal » (question 29) : les entrées rangées par heure, puis par message, octet pour
 /// octet, chacune écrite `<heure>`, une tabulation, `<message>`, un saut de ligne ; le SHA-256 de ce
-/// texte (`identifiants::empreinte`). L'ordre de l'historique n'y compte pas.
+/// texte (`identifiants::empreinte`). L'ordre de l'historique n'y compte pas. Sa limite : le texte
+/// n'échappe rien, et un message qui porte un retour à la ligne suivi de chiffres et d'une
+/// tabulation peut faire coïncider deux journaux différents. Aucun champ de l'interface ne laisse
+/// passer un retour à la ligne.
 pub fn empreinte_du_journal(entrees: &[(String, i64)]) -> String {
     let mut rangees: Vec<(i64, &str)> = entrees
         .iter()
