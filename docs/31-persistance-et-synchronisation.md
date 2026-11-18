@@ -789,7 +789,7 @@ dossier de l'application, **jamais dans un dossier temporaire** que le système 
 
 | Dérivé | Calculé où | Quand |
 |---|---|---|
-| Index de recherche (texte, attributs, motifs harmoniques) | Chaque appareil, en mémoire, côté natif | À la première lecture de la boîte qui suit un changement du document, l'ouverture comprise |
+| Index de recherche (texte, attributs, motifs harmoniques) | Chaque appareil, en mémoire, côté natif | À la première lecture qui suit un changement du document (au lot 1, celle de la boîte), l'ouverture comprise |
 | Matériau effectif des occurrences, numéros de mesure, durées | Chaque appareil | À la demande |
 | Rendus (grille, portée, diagrammes, fiche, plan d'album) | Chaque appareil | À l'affichage |
 | Diagnostics | Chaque appareil | À la demande, et à la volée pour les plus légers |
