@@ -302,6 +302,29 @@ mod tests {
     }
 
     #[test]
+    fn chercher_sur_le_fonds_n_ecrit_pas_la_vue() {
+        // Le fonds montré, chaque frappe de la recherche laisse la vue : la fermeture qui rend la
+        // vue ne rebâtit pas la boîte d'idées à chaque frappe. Un mémo qui lit la vue compte ses
+        // calculs : une écriture, même de la même valeur, le ferait recalculer à sa lecture.
+        let etat = Etat::nouveau();
+        let calculs = StoredValue::new(0_usize);
+        let vue = Memo::new(move |_| {
+            calculs.update_value(|n| *n += 1);
+            etat.vue.get()
+        });
+        assert_eq!(vue.get_untracked(), Vue::Fonds);
+        etat.chercher("e".to_string());
+        etat.chercher("eg".to_string());
+        assert_eq!(vue.get_untracked(), Vue::Fonds);
+        assert_eq!(calculs.get_value(), 1);
+        assert_eq!(etat.requete.texte.get_untracked(), "eg");
+        // Depuis la table, la recherche fait passer au fonds.
+        etat.choisir_vue(Vue::Table);
+        etat.chercher("egl".to_string());
+        assert_eq!(vue.get_untracked(), Vue::Fonds);
+    }
+
+    #[test]
     fn l_etat_de_synchronisation_dit_sans_noeud_aucune_archive() {
         let texte = crate::entete::ETAT_DE_SYNCHRONISATION;
         assert_eq!(texte, "Sans n\u{153}ud \u{b7} aucune archive");

@@ -2925,8 +2925,8 @@ mod tests {
         );
     }
 
-    /// Une vue de la boîte écrite pour le test : deux idées trouvées parmi six interrogées, dont deux
-    /// sans texte, et aucune ligne.
+    /// Une vue de la boîte écrite pour le test : deux idées trouvées parmi six interrogées, dont
+    /// deux sans texte, et aucune ligne.
     fn vue_de_la_reponse() -> VueDeLaBoite {
         VueDeLaBoite {
             non_reliees: 5,
@@ -3066,7 +3066,8 @@ mod tests {
 
     #[test]
     fn le_choix_toutes_ne_pose_aucune_etiquette() {
-        // « Toutes », de valeur vide, ne pose aucun critère : une étiquette vide ne trouverait rien.
+        // « Toutes », de valeur vide, ne pose aucun critère : une étiquette vide ne trouverait
+        // rien.
         assert_eq!(etiquette_du_choix(""), None);
         assert_eq!(etiquette_du_choix("pont"), Some("pont".to_string()));
         // Une étiquette du fonds s'écrit comme la liste l'écrit.
@@ -3074,11 +3075,183 @@ mod tests {
         let du_fonds = ["pont".to_string(), "refrain".to_string()];
         assert_eq!(etiquettes_a_choisir(&du_fonds, None), du_fonds);
         assert_eq!(etiquettes_a_choisir(&du_fonds, Some("refrain")), du_fonds);
-        // L'étiquette choisie que le fonds ne porte plus reste offerte, à son rang : le choix se
-        // voit.
+        // L'étiquette choisie que le fonds ne porte plus reste offerte, à son rang : le choix
+        // se voit.
         assert_eq!(
             etiquettes_a_choisir(&du_fonds, Some("couplet")),
             ["couplet", "pont", "refrain"]
         );
+    }
+
+    #[test]
+    fn pose_un_critere_dit_comme_le_noyau() {
+        // `pose_un_critere` recopie, hors mutation, la règle de `Requete::est_vide` du noyau : sur
+        // chaque paire, la requête des commandes et celle du noyau, écrites à la main aux mêmes
+        // valeurs, elle dit comme lui.
+        use noyau::donnees::boite::Contenu as ContenuDuNoyau;
+        use noyau::donnees::requete::{
+            Etat as EtatDuNoyau, Jour as JourDuNoyau, ProvenanceDeLIdee as ProvenanceDuNoyau,
+            Requete as RequeteDuNoyau,
+        };
+        let jour = commandes::Jour {
+            annee: 2026,
+            mois: 10,
+            jour: 25,
+        };
+        let jour_du_noyau = JourDuNoyau {
+            annee: 2026,
+            mois: 10,
+            jour: 25,
+        };
+        let paires = [
+            (
+                "la requête par défaut",
+                Requete::default(),
+                RequeteDuNoyau::default(),
+                false,
+            ),
+            (
+                "un texte « … »",
+                Requete {
+                    texte: " … ".to_string(),
+                    ..Requete::default()
+                },
+                RequeteDuNoyau {
+                    texte: " … ".to_string(),
+                    ..RequeteDuNoyau::default()
+                },
+                false,
+            ),
+            (
+                "un texte de blancs",
+                Requete {
+                    texte: " \t\u{a0} ".to_string(),
+                    ..Requete::default()
+                },
+                RequeteDuNoyau {
+                    texte: " \t\u{a0} ".to_string(),
+                    ..RequeteDuNoyau::default()
+                },
+                false,
+            ),
+            (
+                "un texte « eglise »",
+                Requete {
+                    texte: "eglise".to_string(),
+                    ..Requete::default()
+                },
+                RequeteDuNoyau {
+                    texte: "eglise".to_string(),
+                    ..RequeteDuNoyau::default()
+                },
+                true,
+            ),
+            (
+                "des blancs et un seuil de durée",
+                Requete {
+                    texte: "  ".to_string(),
+                    plus_de_secondes: Some(30),
+                    ..Requete::default()
+                },
+                RequeteDuNoyau {
+                    texte: "  ".to_string(),
+                    plus_de_secondes: Some(30),
+                    ..RequeteDuNoyau::default()
+                },
+                true,
+            ),
+            (
+                "du",
+                Requete {
+                    du: Some(jour.clone()),
+                    ..Requete::default()
+                },
+                RequeteDuNoyau {
+                    du: Some(jour_du_noyau),
+                    ..RequeteDuNoyau::default()
+                },
+                true,
+            ),
+            (
+                "au",
+                Requete {
+                    au: Some(jour),
+                    ..Requete::default()
+                },
+                RequeteDuNoyau {
+                    au: Some(jour_du_noyau),
+                    ..RequeteDuNoyau::default()
+                },
+                true,
+            ),
+            (
+                "etiquette",
+                Requete {
+                    etiquette: Some("pont".to_string()),
+                    ..Requete::default()
+                },
+                RequeteDuNoyau {
+                    etiquette: Some("pont".to_string()),
+                    ..RequeteDuNoyau::default()
+                },
+                true,
+            ),
+            (
+                "plus_de_secondes",
+                Requete {
+                    plus_de_secondes: Some(60),
+                    ..Requete::default()
+                },
+                RequeteDuNoyau {
+                    plus_de_secondes: Some(60),
+                    ..RequeteDuNoyau::default()
+                },
+                true,
+            ),
+            (
+                "etat",
+                Requete {
+                    etat: Some(commandes::Etat::NonReliee),
+                    ..Requete::default()
+                },
+                RequeteDuNoyau {
+                    etat: Some(EtatDuNoyau::NonReliee),
+                    ..RequeteDuNoyau::default()
+                },
+                true,
+            ),
+            (
+                "provenance",
+                Requete {
+                    provenance: Some(commandes::ProvenanceDeLIdee::Importee),
+                    ..Requete::default()
+                },
+                RequeteDuNoyau {
+                    provenance: Some(ProvenanceDuNoyau::Importee),
+                    ..RequeteDuNoyau::default()
+                },
+                true,
+            ),
+            (
+                "contenu",
+                Requete {
+                    contenu: Some(Contenu::Prise),
+                    ..Requete::default()
+                },
+                RequeteDuNoyau {
+                    contenu: Some(ContenuDuNoyau::Prise),
+                    ..RequeteDuNoyau::default()
+                },
+                true,
+            ),
+        ];
+        for (nom, des_commandes, du_noyau, pose) in paires {
+            assert_eq!(
+                pose_un_critere(&des_commandes),
+                !du_noyau.est_vide(),
+                "{nom}"
+            );
+            assert_eq!(pose_un_critere(&des_commandes), pose, "{nom}");
+        }
     }
 }
