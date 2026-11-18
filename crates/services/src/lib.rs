@@ -218,8 +218,8 @@ impl<D: Documents, C: Captations> Services<D, C> {
                 &a,
                 &b,
                 heure,
-                commande.decalage_b_minutes,
                 commande.decalage_minutes,
+                commande.decalage_b_minutes,
             )
         })
     }
