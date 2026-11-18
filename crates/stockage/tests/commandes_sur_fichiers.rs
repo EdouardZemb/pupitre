@@ -425,6 +425,48 @@ fn noter_pendant_une_requete_la_laisse_en_place() {
 }
 
 #[test]
+fn enregistrer_renommer_et_supprimer_une_requete() {
+    let racine = racine_jetable("commandes-requetes-enregistrees");
+    suite::enregistrer_renommer_et_supprimer_une_requete(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn une_requete_enregistree_se_relit_critere_pour_critere() {
+    let racine = racine_jetable("commandes-requete-critere-pour-critere");
+    suite::une_requete_enregistree_se_relit_critere_pour_critere(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn enregistrer_dans_un_pupitre_neuf_est_refuse_et_rien_ne_nait() {
+    let racine = racine_jetable("commandes-requete-pupitre-neuf");
+    suite::enregistrer_dans_un_pupitre_neuf_est_refuse_et_rien_ne_nait(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn en_lecture_seule_chercher_sert_et_enregistrer_est_refuse() {
+    let racine = racine_jetable("commandes-requete-lecture-seule");
+    suite::en_lecture_seule_chercher_sert_et_enregistrer_est_refuse(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn i01_une_requete_enregistree_ne_garde_ni_resultats_ni_nombre() {
+    let racine = racine_jetable("commandes-requete-i01");
+    let autre_racine = racine_jetable("commandes-requete-i01-autre");
+    suite::une_requete_enregistree_ne_garde_ni_resultats_ni_nombre(
+        &mut PaireSurFichiers { racine: &racine },
+        &mut PaireSurFichiers {
+            racine: &autre_racine,
+        },
+    );
+}
+
+#[test]
 fn la_migration_de_test_est_la_meme_dans_les_deux_crates() {
     assert_eq!(suite::migration_de_test(), commun::migration_de_test());
 }

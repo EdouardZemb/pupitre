@@ -1,16 +1,22 @@
 //! La suite des commandes sur la paire d'adaptateurs en mémoire : chaque test de la suite,
 //! rejoué sur `DocumentsEnMemoire` et `CaptationsEnMemoire` ; puis, sur cette paire seule, les
-//! services du carnet, une idée illisible dans l'assiette de la boîte, la requête des photos et
-//! le générateur du fonds de mesure.
+//! services du carnet, un renommage d'une requête enregistrée concurrent de sa suppression, sur
+//! deux répliques, une idée illisible dans l'assiette de la boîte, la requête des photos et le
+//! générateur du fonds de mesure.
 
 mod suite;
 
+use automerge::{ROOT, ReadDoc};
 use commandes::Assiette;
+use noyau::donnees::fonds::REQUETES_ENREGISTREES;
 use noyau::donnees::gestes;
+use noyau::donnees::requete::{
+    Requete as RequeteDuNoyau, RequeteEnregistreeLue, renommer_une_requete, supprimer_une_requete,
+};
 use noyau::donnees::version::Migration;
 use services::en_memoire::{CaptationsEnMemoire, DocumentsEnMemoire};
 use services::mesure::{Engendre, engendrer_le_fonds_de_mesure_selon};
-use services::{Documents, Services};
+use services::{Documents, Services, application, lecture};
 use suite::{AleaDeTest, HEURE, IDEE, Paire, SECONDE_IDEE, contexte_de_test, une_note};
 
 /// La paire en mémoire : sans fonds à sa naissance, sur l'établi ; rouverte des octets de son
@@ -316,6 +322,135 @@ fn chercher_n_ecrit_rien() {
 #[test]
 fn noter_pendant_une_requete_la_laisse_en_place() {
     suite::noter_pendant_une_requete_la_laisse_en_place(&mut PaireEnMemoire);
+}
+
+#[test]
+fn enregistrer_renommer_et_supprimer_une_requete() {
+    suite::enregistrer_renommer_et_supprimer_une_requete(&mut PaireEnMemoire);
+}
+
+#[test]
+fn une_requete_enregistree_se_relit_critere_pour_critere() {
+    suite::une_requete_enregistree_se_relit_critere_pour_critere(&mut PaireEnMemoire);
+}
+
+#[test]
+fn enregistrer_dans_un_pupitre_neuf_est_refuse_et_rien_ne_nait() {
+    suite::enregistrer_dans_un_pupitre_neuf_est_refuse_et_rien_ne_nait(&mut PaireEnMemoire);
+}
+
+#[test]
+fn en_lecture_seule_chercher_sert_et_enregistrer_est_refuse() {
+    suite::en_lecture_seule_chercher_sert_et_enregistrer_est_refuse(&mut PaireEnMemoire);
+}
+
+#[test]
+fn i01_une_requete_enregistree_ne_garde_ni_resultats_ni_nombre() {
+    suite::une_requete_enregistree_ne_garde_ni_resultats_ni_nombre(
+        &mut PaireEnMemoire,
+        &mut PaireEnMemoire,
+    );
+}
+
+/// Un fonds où « Ponts lents » est enregistrée (le texte « pont », l'étiquette `lent`, plus d'une
+/// minute), et deux répliques de son document (`Automerge::fork`) : l'une renomme la requête
+/// « Ponts du soir » (`renommer_une_requete`), l'autre la supprime (`supprimer_une_requete`),
+/// chacune par `application::appliquer`. Fusionnées (`Automerge::merge`), dans un sens comme dans
+/// l'autre, la suppression l'emporte : le renommage ne fait pas renaître l'objet effacé, la clé de
+/// la requête manque à `requetes_enregistrees`, et `lecture::requetes_enregistrees` ne rend aucune
+/// requête, ni nommée sans critère, ni autre. À rebours, le renommage fusionné avec une réplique où
+/// rien n'est supprimé, une étiquette posée sur l'idée, rend, dans les deux sens, la requête
+/// renommée, ses critères entiers.
+#[test]
+fn un_renommage_concurrent_d_une_suppression_ne_laisse_aucune_requete_sans_critere() {
+    let mut services = PaireEnMemoire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    services
+        .noter(&une_note("Un pont en mi mineur"), &mut contexte)
+        .expect("la note est faite");
+    services
+        .enregistrer_une_requete(
+            &commandes::Enregistrer {
+                nom: "Ponts lents".to_string(),
+                requete: commandes::Requete {
+                    texte: "pont".to_string(),
+                    etiquette: Some("lent".to_string()),
+                    plus_de_secondes: Some(60),
+                    ..commandes::Requete::default()
+                },
+            },
+            &mut contexte,
+        )
+        .expect("la requête est enregistrée");
+    let fonds = services.documents().fonds().expect("le fonds est né");
+    let enregistrees = lecture::requetes_enregistrees(fonds);
+    let [ponts] = enregistrees.as_slice() else {
+        panic!("une seule requête enregistrée : {enregistrees:?}");
+    };
+    assert_eq!(
+        ponts.requete,
+        Some(RequeteDuNoyau {
+            texte: "pont".to_string(),
+            etiquette: Some("lent".to_string()),
+            plus_de_secondes: Some(60),
+            ..RequeteDuNoyau::default()
+        })
+    );
+
+    let mut renommee = fonds.fork();
+    let renommage =
+        renommer_une_requete(ponts, "Ponts du soir", HEURE).expect("le renommage se calcule");
+    application::appliquer(&mut renommee, &renommage).expect("le renommage s'applique");
+    let mut supprimee = fonds.fork();
+    application::appliquer(&mut supprimee, &supprimer_une_requete(ponts, HEURE))
+        .expect("la suppression s'applique");
+    for (mut l_une, mut l_autre) in [
+        (renommee.clone(), supprimee.clone()),
+        (supprimee, renommee.clone()),
+    ] {
+        l_une
+            .merge(&mut l_autre)
+            .expect("les deux répliques fusionnent");
+        let (_, conteneur) = l_une
+            .get(ROOT, REQUETES_ENREGISTREES)
+            .expect("lire la racine du document")
+            .expect("le conteneur des requêtes enregistrées");
+        assert!(
+            l_une
+                .get(&conteneur, ponts.id.as_str())
+                .expect("lire le conteneur des requêtes enregistrées")
+                .is_none(),
+            "la requête supprimée renaît du renommage"
+        );
+        assert_eq!(
+            lecture::requetes_enregistrees(&l_une),
+            Vec::<RequeteEnregistreeLue>::new()
+        );
+    }
+
+    let mut sans_suppression = fonds.fork();
+    let idee = lecture::lire_l_idee(&sans_suppression, IDEE).expect("l'idée se lit");
+    let pose = gestes::poser_une_etiquette(&idee, "lent", HEURE, 0)
+        .expect("la pose se calcule")
+        .operation;
+    application::appliquer(&mut sans_suppression, &pose).expect("la pose s'applique");
+    let attendue = vec![RequeteEnregistreeLue {
+        nom: "Ponts du soir".to_string(),
+        ..ponts.clone()
+    }];
+    for (mut l_une, mut l_autre) in [
+        (renommee.clone(), sans_suppression.clone()),
+        (sans_suppression, renommee),
+    ] {
+        l_une
+            .merge(&mut l_autre)
+            .expect("les deux répliques fusionnent");
+        assert_eq!(lecture::requetes_enregistrees(&l_une), attendue);
+    }
 }
 
 /// Un document écrit par le test, dont le conteneur `photos` porte une clé `<empreinte>/idee`

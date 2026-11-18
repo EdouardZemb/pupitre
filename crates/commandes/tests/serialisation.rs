@@ -6,10 +6,12 @@ use std::collections::BTreeSet;
 use std::fmt::Debug;
 
 use commandes::{
-    Appareil, Assiette, BOITE, Boite, Bornes, Captation, Completer, Contenu, ENTIER_SUR,
-    ETAT_DU_FONDS, EntreeDuJournal, Etat, EtatDuFonds, Etiqueter, FENETRE_MAX, Faite, Fenetre,
-    Jour, LigneDeLaBoite, NOMS, Notee, Noter, Ordre, Provenance, ProvenanceDeLIdee, RETIREES,
-    Raison, Refus, Regrouper, Relier, Reponse, Requete, Sans, Sorte, Viser, VueDUneIdee,
+    Appareil, Assiette, BOITE, Boite, Bornes, Captation, Completer, Contenu,
+    ENREGISTRER_UNE_REQUETE, ENTIER_SUR, ETAT_DU_FONDS, EXPORTER_CAHIER, Enregistrer,
+    EntreeDuJournal, Etat, EtatDuFonds, Etiqueter, FENETRE_MAX, Faite, Fenetre, Jour,
+    LigneDeLaBoite, NOMS, Notee, Noter, Ordre, Provenance, ProvenanceDeLIdee, RENOMMER_UNE_REQUETE,
+    REQUETES_ENREGISTREES, RETIREES, Raison, Refus, Regrouper, Relier, Renommer, Reponse, Requete,
+    RequeteEnregistree, SUPPRIMER_UNE_REQUETE, Sans, Sorte, Supprimer, Viser, VueDUneIdee,
     VueDeLaBoite, VueDesRetirees,
 };
 use serde::Serialize;
@@ -317,6 +319,27 @@ fn chaque_type_fait_l_aller_retour_par_serde_json() {
         avertissements: vec!["Un avertissement inventé.".to_string()],
         a_annuler: Some("Idée du 14 novembre : étiquette #pont posée".to_string()),
     });
+    aller_retour(RequeteEnregistree {
+        id: IDEE.to_string(),
+        nom: "Ponts lents".to_string(),
+        requete: Some(requete_entiere()),
+    });
+    aller_retour(RequeteEnregistree {
+        id: AUTRE_IDEE.to_string(),
+        nom: "Église".to_string(),
+        requete: None,
+    });
+    aller_retour(Enregistrer {
+        nom: "Ponts lents".to_string(),
+        requete: requete_entiere(),
+    });
+    aller_retour(Renommer {
+        requete: IDEE.to_string(),
+        nom: "Ponts du soir".to_string(),
+    });
+    aller_retour(Supprimer {
+        requete: IDEE.to_string(),
+    });
 }
 
 /// CAP-01 · 4, une part : noter, à l'établi, ne demande que le texte et le décalage local, ni
@@ -341,7 +364,7 @@ fn cap01_4_noter_ne_demande_aucun_titre() {
 
 #[test]
 fn les_noms_sont_uniques_et_en_snake_case() {
-    assert_eq!(NOMS.len(), 17);
+    assert_eq!(NOMS.len(), 21);
     assert_eq!(
         [BOITE, RETIREES, ETAT_DU_FONDS],
         ["boite", "retirees", "etat_du_fonds"]
@@ -349,6 +372,33 @@ fn les_noms_sont_uniques_et_en_snake_case() {
     for nom in [BOITE, RETIREES, ETAT_DU_FONDS] {
         assert!(NOMS.contains(&nom), "« {nom} » manque à {NOMS:?}");
     }
+    // Les quatre commandes des requêtes enregistrées, après `ETAT_DU_FONDS`, avant
+    // `EXPORTER_CAHIER`, dans cet ordre.
+    assert_eq!(
+        [
+            REQUETES_ENREGISTREES,
+            ENREGISTRER_UNE_REQUETE,
+            RENOMMER_UNE_REQUETE,
+            SUPPRIMER_UNE_REQUETE,
+        ],
+        [
+            "requetes_enregistrees",
+            "enregistrer_une_requete",
+            "renommer_une_requete",
+            "supprimer_une_requete",
+        ]
+    );
+    assert_eq!(
+        NOMS[15..],
+        [
+            ETAT_DU_FONDS,
+            REQUETES_ENREGISTREES,
+            ENREGISTRER_UNE_REQUETE,
+            RENOMMER_UNE_REQUETE,
+            SUPPRIMER_UNE_REQUETE,
+            EXPORTER_CAHIER,
+        ]
+    );
     let uniques: BTreeSet<&str> = NOMS.iter().copied().collect();
     assert_eq!(uniques.len(), NOMS.len(), "un nom en double dans {NOMS:?}");
     for nom in NOMS {
