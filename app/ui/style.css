@@ -472,6 +472,12 @@ textarea {
   scrollbar-gutter: stable;
 }
 
+/* Sous la page d'un fonds vide, la liste reste montée, et mesurable, mais ni vue, ni dans l'ordre
+   de Tab, ni dans l'arbre d'accessibilité. */
+.liste.cachee {
+  visibility: hidden;
+}
+
 .liste:focus-visible {
   outline-offset: -0.1875rem;
 }

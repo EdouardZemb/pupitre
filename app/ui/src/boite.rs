@@ -1047,6 +1047,7 @@ enum Defilement {
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Cible {
     Liste,
+    ChampDeNote,
     ListeDesRetirees,
     BoutonDesRetirees,
     TitreDeLIdee,
@@ -1057,6 +1058,15 @@ enum Cible {
     },
 }
 
+/// La cible qu'on atteint vraiment : tant que la page du fonds vide se montre, la liste est cachée
+/// et ne peut recevoir le focus ; il va au champ « Noter une idée ». Toute autre cible reste.
+fn cible_repliee(cible: Cible, fonds_vide: bool) -> Cible {
+    match cible {
+        Cible::Liste if fonds_vide => Cible::ChampDeNote,
+        autre => autre,
+    }
+}
+
 /// Ce que partagent les vues de la boîte : l'état de l'établi, celui de la boîte, le focus à
 /// rendre, et les repères de ses éléments montés.
 #[derive(Clone, Copy)]
@@ -1064,6 +1074,7 @@ struct Ecran {
     etat: Etat,
     boite: EtatDeLaBoite,
     focus: RwSignal<Option<Cible>>,
+    champ_de_note: NodeRef<html::Input>,
     liste: NodeRef<html::Div>,
     etalon: NodeRef<html::Div>,
     liste_des_retirees: NodeRef<html::Div>,
@@ -1073,6 +1084,14 @@ struct Ecran {
 }
 
 impl Ecran {
+    /// Aucune idée n'est interrogée : la page du fonds vide se montre (`page_du_fonds_vide`).
+    fn fonds_vide(self) -> bool {
+        self.boite.lue.with_untracked(|lue| {
+            lue.as_ref()
+                .is_some_and(|lue| lue.vue.assiette_du_compte.considerees == 0)
+        })
+    }
+
     /// La fenêtre que demande la liste montée `liste` (`fenetre_a_demander`), d'après la dernière
     /// demandée (`demandes`) et le total lu ; rien sans mesure. Le défilement mesuré s'y note.
     fn a_demander(
@@ -1297,11 +1316,7 @@ impl Ecran {
     /// Ferme le volet de l'idée ; le focus va au bouton de la ligne qui l'a ouvert, si elle est
     /// lue, sinon à la liste (`cible_apres_le_volet`).
     fn fermer_l_idee(self) {
-        let cible = match self.idee_du_volet() {
-            Some(_) => self.cible_de_fermeture().unwrap_or(Cible::Liste),
-            None => Cible::Liste,
-        };
-        self.fermer_le_volet(cible);
+        self.fermer_le_volet(self.cible_de_fermeture().unwrap_or(Cible::Liste));
     }
 
     /// Où va le focus à la fermeture du volet ouvert (`cible_de_fermeture`), `None` sans volet.
@@ -1562,6 +1577,7 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
         etat,
         boite,
         focus: RwSignal::new(None),
+        champ_de_note: NodeRef::new(),
         liste: NodeRef::new(),
         etalon: NodeRef::new(),
         liste_des_retirees: NodeRef::new(),
@@ -1583,8 +1599,9 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
         let Some(cible) = ecran.focus.get() else {
             return;
         };
-        let element: Option<HtmlElement> = match cible {
+        let element: Option<HtmlElement> = match cible_repliee(cible, ecran.fonds_vide()) {
             Cible::Liste => ecran.liste.get().map(Into::into),
+            Cible::ChampDeNote => ecran.champ_de_note.get().map(Into::into),
             Cible::ListeDesRetirees => ecran.liste_des_retirees.get().map(Into::into),
             Cible::BoutonDesRetirees => ecran.bouton_des_retirees.get().map(Into::into),
             Cible::TitreDeLIdee => ecran.titre_de_l_idee.get().map(Into::into),
@@ -1764,6 +1781,7 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
                     "Noter une idée"
                     <input
                         type="text"
+                        node_ref=ecran.champ_de_note
                         prop:value=move || boite.note.get()
                         on:input=move |ev| boite.note.set(event_target_value(&ev))
                         on:keydown=noter_au_clavier
@@ -1871,7 +1889,7 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
                         fonds_vide()
                             .map(|[constat, suite]| {
                                 view! {
-                                    <div class="fonds-vide" role="status">
+                                    <div class="fonds-vide">
                                         <p>{constat}</p>
                                         <p>{suite}</p>
                                     </div>
@@ -1880,6 +1898,7 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
                     }}
                     <div
                         class="liste"
+                        class:cachee=move || fonds_vide().is_some()
                         tabindex="0"
                         role="region"
                         aria-label="Idées de la boîte"
@@ -2345,7 +2364,7 @@ fn VoletDesRetirees(ecran: Ecran) -> impl IntoView {
                 </h2>
                 <button
                     type="button"
-                    on:click=move |_| ecran.fermer_le_volet(Cible::BoutonDesRetirees)
+                    on:click=move |_| ecran.fermer_par_echap()
                 >
                     "Fermer"
                 </button>
@@ -2639,6 +2658,22 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn la_liste_cachee_ne_recoit_pas_le_focus() {
+        // Fonds vide : la liste est cachée, le focus va au champ « Noter une idée ».
+        assert_eq!(cible_repliee(Cible::Liste, true), Cible::ChampDeNote);
+        // Sinon, ou pour toute autre cible, rien ne change.
+        assert_eq!(cible_repliee(Cible::Liste, false), Cible::Liste);
+        assert_eq!(
+            cible_repliee(Cible::BoutonDesRetirees, true),
+            Cible::BoutonDesRetirees
+        );
+        assert_eq!(
+            cible_repliee(Cible::TitreDeLIdee, true),
+            Cible::TitreDeLIdee
+        );
     }
 
     #[test]
@@ -3152,6 +3187,7 @@ mod tests {
             etat: Etat::nouveau(),
             boite: EtatDeLaBoite::nouveau(),
             focus: RwSignal::new(None),
+            champ_de_note: NodeRef::new(),
             liste: NodeRef::new(),
             etalon: NodeRef::new(),
             liste_des_retirees: NodeRef::new(),
