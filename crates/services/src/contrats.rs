@@ -10,6 +10,11 @@ use crate::Refus;
 /// français ; ou refusée.
 pub type Ecriture = Result<Option<String>, Refus>;
 
+/// Le message du refus d'écrire sans fonds : celui de `Documents::appliquer` quand aucun fonds
+/// n'est né, sur fichiers comme en mémoire, et celui d'une opération sur une requête enregistrée,
+/// que les services refusent sans fonds (question 20).
+pub const FONDS_NON_NE: &str = "Aucun fonds n'est né.";
+
 /// Les documents : le fonds, tel qu'il se lit, et ce qui s'y écrit, une opération nommée à la fois.
 pub trait Documents {
     /// Le fonds tel qu'il se lit ; `None` tant qu'aucun fonds n'est né.
@@ -21,7 +26,8 @@ pub trait Documents {
     fn avertissements(&self) -> Vec<String>;
     /// La genèse, `naissance`, puis `geste`, en un premier fichier complet ; refusé, rien ne reste.
     fn faire_naitre(&mut self, naissance: &Operation, geste: &Operation) -> Ecriture;
-    /// `operation`, en une modification atomique, avec son message et son heure.
+    /// `operation`, en une modification atomique, avec son message et son heure ; sans fonds,
+    /// refusée de `Raison::Impossible`, son message [`FONDS_NON_NE`].
     fn appliquer(&mut self, operation: &Operation) -> Ecriture;
 }
 

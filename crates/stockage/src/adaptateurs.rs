@@ -9,7 +9,7 @@ use automerge::Automerge;
 use noyau::donnees::changement::Operation;
 #[cfg(feature = "pannes")]
 use noyau::donnees::version::Migration;
-use services::{Documents, Ecriture, Raison, Refus};
+use services::{Documents, Ecriture, FONDS_NON_NE, Raison, Refus};
 
 use crate::{Avertissement, Captations, Document, Erreur, LectureSeule, RacineDesDonnees, Relatif};
 
@@ -104,7 +104,7 @@ impl Documents for FondsSurFichiers<'_> {
         let Some(document) = self.document.as_mut() else {
             return Err(Refus {
                 raison: Raison::Impossible,
-                message: "Aucun fonds n'est né.".to_string(),
+                message: FONDS_NON_NE.to_string(),
             });
         };
         let racine = self.racine;

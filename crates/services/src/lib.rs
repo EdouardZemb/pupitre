@@ -18,7 +18,7 @@ pub mod lecture;
 pub mod mesure;
 
 pub use commandes::{Raison, Refus};
-pub use contrats::{Alea, Captations, Documents, Ecriture};
+pub use contrats::{Alea, Captations, Documents, Ecriture, FONDS_NON_NE};
 
 use std::cell::RefCell;
 use std::collections::BTreeSet;
@@ -916,11 +916,11 @@ fn idee_absente(idee: &str) -> Refus {
 
 /// Le refus d'une opération sur une requête enregistrée sans fonds, qui n'en fait rien naître
 /// (question 20) : `Raison::Impossible`, du texte que rendent les deux adaptateurs à
-/// `Documents::appliquer` sans fonds.
+/// `Documents::appliquer` sans fonds, `FONDS_NON_NE`.
 fn fonds_non_ne() -> Refus {
     Refus {
         raison: Raison::Impossible,
-        message: "Aucun fonds n'est né.".to_string(),
+        message: FONDS_NON_NE.to_string(),
     }
 }
 

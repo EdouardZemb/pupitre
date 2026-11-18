@@ -13,7 +13,7 @@ use noyau::donnees::version::{self, Lecture, Migration};
 
 use crate::application::{self, Inapplicable};
 use crate::lecture;
-use crate::{Captations, Documents, Ecriture, Raison, Refus};
+use crate::{Captations, Documents, Ecriture, FONDS_NON_NE, Raison, Refus};
 
 /// Le message d'un fonds de version de schéma plus récente que celle que connaît l'application.
 const VERSION_PLUS_RECENTE: &str =
@@ -117,7 +117,7 @@ impl Documents for DocumentsEnMemoire {
         let Some(automerge) = self.automerge.as_mut() else {
             return Err(Refus {
                 raison: Raison::Impossible,
-                message: "Aucun fonds n'est né.".to_string(),
+                message: FONDS_NON_NE.to_string(),
             });
         };
         application::appliquer(automerge, operation).map_err(refus_inapplicable)?;
