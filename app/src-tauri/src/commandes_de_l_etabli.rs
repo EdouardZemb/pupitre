@@ -5,9 +5,9 @@
 //! arguments de Tauri ne change pas.
 
 use commandes::{
-    Boite, Completer, Enregistrer, EntreeDuJournal, EtatDuFonds, Etiqueter, Faite, Fenetre, Notee,
-    Noter, Regrouper, Relier, Renommer, Reponse, RequeteEnregistree, Supprimer, Viser, VueDUneIdee,
-    VueDeLaBoite, VueDesRetirees,
+    Boite, Completer, Enregistrer, EtatDuFonds, Etiqueter, Faite, Fenetre, Notee, Noter, Regrouper,
+    Relier, Renommer, Reponse, RequeteEnregistree, Supprimer, Viser, VueDUneIdee, VueDeLaBoite,
+    VueDesRetirees, VueDuJournal,
 };
 
 use crate::fil::Ouverture;
@@ -121,10 +121,16 @@ pub async fn idees(ouverture: tauri::State<'_, Ouverture>) -> Reponse<Vec<String
     ouverture.demander(|services, _| services.idees()).await
 }
 
-/// Le journal du fonds (`Services::journal`).
+/// Le journal du fonds en fenêtre : son nombre d'entrées, son empreinte, et les lignes de la
+/// fenêtre, la plus récente d'abord (`Services::journal_en_fenetre`).
 #[tauri::command]
-pub async fn journal(ouverture: tauri::State<'_, Ouverture>) -> Reponse<Vec<EntreeDuJournal>> {
-    ouverture.demander(|services, _| services.journal()).await
+pub async fn journal(
+    ouverture: tauri::State<'_, Ouverture>,
+    commande: Fenetre,
+) -> Reponse<VueDuJournal> {
+    ouverture
+        .demander(move |services, _| services.journal_en_fenetre(&commande))
+        .await
 }
 
 /// La boîte d'idées : les non reliées, la requête, la fenêtre de lignes (`Services::boite`).

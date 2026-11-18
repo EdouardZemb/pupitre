@@ -2,8 +2,10 @@
 //! arguments, leurs réponses et leurs vues, et la liste de leurs noms, que l'interface et
 //! l'établi partagent. La crate ne porte que ce que l'interface envoie et reçoit : l'heure,
 //! l'aléa et l'appareil d'un geste viennent du côté natif, jamais d'une commande, et le côté
-//! natif ne reçoit de l'interface, pour dater un message du journal, que son décalage local,
-//! `decalage_minutes`. Elle ne dépend que de `serde`.
+//! natif ne reçoit de l'interface, pour dater un message du journal, que des décalages locaux,
+//! en minutes : celui de l'instant de chaque idée que le message date (`decalage_minutes`,
+//! `decalage_b_minutes`, `decalage_source_minutes`), ou, pour noter, celui du geste. Elle ne
+//! dépend que de `serde`.
 //!
 //! Aucun type n'a de flottant. Une commande et sa réponse passent par le JSON, que la WebView
 //! relit par `JSON.parse` : ses nombres sont des flottants de 64 bits, exacts sur les entiers
@@ -38,7 +40,7 @@ pub const ANNULER: &str = "annuler";
 pub const VUE_D_UNE_IDEE: &str = "vue_d_une_idee";
 /// Lire les idées non retirées.
 pub const IDEES: &str = "idees";
-/// Lire le journal du fonds (`EntreeDuJournal`).
+/// Lire le journal du fonds (`Fenetre`, `VueDuJournal`).
 pub const JOURNAL: &str = "journal";
 /// Lire la boîte (`Boite`, `VueDeLaBoite`).
 pub const BOITE: &str = "boite";
@@ -101,8 +103,8 @@ pub const ENTIER_SUR: u64 = 9_007_199_254_740_991;
 pub struct Noter {
     /// Le texte de la note.
     pub texte: String,
-    /// Le décalage local de l'interface, en minutes, qui date le message du journal ; un `i32`,
-    /// borné par son type.
+    /// Le décalage local du geste, en minutes (`natif::decalage_du_geste`), qui est celui de la
+    /// naissance de l'idée notée : il date le message du journal ; un `i32`, borné par son type.
     pub decalage_minutes: i32,
 }
 
@@ -113,8 +115,8 @@ pub struct Completer {
     pub idee: String,
     /// Son texte complété.
     pub texte: String,
-    /// Le décalage local de l'interface, en minutes, qui date le message du journal ; un `i32`,
-    /// borné par son type.
+    /// Le décalage local, en minutes, à l'instant de l'idée qu'il date, sa naissance
+    /// (`natif::decalage_a(le)`) : il date le message du journal ; un `i32`, borné par son type.
     pub decalage_minutes: i32,
 }
 
@@ -125,8 +127,8 @@ pub struct Etiqueter {
     pub idee: String,
     /// L'étiquette.
     pub etiquette: String,
-    /// Le décalage local de l'interface, en minutes, qui date le message du journal ; un `i32`,
-    /// borné par son type.
+    /// Le décalage local, en minutes, à l'instant de l'idée qu'il date, sa naissance
+    /// (`natif::decalage_a(le)`) : il date le message du journal ; un `i32`, borné par son type.
     pub decalage_minutes: i32,
 }
 
@@ -137,9 +139,14 @@ pub struct Relier {
     pub a: String,
     /// L'identifiant de l'autre bout, un ULID.
     pub b: String,
-    /// Le décalage local de l'interface, en minutes, qui date le message du journal ; un `i32`,
-    /// borné par son type.
+    /// Le décalage local, en minutes, à l'instant de l'idée `a` qu'il date, sa naissance
+    /// (`natif::decalage_a(le)`) : il date `a` dans le message du journal ; un `i32`, borné par
+    /// son type.
     pub decalage_minutes: i32,
+    /// Le décalage local, en minutes, à l'instant de l'idée `b` qu'il date, sa naissance
+    /// (`natif::decalage_a(le)`) : il date `b` dans le message du journal ; un `i32`, borné par
+    /// son type.
+    pub decalage_b_minutes: i32,
 }
 
 /// La sorte d'une captation versée (§ 30 · 9.2).
@@ -169,9 +176,14 @@ pub struct Regrouper {
     pub captation: Captation,
     /// L'identifiant de l'idée qui la reçoit, un ULID.
     pub cible: String,
-    /// Le décalage local de l'interface, en minutes, qui date le message du journal ; un `i32`,
-    /// borné par son type.
+    /// Le décalage local, en minutes, à l'instant de la cible qu'il date, sa naissance
+    /// (`natif::decalage_a(le)`) : il date la cible dans le message du journal ; un `i32`, borné
+    /// par son type.
     pub decalage_minutes: i32,
+    /// Le décalage local, en minutes, à l'instant de la source qu'il date, la naissance de
+    /// l'idée que la captation quitte (`natif::decalage_a(le)`) : il la date dans le message du
+    /// journal, si le geste la retire ; un `i32`, borné par son type.
+    pub decalage_source_minutes: i32,
 }
 
 /// Retirer ou rétablir l'idée `idee`.
@@ -179,8 +191,8 @@ pub struct Regrouper {
 pub struct Viser {
     /// L'identifiant de l'idée, un ULID.
     pub idee: String,
-    /// Le décalage local de l'interface, en minutes, qui date le message du journal ; un `i32`,
-    /// borné par son type.
+    /// Le décalage local, en minutes, à l'instant de l'idée qu'il date, sa naissance
+    /// (`natif::decalage_a(le)`) : il date le message du journal ; un `i32`, borné par son type.
     pub decalage_minutes: i32,
 }
 
@@ -294,6 +306,21 @@ pub struct EntreeDuJournal {
     /// L'heure de l'opération, en secondes depuis 1970 (`Operation::heure`), bornée comme
     /// `VueDUneIdee::le`.
     pub heure: i64,
+}
+
+/// La vue du journal : le nombre d'entrées, l'empreinte du journal, et les lignes de la fenêtre,
+/// la plus récente d'abord.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VueDuJournal {
+    /// Les entrées du journal, une par modification du document : un compte de modifications, que
+    /// borne leur nombre, bien en deçà d'`ENTIER_SUR`.
+    pub total: u64,
+    /// L'empreinte du journal (`noyau::donnees::journal::empreinte_du_journal`), en 64 caractères
+    /// hexadécimaux minuscules : la même sur deux répliques qui portent le même journal, quel que
+    /// soit l'ordre de leur historique (question 29).
+    pub empreinte: String,
+    /// Les lignes de la fenêtre, la plus récente d'abord, `FENETRE_MAX` au plus.
+    pub lignes: Vec<EntreeDuJournal>,
 }
 
 /// L'ordre de la boîte : il n'écrit rien et ne s'annule pas ; le tri est un geste (question 17).

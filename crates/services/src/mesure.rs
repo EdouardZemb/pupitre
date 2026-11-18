@@ -95,6 +95,7 @@ pub fn engendrer_le_fonds_de_mesure_selon<D: Documents, C: Captations>(
             a: a.clone(),
             b: b.clone(),
             decalage_minutes: 0,
+            decalage_b_minutes: 0,
         };
         services.relier(&lien, &mut generateur.operation())?;
     }
@@ -148,6 +149,7 @@ fn engendrer_un_groupe<D: Documents, C: Captations>(
             },
             cible: idee.clone(),
             decalage_minutes: 0,
+            decalage_source_minutes: 0,
         };
         services.regrouper(&regroupement, &mut generateur.operation())?;
     }

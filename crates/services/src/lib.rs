@@ -28,12 +28,14 @@ use commandes::{
     Captation, Completer, Enregistrer, EntreeDuJournal, EtatDuFonds, Etiqueter, FENETRE_MAX, Faite,
     Fenetre, LONGUEUR_D_UNE_LIGNE, LigneDeLaBoite, Notee, Noter, Regrouper, Relier, Renommer,
     Reponse, RequeteEnregistree, Supprimer, Viser, VueDUneIdee, VueDeLaBoite, VueDesRetirees,
+    VueDuJournal,
 };
 use noyau::donnees::boite::{self, EnBoite};
 use noyau::donnees::changement::Operation;
 use noyau::donnees::gestes::{self, CaptationLue, GesteDeTri, IdeeLue, Impossible};
 use noyau::donnees::identifiants::{ulid, uuid_v4};
 use noyau::donnees::index::{self, Index};
+use noyau::donnees::journal;
 use noyau::donnees::requete;
 
 /// Ce que le côté natif donne à une commande qui écrit : l'heure du geste et l'aléa, des
@@ -206,30 +208,43 @@ impl<D: Documents, C: Captations> Services<D, C> {
         })
     }
 
-    /// Relier les idées `commande.a` et `commande.b` (`gestes::relier`), lues dans cet ordre : un
-    /// geste de tri.
+    /// Relier les idées `commande.a` et `commande.b` (`gestes::relier`), lues dans cet ordre,
+    /// chacune datée à son décalage (`decalage_minutes`, `decalage_b_minutes`) : un geste de tri.
     pub fn relier(&mut self, commande: &Relier, contexte: &mut Contexte<'_>) -> Reponse<Faite> {
         self.trier(&commande.a, contexte.heure, |fonds, heure| {
             let a = idee_lue(fonds, &commande.a)?;
             let b = idee_lue(fonds, &commande.b)?;
-            gestes::relier(&a, &b, heure, commande.decalage_minutes)
+            gestes::relier(
+                &a,
+                &b,
+                heure,
+                commande.decalage_minutes,
+                commande.decalage_b_minutes,
+            )
         })
     }
 
-    /// Délier les idées `commande.a` et `commande.b` (`gestes::delier`), lues dans cet ordre : un
-    /// geste de tri.
+    /// Délier les idées `commande.a` et `commande.b` (`gestes::delier`), lues dans cet ordre,
+    /// chacune datée à son décalage, comme `relier` : un geste de tri.
     pub fn delier(&mut self, commande: &Relier, contexte: &mut Contexte<'_>) -> Reponse<Faite> {
         self.trier(&commande.a, contexte.heure, |fonds, heure| {
             let a = idee_lue(fonds, &commande.a)?;
             let b = idee_lue(fonds, &commande.b)?;
-            gestes::delier(&a, &b, heure, commande.decalage_minutes)
+            gestes::delier(
+                &a,
+                &b,
+                heure,
+                commande.decalage_minutes,
+                commande.decalage_b_minutes,
+            )
         })
     }
 
     /// Regrouper la captation `commande.captation` dans l'idée `commande.cible`
     /// (`gestes::regrouper`) : un geste de tri. La cible se lit d'abord ; puis la captation, qui
     /// ne se lit pas : `Impossible::CaptationAbsente` ; puis sa source, l'idée que la captation
-    /// nomme, jamais une autre, et le compte des captations de la source, elle comprise.
+    /// nomme, jamais une autre, et le compte des captations de la source, elle comprise. La cible
+    /// se date à `decalage_minutes`, la source retirée à `decalage_source_minutes`.
     pub fn regrouper(
         &mut self,
         commande: &Regrouper,
@@ -255,6 +270,7 @@ impl<D: Documents, C: Captations> Services<D, C> {
                 &cible,
                 heure,
                 commande.decalage_minutes,
+                commande.decalage_source_minutes,
             )
         })
     }
@@ -460,8 +476,8 @@ impl<D: Documents, C: Captations> Services<D, C> {
         })
     }
 
-    /// Le journal du fonds : le message et l'heure de chaque modification, en lecture seule
-    /// comme ailleurs ; sans fonds, aucune entrée.
+    /// Le journal du fonds : le message et l'heure de chaque modification, dans l'ordre de
+    /// l'historique, en lecture seule comme ailleurs ; sans fonds, aucune entrée.
     pub fn journal(&self) -> Reponse<Vec<EntreeDuJournal>> {
         Ok(self
             .documents
@@ -471,6 +487,33 @@ impl<D: Documents, C: Captations> Services<D, C> {
             .into_iter()
             .map(|(message, heure)| EntreeDuJournal { message, heure })
             .collect())
+    }
+
+    /// Le journal du fonds en fenêtre (question 29) : ses entrées (`lecture::journal`), leur
+    /// nombre, leur empreinte (`noyau::donnees::journal::empreinte_du_journal`), puis la fenêtre
+    /// de leurs lignes, rangées la plus récente d'abord
+    /// (`noyau::donnees::journal::ranger_le_journal`), `nombre` borné à `FENETRE_MAX`. Sans
+    /// fonds : aucune entrée, et l'empreinte du journal vide. En lecture seule comme ailleurs.
+    pub fn journal_en_fenetre(&self, commande: &Fenetre) -> Reponse<VueDuJournal> {
+        let entrees = self
+            .documents
+            .fonds()
+            .map(lecture::journal)
+            .unwrap_or_default();
+        let total = compte(entrees.len());
+        let empreinte = journal::empreinte_du_journal(&entrees);
+        let lignes = dans_la_fenetre(
+            journal::ranger_le_journal(entrees),
+            commande.debut,
+            commande.nombre,
+        )
+        .map(|(message, heure)| EntreeDuJournal { message, heure })
+        .collect();
+        Ok(VueDuJournal {
+            total,
+            empreinte,
+            lignes,
+        })
     }
 
     /// La boîte, réponse de la requête en cours (question 21), par l'index tenu (voir
@@ -682,17 +725,19 @@ fn duree_des_prises(captations: &[CaptationLue]) -> Option<u64> {
     noyau::donnees::idee::duree(&prises)
 }
 
-/// Les lignes de la fenêtre qui commence au rang `debut` de `rangees` et en prend `nombre`, borné
-/// à `FENETRE_MAX` ; une fenêtre qui commence après la dernière n'en rend aucune.
-fn fenetre(rangees: Vec<EnBoite>, debut: u32, nombre: u32) -> Vec<LigneDeLaBoite> {
+/// Les éléments de la fenêtre qui commence au rang `debut` de `rangees` et en prend `nombre`,
+/// borné à `FENETRE_MAX` ; une fenêtre qui commence après le dernier n'en rend aucun. Les lignes
+/// de la boîte, des idées retirées et du journal se prennent ainsi.
+fn dans_la_fenetre<T>(rangees: Vec<T>, debut: u32, nombre: u32) -> impl Iterator<Item = T> {
     let debut = usize::try_from(debut).unwrap_or(usize::MAX);
     let nombre = usize::try_from(nombre.min(FENETRE_MAX)).unwrap_or(usize::MAX);
-    rangees
-        .into_iter()
-        .skip(debut)
-        .take(nombre)
-        .map(ligne)
-        .collect()
+    rangees.into_iter().skip(debut).take(nombre)
+}
+
+/// Les lignes de la fenêtre qui commence au rang `debut` de `rangees` et en prend `nombre`, borné
+/// à `FENETRE_MAX` (`dans_la_fenetre`).
+fn fenetre(rangees: Vec<EnBoite>, debut: u32, nombre: u32) -> Vec<LigneDeLaBoite> {
+    dans_la_fenetre(rangees, debut, nombre).map(ligne).collect()
 }
 
 /// La ligne d'une idée de la boîte : ce qu'elle montre, son texte borné à `LONGUEUR_D_UNE_LIGNE`
