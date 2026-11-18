@@ -38,6 +38,24 @@ body {
   border-bottom: 1px solid #000;
 }
 
+/* La recherche : son libellé, son champ et son aide se lisent en colonne. */
+.recherche {
+  display: flex;
+  flex-direction: column;
+  min-width: 14rem;
+}
+
+.recherche input {
+  font: inherit;
+  border: 1px solid #000;
+  padding: 0.125rem 0.25rem;
+}
+
+.etat-de-synchronisation {
+  margin: 0;
+  align-self: center;
+}
+
 fieldset {
   margin: 0;
   padding: 0.125rem 0.5rem 0.25rem;

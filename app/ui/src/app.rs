@@ -1,5 +1,5 @@
-//! L'établi : son état, sa page d'ouverture, et la place du bandeau, de l'en-tête, puis de la table
-//! et de la palette, ou de la boîte d'idées.
+//! L'établi : son état, sa page d'ouverture, et la place du bandeau, de l'en-tête, puis du fonds,
+//! ou de la table et de la palette.
 
 use commandes::{ETAT_DU_FONDS, EtatDuFonds, Refus};
 use leptos::html;
@@ -11,23 +11,24 @@ use noyau::tonalite::Tonalite;
 use crate::bandeau::{
     Bandeau, Page, PageDuBandeau, ReperesDuBandeau, VueDuBandeau, page_d_ouverture, rendre_le_focus,
 };
-use crate::boite::{BoiteDIdees, EtatDeLaBoite};
+use crate::boite::{BoiteDIdees, EtatDeLaBoite, dans_un_champ_de_texte};
 use crate::entete::Entete;
 use crate::natif;
 use crate::panneau_palette::PanneauPalette;
+use crate::recherche::{EtatDeLaRequete, slash_cherche};
 use crate::vue_table::VueTable;
 
-/// Ce que l'établi montre sous son en-tête : la table d'INC-0, ou la boîte d'idées.
+/// Ce que l'établi montre sous son en-tête : le fonds, ou la table d'INC-0.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Vue {
-    /// La table de la tonalité, et sa palette.
+    /// Le fonds, dont la zone « Boîte d'idées » porte la boîte entière.
     #[default]
+    Fonds,
+    /// La table de la tonalité, et sa palette.
     Table,
-    /// La boîte d'idées.
-    Boite,
 }
 
-/// L'état de l'établi : la vue (la table), la tonalité (do majeur), la couche sombre (masquée),
+/// L'état de l'établi : la vue (le fonds), la tonalité (do majeur), la couche sombre (masquée),
 /// l'instrument (les deux), la case touchée (aucune), la palette, ouverte ou fermée, le bandeau
 /// (vide) et ses repères, et le dernier état du fonds reçu (aucun). Rien n'en est gardé d'une
 /// ouverture à l'autre.
@@ -48,6 +49,8 @@ pub struct Etat {
     pub etat_du_fonds: RwSignal<Option<EtatDuFonds>>,
     /// Les repères du bandeau monté, qui reçoivent le focus après l'issue d'un geste.
     pub reperes_du_bandeau: ReperesDuBandeau,
+    /// La requête en cours, que l'en-tête et le fonds partagent ; elle survit au changement de vue.
+    pub(crate) requete: EtatDeLaRequete,
 }
 
 impl Etat {
@@ -66,6 +69,7 @@ impl Etat {
             bandeau: RwSignal::new(Bandeau::default()),
             etat_du_fonds: RwSignal::new(None),
             reperes_du_bandeau: ReperesDuBandeau::nouveaux(),
+            requete: EtatDeLaRequete::nouveau(),
         }
     }
 
@@ -84,13 +88,19 @@ impl Etat {
         rendre_le_focus(self.bandeau, self.reperes_du_bandeau);
     }
 
-    /// Montre la table ou la boîte d'idées. Quitter la table ferme sa palette, et la case reste
+    /// Montre le fonds ou la table. Quitter la table ferme sa palette, et la case reste
     /// touchée : la table revenue ne rend pas le focus à une palette restée ouverte.
     pub fn choisir_vue(self, v: Vue) {
         if v != Vue::Table {
             self.palette.set(false);
         }
         self.vue.set(v);
+    }
+
+    /// Cherche `texte` : il devient le texte de la requête, et le fonds se montre.
+    pub fn chercher(self, texte: String) {
+        self.requete.texte.set(texte);
+        self.choisir_vue(Vue::Fonds);
     }
 
     /// Une autre tonalité : la case touchée s'oublie, et la palette se ferme.
@@ -137,14 +147,32 @@ impl Etat {
 
 /// L'établi. Au montage, l'état du fonds se lit (`etat_du_fonds`), et décide de la page
 /// (`page_d_ouverture`) : l'établi, le bandeau en tête, puis l'en-tête, et dessous la vue choisie,
-/// la table et la place de la palette à sa droite, ou la boîte d'idées ; ou la page du seul
-/// bandeau. Rien ne s'affiche avant cette lecture. Lu, l'état du fonds passe au bandeau ; refusé,
+/// le fonds et sa boîte d'idées, ou la table et la place de la palette à sa droite ; ou la page du
+/// seul bandeau. Rien ne s'affiche avant cette lecture. Lu, l'état du fonds passe au bandeau ; refusé,
 /// son refus aussi. L'état de la boîte naît ici, et vit tant que l'établi est ouvert, que la
 /// boîte se montre ou non.
 #[component]
 pub fn App() -> impl IntoView {
     let etat = Etat::nouveau();
     let boite = EtatDeLaBoite::nouveau();
+    // Le champ de recherche de l'en-tête : `/` lui porte le focus, de toute vue.
+    let champ_de_recherche = NodeRef::<html::Input>::new();
+    let ecouteur = window_event_listener(leptos::ev::keydown, move |ev| {
+        if slash_cherche(
+            &ev.key(),
+            ev.ctrl_key(),
+            ev.alt_key(),
+            ev.meta_key(),
+            ev.repeat(),
+            ev.is_composing(),
+            dans_un_champ_de_texte(&ev),
+        ) && let Some(champ) = champ_de_recherche.get_untracked()
+        {
+            ev.prevent_default();
+            let _ = champ.focus();
+        }
+    });
+    on_cleanup(move || ecouteur.remove());
     // Le bouton « Palette » de la case touchée : la palette fermée lui rend le focus.
     let bouton_palette = NodeRef::<html::Button>::new();
     let page = RwSignal::new(None::<Page>);
@@ -163,8 +191,9 @@ pub fn App() -> impl IntoView {
         Some(Page::Etabli) => view! {
             <div class="etabli">
                 <VueDuBandeau bandeau=etat.bandeau reperes=etat.reperes_du_bandeau />
-                <Entete etat=etat />
+                <Entete etat=etat recherche=champ_de_recherche />
                 {move || match etat.vue.get() {
+                    Vue::Fonds => view! { <BoiteDIdees etat=etat boite=boite /> }.into_any(),
                     Vue::Table => view! {
                         <main class="plan">
                             <VueTable etat=etat bouton_palette=bouton_palette />
@@ -172,7 +201,6 @@ pub fn App() -> impl IntoView {
                         </main>
                     }
                     .into_any(),
-                    Vue::Boite => view! { <BoiteDIdees etat=etat boite=boite /> }.into_any(),
                 }}
             </div>
         }
