@@ -8,19 +8,18 @@
 //! champ de texte, annule le dernier geste de tri.
 
 use commandes::{
-    ANNULER, Assiette, BOITE, Boite, COMPLETER, Completer, Contenu, DELIER, ETAT_DU_FONDS,
+    ANNULER, Assiette, BOITE, Boite, Bornes, COMPLETER, Completer, Contenu, DELIER, ETAT_DU_FONDS,
     EtatDuFonds, Etiqueter, FENETRE_MAX, Faite, Fenetre, LONGUEUR_D_UNE_LIGNE, LigneDeLaBoite,
     NOTER, Notee, Noter, OTER_UNE_ETIQUETTE, Ordre, POSER_UNE_ETIQUETTE, Provenance, RELIER,
-    RETABLIR, RETIREES, RETIRER, Relier, VUE_D_UNE_IDEE, Viser, VueDUneIdee, VueDeLaBoite,
+    RETABLIR, RETIREES, RETIRER, Relier, Requete, VUE_D_UNE_IDEE, Viser, VueDUneIdee, VueDeLaBoite,
     VueDesRetirees,
 };
 use leptos::html;
 use leptos::prelude::*;
 use leptos::web_sys::{Element, HtmlElement, HtmlInputElement, HtmlTextAreaElement, Node};
-use noyau::donnees::boite::{
-    date_de_la_liste, duree_affichee, etiquette_saisie, texte_du_compte, texte_du_filtre,
-};
+use noyau::donnees::boite::{date_de_la_liste, duree_affichee, etiquette_saisie, texte_du_compte};
 use noyau::donnees::idee;
+use noyau::donnees::requete::{self, texte_de_la_reponse};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use wasm_bindgen::JsCast;
@@ -288,10 +287,14 @@ fn nom_de_la_ligne(date: &str, ligne: &LigneDeLaBoite) -> String {
     )
 }
 
-/// Un compte de la boîte et son assiette, tels que le noyau les dit (`texte_du_compte`,
-/// `texte_du_filtre`) : chaque compte en `usize`, `usize::MAX` s'il le dépasse.
-fn au_noyau(compte: u64, assiette: &Assiette) -> (usize, idee::Assiette) {
-    let en_usize = |n: u64| usize::try_from(n).unwrap_or(usize::MAX);
+/// `n` en `usize`, `usize::MAX` s'il le dépasse.
+fn en_usize(n: u64) -> usize {
+    usize::try_from(n).unwrap_or(usize::MAX)
+}
+
+/// Un compte de la boîte et son assiette, tels que le noyau les reçoit (`texte_du_compte`,
+/// `texte_de_la_reponse`) : chaque compte en `usize`, et les illisibles de l'assiette à part.
+fn au_noyau(compte: u64, assiette: &Assiette) -> (usize, idee::Assiette, usize) {
     (
         en_usize(compte),
         idee::Assiette {
@@ -299,7 +302,18 @@ fn au_noyau(compte: u64, assiette: &Assiette) -> (usize, idee::Assiette) {
             portant: en_usize(assiette.portant),
             decidees: en_usize(assiette.decidees),
         },
+        en_usize(assiette.illisibles),
     )
+}
+
+/// Les parts « sans … » d'une vue, telles que le noyau les reçoit (`texte_de_la_reponse`),
+/// chacune en `usize`.
+fn sans_au_noyau(sans: &commandes::Sans) -> requete::Sans {
+    requete::Sans {
+        etiquette: sans.etiquette.map(en_usize),
+        duree: sans.duree.map(en_usize),
+        texte: sans.texte.map(en_usize),
+    }
 }
 
 /// La date de la liste de l'instant `le`, au décalage local de cet instant (question 24).
@@ -387,8 +401,8 @@ fn argument<T: Serialize>(commande: &T) -> Option<serde_json::Value> {
     serde_json::to_value(commande).ok()
 }
 
-/// Une fenêtre de la boîte, lue : la fenêtre demandée, si un filtre la restreignait, et la vue
-/// rendue.
+/// Une fenêtre de la boîte, lue : la fenêtre demandée, si sa requête cherchait un contenu, et la
+/// vue rendue.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct BoiteLue {
     fenetre: Fenetre,
@@ -531,9 +545,10 @@ impl EtatDeLaBoite {
     }
 }
 
-/// Lit la fenêtre `fenetre` de la boîte, dans l'ordre et sous le filtre choisis. Une réponse
-/// qu'une demande plus récente a devancée s'ignore ; un refus va au bandeau. La fenêtre posée, et
-/// ses lignes rendues au tick suivant, le focus perdu se rend (`rendre_le_focus_perdu`).
+/// Lit la fenêtre `fenetre` de la boîte, dans l'ordre choisi, par la requête du contenu choisi,
+/// sans borne de date. Une réponse qu'une demande plus récente a devancée s'ignore ; un refus va
+/// au bandeau. La fenêtre posée, et ses lignes rendues au tick suivant, le focus perdu se rend
+/// (`rendre_le_focus_perdu`).
 async fn lire_la_boite(
     etat: Etat,
     boite: EtatDeLaBoite,
@@ -541,11 +556,15 @@ async fn lire_la_boite(
     fenetre: Fenetre,
 ) {
     let rang = boite.demandes.demander(&fenetre);
-    let filtre = CONTENUS[boite.contenu.get_untracked()].0.clone();
-    let filtree = filtre.is_some();
+    let contenu = CONTENUS[boite.contenu.get_untracked()].0.clone();
+    let filtree = contenu.is_some();
     let commande = Boite {
         ordre: ORDRES[boite.ordre.get_untracked()].0.clone(),
-        filtre,
+        requete: Requete {
+            contenu,
+            ..Requete::default()
+        },
+        bornes: Bornes::default(),
         debut: fenetre.debut,
         nombre: fenetre.nombre,
     };
@@ -1369,14 +1388,19 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
     let comptes = move || {
         boite.lue.with(|lue| {
             lue.as_ref().map(|lue| {
-                let (non_reliees, assiette) =
+                let (non_reliees, assiette, _) =
                     au_noyau(lue.vue.non_reliees, &lue.vue.assiette_du_compte);
-                let filtre = lue.filtree.then(|| {
-                    let (retenues, assiette) =
-                        au_noyau(lue.vue.retenues, &lue.vue.assiette_du_filtre);
-                    texte_du_filtre(retenues, assiette)
+                let reponse = lue.filtree.then(|| {
+                    let (retenues, assiette, illisibles) =
+                        au_noyau(lue.vue.retenues, &lue.vue.assiette_de_la_requete);
+                    texte_de_la_reponse(
+                        retenues,
+                        assiette,
+                        illisibles,
+                        sans_au_noyau(&lue.vue.sans),
+                    )
                 });
-                (texte_du_compte(non_reliees, assiette), filtre)
+                (texte_du_compte(non_reliees, assiette), reponse)
             })
         })
     };
@@ -1460,7 +1484,7 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
                 </label>
                 <div class="comptes" aria-live="polite">
                     <p>{move || comptes().map(|(compte, _)| compte)}</p>
-                    <p>{move || comptes().and_then(|(_, filtre)| filtre)}</p>
+                    <p>{move || comptes().and_then(|(_, reponse)| reponse)}</p>
                 </div>
                 <fieldset class="reglage">
                     <legend>"Ranger par :"</legend>

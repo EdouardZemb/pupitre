@@ -1,11 +1,12 @@
-//! La boîte d'idées, sans entrée-sortie : l'ordre, le filtre et le compte (CAP-02, § 30 · 9).
-//! Le tri est un geste (question 17) : l'ordre n'écrit rien et ne s'annule pas.
+//! La boîte d'idées, sans entrée-sortie : l'ordre, les contenus d'une idée et le compte (CAP-02,
+//! § 30 · 9) ; ce qu'une requête trouve, l'index le rend (`index::Index::repondre`). Le tri est un
+//! geste (question 17) : l'ordre n'écrit rien et ne s'annule pas.
 
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 
 use super::gestes::{IdeeLue, Provenance, Sorte, date_civile};
-use super::idee::{Assiette, assiette};
+use super::idee::Assiette;
 
 /// L'ordre de la boîte : il n'écrit rien et ne s'annule pas ; le tri est un geste (question 17).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -22,7 +23,7 @@ pub enum Ordre {
     Provenance,
 }
 
-/// Un contenu que le filtre retient (CAP-02) : le texte de l'idée, une prise, une photo, un MIDI
+/// Un contenu qu'une requête cherche (CAP-02) : le texte de l'idée, une prise, une photo, un MIDI
 /// versé (seul ou qui accompagne un stem), un texte versé (question 22).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Contenu {
@@ -50,18 +51,6 @@ pub struct EnBoite {
     pub duree_ms: Option<u64>,
     /// Reliée, au sens d'`idee::reliee`.
     pub reliee: bool,
-}
-
-/// La boîte rangée : le compte des non reliées, l'assiette, et les idées que retient le filtre,
-/// dans l'ordre.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Boite {
-    /// Les idées non retirées et non reliées, que le filtre ne change pas.
-    pub non_reliees: usize,
-    /// L'assiette du compte.
-    pub assiette: Assiette,
-    /// Les idées que retient le filtre, dans l'ordre.
-    pub retenues: Vec<EnBoite>,
 }
 
 /// Les contenus d'une idée : son texte (`TexteDeLIdee` s'il y en a un), les sortes de ses
@@ -138,35 +127,6 @@ pub fn ordonner(idees: &mut [EnBoite], ordre: Ordre) {
     });
 }
 
-/// La boîte : les idées non retirées (question 14), le compte des non reliées, qui ne suit pas
-/// le filtre, l'assiette (`idee::assiette` sur les non retirées, chacune portant la donnée, puis
-/// `illisibles` ajoutées aux seules considérées : question 19), et celles que retient `filtre`
-/// (aucun : toutes), rangées.
-pub fn boite(
-    idees: Vec<EnBoite>,
-    illisibles: usize,
-    ordre: Ordre,
-    filtre: Option<Contenu>,
-) -> Boite {
-    let non_retirees: Vec<EnBoite> = idees
-        .into_iter()
-        .filter(|e| e.idee.retiree.is_none())
-        .collect();
-    let non_reliees = non_retirees.iter().filter(|e| !e.reliee).count();
-    let mut l_assiette = assiette(non_retirees.iter().map(|e| &e.idee), |_| true);
-    l_assiette.considerees += illisibles;
-    let mut retenues: Vec<EnBoite> = non_retirees
-        .into_iter()
-        .filter(|e| filtre.is_none_or(|contenu| e.contenus.contains(&contenu)))
-        .collect();
-    ordonner(&mut retenues, ordre);
-    Boite {
-        non_reliees,
-        assiette: l_assiette,
-        retenues,
-    }
-}
-
 /// Les seules idées retirées de `idees`, par la date du retrait, la plus récente d'abord, puis
 /// par l'identifiant.
 pub fn retirees(idees: Vec<EnBoite>) -> Vec<EnBoite> {
@@ -183,8 +143,9 @@ pub fn retirees(idees: Vec<EnBoite>) -> Vec<EnBoite> {
     retirees
 }
 
-/// Le mot au singulier pour 0 et 1, au pluriel dès 2 (question 18 ; LE-6, règle 9).
-fn accorde(n: usize, singulier: &str, pluriel: &str) -> String {
+/// Le mot au singulier pour 0 et 1, au pluriel dès 2 (question 18 ; LE-6, règle 9) : le compte de
+/// la boîte, et le texte de la réponse d'une requête (`requete::texte_de_la_reponse`, question 7).
+pub(crate) fn accorde(n: usize, singulier: &str, pluriel: &str) -> String {
     format!("{n} {}", if n >= 2 { pluriel } else { singulier })
 }
 
@@ -208,15 +169,6 @@ pub fn texte_du_compte(non_reliees: usize, assiette: Assiette) -> String {
     format!(
         "{}{}",
         accorde(non_reliees, "idée non reliée", "idées non reliées"),
-        suite_de_l_assiette(assiette)
-    )
-}
-
-/// « N idée(s) », puis de même (question 18).
-pub fn texte_du_filtre(retenues: usize, assiette: Assiette) -> String {
-    format!(
-        "{}{}",
-        accorde(retenues, "idée", "idées"),
         suite_de_l_assiette(assiette)
     )
 }

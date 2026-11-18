@@ -2,7 +2,7 @@
 //! CAP-06). Rien ici ne lit l'horloge : le décalage local se reçoit, pour un instant. Puis les
 //! critères d'une requête, et le texte de sa réponse (question 7).
 
-use super::boite::Contenu;
+use super::boite::{Contenu, accorde};
 use super::idee::Assiette;
 use super::repli::mots;
 
@@ -185,11 +185,6 @@ pub struct Sans {
     pub duree: Option<usize>,
     /// Les idées sans texte.
     pub texte: Option<usize>,
-}
-
-/// Le mot au singulier pour 0 et 1, au pluriel dès 2 (question 7), comme le compte de la boîte.
-fn accorde(n: usize, singulier: &str, pluriel: &str) -> String {
-    format!("{n} {}", if n >= 2 { pluriel } else { singulier })
 }
 
 /// « N idée(s) », puis « · K sans étiquette », « · K sans durée », « · K sans texte », chaque part

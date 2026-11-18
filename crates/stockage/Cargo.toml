@@ -23,8 +23,10 @@ pannes = []
 # `services` avec `en-memoire` : le fonds de mesure s'y engendre sur la paire en mémoire, avant
 # de se rouvrir sur fichiers ; `commandes` : la suite des commandes, que les tests incluent
 # (`tests/commandes_sur_fichiers.rs`), nomme ses types, et un test ne voit que les dépendances et
-# les dépendances de test du stockage.
+# les dépendances de test du stockage ; `serde_json` : la suite des commandes, incluse, calcule
+# l'empreinte d'I13 par `serde_json`.
 commandes = { path = "../commandes" }
 proptest = "1.12.0"
+serde_json = "1.0.154"
 services = { path = "../services", features = ["en-memoire"] }
 stockage = { path = ".", features = ["pannes"] }

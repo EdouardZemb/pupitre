@@ -17,4 +17,5 @@ noyau = { path = "../noyau" }
 en-memoire = []
 
 [dev-dependencies]
+serde_json = "1.0.154"
 services = { path = ".", features = ["en-memoire"] }

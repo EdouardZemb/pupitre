@@ -20,9 +20,10 @@ pub mod mesure;
 pub use commandes::{Raison, Refus};
 pub use contrats::{Alea, Captations, Documents, Ecriture};
 
+use std::cell::RefCell;
 use std::collections::BTreeSet;
 
-use automerge::Automerge;
+use automerge::{Automerge, ChangeHash};
 use commandes::{
     Captation, Completer, EntreeDuJournal, EtatDuFonds, Etiqueter, FENETRE_MAX, Faite, Fenetre,
     LONGUEUR_D_UNE_LIGNE, LigneDeLaBoite, Notee, Noter, Regrouper, Relier, Reponse, Viser,
@@ -32,6 +33,8 @@ use noyau::donnees::boite::{self, EnBoite};
 use noyau::donnees::changement::Operation;
 use noyau::donnees::gestes::{self, CaptationLue, GesteDeTri, IdeeLue, Impossible};
 use noyau::donnees::identifiants::{ulid, uuid_v4};
+use noyau::donnees::index::{self, Index};
+use noyau::donnees::requete;
 
 /// Ce que le côté natif donne à une commande qui écrit : l'heure du geste et l'aléa, des
 /// arguments, jamais l'horloge ni le hasard des services.
@@ -66,6 +69,13 @@ pub struct Versee {
 /// `Raison::Impossible`, son message le constat du noyau ; puis `Documents::appliquer`. Fait, il
 /// devient le dernier geste de tri ; refusé, le dernier geste de tri ne change pas. Un geste de
 /// tri ne tire rien de l'aléa.
+///
+/// Les services tiennent l'index des idées interrogées (`noyau::donnees::index::Index`), un dérivé
+/// jetable (I13), avec les têtes du fonds (`Automerge::get_heads`) dont il est bâti. Chaque lecture
+/// de la boîte compare les têtes du fonds aux têtes gardées : différentes, ou sans index tenu,
+/// l'index se rebâtit en entier du fonds lu (`en_boite`), jamais par morceaux ; sans fonds, la
+/// lecture prend un index vide, et rien n'est gardé. Aucune écriture ne le touche (question 14) :
+/// une écriture faite change les têtes, et la lecture qui suit le rebâtit.
 pub struct Services<D: Documents, C: Captations> {
     documents: D,
     captations: C,
@@ -73,17 +83,20 @@ pub struct Services<D: Documents, C: Captations> {
     /// Le dernier geste de tri fait par ces services, que l'annulation défait (§ 30 · 11) ; aucun
     /// à leur ouverture, ni après une annulation faite.
     dernier_geste: Option<GesteDeTri>,
+    /// L'index tenu, et les têtes du fonds dont il est bâti ; aucun à l'ouverture des services.
+    index: RefCell<Option<(Vec<ChangeHash>, Index)>>,
 }
 
 impl<D: Documents, C: Captations> Services<D, C> {
     /// Les services de l'appareil `appareil`, sur `documents` et `captations`, sans dernier geste
-    /// de tri.
+    /// de tri ni index tenu.
     pub fn new(documents: D, captations: C, appareil: gestes::Appareil) -> Self {
         Services {
             documents,
             captations,
             appareil,
             dernier_geste: None,
+            index: RefCell::new(None),
         }
     }
 
@@ -397,28 +410,36 @@ impl<D: Documents, C: Captations> Services<D, C> {
             .collect())
     }
 
-    /// La boîte : chaque idée lue une fois (`lecture::idees_et_illisibles`), ses contenus, sa
-    /// durée et son état de reliée (`en_boite`), puis `noyau::donnees::boite::boite`, dans l'ordre
-    /// et selon le filtre de `commande`, puis la fenêtre (`nombre` borné à `FENETRE_MAX`), chaque
-    /// texte borné à `LONGUEUR_D_UNE_LIGNE` caractères. Les deux assiettes de la vue,
-    /// `assiette_du_compte` et `assiette_du_filtre`, sont l'unique assiette que calcule la boîte
-    /// du noyau. Sans fonds : aucune ligne, les comptes à 0. En lecture seule comme ailleurs.
+    /// La boîte, réponse de la requête en cours (question 21), par l'index tenu (voir
+    /// `Services`) : la réponse de la requête de `commande`, sa date jugée sur ses bornes, dans son
+    /// ordre (`Index::repondre`), et les étiquettes du fonds (`Index::etiquettes`), puis la
+    /// fenêtre (`nombre` borné à `FENETRE_MAX`), chaque texte borné à `LONGUEUR_D_UNE_LIGNE`
+    /// caractères. Sans fonds : aucune ligne, les comptes à 0, aucune étiquette. En lecture seule
+    /// comme ailleurs.
     pub fn boite(&self, commande: &commandes::Boite) -> Reponse<VueDeLaBoite> {
-        let (idees, illisibles) = self.documents.fonds().map(en_boite).unwrap_or_default();
-        let rangee = boite::boite(
-            idees,
-            illisibles,
-            ordre_du_noyau(&commande.ordre),
-            commande.filtre.as_ref().map(contenu_du_noyau),
-        );
-        let assiette = assiette_des_commandes(rangee.assiette);
-        Ok(VueDeLaBoite {
-            non_reliees: compte(rangee.non_reliees),
-            assiette_du_compte: assiette.clone(),
-            retenues: compte(rangee.retenues.len()),
-            assiette_du_filtre: assiette,
-            lignes: fenetre(rangee.retenues, commande.debut, commande.nombre),
-        })
+        let Some(fonds) = self.documents.fonds() else {
+            return Ok(vue_de_la_boite(&Index::construire(Vec::new(), 0), commande));
+        };
+        let tetes = fonds.get_heads();
+        let mut tenu = self.index.borrow_mut();
+        if tenu.as_ref().is_some_and(|(gardees, _)| *gardees != tetes) {
+            *tenu = None;
+        }
+        let (_, l_index) = tenu.get_or_insert_with(|| (tetes, index_du_fonds(fonds)));
+        Ok(vue_de_la_boite(l_index, commande))
+    }
+
+    /// La même réponse que `boite`, d'un index neuf, bâti à l'appel du fonds lu, sans l'index
+    /// tenu : « l'évaluation sans index » de la question 13 se lit ainsi, l'index tenu n'étant
+    /// jamais mis à jour par morceaux, mais rebâti en entier (question 14) ; un défaut de
+    /// `Index::construire` ou d'`Index::repondre` se voit aux tests du noyau. Sans fonds, un index
+    /// vide. Ne touche pas à l'index tenu.
+    pub fn boite_sans_index(&self, commande: &commandes::Boite) -> Reponse<VueDeLaBoite> {
+        let l_index = self
+            .documents
+            .fonds()
+            .map_or_else(|| Index::construire(Vec::new(), 0), index_du_fonds);
+        Ok(vue_de_la_boite(&l_index, commande))
     }
 
     /// Les idées retirées, rangées par `noyau::donnees::boite::retirees`, la plus récemment
@@ -475,7 +496,7 @@ fn idee_lue(fonds: &Automerge, idee: &str) -> Result<IdeeLue, Impossible> {
     gestes::presente(idee, lecture::lire_l_idee(fonds, idee))
 }
 
-/// Chaque idée de `fonds` qui se lit, retirée comprise, telle que la boîte du noyau la reçoit, et
+/// Chaque idée de `fonds` qui se lit, retirée comprise, telle que l'index du noyau la reçoit, et
 /// le nombre de celles qui ne se lisent pas : les idées par `lecture::idees_et_illisibles`, leurs
 /// captations par `lecture::captations_par_idee`, leurs photos par
 /// `lecture::idees_avec_une_photo`, chacune lue une fois ; les contenus par
@@ -509,6 +530,35 @@ fn en_boite(fonds: &Automerge) -> (Vec<EnBoite>, usize) {
         })
         .collect();
     (lues, illisibles)
+}
+
+/// L'index des idées interrogées de `fonds`, bâti de ses idées lues (`en_boite`), les retirées
+/// écartées par `Index::construire`.
+fn index_du_fonds(fonds: &Automerge) -> Index {
+    let (idees, illisibles) = en_boite(fonds);
+    Index::construire(idees, illisibles)
+}
+
+/// La vue de la boîte qui répond à `commande` sur `l_index` : la réponse de sa requête
+/// (`index::Reponse`), sa date jugée sur ses bornes, les trouvées dans son ordre ; ses comptes,
+/// ses deux assiettes, chacune avec les illisibles de la réponse, et ses parts « sans … », chaque
+/// compte par `compte` ; les étiquettes du fonds ; puis la fenêtre des trouvées. `boite` et
+/// `boite_sans_index` la partagent.
+fn vue_de_la_boite(l_index: &Index, commande: &commandes::Boite) -> VueDeLaBoite {
+    let reponse: index::Reponse = l_index.repondre(
+        &requete_du_noyau(&commande.requete),
+        bornes_du_noyau(&commande.bornes),
+        ordre_du_noyau(&commande.ordre),
+    );
+    VueDeLaBoite {
+        non_reliees: compte(reponse.non_reliees),
+        assiette_du_compte: assiette_des_commandes(reponse.assiette_du_compte, reponse.illisibles),
+        retenues: compte(reponse.trouvees.len()),
+        assiette_de_la_requete: assiette_des_commandes(reponse.assiette, reponse.illisibles),
+        sans: sans_des_commandes(reponse.sans),
+        etiquettes_du_fonds: l_index.etiquettes(),
+        lignes: fenetre(reponse.trouvees, commande.debut, commande.nombre),
+    }
 }
 
 /// La durée d'une idée, de ses captations : celle de ses seules prises, par
@@ -560,12 +610,62 @@ fn compte(n: usize) -> u64 {
     u64::try_from(n).unwrap_or(u64::MAX)
 }
 
-/// L'assiette des commandes qui répond à celle du noyau, chaque champ par `compte`.
-fn assiette_des_commandes(assiette: noyau::donnees::idee::Assiette) -> commandes::Assiette {
+/// L'assiette des commandes qui répond à celle du noyau, avec ses `illisibles`, que le noyau
+/// porte à côté de l'assiette, chaque champ par `compte`.
+fn assiette_des_commandes(
+    assiette: noyau::donnees::idee::Assiette,
+    illisibles: usize,
+) -> commandes::Assiette {
     commandes::Assiette {
         considerees: compte(assiette.considerees),
         portant: compte(assiette.portant),
         decidees: compte(assiette.decidees),
+        illisibles: compte(illisibles),
+    }
+}
+
+/// Les parts « sans … » des commandes qui répondent à celles du noyau, chacune par `compte`.
+fn sans_des_commandes(sans: requete::Sans) -> commandes::Sans {
+    commandes::Sans {
+        etiquette: sans.etiquette.map(compte),
+        duree: sans.duree.map(compte),
+        texte: sans.texte.map(compte),
+    }
+}
+
+/// La requête du noyau qui répond à celle des commandes, champ pour champ.
+fn requete_du_noyau(demandee: &commandes::Requete) -> requete::Requete {
+    let jour = |jour: &commandes::Jour| requete::Jour {
+        annee: jour.annee,
+        mois: jour.mois,
+        jour: jour.jour,
+    };
+    requete::Requete {
+        texte: demandee.texte.clone(),
+        du: demandee.du.as_ref().map(jour),
+        au: demandee.au.as_ref().map(jour),
+        etiquette: demandee.etiquette.clone(),
+        plus_de_secondes: demandee.plus_de_secondes,
+        etat: demandee.etat.as_ref().map(|etat| match etat {
+            commandes::Etat::Reliee => requete::Etat::Reliee,
+            commandes::Etat::NonReliee => requete::Etat::NonReliee,
+        }),
+        provenance: demandee
+            .provenance
+            .as_ref()
+            .map(|provenance| match provenance {
+                commandes::ProvenanceDeLIdee::Captee => requete::ProvenanceDeLIdee::Captee,
+                commandes::ProvenanceDeLIdee::Importee => requete::ProvenanceDeLIdee::Importee,
+            }),
+        contenu: demandee.contenu.as_ref().map(contenu_du_noyau),
+    }
+}
+
+/// Les bornes du noyau qui répondent à celles des commandes.
+fn bornes_du_noyau(bornes: &commandes::Bornes) -> requete::Bornes {
+    requete::Bornes {
+        des: bornes.des,
+        avant: bornes.avant,
     }
 }
 
