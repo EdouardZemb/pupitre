@@ -218,8 +218,7 @@ fn en_boite(idee: IdeeLue, contenus: &[Contenu], duree_ms: Option<u64>, reliee: 
     }
 }
 
-/// Le jeu de `crates/noyau/tests/boite.rs` (`jeu()`), recopié : A à E, non retirées, et F,
-/// retirée à 500.
+/// Le jeu de la boîte, celui de la tranche 3 : A à E, non retirées, et F, retirée à 500.
 fn jeu_de_la_boite() -> Vec<EnBoite> {
     use Contenu::*;
     vec![
@@ -514,8 +513,8 @@ fn une_requete_sans_mot_ne_pose_aucun_critere() {
 
 #[test]
 fn sans_critere_l_index_rend_la_boite() {
-    // Le jeu de `crates/noyau/tests/boite.rs` (`jeu()`, six idées, F retirée), recopié : les ordres,
-    // les contenus et le compte de la tranche 3, inchangés.
+    // Le jeu de la boîte (`jeu_de_la_boite`, six idées, F retirée) : les ordres, les contenus et le
+    // compte de la tranche 3, inchangés.
     let index = Index::construire(jeu_de_la_boite(), 0);
     let par = |ordre| {
         ids_de(

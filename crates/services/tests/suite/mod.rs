@@ -23,9 +23,9 @@ use automerge::{
     ActorId, Automerge, Change, ChangeHash, ObjId, ObjType, Prop, ROOT, ReadDoc, ScalarValue, Value,
 };
 use commandes::{
-    Assiette, Boite, Captation, Completer, Contenu, EntreeDuJournal, EtatDuFonds, Etiqueter,
-    FENETRE_MAX, Faite, Fenetre, LigneDeLaBoite, Notee, Noter, Ordre, Raison, Refus, Regrouper,
-    Relier, Reponse, Viser, VueDUneIdee, VueDeLaBoite, VueDesRetirees,
+    Assiette, Boite, Bornes, Captation, Completer, Contenu, EntreeDuJournal, EtatDuFonds,
+    Etiqueter, FENETRE_MAX, Faite, Fenetre, LigneDeLaBoite, Notee, Noter, Ordre, Raison, Refus,
+    Regrouper, Relier, Reponse, Requete, Sans, Viser, VueDUneIdee, VueDeLaBoite, VueDesRetirees,
 };
 use noyau::donnees::boite::texte_du_compte;
 use noyau::donnees::changement::{Changement, Operation, Simple};
@@ -2440,12 +2440,13 @@ pub fn aucun_counter_ni_objet_text_dans_un_document_des_operations<P: Paire>(pai
 /// 40 s UTC, plus de trois ans avant `HEURE`.
 const EN_2020: i64 = 1_600_000_000;
 
-/// La boîte entière, autant qu'une fenêtre en rend : par date, sans filtre, de la première ligne,
-/// `FENETRE_MAX` lignes.
+/// La boîte entière, autant qu'une fenêtre en rend : par date, sans critère ni borne, de la
+/// première ligne, `FENETRE_MAX` lignes.
 pub fn toute_la_boite() -> Boite {
     Boite {
         ordre: Ordre::Date,
-        filtre: None,
+        requete: Requete::default(),
+        bornes: Bornes::default(),
         debut: 0,
         nombre: FENETRE_MAX,
     }
@@ -2469,17 +2470,19 @@ fn idees_des_lignes(lignes: &[LigneDeLaBoite]) -> Vec<String> {
     lignes.iter().map(|ligne| ligne.idee.clone()).collect()
 }
 
-/// L'assiette dont chaque compte vaut `n`.
+/// L'assiette dont chaque compte vaut `n`, sans illisible.
 fn assiette_de(n: u64) -> Assiette {
     Assiette {
         considerees: n,
         portant: n,
         decidees: n,
+        illisibles: 0,
     }
 }
 
-/// L'assiette du noyau qui répond à celle des commandes, chaque compte par `usize::try_from`,
-/// `usize::MAX` au-delà : la seule conversion de la suite d'une assiette des commandes.
+/// L'assiette du noyau qui répond à celle des commandes, sans ses illisibles, que le noyau ne
+/// porte pas dans l'assiette, chaque compte par `usize::try_from`, `usize::MAX` au-delà : la seule
+/// conversion de la suite d'une assiette des commandes.
 pub fn assiette_du_noyau(assiette: &Assiette) -> noyau::donnees::idee::Assiette {
     let compte = |n: u64| usize::try_from(n).unwrap_or(usize::MAX);
     noyau::donnees::idee::Assiette {
@@ -2551,7 +2554,8 @@ pub fn un_document_dont_une_idee_porte_une_photo() -> Vec<u8> {
 /// boîte en compte cinquante, sur une assiette de cinquante, « 50 idées non reliées · 50
 /// interrogées », et ses lignes ne portent que ce que montre une ligne, sans ancienneté : la vue,
 /// puis chaque ligne, se défont par un motif exhaustif, si bien qu'un champ ajouté, un âge, un
-/// badge ou une alerte, casse la compilation.
+/// badge ou une alerte, casse la compilation. Ni les parts « sans … » de la requête, aucune sans
+/// critère, ni les étiquettes du fonds, aucune ici, ne datent une idée.
 pub fn aucun_compteur_d_anciennete<P: Paire>(paire: &mut P) {
     let mut services = paire.neufs();
     let mut alea = AleaDeTest {
@@ -2575,13 +2579,17 @@ pub fn aucun_compteur_d_anciennete<P: Paire>(paire: &mut P) {
         non_reliees,
         assiette_du_compte,
         retenues,
-        assiette_du_filtre,
+        assiette_de_la_requete,
+        sans,
+        etiquettes_du_fonds,
         lignes,
     } = la_boite(&services);
     assert_eq!(non_reliees, 50);
     assert_eq!(assiette_du_compte, assiette_de(50));
     assert_eq!(retenues, 50);
-    assert_eq!(assiette_du_filtre, assiette_de(50));
+    assert_eq!(assiette_de_la_requete, assiette_de(50));
+    assert_eq!(sans, Sans::default());
+    assert_eq!(etiquettes_du_fonds, Vec::<String>::new());
     assert_eq!(
         texte_du_compte_de(non_reliees, &assiette_du_compte),
         "50 idées non reliées · 50 interrogées"
@@ -2914,7 +2922,8 @@ pub fn une_fenetre_hors_du_fonds_rend_les_comptes_et_aucune_ligne_de_trop<P: Pai
     let mut contexte = contexte_de_test(&mut alea);
     let fenetre = |debut: u32, nombre: u32| Boite {
         ordre: Ordre::Date,
-        filtre: None,
+        requete: Requete::default(),
+        bornes: Bornes::default(),
         debut,
         nombre,
     };
@@ -2946,9 +2955,10 @@ pub fn une_fenetre_hors_du_fonds_rend_les_comptes_et_aucune_ligne_de_trop<P: Pai
     assert_eq!(montrees.len(), 205);
 }
 
-/// Sans fonds, la boîte n'a aucune ligne, ses comptes à 0 et ses assiettes à `{0, 0, 0}`, aucune
-/// idée n'est retirée, et l'état du fonds le dit non né, sans lecture seule, ni avertissement, ni
-/// geste à annuler. Une note fait naître le fonds : l'état le dit né, et rien d'autre ne change.
+/// Sans fonds, la boîte n'a aucune ligne, ses comptes à 0, ses assiettes à `{0, 0, 0, 0}`, aucune
+/// part « sans … » ni étiquette du fonds, aucune idée n'est retirée, et l'état du fonds le dit non
+/// né, sans lecture seule, ni avertissement, ni geste à annuler. Une note fait naître le fonds :
+/// l'état le dit né, et rien d'autre ne change.
 pub fn la_boite_d_un_pupitre_neuf<P: Paire>(paire: &mut P) {
     let mut services = paire.neufs();
     let mut alea = AleaDeTest {
@@ -2961,7 +2971,9 @@ pub fn la_boite_d_un_pupitre_neuf<P: Paire>(paire: &mut P) {
             non_reliees: 0,
             assiette_du_compte: assiette_de(0),
             retenues: 0,
-            assiette_du_filtre: assiette_de(0),
+            assiette_de_la_requete: assiette_de(0),
+            sans: Sans::default(),
+            etiquettes_du_fonds: Vec::new(),
             lignes: Vec::new(),
         })
     );
@@ -3112,20 +3124,25 @@ pub fn les_retirees_se_rangent_par_la_date_du_retrait<P: Paire>(paire: &mut P) {
     assert_eq!(idees_des_lignes(&la_boite(&services).lignes), vec![c]);
 }
 
-/// Le filtre et l'ordre de la commande passent au noyau, et `retenues` compte les idées que le
-/// filtre retient. A, notée à `HEURE`, puis, de minute en minute, B, une prise de 12 000 ms, C,
+/// La requête et l'ordre de la commande passent au noyau, et `retenues` compte les idées que la
+/// requête trouve. A, notée à `HEURE`, puis, de minute en minute, B, une prise de 12 000 ms, C,
 /// une prise de 47 000 ms, D, un MIDI versé, et E, un texte versé, chacune importée et sans texte ;
-/// A reliée à C ; `#couplet` sur D, `#refrain` sur E. Sans filtre, cinq idées retenues, dont
-/// trois non reliées, B, D et E ; chaque filtre retient ses seules idées, par date, et laisse les
-/// trois non reliées : le texte de l'idée, A ; une prise, C puis B ; une photo, aucune ; un MIDI
-/// versé, D ; un texte versé, E. Chaque ordre range les cinq selon
-/// `noyau::donnees::boite::ordonner`, à égalité par la date, la plus récente d'abord, puis par
-/// l'identifiant : par date, E, D, C, B, A ; par étiquette, D (`couplet`), E (`refrain`), puis
-/// les sans étiquette, C, B, A ; par durée, C, B, puis les sans durée, E, D, A ; par état, les non
-/// reliées E, D, B, puis les reliées C, A ; par provenance, la captée A, puis les importées E, D,
-/// C, B. Les cinq suites, comme les cinq jeux que retiennent les filtres, sont deux à deux
-/// distinctes : un bras d'ordre ou de filtre inversé, un ordre ou un filtre perdu, se voient.
-pub fn le_filtre_et_l_ordre_passent_au_noyau<P: Paire>(paire: &mut P) {
+/// A reliée à C ; `#couplet` sur D, `#refrain` sur E. Sans critère, cinq idées retenues, dont
+/// trois non reliées, B, D et E, et les étiquettes du fonds, `couplet` puis `refrain` ; la requête
+/// d'un contenu ne trouve que ses idées, par date, et laisse les trois non reliées : le texte de
+/// l'idée, A ; une prise, C puis B ; une photo, aucune ; un MIDI versé, D ; un texte versé, E.
+/// Chaque ordre range les cinq selon `noyau::donnees::boite::ordonner`, à égalité par la date, la
+/// plus récente d'abord, puis par l'identifiant : par date, E, D, C, B, A ; par étiquette, D
+/// (`couplet`), E (`refrain`), puis les sans étiquette, C, B, A ; par durée, C, B, puis les sans
+/// durée, E, D, A ; par état, les non reliées E, D, B, puis les reliées C, A ; par provenance, la
+/// captée A, puis les importées E, D, C, B. Les cinq suites, comme les cinq jeux que trouvent les
+/// requêtes d'un contenu, sont deux à deux distinctes : un bras d'ordre ou de contenu inversé, un
+/// ordre ou un contenu perdu, se voient. Puis, sur le fonds de `paire_des_notes`, trois idées
+/// notées, « Un refrain qui monte, en ré », « Un pont en mi mineur » et « Une coda qui
+/// ralentit » : la requête de texte « pont » ne trouve que la deuxième ; aucune n'est sans texte
+/// (`sans.texte` à `Some(0)`, les deux autres parts à `None`, leur critère n'étant pas posé), et
+/// ce fonds n'a aucune étiquette.
+pub fn la_requete_passe_au_noyau<P: Paire>(paire: &mut P, paire_des_notes: &mut P) {
     let mut services = paire.neufs();
     let mut alea = AleaDeTest {
         graine: 0,
@@ -3191,9 +3208,13 @@ pub fn le_filtre_et_l_ordre_passent_au_noyau<P: Paire>(paire: &mut P) {
     services
         .poser_une_etiquette(&etiquetage(&e, "refrain"), &mut contexte)
         .expect("l'étiquette est posée sur E");
-    let boite_de = |ordre: Ordre, filtre: Option<Contenu>| Boite {
+    let boite_de = |ordre: Ordre, contenu: Option<Contenu>| Boite {
         ordre,
-        filtre,
+        requete: Requete {
+            contenu,
+            ..Requete::default()
+        },
+        bornes: Bornes::default(),
         debut: 0,
         nombre: FENETRE_MAX,
     };
@@ -3203,8 +3224,9 @@ pub fn le_filtre_et_l_ordre_passent_au_noyau<P: Paire>(paire: &mut P) {
         .expect("la boîte se lit");
     assert_eq!(toutes.retenues, 5);
     assert_eq!(toutes.non_reliees, 3);
+    assert_eq!(toutes.etiquettes_du_fonds, ["couplet", "refrain"]);
 
-    for (filtre, attendues, retenues) in [
+    for (contenu, attendues, retenues) in [
         (Contenu::TexteDeLIdee, vec![a.clone()], 1),
         (Contenu::Prise, vec![c.clone(), b.clone()], 2),
         (Contenu::Photo, Vec::new(), 0),
@@ -3212,15 +3234,15 @@ pub fn le_filtre_et_l_ordre_passent_au_noyau<P: Paire>(paire: &mut P) {
         (Contenu::TexteVerse, vec![e.clone()], 1),
     ] {
         let vue = services
-            .boite(&boite_de(Ordre::Date, Some(filtre.clone())))
+            .boite(&boite_de(Ordre::Date, Some(contenu.clone())))
             .expect("la boîte se lit");
         assert_eq!(
             idees_des_lignes(&vue.lignes),
             attendues,
-            "le filtre {filtre:?}"
+            "le contenu {contenu:?}"
         );
-        assert_eq!(vue.retenues, retenues, "le filtre {filtre:?}");
-        assert_eq!(vue.non_reliees, 3, "le filtre {filtre:?}");
+        assert_eq!(vue.retenues, retenues, "le contenu {contenu:?}");
+        assert_eq!(vue.non_reliees, 3, "le contenu {contenu:?}");
     }
 
     let mut suites = BTreeSet::new();
@@ -3239,4 +3261,43 @@ pub fn le_filtre_et_l_ordre_passent_au_noyau<P: Paire>(paire: &mut P) {
         suites.insert(rangees);
     }
     assert_eq!(suites.len(), 5, "deux ordres rendent la même suite");
+
+    let mut services = paire_des_notes.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let notees: Vec<String> = [
+        "Un refrain qui monte, en ré",
+        "Un pont en mi mineur",
+        "Une coda qui ralentit",
+    ]
+    .into_iter()
+    .map(|texte| {
+        services
+            .noter(&une_note(texte), &mut contexte)
+            .expect("la note est faite")
+            .idee
+    })
+    .collect();
+    let pont = Boite {
+        requete: Requete {
+            texte: "pont".to_string(),
+            ..Requete::default()
+        },
+        ..toute_la_boite()
+    };
+    let vue = services.boite(&pont).expect("la boîte se lit");
+    assert_eq!(idees_des_lignes(&vue.lignes), vec![notees[1].clone()]);
+    assert_eq!(vue.retenues, 1);
+    assert_eq!(
+        vue.sans,
+        Sans {
+            etiquette: None,
+            duree: None,
+            texte: Some(0),
+        }
+    );
+    assert_eq!(vue.etiquettes_du_fonds, Vec::<String>::new());
 }

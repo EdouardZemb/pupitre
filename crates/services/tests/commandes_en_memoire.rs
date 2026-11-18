@@ -1,7 +1,7 @@
 //! La suite des commandes sur la paire d'adaptateurs en mémoire : chaque test de la suite,
 //! rejoué sur `DocumentsEnMemoire` et `CaptationsEnMemoire` ; puis, sur cette paire seule, les
-//! services du carnet, une idée illisible dans l'assiette de la boîte, le filtre des photos et le
-//! générateur du fonds de mesure.
+//! services du carnet, une idée illisible dans l'assiette de la boîte, la requête des photos et
+//! le générateur du fonds de mesure.
 
 mod suite;
 
@@ -269,14 +269,14 @@ fn les_retirees_se_rangent_par_la_date_du_retrait() {
 }
 
 #[test]
-fn le_filtre_et_l_ordre_passent_au_noyau() {
-    suite::le_filtre_et_l_ordre_passent_au_noyau(&mut PaireEnMemoire);
+fn la_requete_passe_au_noyau() {
+    suite::la_requete_passe_au_noyau(&mut PaireEnMemoire, &mut PaireEnMemoire);
 }
 
 /// Un document écrit par le test, dont le conteneur `photos` porte une clé `<empreinte>/idee`
 /// qui nomme `SECONDE_IDEE` (`suite::un_document_dont_une_idee_porte_une_photo`), rouvert en
-/// mémoire : le filtre « photo » ne retient que cette idée, et la boîte compte toujours ses deux
-/// idées non reliées.
+/// mémoire : la requête du contenu « photo » ne trouve que cette idée, et la boîte compte toujours
+/// ses deux idées non reliées.
 #[test]
 fn le_filtre_photo_lit_le_conteneur_des_photos() {
     let documents =
@@ -288,7 +288,10 @@ fn le_filtre_photo_lit_le_conteneur_des_photos() {
         gestes::Appareil::Etabli,
     );
     let photo = commandes::Boite {
-        filtre: Some(commandes::Contenu::Photo),
+        requete: commandes::Requete {
+            contenu: Some(commandes::Contenu::Photo),
+            ..commandes::Requete::default()
+        },
         ..suite::toute_la_boite()
     };
     let vue = services.boite(&photo).expect("la boîte se lit");
@@ -305,8 +308,8 @@ fn le_filtre_photo_lit_le_conteneur_des_photos() {
 
 /// Un document écrit par le test, dont l'idée `SECONDE_IDEE` porte sa date en texte
 /// (`suite::un_document_dont_une_idee_est_illisible`), rouvert en mémoire : la boîte ne montre que
-/// l'idée qui se lit, et son assiette compte l'autre parmi les considérées, non parmi celles qui
-/// portent la donnée ; le texte du compte la dit illisible.
+/// l'idée qui se lit, et son assiette compte l'autre parmi les considérées et parmi les
+/// illisibles, non parmi celles qui portent la donnée ; le texte du compte la dit illisible.
 #[test]
 fn une_idee_illisible_compte_a_part_dans_l_assiette() {
     let documents = DocumentsEnMemoire::de(&suite::un_document_dont_une_idee_est_illisible(), &[])
@@ -327,6 +330,7 @@ fn une_idee_illisible_compte_a_part_dans_l_assiette() {
             considerees: 2,
             portant: 1,
             decidees: 1,
+            illisibles: 1,
         }
     );
     assert_eq!(

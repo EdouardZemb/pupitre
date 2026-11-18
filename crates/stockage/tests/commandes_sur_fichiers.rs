@@ -357,9 +357,15 @@ fn les_retirees_se_rangent_par_la_date_du_retrait() {
 }
 
 #[test]
-fn le_filtre_et_l_ordre_passent_au_noyau() {
-    let racine = racine_jetable("commandes-filtre-et-ordre");
-    suite::le_filtre_et_l_ordre_passent_au_noyau(&mut PaireSurFichiers { racine: &racine });
+fn la_requete_passe_au_noyau() {
+    let racine = racine_jetable("commandes-requete");
+    let racine_des_notes = racine_jetable("commandes-requete-des-notes");
+    suite::la_requete_passe_au_noyau(
+        &mut PaireSurFichiers { racine: &racine },
+        &mut PaireSurFichiers {
+            racine: &racine_des_notes,
+        },
+    );
 }
 
 #[test]

@@ -6,10 +6,11 @@ use std::collections::BTreeSet;
 use std::fmt::Debug;
 
 use commandes::{
-    Appareil, Assiette, BOITE, Boite, Captation, Completer, Contenu, ENTIER_SUR, ETAT_DU_FONDS,
-    EntreeDuJournal, EtatDuFonds, Etiqueter, FENETRE_MAX, Faite, Fenetre, LigneDeLaBoite, NOMS,
-    Notee, Noter, Ordre, Provenance, RETIREES, Raison, Refus, Regrouper, Relier, Reponse, Sorte,
-    Viser, VueDUneIdee, VueDeLaBoite, VueDesRetirees,
+    Appareil, Assiette, BOITE, Boite, Bornes, Captation, Completer, Contenu, ENTIER_SUR,
+    ETAT_DU_FONDS, EntreeDuJournal, Etat, EtatDuFonds, Etiqueter, FENETRE_MAX, Faite, Fenetre,
+    Jour, LigneDeLaBoite, NOMS, Notee, Noter, Ordre, Provenance, ProvenanceDeLIdee, RETIREES,
+    Raison, Refus, Regrouper, Relier, Reponse, Requete, Sans, Sorte, Viser, VueDUneIdee,
+    VueDeLaBoite, VueDesRetirees,
 };
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -82,12 +83,35 @@ fn ligne(le: i64, duree_ms: Option<u64>, retiree: Option<i64>) -> LigneDeLaBoite
     }
 }
 
-/// Une assiette dont chaque compte vaut `n`.
+/// Une assiette dont chaque compte vaut `n`, ses illisibles comprises.
 fn assiette(n: u64) -> Assiette {
     Assiette {
         considerees: n,
         portant: n,
         decidees: n,
+        illisibles: n,
+    }
+}
+
+/// Une requête dont chaque critère est posé.
+fn requete_entiere() -> Requete {
+    Requete {
+        texte: "Église du port".to_string(),
+        du: Some(Jour {
+            annee: 2026,
+            mois: 10,
+            jour: 1,
+        }),
+        au: Some(Jour {
+            annee: 2026,
+            mois: 10,
+            jour: 31,
+        }),
+        etiquette: Some("à finir".to_string()),
+        plus_de_secondes: Some(60),
+        etat: Some(Etat::NonReliee),
+        provenance: Some(ProvenanceDeLIdee::Importee),
+        contenu: Some(Contenu::Prise),
     }
 }
 
@@ -205,15 +229,42 @@ fn chaque_type_fait_l_aller_retour_par_serde_json() {
     ] {
         aller_retour(contenu);
     }
+    aller_retour(Jour {
+        annee: 2026,
+        mois: 2,
+        jour: 28,
+    });
+    let bornes = Bornes {
+        des: Some(HEURE),
+        avant: Some(HEURE + 86_400),
+    };
+    aller_retour(bornes.clone());
+    aller_retour(Bornes::default());
+    for etat in [Etat::Reliee, Etat::NonReliee] {
+        aller_retour(etat);
+    }
+    for provenance in [ProvenanceDeLIdee::Captee, ProvenanceDeLIdee::Importee] {
+        aller_retour(provenance);
+    }
+    aller_retour(requete_entiere());
+    aller_retour(Requete::default());
+    aller_retour(Sans {
+        etiquette: Some(1),
+        duree: Some(0),
+        texte: Some(2),
+    });
+    aller_retour(Sans::default());
     aller_retour(Boite {
         ordre: Ordre::Duree,
-        filtre: Some(Contenu::Prise),
+        requete: requete_entiere(),
+        bornes,
         debut: 40,
         nombre: 20,
     });
     aller_retour(Boite {
         ordre: Ordre::Date,
-        filtre: None,
+        requete: Requete::default(),
+        bornes: Bornes::default(),
         debut: 0,
         nombre: FENETRE_MAX,
     });
@@ -225,6 +276,7 @@ fn chaque_type_fait_l_aller_retour_par_serde_json() {
         considerees: 3,
         portant: 2,
         decidees: 2,
+        illisibles: 1,
     });
     aller_retour(ligne(HEURE, Some(42_000), None));
     aller_retour(LigneDeLaBoite {
@@ -240,7 +292,13 @@ fn chaque_type_fait_l_aller_retour_par_serde_json() {
         non_reliees: 1,
         assiette_du_compte: assiette(2),
         retenues: 2,
-        assiette_du_filtre: assiette(2),
+        assiette_de_la_requete: assiette(2),
+        sans: Sans {
+            etiquette: None,
+            duree: Some(1),
+            texte: Some(0),
+        },
+        etiquettes_du_fonds: vec!["refrain".to_string(), "à finir".to_string()],
         lignes: vec![ligne(HEURE, Some(42_000), None)],
     });
     aller_retour(VueDesRetirees {
@@ -360,15 +418,24 @@ fn les_entiers_d_une_reponse_restent_sous_2_puissance_53() {
         non_reliees: compte,
         assiette_du_compte: assiette(compte),
         retenues: compte,
-        assiette_du_filtre: assiette(compte),
+        assiette_de_la_requete: assiette(compte),
+        sans: Sans {
+            etiquette: Some(compte),
+            duree: Some(compte),
+            texte: Some(compte),
+        },
+        etiquettes_du_fonds: vec!["refrain".to_string()],
         lignes: vec![la_ligne.clone()],
     });
     assert_eq!(entier_sur(&json["non_reliees"]), 200);
     assert_eq!(entier_sur(&json["retenues"]), 200);
-    for cle in ["assiette_du_compte", "assiette_du_filtre"] {
-        for champ in ["considerees", "portant", "decidees"] {
+    for cle in ["assiette_du_compte", "assiette_de_la_requete"] {
+        for champ in ["considerees", "portant", "decidees", "illisibles"] {
             assert_eq!(entier_sur(&json[cle][champ]), 200, "{cle}.{champ}");
         }
+    }
+    for part in ["etiquette", "duree", "texte"] {
+        assert_eq!(entier_sur(&json["sans"][part]), 200, "sans.{part}");
     }
     assert_eq!(entier_sur(&json["lignes"][0]["le"]), 4_102_444_800);
     assert_eq!(entier_sur(&json["lignes"][0]["duree_ms"]), 86_400_000);
