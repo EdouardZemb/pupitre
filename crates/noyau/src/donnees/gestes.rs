@@ -180,6 +180,17 @@ pub enum Impossible {
     DureeTropLongue { duree_ms: u64 },
     /// Un MIDI versé ou un texte versé capté : il n'entre que par l'import (§ 30 · 8.1).
     HorsDeLImport,
+    /// Le nom d'une requête enregistrée est vide, une fois ses blancs ôtés.
+    NomVide,
+    /// Le nouveau nom d'une requête enregistrée est déjà le sien : le geste serait sans effet.
+    MemeNom,
+    /// La requête à enregistrer n'a aucun critère.
+    RequeteSansCritere,
+    /// Aucune requête enregistrée ne porte l'identifiant `requete`. Le message ne le nomme pas.
+    RequeteAbsente { requete: String },
+    /// Un seuil de `secondes` secondes, au-delà d'`ENTIER_SUR` : l'interface ne le relirait pas à
+    /// l'identique.
+    SeuilTropLong { secondes: u64 },
 }
 
 impl fmt::Display for Impossible {
@@ -216,6 +227,13 @@ impl fmt::Display for Impossible {
             Impossible::HorsDeLImport => {
                 f.write_str("Un MIDI versé ou un texte versé n'entre que par l'import.")
             }
+            Impossible::NomVide => f.write_str("Le nom est vide."),
+            Impossible::MemeNom => f.write_str("Le nom est déjà celui-ci."),
+            Impossible::RequeteSansCritere => f.write_str("La requête n'a aucun critère."),
+            Impossible::RequeteAbsente { .. } => {
+                f.write_str("Aucune requête enregistrée ne porte cet identifiant.")
+            }
+            Impossible::SeuilTropLong { .. } => f.write_str("Ce seuil de durée est trop long."),
         }
     }
 }
@@ -280,18 +298,18 @@ pub fn date_du_message(heure: i64, decalage_minutes: i32) -> String {
     }
 }
 
-fn chemin(segments: &[&str]) -> Vec<String> {
+pub(crate) fn chemin(segments: &[&str]) -> Vec<String> {
     segments.iter().map(|segment| segment.to_string()).collect()
 }
 
-fn poser(segments: &[&str], valeur: Simple) -> Changement {
+pub(crate) fn poser(segments: &[&str], valeur: Simple) -> Changement {
     Changement::Poser {
         chemin: chemin(segments),
         valeur,
     }
 }
 
-fn oter(segments: &[&str]) -> Changement {
+pub(crate) fn oter(segments: &[&str]) -> Changement {
     Changement::Oter {
         chemin: chemin(segments),
     }

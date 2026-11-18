@@ -2,9 +2,17 @@
 //! CAP-06). Rien ici ne lit l'horloge : le décalage local se reçoit, pour un instant. Puis les
 //! critères d'une requête, et le texte de sa réponse (question 7).
 
+use std::collections::BTreeMap;
+
 use super::boite::{Contenu, accorde};
+use super::changement::{Changement, Operation, Simple};
+use super::fonds::{
+    AU, CAPTEE, CONTENU, DU, ETAT, ETIQUETTE, IMPORTEE, NOM, PLUS_DE_SECONDES, PROVENANCE,
+    REQUETES_ENREGISTREES, TEXTE,
+};
+use super::gestes::{ENTIER_SUR, Impossible, chemin, oter, poser};
 use super::idee::Assiette;
-use super::repli::mots;
+use super::repli::{mots, replier};
 
 /// Un jour civil (question 9) : l'année, le mois de 1 à 12, le jour de 1 à 31.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -211,4 +219,224 @@ pub fn texte_de_la_reponse(
     }
     parts.push(accorde(assiette.considerees, "interrogée", "interrogées"));
     parts.join(" · ")
+}
+
+/// Les deux valeurs d'un état dans le document, `reliee` et `non_reliee` : la seule
+/// correspondance, que l'enregistrement et la lecture partagent.
+const ETATS: [(Etat, &str); 2] = [(Etat::Reliee, "reliee"), (Etat::NonReliee, "non_reliee")];
+
+/// Les deux valeurs d'une provenance dans le document : celles d'une idée (`CAPTEE`, `IMPORTEE`).
+const PROVENANCES: [(ProvenanceDeLIdee, &str); 2] = [
+    (ProvenanceDeLIdee::Captee, CAPTEE),
+    (ProvenanceDeLIdee::Importee, IMPORTEE),
+];
+
+/// Les cinq valeurs d'un contenu dans le document.
+const CONTENUS: [(Contenu, &str); 5] = [
+    (Contenu::TexteDeLIdee, "texte_de_l_idee"),
+    (Contenu::Prise, "prise"),
+    (Contenu::Photo, "photo"),
+    (Contenu::MidiVerse, "midi_verse"),
+    (Contenu::TexteVerse, "texte_verse"),
+];
+
+/// La chaîne que le document range pour `valeur`, d'après `table`.
+fn chaine_de<T: Copy + PartialEq>(table: &[(T, &'static str)], valeur: T) -> Option<&'static str> {
+    table
+        .iter()
+        .find(|(candidate, _)| *candidate == valeur)
+        .map(|(_, chaine)| *chaine)
+}
+
+/// La valeur que `chaine` désigne, d'après `table` ; une chaîne inconnue, `None`.
+fn valeur_de<T: Copy>(table: &[(T, &'static str)], chaine: &str) -> Option<T> {
+    table
+        .iter()
+        .find(|(_, candidate)| *candidate == chaine)
+        .map(|(valeur, _)| *valeur)
+}
+
+/// Les clés que pose une requête, une par critère posé, dans l'ordre : le texte (s'il a un mot),
+/// `du`, `au`, `etiquette`, `plus_de_secondes`, `etat`, `provenance`, `contenu`. La seule
+/// correspondance des critères et des clés pour l'écriture ; `requete_des_champs` est son inverse.
+fn cles_de(requete: &Requete) -> Vec<(&'static str, Simple)> {
+    let mut cles = Vec::new();
+    if !mots(&requete.texte).is_empty() {
+        cles.push((TEXTE, Simple::Chaine(requete.texte.clone())));
+    }
+    if let Some(du) = requete.du {
+        cles.push((DU, Simple::Chaine(du.en_iso())));
+    }
+    if let Some(au) = requete.au {
+        cles.push((AU, Simple::Chaine(au.en_iso())));
+    }
+    if let Some(etiquette) = &requete.etiquette {
+        cles.push((ETIQUETTE, Simple::Chaine(etiquette.clone())));
+    }
+    if let Some(secondes) = requete.plus_de_secondes {
+        cles.push((PLUS_DE_SECONDES, Simple::Naturel(secondes)));
+    }
+    if let Some(chaine) = requete.etat.and_then(|etat| chaine_de(&ETATS, etat)) {
+        cles.push((ETAT, Simple::Chaine(chaine.to_string())));
+    }
+    if let Some(chaine) = requete
+        .provenance
+        .and_then(|provenance| chaine_de(&PROVENANCES, provenance))
+    {
+        cles.push((PROVENANCE, Simple::Chaine(chaine.to_string())));
+    }
+    if let Some(chaine) = requete
+        .contenu
+        .and_then(|contenu| chaine_de(&CONTENUS, contenu))
+    {
+        cles.push((CONTENU, Simple::Chaine(chaine.to_string())));
+    }
+    cles
+}
+
+/// La requête que disent les clés d'une requête enregistrée, hors `nom` ; une clé inconnue, une
+/// valeur inconnue ou d'un autre type, un jour qui ne se lit pas ou un seuil au-delà d'`ENTIER_SUR` :
+/// `None`.
+fn requete_des_champs(champs: &BTreeMap<String, Option<Simple>>) -> Option<Requete> {
+    let mut requete = Requete::default();
+    for (cle, valeur) in champs {
+        if cle == NOM {
+            continue;
+        }
+        let valeur = valeur.as_ref()?;
+        match (cle.as_str(), valeur) {
+            (TEXTE, Simple::Chaine(texte)) => requete.texte = texte.clone(),
+            (DU, Simple::Chaine(jour)) => requete.du = Some(Jour::depuis_iso(jour)?),
+            (AU, Simple::Chaine(jour)) => requete.au = Some(Jour::depuis_iso(jour)?),
+            (ETIQUETTE, Simple::Chaine(etiquette)) => requete.etiquette = Some(etiquette.clone()),
+            (PLUS_DE_SECONDES, Simple::Naturel(secondes)) if *secondes <= ENTIER_SUR => {
+                requete.plus_de_secondes = Some(*secondes);
+            }
+            (ETAT, Simple::Chaine(chaine)) => requete.etat = Some(valeur_de(&ETATS, chaine)?),
+            (PROVENANCE, Simple::Chaine(chaine)) => {
+                requete.provenance = Some(valeur_de(&PROVENANCES, chaine)?);
+            }
+            (CONTENU, Simple::Chaine(chaine)) => {
+                requete.contenu = Some(valeur_de(&CONTENUS, chaine)?);
+            }
+            _ => return None,
+        }
+    }
+    Some(requete)
+}
+
+/// Une requête enregistrée, lue : son ULID, son nom, et sa requête, `None` si elle porte une clé ou
+/// une valeur que cette version ne connaît pas (question 17).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RequeteEnregistreeLue {
+    /// Son identifiant, un ULID.
+    pub id: String,
+    /// Son nom.
+    pub nom: String,
+    /// Sa requête, si cette version la comprend.
+    pub requete: Option<Requete>,
+}
+
+/// Enregistrer : un objet créé sous `requetes_enregistrees/<id>` (`Changement::Creer`, sans
+/// conteneur), son nom (sans ses blancs autour) et une clé par critère posé, dans la même
+/// opération ; le texte n'est posé que s'il a un mot. Message : « Requête « <nom> » enregistrée ».
+/// Un nom vide : `NomVide` ; aucun critère : `RequeteSansCritere` ; un seuil au-delà d'`ENTIER_SUR` :
+/// `SeuilTropLong`.
+pub fn enregistrer_une_requete(
+    id: &str,
+    nom: &str,
+    requete: &Requete,
+    heure: i64,
+) -> Result<Operation, Impossible> {
+    let nom = nom.trim();
+    if nom.is_empty() {
+        return Err(Impossible::NomVide);
+    }
+    if requete.est_vide() {
+        return Err(Impossible::RequeteSansCritere);
+    }
+    if let Some(secondes) = requete.plus_de_secondes.filter(|&s| s > ENTIER_SUR) {
+        return Err(Impossible::SeuilTropLong { secondes });
+    }
+    let mut changements = vec![
+        Changement::Creer {
+            chemin: chemin(&[REQUETES_ENREGISTREES, id]),
+            conteneurs: Vec::new(),
+        },
+        poser(
+            &[REQUETES_ENREGISTREES, id, NOM],
+            Simple::Chaine(nom.to_string()),
+        ),
+    ];
+    changements.extend(
+        cles_de(requete)
+            .into_iter()
+            .map(|(cle, valeur)| poser(&[REQUETES_ENREGISTREES, id, cle], valeur)),
+    );
+    Ok(Operation {
+        changements,
+        message: format!("Requête « {nom} » enregistrée"),
+        heure,
+    })
+}
+
+/// Renommer : le nom posé de nouveau. Message : « Requête « <ancien> » renommée « <nouveau> » ». Un
+/// nom vide : `NomVide` ; le même : `MemeNom`.
+pub fn renommer_une_requete(
+    lue: &RequeteEnregistreeLue,
+    nom: &str,
+    heure: i64,
+) -> Result<Operation, Impossible> {
+    let nom = nom.trim();
+    if nom.is_empty() {
+        return Err(Impossible::NomVide);
+    }
+    if nom == lue.nom {
+        return Err(Impossible::MemeNom);
+    }
+    Ok(Operation {
+        changements: vec![poser(
+            &[REQUETES_ENREGISTREES, &lue.id, NOM],
+            Simple::Chaine(nom.to_string()),
+        )],
+        message: format!("Requête « {} » renommée « {nom} »", lue.nom),
+        heure,
+    })
+}
+
+/// Supprimer : l'objet ôté d'un bloc. Message : « Requête « <nom> » supprimée ».
+pub fn supprimer_une_requete(lue: &RequeteEnregistreeLue, heure: i64) -> Operation {
+    Operation {
+        changements: vec![oter(&[REQUETES_ENREGISTREES, &lue.id])],
+        message: format!("Requête « {} » supprimée", lue.nom),
+        heure,
+    }
+}
+
+/// La requête enregistrée `id`, de ses clés : `champs` donne, de chaque clé de son objet, sa valeur
+/// simple, ou `None` pour une valeur d'un autre type. Sans `nom` en chaîne : `None` (elle ne se
+/// liste pas). Une clé inconnue, une valeur inconnue ou d'un autre type, un jour qui ne se lit pas,
+/// un seuil au-delà d'`ENTIER_SUR` : la requête est `None`, le nom gardé.
+pub fn lire_une_requete(
+    id: &str,
+    champs: &BTreeMap<String, Option<Simple>>,
+) -> Option<RequeteEnregistreeLue> {
+    let Some(Some(Simple::Chaine(nom))) = champs.get(NOM) else {
+        return None;
+    };
+    Some(RequeteEnregistreeLue {
+        id: id.to_string(),
+        nom: nom.clone(),
+        requete: requete_des_champs(champs),
+    })
+}
+
+/// Range les requêtes par nom replié, puis par nom, octet pour octet, puis par ULID (question 18).
+pub fn ranger_les_requetes(requetes: &mut [RequeteEnregistreeLue]) {
+    requetes.sort_by(|a, b| {
+        replier(&a.nom)
+            .cmp(&replier(&b.nom))
+            .then_with(|| a.nom.cmp(&b.nom))
+            .then_with(|| a.id.cmp(&b.id))
+    });
 }

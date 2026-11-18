@@ -77,6 +77,22 @@ pub const RETIREE: &str = "retiree";
 pub const CAPTEE: &str = "captee";
 /// La valeur de `provenance` d'une idée née d'un fichier versé.
 pub const IMPORTEE: &str = "importee";
+/// D'une requête enregistrée, sous `requetes_enregistrees/<ULID>` : son nom, une chaîne.
+pub const NOM: &str = "nom";
+/// D'une requête enregistrée : le premier jour de sa période, « AAAA-MM-JJ », une chaîne.
+pub const DU: &str = "du";
+/// D'une requête enregistrée : le dernier jour de sa période, « AAAA-MM-JJ », une chaîne.
+pub const AU: &str = "au";
+/// D'une requête enregistrée : l'étiquette cherchée, une chaîne.
+pub const ETIQUETTE: &str = "etiquette";
+/// D'une requête enregistrée : le seuil de la durée affichée, en secondes entières, un entier non
+/// signé.
+pub const PLUS_DE_SECONDES: &str = "plus_de_secondes";
+/// D'une requête enregistrée : l'état cherché, `reliee` ou `non_reliee`, une chaîne.
+pub const ETAT: &str = "etat";
+/// D'une requête enregistrée : le contenu cherché, `texte_de_l_idee`, `prise`, `photo`,
+/// `midi_verse` ou `texte_verse`, une chaîne.
+pub const CONTENU: &str = "contenu";
 /// D'une captation, sous `<empreinte>/idee` : l'identifiant de son idée, une chaîne.
 pub const IDEE: &str = "idee";
 /// D'une captation, sous `<empreinte>/format` : son format, une chaîne.
