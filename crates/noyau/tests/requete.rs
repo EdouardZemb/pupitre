@@ -1,9 +1,11 @@
-//! Les jours civils et les bornes d'une période (question 9), et le texte de la réponse d'une
-//! requête (question 7) ; CAP-06.
+//! Les jours civils et les bornes d'une période (question 9), la requête sans critère, et le texte
+//! de la réponse d'une requête (question 7) ; CAP-06.
 
+use noyau::donnees::boite::Contenu;
 use noyau::donnees::idee::Assiette;
 use noyau::donnees::requete::{
-    Bornes, Jour, Sans, bornes_de_la_periode, debut_du_jour, texte_de_la_reponse,
+    Bornes, Etat, Jour, ProvenanceDeLIdee, Requete, Sans, bornes_de_la_periode, debut_du_jour,
+    texte_de_la_reponse,
 };
 
 fn j(texte: &str) -> Jour {
@@ -289,4 +291,49 @@ fn le_texte_de_la_reponse_ordonne_ses_parts_et_s_accorde() {
         ),
         "2 idées · 2 illisibles · 5 interrogées"
     );
+}
+
+#[test]
+fn chaque_critere_pose_seul_rend_la_requete_non_vide() {
+    // Un critère, un seul, posé sur la requête par défaut : un mot, un jour de début, un jour de
+    // fin, une étiquette, un seuil, un état, une provenance, un contenu.
+    let jour = Jour::depuis_iso("2026-10-25");
+    let seuls = [
+        Requete {
+            texte: "eglise".to_string(),
+            ..Requete::default()
+        },
+        Requete {
+            du: jour,
+            ..Requete::default()
+        },
+        Requete {
+            au: jour,
+            ..Requete::default()
+        },
+        Requete {
+            etiquette: Some("pont".to_string()),
+            ..Requete::default()
+        },
+        Requete {
+            plus_de_secondes: Some(60),
+            ..Requete::default()
+        },
+        Requete {
+            etat: Some(Etat::NonReliee),
+            ..Requete::default()
+        },
+        Requete {
+            provenance: Some(ProvenanceDeLIdee::Captee),
+            ..Requete::default()
+        },
+        Requete {
+            contenu: Some(Contenu::Prise),
+            ..Requete::default()
+        },
+    ];
+    for requete in seuls {
+        assert!(!requete.est_vide(), "{requete:?}");
+    }
+    assert!(Requete::default().est_vide());
 }

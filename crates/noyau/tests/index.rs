@@ -585,3 +585,87 @@ fn sans_critere_l_index_rend_la_boite() {
         }
     );
 }
+
+#[test]
+fn une_idee_aux_etiquettes_multiples_est_trouvee_par_chacune() {
+    // 81 aube et pont ; 82 pont et zinc ; 83 aube ; 84, aucune. Une comparaison à la seule plus
+    // petite étiquette (ou à la seule plus grande) perdrait 81 (ou 82) pour « pont ».
+    let jeu = || {
+        vec![
+            avec_etiquettes(idee(81), &["aube", "pont"]),
+            avec_etiquettes(idee(82), &["pont", "zinc"]),
+            avec_etiquettes(idee(83), &["aube"]),
+            idee(84),
+        ]
+    };
+    let etiquette = |e: &str| Requete {
+        etiquette: Some(e.to_string()),
+        ..Requete::default()
+    };
+    assert_eq!(
+        reponse(jeu(), 0, &etiquette("pont")),
+        (
+            "2 idées · 1 sans étiquette · 4 interrogées".to_string(),
+            ids(["82", "81"])
+        )
+    );
+    assert_eq!(
+        reponse(jeu(), 0, &etiquette("aube")),
+        (
+            "2 idées · 1 sans étiquette · 4 interrogées".to_string(),
+            ids(["83", "81"])
+        )
+    );
+    assert_eq!(
+        reponse(jeu(), 0, &etiquette("zinc")),
+        (
+            "1 idée · 1 sans étiquette · 4 interrogées".to_string(),
+            ids(["82"])
+        )
+    );
+    assert_eq!(
+        Index::construire(jeu(), 0).etiquettes(),
+        ["aube", "pont", "zinc"]
+    );
+}
+
+#[test]
+fn une_part_sans_ne_compte_que_les_idees_qui_satisfont_les_criteres_toujours_portes() {
+    // 91 importée, sans durée ; 92 captée, sans durée ; 93 importée, 90 s ; 94 captée, 90 s. La
+    // provenance, toujours portée, écarte 92 de la part « sans durée », et 94 des trouvées.
+    let jeu = || {
+        vec![
+            importee(idee(91)),
+            idee(92),
+            importee(avec_prises(idee(93), &[Some(90_000)])),
+            avec_prises(idee(94), &[Some(90_000)]),
+        ]
+    };
+    let requete = Requete {
+        provenance: Some(ProvenanceDeLIdee::Importee),
+        ..plus_d_une_minute()
+    };
+    let r = Index::construire(jeu(), 0).repondre(&requete, Bornes::default(), Ordre::Date);
+    assert_eq!(
+        r.sans,
+        Sans {
+            duree: Some(1),
+            ..Sans::default()
+        }
+    );
+    assert_eq!(
+        r.assiette,
+        Assiette {
+            considerees: 4,
+            portant: 2,
+            decidees: 2
+        }
+    );
+    assert_eq!(
+        reponse(jeu(), 0, &requete),
+        (
+            "1 idée · 1 sans durée · 4 interrogées".to_string(),
+            ids(["93"])
+        )
+    );
+}
