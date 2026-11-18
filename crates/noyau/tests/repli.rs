@@ -144,6 +144,16 @@ fn eglise_trouve_eglise_composee_ou_decomposee() {
     assert!(trouve(&replier("Eglise"), &mots("église")));
 }
 
+/// Les marques combinantes ôtées vont de U+0300 à U+036F, bornes comprises : U+02FF, juste avant,
+/// et U+0370, juste après (repliée en sa minuscule, U+0371), restent.
+#[test]
+fn les_marques_combinantes_s_otent_de_u0300_a_u036f_bornes_comprises() {
+    assert_eq!(replier("a\u{300}"), "a");
+    assert_eq!(replier("a\u{36f}"), "a");
+    assert_eq!(replier("a\u{2ff}"), "a\u{2ff}");
+    assert_eq!(replier("a\u{370}"), "a\u{371}");
+}
+
 #[test]
 fn oe_trouve_oe_lie_et_l_inverse() {
     assert!(trouve(&replier("cœur"), &mots("oe")));
