@@ -117,9 +117,9 @@ bibliothèque liée donne des erreurs moins lisibles), **restic** pour la sauveg
 racine (§ 5.6), un **serveur d'inférence ouvert** bâti sur llama.cpp pour l'IA locale,
 choisi au banc (H06), et **PyMuPDF**, dans l'analyseur, pour l'encre des PDF.
 
-**La recherche** est un index en mémoire sur chaque appareil, côté natif, sans base :
-SQLite et sa recherche plein texte restent surdimensionnés pour 2 000 idées et 300 morceaux,
-le fonds du critère 6 de
+**L'index de recherche**, que lit toute requête, vit en mémoire sur chaque appareil, côté
+natif, sans base : SQLite et sa recherche plein texte restent surdimensionnés pour 2 000 idées
+et 300 morceaux, le fonds du critère 6 de
 [CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds)
 ([§ 31 · 2](31-persistance-et-synchronisation.md#2-les-documents)).
 

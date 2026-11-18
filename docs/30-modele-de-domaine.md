@@ -23,7 +23,7 @@ classDiagram
     prises
     photos
     liens
-    requetes
+    requetes_enregistrees
   }
   class Idee {
     id
@@ -630,9 +630,14 @@ un MIDI versé ou un texte versé :
   croître, puisque verser le même contenu sous un autre nom y ajoute ce nom. Le premier vu,
   par date d'import, puis dans l'ordre de ses octets, s'affiche ; celui d'une prise en stems
   est le nom de son dossier. Ils sont
-  écrits dans le document du fonds, à côté de l'empreinte, pour ranger et chercher sans la
-  captation, qu'un appareil n'a pas toujours
-  ([§ 31 · 6.2](31-persistance-et-synchronisation.md#62-ce-quun-appareil-garde)). Tant qu'un
+  écrits dans le document du fonds, à côté de l'empreinte, pour les montrer et les ranger
+  sans la captation, qu'un appareil n'a pas toujours
+  ([§ 31 · 6.2](31-persistance-et-synchronisation.md#62-ce-quun-appareil-garde)). Une
+  requête ne cherche ni par leur format, ni par leur date, ni par leur appareil, ni par
+  leurs noms d'origine ; la durée d'une prise n'y entre que par celle de l'idée qui la
+  contient, que juge son critère de durée
+  ([CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds)). Chercher par
+  le nom d'origine reste une piste ([pistes](pistes.md)). Tant qu'un
   fait n'est pas lu, il vaut `—` ([ADR-006](adr/adr-006-le-partiel-est-normal.md)) ;
 - le **diapason** d'une prise est une mesure : proposé, puis décidé d'un geste (§ 4.3).
 
@@ -709,7 +714,12 @@ lu par aucun diagnostic ([ADR-006](adr/adr-006-le-partiel-est-normal.md)).
   ([CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées)) et son
   annulation, chaque requête enregistrée, renommée ou supprimée
   ([CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds)), et les
-  réparations faites au démarrage. Il se lit dans l'historique du
+  réparations faites au démarrage. Une requête enregistrée s'y nomme par son nom, jamais par
+  son identifiant, en trois messages : « Requête « Ponts lents » enregistrée », « Requête
+  « Ponts lents » renommée « Ponts du soir » », « Requête « Ponts du soir » supprimée ». Son
+  nom, libre, tel qu'il s'est enregistré, sans ses blancs autour, se dit entre guillemets ;
+  c'est la seule part libre de ces messages, et celui d'un renommage finit par le nouveau
+  nom. Le journal du fonds se lit dans l'historique du
   document : rien n'est rédigé ni stocké à part, et la compaction n'en retire rien
   ([ADR-023](adr/adr-023-stockage-des-documents.md)). Le fonds n'a ni décisions ni
   questions : elles vivent par morceau et par album.

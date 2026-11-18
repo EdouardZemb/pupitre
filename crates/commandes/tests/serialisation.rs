@@ -6,10 +6,13 @@ use std::collections::BTreeSet;
 use std::fmt::Debug;
 
 use commandes::{
-    Appareil, Assiette, BOITE, Boite, Captation, Completer, Contenu, ENTIER_SUR, ETAT_DU_FONDS,
-    EntreeDuJournal, EtatDuFonds, Etiqueter, FENETRE_MAX, Faite, Fenetre, LigneDeLaBoite, NOMS,
-    Notee, Noter, Ordre, Provenance, RETIREES, Raison, Refus, Regrouper, Relier, Reponse, Sorte,
-    Viser, VueDUneIdee, VueDeLaBoite, VueDesRetirees,
+    Appareil, Assiette, BOITE, Boite, Bornes, Captation, Completer, Contenu,
+    ENREGISTRER_UNE_REQUETE, ENTIER_SUR, ETAT_DU_FONDS, EXPORTER_CAHIER, Enregistrer,
+    EntreeDuJournal, Etat, EtatDuFonds, Etiqueter, FENETRE_MAX, Faite, Fenetre, Jour,
+    LigneDeLaBoite, NOMS, Notee, Noter, Ordre, Provenance, ProvenanceDeLIdee, RENOMMER_UNE_REQUETE,
+    REQUETES_ENREGISTREES, RETIREES, Raison, Refus, Regrouper, Relier, Renommer, Reponse, Requete,
+    RequeteEnregistree, SUPPRIMER_UNE_REQUETE, Sans, Sorte, Supprimer, Viser, VueDUneIdee,
+    VueDeLaBoite, VueDesRetirees, VueDuJournal,
 };
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -82,12 +85,35 @@ fn ligne(le: i64, duree_ms: Option<u64>, retiree: Option<i64>) -> LigneDeLaBoite
     }
 }
 
-/// Une assiette dont chaque compte vaut `n`.
+/// Une assiette dont chaque compte vaut `n`, ses illisibles comprises.
 fn assiette(n: u64) -> Assiette {
     Assiette {
         considerees: n,
         portant: n,
         decidees: n,
+        illisibles: n,
+    }
+}
+
+/// Une requête dont chaque critère est posé.
+fn requete_entiere() -> Requete {
+    Requete {
+        texte: "Église du port".to_string(),
+        du: Some(Jour {
+            annee: 2026,
+            mois: 10,
+            jour: 1,
+        }),
+        au: Some(Jour {
+            annee: 2026,
+            mois: 10,
+            jour: 31,
+        }),
+        etiquette: Some("à finir".to_string()),
+        plus_de_secondes: Some(60),
+        etat: Some(Etat::NonReliee),
+        provenance: Some(ProvenanceDeLIdee::Importee),
+        contenu: Some(Contenu::Prise),
     }
 }
 
@@ -110,7 +136,8 @@ fn chaque_type_fait_l_aller_retour_par_serde_json() {
     aller_retour(Relier {
         a: IDEE.to_string(),
         b: AUTRE_IDEE.to_string(),
-        decalage_minutes: 60,
+        decalage_minutes: 120,
+        decalage_b_minutes: 60,
     });
     for sorte in [Sorte::Prise, Sorte::MidiVerseSeul, Sorte::TexteVerse] {
         aller_retour(sorte);
@@ -126,6 +153,7 @@ fn chaque_type_fait_l_aller_retour_par_serde_json() {
         },
         cible: AUTRE_IDEE.to_string(),
         decalage_minutes: 120,
+        decalage_source_minutes: -300,
     });
     aller_retour(Viser {
         idee: IDEE.to_string(),
@@ -187,6 +215,25 @@ fn chaque_type_fait_l_aller_retour_par_serde_json() {
         message: "Idée du 14 novembre notée".to_string(),
         heure: HEURE,
     });
+    aller_retour(VueDuJournal {
+        total: 3,
+        empreinte: EMPREINTE.to_string(),
+        lignes: vec![
+            EntreeDuJournal {
+                message: "Idée du 14 novembre notée".to_string(),
+                heure: HEURE,
+            },
+            EntreeDuJournal {
+                message: "Genèse du fonds".to_string(),
+                heure: 0,
+            },
+        ],
+    });
+    aller_retour(VueDuJournal {
+        total: 0,
+        empreinte: AUTRE_EMPREINTE.to_string(),
+        lignes: Vec::new(),
+    });
     for ordre in [
         Ordre::Date,
         Ordre::Etiquette,
@@ -205,15 +252,42 @@ fn chaque_type_fait_l_aller_retour_par_serde_json() {
     ] {
         aller_retour(contenu);
     }
+    aller_retour(Jour {
+        annee: 2026,
+        mois: 2,
+        jour: 28,
+    });
+    let bornes = Bornes {
+        des: Some(HEURE),
+        avant: Some(HEURE + 86_400),
+    };
+    aller_retour(bornes.clone());
+    aller_retour(Bornes::default());
+    for etat in [Etat::Reliee, Etat::NonReliee] {
+        aller_retour(etat);
+    }
+    for provenance in [ProvenanceDeLIdee::Captee, ProvenanceDeLIdee::Importee] {
+        aller_retour(provenance);
+    }
+    aller_retour(requete_entiere());
+    aller_retour(Requete::default());
+    aller_retour(Sans {
+        etiquette: Some(1),
+        duree: Some(0),
+        texte: Some(2),
+    });
+    aller_retour(Sans::default());
     aller_retour(Boite {
         ordre: Ordre::Duree,
-        filtre: Some(Contenu::Prise),
+        requete: requete_entiere(),
+        bornes,
         debut: 40,
         nombre: 20,
     });
     aller_retour(Boite {
         ordre: Ordre::Date,
-        filtre: None,
+        requete: Requete::default(),
+        bornes: Bornes::default(),
         debut: 0,
         nombre: FENETRE_MAX,
     });
@@ -225,6 +299,7 @@ fn chaque_type_fait_l_aller_retour_par_serde_json() {
         considerees: 3,
         portant: 2,
         decidees: 2,
+        illisibles: 1,
     });
     aller_retour(ligne(HEURE, Some(42_000), None));
     aller_retour(LigneDeLaBoite {
@@ -240,7 +315,13 @@ fn chaque_type_fait_l_aller_retour_par_serde_json() {
         non_reliees: 1,
         assiette_du_compte: assiette(2),
         retenues: 2,
-        assiette_du_filtre: assiette(2),
+        assiette_de_la_requete: assiette(2),
+        sans: Sans {
+            etiquette: None,
+            duree: Some(1),
+            texte: Some(0),
+        },
+        etiquettes_du_fonds: vec!["refrain".to_string(), "à finir".to_string()],
         lignes: vec![ligne(HEURE, Some(42_000), None)],
     });
     aller_retour(VueDesRetirees {
@@ -258,6 +339,27 @@ fn chaque_type_fait_l_aller_retour_par_serde_json() {
         lecture_seule: Some(refus()),
         avertissements: vec!["Un avertissement inventé.".to_string()],
         a_annuler: Some("Idée du 14 novembre : étiquette #pont posée".to_string()),
+    });
+    aller_retour(RequeteEnregistree {
+        id: IDEE.to_string(),
+        nom: "Ponts lents".to_string(),
+        requete: Some(requete_entiere()),
+    });
+    aller_retour(RequeteEnregistree {
+        id: AUTRE_IDEE.to_string(),
+        nom: "Église".to_string(),
+        requete: None,
+    });
+    aller_retour(Enregistrer {
+        nom: "Ponts lents".to_string(),
+        requete: requete_entiere(),
+    });
+    aller_retour(Renommer {
+        requete: IDEE.to_string(),
+        nom: "Ponts du soir".to_string(),
+    });
+    aller_retour(Supprimer {
+        requete: IDEE.to_string(),
     });
 }
 
@@ -283,7 +385,7 @@ fn cap01_4_noter_ne_demande_aucun_titre() {
 
 #[test]
 fn les_noms_sont_uniques_et_en_snake_case() {
-    assert_eq!(NOMS.len(), 17);
+    assert_eq!(NOMS.len(), 21);
     assert_eq!(
         [BOITE, RETIREES, ETAT_DU_FONDS],
         ["boite", "retirees", "etat_du_fonds"]
@@ -291,6 +393,33 @@ fn les_noms_sont_uniques_et_en_snake_case() {
     for nom in [BOITE, RETIREES, ETAT_DU_FONDS] {
         assert!(NOMS.contains(&nom), "« {nom} » manque à {NOMS:?}");
     }
+    // Les quatre commandes des requêtes enregistrées, après `ETAT_DU_FONDS`, avant
+    // `EXPORTER_CAHIER`, dans cet ordre.
+    assert_eq!(
+        [
+            REQUETES_ENREGISTREES,
+            ENREGISTRER_UNE_REQUETE,
+            RENOMMER_UNE_REQUETE,
+            SUPPRIMER_UNE_REQUETE,
+        ],
+        [
+            "requetes_enregistrees",
+            "enregistrer_une_requete",
+            "renommer_une_requete",
+            "supprimer_une_requete",
+        ]
+    );
+    assert_eq!(
+        NOMS[15..],
+        [
+            ETAT_DU_FONDS,
+            REQUETES_ENREGISTREES,
+            ENREGISTRER_UNE_REQUETE,
+            RENOMMER_UNE_REQUETE,
+            SUPPRIMER_UNE_REQUETE,
+            EXPORTER_CAHIER,
+        ]
+    );
     let uniques: BTreeSet<&str> = NOMS.iter().copied().collect();
     assert_eq!(uniques.len(), NOMS.len(), "un nom en double dans {NOMS:?}");
     for nom in NOMS {
@@ -343,6 +472,19 @@ fn les_entiers_d_une_reponse_restent_sous_2_puissance_53() {
     });
     assert_eq!(entier_sur(&json["heure"]), 4_102_444_800);
 
+    // Le nombre d'entrées du journal à `FENETRE_MAX` : ce n'est pas sa borne, que donne le nombre
+    // des modifications du document, mais un entier de la même sorte, écrit de même.
+    let json = en_json(&VueDuJournal {
+        total: u64::from(FENETRE_MAX),
+        empreinte: EMPREINTE.to_string(),
+        lignes: vec![EntreeDuJournal {
+            message: "Idée du 1er janvier notée".to_string(),
+            heure: PREMIER_JANVIER_2100,
+        }],
+    });
+    assert_eq!(entier_sur(&json["total"]), 200);
+    assert_eq!(entier_sur(&json["lignes"][0]["heure"]), 4_102_444_800);
+
     let la_ligne = ligne(
         PREMIER_JANVIER_2100,
         Some(86_400_000),
@@ -360,15 +502,24 @@ fn les_entiers_d_une_reponse_restent_sous_2_puissance_53() {
         non_reliees: compte,
         assiette_du_compte: assiette(compte),
         retenues: compte,
-        assiette_du_filtre: assiette(compte),
+        assiette_de_la_requete: assiette(compte),
+        sans: Sans {
+            etiquette: Some(compte),
+            duree: Some(compte),
+            texte: Some(compte),
+        },
+        etiquettes_du_fonds: vec!["refrain".to_string()],
         lignes: vec![la_ligne.clone()],
     });
     assert_eq!(entier_sur(&json["non_reliees"]), 200);
     assert_eq!(entier_sur(&json["retenues"]), 200);
-    for cle in ["assiette_du_compte", "assiette_du_filtre"] {
-        for champ in ["considerees", "portant", "decidees"] {
+    for cle in ["assiette_du_compte", "assiette_de_la_requete"] {
+        for champ in ["considerees", "portant", "decidees", "illisibles"] {
             assert_eq!(entier_sur(&json[cle][champ]), 200, "{cle}.{champ}");
         }
+    }
+    for part in ["etiquette", "duree", "texte"] {
+        assert_eq!(entier_sur(&json["sans"][part]), 200, "sans.{part}");
     }
     assert_eq!(entier_sur(&json["lignes"][0]["le"]), 4_102_444_800);
     assert_eq!(entier_sur(&json["lignes"][0]["duree_ms"]), 86_400_000);

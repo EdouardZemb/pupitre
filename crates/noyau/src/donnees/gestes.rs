@@ -180,6 +180,17 @@ pub enum Impossible {
     DureeTropLongue { duree_ms: u64 },
     /// Un MIDI versé ou un texte versé capté : il n'entre que par l'import (§ 30 · 8.1).
     HorsDeLImport,
+    /// Le nom d'une requête enregistrée est vide, une fois ses blancs ôtés.
+    NomVide,
+    /// Le nouveau nom d'une requête enregistrée est déjà le sien : le geste serait sans effet.
+    MemeNom,
+    /// La requête à enregistrer n'a aucun critère.
+    RequeteSansCritere,
+    /// Aucune requête enregistrée ne porte l'identifiant `requete`. Le message ne le nomme pas.
+    RequeteAbsente { requete: String },
+    /// Un seuil de `secondes` secondes, au-delà d'`ENTIER_SUR` : l'interface ne le relirait pas à
+    /// l'identique.
+    SeuilTropLong { secondes: u64 },
 }
 
 impl fmt::Display for Impossible {
@@ -216,6 +227,13 @@ impl fmt::Display for Impossible {
             Impossible::HorsDeLImport => {
                 f.write_str("Un MIDI versé ou un texte versé n'entre que par l'import.")
             }
+            Impossible::NomVide => f.write_str("Le nom est vide."),
+            Impossible::MemeNom => f.write_str("Le nom est déjà celui-ci."),
+            Impossible::RequeteSansCritere => f.write_str("La requête n'a aucun critère."),
+            Impossible::RequeteAbsente { .. } => {
+                f.write_str("Aucune requête enregistrée ne porte cet identifiant.")
+            }
+            Impossible::SeuilTropLong { .. } => f.write_str("Ce seuil de durée est trop long."),
         }
     }
 }
@@ -238,10 +256,16 @@ const MOIS: [&str; 12] = [
     "décembre",
 ];
 
+/// `heure`, en secondes depuis 1970, à l'heure locale du décalage `decalage_minutes` : le jour que
+/// tire `date_civile` et l'heure du jour que tire `journal::heure_du_journal` en partent tous deux.
+pub(crate) fn heure_locale(heure: i64, decalage_minutes: i32) -> i64 {
+    heure + i64::from(decalage_minutes) * 60
+}
+
 /// (année, mois de 0 à 11 depuis janvier, jour) de `heure`, en secondes, au décalage local
 /// `decalage_minutes`.
 pub(crate) fn date_civile(heure: i64, decalage_minutes: i32) -> (i64, usize, i64) {
-    let jours = (heure + i64::from(decalage_minutes) * 60).div_euclid(86_400);
+    let jours = heure_locale(heure, decalage_minutes).div_euclid(86_400);
     // Le calcul civil inversé (« civil from days », H. Hinnant), sur des entiers, dans une ère
     // de 400 ans, 146 097 jours, qui commence un 1er mars (celle de 1600 à 2000, par exemple).
     // `ere`, le numéro de l'ère. `doe`, le jour de l'ère, de 0 à 146 096 : 719 468 jours vont du
@@ -280,18 +304,18 @@ pub fn date_du_message(heure: i64, decalage_minutes: i32) -> String {
     }
 }
 
-fn chemin(segments: &[&str]) -> Vec<String> {
+pub(crate) fn chemin(segments: &[&str]) -> Vec<String> {
     segments.iter().map(|segment| segment.to_string()).collect()
 }
 
-fn poser(segments: &[&str], valeur: Simple) -> Changement {
+pub(crate) fn poser(segments: &[&str], valeur: Simple) -> Changement {
     Changement::Poser {
         chemin: chemin(segments),
         valeur,
     }
 }
 
-fn oter(segments: &[&str]) -> Changement {
+pub(crate) fn oter(segments: &[&str]) -> Changement {
     Changement::Oter {
         chemin: chemin(segments),
     }
@@ -346,8 +370,9 @@ pub fn noter(
     })
 }
 
-/// Le jour que dit le message d'un geste de tri pour l'idée : celui de sa naissance, au décalage
-/// du geste, jamais celui du geste (§ 30 · 11).
+/// Le jour que dit le message d'un geste de tri pour l'idée : celui de sa naissance, jamais celui
+/// du geste (§ 30 · 11), au décalage local `decalage_minutes` que l'interface lit à l'instant de
+/// cette naissance (`natif::decalage_a`), jamais à celui du geste ni à celui d'une autre idée.
 fn jour(idee: &IdeeLue, decalage_minutes: i32) -> String {
     date_du_message(idee.le, decalage_minutes)
 }
@@ -475,13 +500,15 @@ pub fn oter_une_etiquette(
 }
 
 /// Relier les idées `a` et `b` d'un lien « apparenté », sous sa clé (§ 30 · 9.3) ; l'inverse
-/// l'ôte. Une idée à elle-même : `Impossible::RelieeAElleMeme` ; déjà reliées :
+/// l'ôte. Le message date `a` au décalage `decalage_de_a`, celui de son instant, et `b` au sien,
+/// `decalage_de_b`. Une idée à elle-même : `Impossible::RelieeAElleMeme` ; déjà reliées :
 /// `Impossible::LienDejaPose`.
 pub fn relier(
     a: &IdeeLue,
     b: &IdeeLue,
     heure: i64,
-    decalage_minutes: i32,
+    decalage_de_a: i32,
+    decalage_de_b: i32,
 ) -> Result<GesteDeTri, Impossible> {
     visible(a)?;
     visible(b)?;
@@ -498,20 +525,21 @@ pub fn relier(
         vec![oter(&lien)],
         format!(
             "Idée du {} reliée à l'idée du {}",
-            jour(a, decalage_minutes),
-            jour(b, decalage_minutes)
+            jour(a, decalage_de_a),
+            jour(b, decalage_de_b)
         ),
         heure,
     ))
 }
 
-/// Délier les idées `a` et `b` : leur lien « apparenté » ôté ; l'inverse le repose. Pas
-/// reliées : `Impossible::LienAbsent`.
+/// Délier les idées `a` et `b` : leur lien « apparenté » ôté ; l'inverse le repose. Le message
+/// date chaque idée à son décalage, comme `relier`. Pas reliées : `Impossible::LienAbsent`.
 pub fn delier(
     a: &IdeeLue,
     b: &IdeeLue,
     heure: i64,
-    decalage_minutes: i32,
+    decalage_de_a: i32,
+    decalage_de_b: i32,
 ) -> Result<GesteDeTri, Impossible> {
     visible(a)?;
     visible(b)?;
@@ -525,8 +553,8 @@ pub fn delier(
         vec![poser(&lien, Simple::Vrai)],
         format!(
             "Idée du {} déliée de l'idée du {}",
-            jour(a, decalage_minutes),
-            jour(b, decalage_minutes)
+            jour(a, decalage_de_a),
+            jour(b, decalage_de_b)
         ),
         heure,
     ))
@@ -544,14 +572,17 @@ fn regroupee(sorte: Sorte) -> &'static str {
 /// Regrouper la captation dans l'idée `cible` : elle quitte `source`, son idée, qui porte
 /// `captations_de_la_source` captations, elle comprise ; l'inverse la rend à la source. La source
 /// que le geste laisse sans rien est retirée par le même geste, à `heure` (§ 30 · 9.3), et
-/// l'inverse ôte ce retrait. La source pour cible : `Impossible::DejaDansLIdee`.
+/// l'inverse ôte ce retrait. Le message date la cible au décalage `decalage_de_la_cible`, celui
+/// de son instant, et la source retirée au sien, `decalage_de_la_source`. La source pour cible :
+/// `Impossible::DejaDansLIdee`.
 pub fn regrouper(
     captation: &CaptationLue,
     source: &IdeeLue,
     captations_de_la_source: usize,
     cible: &IdeeLue,
     heure: i64,
-    decalage_minutes: i32,
+    decalage_de_la_cible: i32,
+    decalage_de_la_source: i32,
 ) -> Result<GesteDeTri, Impossible> {
     visible(source)?;
     visible(cible)?;
@@ -564,7 +595,7 @@ pub fn regrouper(
     let mut inverse = vec![poser(&fait, Simple::Chaine(source.id.clone()))];
     let regroupement = format!(
         "Idée du {} : {}",
-        jour(cible, decalage_minutes),
+        jour(cible, decalage_de_la_cible),
         regroupee(captation.sorte)
     );
     let message = if est_vide(source, captations_de_la_source.saturating_sub(1)) {
@@ -573,7 +604,7 @@ pub fn regrouper(
         inverse.push(oter(&retrait));
         format!(
             "{regroupement}, idée du {} retirée",
-            jour(source, decalage_minutes)
+            jour(source, decalage_de_la_source)
         )
     } else {
         regroupement

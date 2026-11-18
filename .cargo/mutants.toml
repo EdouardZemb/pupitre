@@ -1,8 +1,10 @@
 # Le test de mutation du noyau (famille 3 des garde-fous de la méthode).
-# Dix-sept modules sont examinés : la théorie (hauteurs, tonalités, accords, table), la palette, le
-# clavier et la guitare, et les règles des données (la compaction, l'accès d'un document, le
-# démarrage, la version de schéma, la teneur, la comparaison des copies et des lignées, les
-# identifiants, les gestes, les règles d'une idée et la boîte).
+# Vingt et un modules sont examinés : la théorie (hauteurs, tonalités, accords, table), la
+# palette, le clavier et la guitare, et les règles des données (la compaction, l'accès d'un
+# document, le démarrage, la version de schéma, la teneur, la comparaison des copies et des
+# lignées, les identifiants, les gestes, les règles d'une idée, la boîte, le repli des textes, les
+# jours et les bornes d'une période, les critères d'une requête, l'index et sa réponse, le journal
+# rangé et son empreinte).
 # Le rendu (`rendu/`) n'est pas examiné.
 examine_globs = [
     "crates/noyau/src/hauteur.rs",
@@ -20,13 +22,17 @@ examine_globs = [
     "crates/noyau/src/donnees/gestes.rs",
     "crates/noyau/src/donnees/identifiants.rs",
     "crates/noyau/src/donnees/idee.rs",
+    "crates/noyau/src/donnees/index.rs",
+    "crates/noyau/src/donnees/journal.rs",
+    "crates/noyau/src/donnees/repli.rs",
+    "crates/noyau/src/donnees/requete.rs",
     "crates/noyau/src/donnees/teneur.rs",
     "crates/noyau/src/donnees/version.rs",
 ]
 
-# Chaque mutant ne rejoue que les tests de ces dix-sept modules, et les tests unitaires : les tests
-# du rendu dessinent les 48 pages de table, les 72 versos et les fiches de chaque case, et la suite
-# complète prend une minute et demie en debug, contre deux secondes et demie sans eux. Ils
+# Chaque mutant ne rejoue que les tests de ces vingt et un modules, et les tests unitaires : les
+# tests du rendu dessinent les 48 pages de table, les 72 versos et les fiches de chaque case, et la
+# suite complète prend une minute et demie en debug, contre deux secondes et demie sans eux. Ils
 # appellent la théorie sans la vérifier : ses propres tests tuent tous ses mutants (0 survivant
 # en PR #5, avant le rendu). Un nouveau fichier de tests de ces modules s'ajoute à cette liste.
 additional_cargo_test_args = [
@@ -46,6 +52,10 @@ additional_cargo_test_args = [
     "--test", "gestes",
     "--test", "idee",
     "--test", "boite",
+    "--test", "repli",
+    "--test", "requete",
+    "--test", "index",
+    "--test", "journal",
 ]
 
 # Un mutant réellement équivalent s'exclut ici, nommément, avec sa raison.

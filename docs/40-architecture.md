@@ -470,7 +470,7 @@ sequenceDiagram
 | **Un jeton par appareil**, nommé, révocable seul | Tablette perdue : on révoque « lutrin », les autres continuent |
 | **Six chiffres une fois**, jamais de secret long à taper ; le nom se donne sur l'appareil émetteur | Rien à saisir au clavier lent de la tablette à encre (N4) |
 | **Code borné** : deux minutes, cinq essais faux, un seul appairage ouvert à la fois ; arrivée confirmée sur l'appareil émetteur | Cinq essais sur un million de codes par fenêtre ; un code deviné attend encore la confirmation de l'appareil émetteur |
-| **Opérations destructrices** : purge de captations, suppression définitive, révocations | Confirmation renforcée sur l'établi ou le carnet ; **absentes du lutrin** |
+| **Opérations destructrices** (purge de captations, suppression définitive) **et révocations** | Confirmation renforcée sur l'établi ou le carnet ; **absentes du lutrin** |
 | **Identité vérifiée par l'application**, sur chaque requête et chaque chemin | Hors la route d'appairage, aucune requête n'aboutit sans jeton ; aucun en-tête d'identité injecté par un intermédiaire n'est cru (I22) |
 
 ### 7.4 Menaces retenues
@@ -733,7 +733,7 @@ flowchart LR
     ([§ 7.5](#75-linterface-la-csp-et-les-commandes)). L'import d'un fonds existant
     ([CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)), prises
     en stems, MIDI et textes versés compris ([ADR-024](adr/adr-024-import-d-un-fonds.md)).
-    La recherche par attribut d'idée et par texte, et ses requêtes enregistrées
+    Les requêtes du fonds, par attribut d'idée et par texte, et les requêtes enregistrées
     ([CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds)), et la vue du
     fonds, sans ses morceaux
     ([CAP-07](20-sfd/21-capter-et-organiser.md#cap-07--voir-le-fonds)). L'archive complète

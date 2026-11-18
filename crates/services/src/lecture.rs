@@ -1,18 +1,21 @@
-//! La lecture du fonds (§ 31 · 3) : le fonds lu, que le noyau reçoit (`IdeeLue`, `CaptationLue`),
-//! idée par idée ou en un seul passage pour la boîte, le journal, la version de schéma, les
-//! empreintes que nomme le document et sa teneur, tirés du document sans y écrire. Une valeur se
-//! reconnaît à sa variante, jamais par conversion : une idée dont une valeur n'a pas le type du
-//! schéma ne se lit pas. Un conteneur absent de la racine du document se lit vide.
+//! La lecture du fonds (§ 31 · 3) : le fonds lu, que le noyau reçoit (`IdeeLue`, `CaptationLue`,
+//! les clés d'une requête enregistrée), idée par idée ou en un seul passage pour la boîte, les
+//! requêtes enregistrées, le journal, la version de schéma, les empreintes que nomme le document et
+//! sa teneur, tirés du document sans y écrire. Une valeur se reconnaît à sa variante, jamais par
+//! conversion : une idée dont une valeur n'a pas le type du schéma ne se lit pas. Un conteneur
+//! absent de la racine du document se lit vide.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use automerge::{Automerge, ObjId, ObjType, ROOT, ReadDoc, ScalarValue, Value};
+use noyau::donnees::changement::Simple;
 use noyau::donnees::fonds::{
     CAPTEE, CONTENEURS_NOMMANT_UNE_CAPTATION, DEPUIS, DUREE, ETIQUETTES, IDEE, IDEES, IMPORTEE, LE,
-    LIENS, PAR, PHOTOS, PROVENANCE, RETIREE, TEXTE, VERSION_DE_SCHEMA,
+    LIENS, PAR, PHOTOS, PROVENANCE, REQUETES_ENREGISTREES, RETIREE, TEXTE, VERSION_DE_SCHEMA,
 };
 use noyau::donnees::gestes::{Appareil, CaptationLue, IdeeLue, Provenance, Sorte};
 use noyau::donnees::idee;
+use noyau::donnees::requete::{RequeteEnregistreeLue, lire_une_requete};
 use noyau::donnees::teneur::{ErreurDeTeneur, Valeur, ecrire_la_teneur};
 
 /// L'idée `id`, telle qu'elle se lit : son identifiant, sa provenance (`provenance`, `par`, et
@@ -152,6 +155,33 @@ pub fn idees_et_illisibles(doc: &Automerge) -> (Vec<IdeeLue>, usize) {
     (lues, illisibles)
 }
 
+/// Chaque requête enregistrée de `doc` qui a un nom (`lire_une_requete`), dans l'ordre des clés de
+/// `requetes_enregistrees` : de chaque objet à clés qu'il porte, chaque clé et sa valeur simple
+/// (`simple_du_noyau`), `None` pour toute autre valeur, un objet compris. Une clé dont la valeur
+/// n'est pas un objet à clés n'est la requête enregistrée de personne ; sans
+/// `requetes_enregistrees` à la racine du document, aucune.
+pub fn requetes_enregistrees(doc: &Automerge) -> Vec<RequeteEnregistreeLue> {
+    let Some(conteneur) = objet(doc, &ROOT, REQUETES_ENREGISTREES) else {
+        return Vec::new();
+    };
+    doc.keys(&conteneur)
+        .filter_map(|id| {
+            let requete = objet(doc, &conteneur, &id)?;
+            let champs: BTreeMap<String, Option<Simple>> = doc
+                .keys(&requete)
+                .map(|cle| {
+                    let valeur = match doc.get(&requete, cle.as_str()) {
+                        Ok(Some((Value::Scalar(valeur), _))) => simple_du_noyau(&valeur),
+                        _ => None,
+                    };
+                    (cle, valeur)
+                })
+                .collect();
+            lire_une_requete(&id, &champs)
+        })
+        .collect()
+}
+
 /// (message, heure) de chaque modification, dans l'ordre de `get_changes(&[])` ; une modification
 /// sans message en a un vide.
 pub fn journal(doc: &Automerge) -> Vec<(String, i64)> {
@@ -288,6 +318,19 @@ fn entier(valeur: &ScalarValue) -> Option<i64> {
 fn naturel(valeur: &ScalarValue) -> Option<u64> {
     match valeur {
         ScalarValue::Uint(naturel) => Some(*naturel),
+        _ => None,
+    }
+}
+
+/// La valeur simple du noyau que porte `valeur`, à sa variante : une chaîne (`Str`) en `Chaine`, un
+/// entier signé (`Int`) en `Entier`, un entier non signé (`Uint`) en `Naturel`, `true`
+/// (`Boolean(true)`) en `Vrai` ; toute autre, `None`.
+fn simple_du_noyau(valeur: &ScalarValue) -> Option<Simple> {
+    match valeur {
+        ScalarValue::Str(texte) => Some(Simple::Chaine(texte.to_string())),
+        ScalarValue::Int(entier) => Some(Simple::Entier(*entier)),
+        ScalarValue::Uint(naturel) => Some(Simple::Naturel(*naturel)),
+        ScalarValue::Boolean(true) => Some(Simple::Vrai),
         _ => None,
     }
 }

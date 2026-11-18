@@ -2,8 +2,10 @@
 //! arguments, leurs réponses et leurs vues, et la liste de leurs noms, que l'interface et
 //! l'établi partagent. La crate ne porte que ce que l'interface envoie et reçoit : l'heure,
 //! l'aléa et l'appareil d'un geste viennent du côté natif, jamais d'une commande, et le côté
-//! natif ne reçoit de l'interface, pour dater un message du journal, que son décalage local,
-//! `decalage_minutes`. Elle ne dépend que de `serde`.
+//! natif ne reçoit de l'interface, pour dater un message du journal, que des décalages locaux,
+//! en minutes : celui de l'instant de chaque idée que le message date (`decalage_minutes`,
+//! `decalage_b_minutes`, `decalage_source_minutes`), ou, pour noter, celui du geste. Elle ne
+//! dépend que de `serde`.
 //!
 //! Aucun type n'a de flottant. Une commande et sa réponse passent par le JSON, que la WebView
 //! relit par `JSON.parse` : ses nombres sont des flottants de 64 bits, exacts sur les entiers
@@ -38,7 +40,7 @@ pub const ANNULER: &str = "annuler";
 pub const VUE_D_UNE_IDEE: &str = "vue_d_une_idee";
 /// Lire les idées non retirées.
 pub const IDEES: &str = "idees";
-/// Lire le journal du fonds (`EntreeDuJournal`).
+/// Lire le journal du fonds (`Fenetre`, `VueDuJournal`).
 pub const JOURNAL: &str = "journal";
 /// Lire la boîte (`Boite`, `VueDeLaBoite`).
 pub const BOITE: &str = "boite";
@@ -46,6 +48,14 @@ pub const BOITE: &str = "boite";
 pub const RETIREES: &str = "retirees";
 /// Lire l'état du fonds (`EtatDuFonds`).
 pub const ETAT_DU_FONDS: &str = "etat_du_fonds";
+/// Lire les requêtes enregistrées (`RequeteEnregistree`).
+pub const REQUETES_ENREGISTREES: &str = "requetes_enregistrees";
+/// Enregistrer une requête (`Enregistrer`).
+pub const ENREGISTRER_UNE_REQUETE: &str = "enregistrer_une_requete";
+/// Renommer une requête enregistrée (`Renommer`).
+pub const RENOMMER_UNE_REQUETE: &str = "renommer_une_requete";
+/// Supprimer une requête enregistrée (`Supprimer`).
+pub const SUPPRIMER_UNE_REQUETE: &str = "supprimer_une_requete";
 /// Exporter le cahier des tables, la commande de l'établi depuis INC-0.
 pub const EXPORTER_CAHIER: &str = "exporter_cahier";
 
@@ -70,6 +80,10 @@ pub const NOMS: &[&str] = &[
     BOITE,
     RETIREES,
     ETAT_DU_FONDS,
+    REQUETES_ENREGISTREES,
+    ENREGISTRER_UNE_REQUETE,
+    RENOMMER_UNE_REQUETE,
+    SUPPRIMER_UNE_REQUETE,
     EXPORTER_CAHIER,
 ];
 
@@ -89,8 +103,8 @@ pub const ENTIER_SUR: u64 = 9_007_199_254_740_991;
 pub struct Noter {
     /// Le texte de la note.
     pub texte: String,
-    /// Le décalage local de l'interface, en minutes, qui date le message du journal ; un `i32`,
-    /// borné par son type.
+    /// Le décalage local du geste, en minutes (`natif::decalage_du_geste`), qui est celui de la
+    /// naissance de l'idée notée : il date le message du journal ; un `i32`, borné par son type.
     pub decalage_minutes: i32,
 }
 
@@ -101,8 +115,8 @@ pub struct Completer {
     pub idee: String,
     /// Son texte complété.
     pub texte: String,
-    /// Le décalage local de l'interface, en minutes, qui date le message du journal ; un `i32`,
-    /// borné par son type.
+    /// Le décalage local, en minutes, à l'instant de l'idée qu'il date, sa naissance
+    /// (`natif::decalage_a(le)`) : il date le message du journal ; un `i32`, borné par son type.
     pub decalage_minutes: i32,
 }
 
@@ -113,8 +127,8 @@ pub struct Etiqueter {
     pub idee: String,
     /// L'étiquette.
     pub etiquette: String,
-    /// Le décalage local de l'interface, en minutes, qui date le message du journal ; un `i32`,
-    /// borné par son type.
+    /// Le décalage local, en minutes, à l'instant de l'idée qu'il date, sa naissance
+    /// (`natif::decalage_a(le)`) : il date le message du journal ; un `i32`, borné par son type.
     pub decalage_minutes: i32,
 }
 
@@ -125,9 +139,14 @@ pub struct Relier {
     pub a: String,
     /// L'identifiant de l'autre bout, un ULID.
     pub b: String,
-    /// Le décalage local de l'interface, en minutes, qui date le message du journal ; un `i32`,
-    /// borné par son type.
+    /// Le décalage local, en minutes, à l'instant de l'idée `a` qu'il date, sa naissance
+    /// (`natif::decalage_a(le)`) : il date `a` dans le message du journal ; un `i32`, borné par
+    /// son type.
     pub decalage_minutes: i32,
+    /// Le décalage local, en minutes, à l'instant de l'idée `b` qu'il date, sa naissance
+    /// (`natif::decalage_a(le)`) : il date `b` dans le message du journal ; un `i32`, borné par
+    /// son type.
+    pub decalage_b_minutes: i32,
 }
 
 /// La sorte d'une captation versée (§ 30 · 9.2).
@@ -157,9 +176,14 @@ pub struct Regrouper {
     pub captation: Captation,
     /// L'identifiant de l'idée qui la reçoit, un ULID.
     pub cible: String,
-    /// Le décalage local de l'interface, en minutes, qui date le message du journal ; un `i32`,
-    /// borné par son type.
+    /// Le décalage local, en minutes, à l'instant de la cible qu'il date, sa naissance
+    /// (`natif::decalage_a(le)`) : il date la cible dans le message du journal ; un `i32`, borné
+    /// par son type.
     pub decalage_minutes: i32,
+    /// Le décalage local, en minutes, à l'instant de la source qu'il date, la naissance de
+    /// l'idée que la captation quitte (`natif::decalage_a(le)`) : il la date dans le message du
+    /// journal, si le geste la retire ; un `i32`, borné par son type.
+    pub decalage_source_minutes: i32,
 }
 
 /// Retirer ou rétablir l'idée `idee`.
@@ -167,8 +191,8 @@ pub struct Regrouper {
 pub struct Viser {
     /// L'identifiant de l'idée, un ULID.
     pub idee: String,
-    /// Le décalage local de l'interface, en minutes, qui date le message du journal ; un `i32`,
-    /// borné par son type.
+    /// Le décalage local, en minutes, à l'instant de l'idée qu'il date, sa naissance
+    /// (`natif::decalage_a(le)`) : il date le message du journal ; un `i32`, borné par son type.
     pub decalage_minutes: i32,
 }
 
@@ -284,6 +308,21 @@ pub struct EntreeDuJournal {
     pub heure: i64,
 }
 
+/// La vue du journal : le nombre d'entrées, l'empreinte du journal, et les lignes de la fenêtre,
+/// la plus récente d'abord.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VueDuJournal {
+    /// Les entrées du journal, une par modification du document : un compte de modifications, que
+    /// borne leur nombre, bien en deçà d'`ENTIER_SUR`.
+    pub total: u64,
+    /// L'empreinte du journal (`noyau::donnees::journal::empreinte_du_journal`), en 64 caractères
+    /// hexadécimaux minuscules : la même sur deux répliques qui portent le même journal, quel que
+    /// soit l'ordre de leur historique (question 29).
+    pub empreinte: String,
+    /// Les lignes de la fenêtre, la plus récente d'abord, `FENETRE_MAX` au plus.
+    pub lignes: Vec<EntreeDuJournal>,
+}
+
 /// L'ordre de la boîte : il n'écrit rien et ne s'annule pas ; le tri est un geste (question 17).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Ordre {
@@ -299,8 +338,8 @@ pub enum Ordre {
     Provenance,
 }
 
-/// Un contenu que le filtre de la boîte retient (CAP-02) : le texte de l'idée, une prise, une
-/// photo, un MIDI versé, un texte versé (question 22).
+/// Un contenu qu'une requête cherche (CAP-02, CAP-06) : le texte de l'idée, une prise, une photo,
+/// un MIDI versé, un texte versé (question 22).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Contenu {
     /// Le texte de l'idée.
@@ -315,13 +354,135 @@ pub enum Contenu {
     TexteVerse,
 }
 
-/// Lire la boîte : l'ordre, le filtre, et la fenêtre demandée.
+/// Un jour civil (question 9), comme `noyau::donnees::requete::Jour`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Jour {
+    /// L'année.
+    pub annee: i32,
+    /// Le mois, de 1 à 12.
+    pub mois: u8,
+    /// Le jour du mois, de 1 à 31.
+    pub jour: u8,
+}
+
+/// Les bornes d'une date, comme `noyau::donnees::requete::Bornes` : `des` comprise, `avant`
+/// exclue ; une borne absente ne borne pas.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Bornes {
+    /// La première seconde comprise, en secondes depuis 1970 : le début d'un jour civil
+    /// (`noyau::donnees::requete::debut_du_jour`) ; d'une année de quatre chiffres, comme en lit
+    /// `noyau::donnees::requete::Jour::depuis_iso`, il est à moins de 2⁵³ secondes de 1970.
+    pub des: Option<i64>,
+    /// La première seconde exclue, en secondes depuis 1970, bornée comme `des`.
+    pub avant: Option<i64>,
+}
+
+/// L'état d'une idée, pour une requête, comme `noyau::donnees::requete::Etat` : reliée ou non.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Etat {
+    /// Reliée, comme `VueDUneIdee::reliee`.
+    Reliee,
+    /// Non reliée.
+    NonReliee,
+}
+
+/// La provenance d'une idée, pour une requête (§ 30 · 8.1, question 11), comme
+/// `noyau::donnees::requete::ProvenanceDeLIdee` : captée ou importée, quel que soit l'appareil.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProvenanceDeLIdee {
+    /// Née d'une capture.
+    Captee,
+    /// Née d'un fichier versé.
+    Importee,
+}
+
+/// Une requête : les champs de `noyau::donnees::requete::Requete`, que la doc de chacun nomme.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Requete {
+    /// Le texte saisi, tel quel (`Requete::texte`) : ses mots sont les fragments cherchés, et
+    /// sans mot, il ne pose aucun critère.
+    pub texte: String,
+    /// Le premier jour de la période, compris (`Requete::du`).
+    pub du: Option<Jour>,
+    /// Le dernier jour de la période, compris (`Requete::au`).
+    pub au: Option<Jour>,
+    /// L'étiquette cherchée, comparée octet pour octet (`Requete::etiquette`).
+    pub etiquette: Option<String>,
+    /// Le seuil de la durée affichée, en secondes entières, strictement dépassé
+    /// (`Requete::plus_de_secondes`).
+    pub plus_de_secondes: Option<u64>,
+    /// L'état cherché (`Requete::etat`).
+    pub etat: Option<Etat>,
+    /// La provenance cherchée (`Requete::provenance`).
+    pub provenance: Option<ProvenanceDeLIdee>,
+    /// Le contenu cherché (`Requete::contenu`).
+    pub contenu: Option<Contenu>,
+}
+
+/// Les parts « sans … » d'une réponse (question 7), comme `noyau::donnees::requete::Sans` : pour
+/// chaque critère posé qu'une idée peut manquer, l'étiquette, la durée, le texte, le nombre
+/// d'idées lisibles qui en manquent l'attribut et satisfont chacun des autres critères qu'elles
+/// portent ; `None` pour un critère non posé. Chaque part est un compte d'idées, borné comme ceux
+/// d'`Assiette`.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Sans {
+    /// Les idées sans étiquette.
+    pub etiquette: Option<u64>,
+    /// Les idées sans durée.
+    pub duree: Option<u64>,
+    /// Les idées sans texte.
+    pub texte: Option<u64>,
+}
+
+/// Une requête enregistrée : son ULID, son nom, et sa requête, `None` si elle vient d'une version
+/// plus récente de Pupitre (question 17).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RequeteEnregistree {
+    /// Son identifiant, un ULID.
+    pub id: String,
+    /// Son nom, tel qu'il est enregistré.
+    pub nom: String,
+    /// Sa requête ; `None` si elle porte une sorte de critère ou une valeur que cette version de
+    /// Pupitre ne connaît pas : elle paraît nommée, et ne se lance pas.
+    pub requete: Option<Requete>,
+}
+
+/// Enregistrer la requête `requete` sous le nom `nom`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Enregistrer {
+    /// Son nom ; ses blancs autour ne s'enregistrent pas, et vide, il est refusé.
+    pub nom: String,
+    /// La requête, qui pose au moins un critère.
+    pub requete: Requete,
+}
+
+/// Renommer `nom` la requête enregistrée `requete`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Renommer {
+    /// L'identifiant de la requête enregistrée, un ULID.
+    pub requete: String,
+    /// Son nouveau nom ; ses blancs autour ne s'enregistrent pas, et vide, il est refusé.
+    pub nom: String,
+}
+
+/// Supprimer la requête enregistrée `requete` (question 19).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Supprimer {
+    /// L'identifiant de la requête enregistrée, un ULID.
+    pub requete: String,
+}
+
+/// Lire la boîte : l'ordre, la requête en cours, les bornes de sa date (que l'interface tire de
+/// `du` et `au`), et la fenêtre demandée.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Boite {
     /// L'ordre des lignes.
     pub ordre: Ordre,
-    /// Le contenu que le filtre retient ; aucun, toutes les idées.
-    pub filtre: Option<Contenu>,
+    /// La requête en cours ; sans critère, toutes les idées.
+    pub requete: Requete,
+    /// Les bornes de sa date, que l'interface tire de ses jours `du` et `au`
+    /// (`noyau::donnees::requete::bornes_de_la_periode`) : la réponse juge la date sur elles.
+    pub bornes: Bornes,
     /// Le rang de la première ligne de la fenêtre, compté de 0.
     pub debut: u32,
     /// Le nombre de lignes demandées, que la réponse borne à `FENETRE_MAX`.
@@ -337,9 +498,11 @@ pub struct Fenetre {
     pub nombre: u32,
 }
 
-/// L'assiette d'un compte (I09) : considérées, portant, décidées ; considérées − portant, au lot 1,
-/// ce sont les idées illisibles. Chaque champ est un compte d'idées : il ne dépasse pas le nombre
-/// des idées du fonds, dont chacune est une clé du document, bien en deçà d'`ENTIER_SUR`.
+/// L'assiette d'un compte (I09) : considérées, portant, décidées, et les illisibles, comptées à
+/// part (question 6) ; considérées − portant compte les illisibles et, pour une requête, les idées
+/// lisibles qui manquent un attribut qu'elle interroge. Chaque champ est un compte d'idées : il ne
+/// dépasse pas le nombre des idées du fonds, dont chacune est une clé du document, bien en deçà
+/// d'`ENTIER_SUR`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Assiette {
     /// Les idées considérées, un compte d'idées : les idées non retirées, et les idées
@@ -350,6 +513,9 @@ pub struct Assiette {
     /// Celles dont la donnée est décidée, un compte d'idées ; au lot 1, toute donnée portée est
     /// décidée.
     pub decidees: u64,
+    /// Les idées illisibles, un compte d'idées : elles comptent parmi les considérées, jamais
+    /// parmi celles qui portent la donnée.
+    pub illisibles: u64,
 }
 
 /// Une ligne de la boîte, ou des idées retirées : ce que la ligne montre, sans ancienneté
@@ -375,19 +541,25 @@ pub struct LigneDeLaBoite {
     pub retiree: Option<i64>,
 }
 
-/// La vue de la boîte : le compte des non reliées et son assiette, le nombre que retient le filtre
-/// et son assiette, et les seules lignes de la fenêtre.
+/// La vue de la boîte, réponse de la requête en cours : le compte des non reliées et son assiette,
+/// que la requête ne change pas ; le nombre des idées qu'elle trouve, son assiette et ses parts
+/// « sans … » ; les étiquettes du fonds ; et les seules lignes de la fenêtre.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VueDeLaBoite {
-    /// Les idées non retirées et non reliées, que le filtre ne change pas : un compte d'idées.
+    /// Les idées non retirées et non reliées, que la requête ne change pas : un compte d'idées.
     pub non_reliees: u64,
     /// L'assiette du compte des non reliées.
     pub assiette_du_compte: Assiette,
-    /// Les idées que retient le filtre, toutes sans filtre : un compte d'idées.
+    /// Les idées que la requête trouve, toutes sans critère : un compte d'idées.
     pub retenues: u64,
-    /// L'assiette du nombre que retient le filtre : au lot 1, celle du compte, la seule que
-    /// calcule la boîte du noyau.
-    pub assiette_du_filtre: Assiette,
+    /// L'assiette de la requête : considérées, les idées non retirées et les illisibles ; portant
+    /// et décidées, les idées lisibles qui portent chaque attribut qu'elle interroge.
+    pub assiette_de_la_requete: Assiette,
+    /// Les parts « sans … » de la requête.
+    pub sans: Sans,
+    /// Les étiquettes du fonds, chacune une fois, dans l'ordre de leurs octets (question 10) :
+    /// celles des idées non retirées qui se lisent.
+    pub etiquettes_du_fonds: Vec<String>,
     /// Les lignes de la fenêtre, `FENETRE_MAX` au plus.
     pub lignes: Vec<LigneDeLaBoite>,
 }

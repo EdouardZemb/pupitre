@@ -132,8 +132,8 @@ la notice qu'Android impose pendant un enregistrement au premier plan (I29).
   idées sans étiquette en fin ; par durée, la plus longue d'abord, les idées sans durée en fin ;
   par état, les non reliées d'abord ; par provenance, les captées d'abord ; à égalité, la plus
   récente d'abord, puis l'identifiant.
-  Elle se filtre par ce que l'idée contient : texte, prise, photo,
-  MIDI versé, texte versé. La durée d'une idée
+  Une requête la restreint à ce que l'idée contient : texte, prise, photo,
+  MIDI versé, texte versé ([CAP-06](#cap-06--interroger-le-fonds)). La durée d'une idée
   est celle de sa prise la plus longue, et `—` dès qu'une de ses prises n'a pas encore la
   sienne ([§ 30 · 9.2](../30-modele-de-domaine.md#92-prises-photos-et-analyses)) ; une idée
   sans durée se range à part, jamais exclue.
@@ -371,34 +371,84 @@ de problème.
 | **Échelle · moment** | Fonds · M2, M6 |
 | **Appareils** | 💻 ✅ · 📱 ✅ · 📖 ✅ résultats en lecture |
 | **Besoins** | B02 |
-| **Lit · écrit** | Lit les dérivés de recherche ; n'écrit rien, sauf une requête enregistrée, dans le document du fonds |
+| **Lit · écrit** | Lit l'index de recherche, un dérivé ; n'écrit rien, sauf une requête enregistrée, dans le document du fonds |
 
 **Règles**
-- Sortes de requêtes :
-  - **par attribut d'une idée** : date, étiquette, durée, état (reliée ou non), provenance,
-    ce qu'elle contient (texte, prise, photo, MIDI versé, texte versé) ;
+- Une **requête** pose des **critères**, combinés par « et » : elle rend les éléments qui les
+  satisfont tous, et déclare son assiette. Ses critères :
+  - **par attribut d'une idée** : date, étiquette, durée, état (reliée ou non), provenance de
+    l'idée (captée ou importée,
+    [§ 30 · 8.1](../30-modele-de-domaine.md#81-la-provenance)), ce qu'elle contient (texte,
+    prise, photo, MIDI versé, texte versé), un contenu par requête ;
   - **par attribut d'un morceau** : tonalité, tempo, durée, nombre de mesures, intensité,
     statut, maturité, type de section présent ou absent, langue ;
   - **par motif harmonique** : une suite de degrés (« IV–iv–I »), cherchée dans toutes les
     grilles, pour chaque candidat quand la tonalité est indécise ;
   - **par motif mélodique** : un contour ou une suite d'intervalles ;
-  - **par texte** : dans le texte des idées et dans les lignes, filtrable par provenance.
-    Chaque mot cherché doit paraître, entier ou en fragment, dans le texte de l'idée ou de la
-    ligne, sans égard à la casse ni aux accents : « eglise » trouve « Église », « oe »
-    trouve « œ » ;
-  - **par provenance** : « tout ce qui vient d'une piste générative ».
+  - **par texte**, la **recherche** : dans le texte de l'idée seul, ni ses étiquettes, ni le
+    nom d'origine ou le contenu de ses captations ; avec les morceaux, dans leurs lignes, que
+    la provenance d'un élément peut restreindre ;
+  - **par provenance d'un élément** : « tout ce qui vient d'une piste générative ». Ce n'est
+    pas la provenance d'une idée, captée ou importée, qui est un critère d'une idée.
+- **Les critères d'une idée** :
+  - la **date** est une période de jours civils, « du … au … », bornes comprises, chacune
+    facultative : un jour va de son minuit à celui du lendemain, chaque minuit à l'heure
+    locale de cet instant, un jour de changement d'heure, de 23 ou de 25 heures, compris ;
+    aucune date relative ;
+  - l'**étiquette** se compare octet pour octet, sans repli : « pont » ne trouve ni « Pont »,
+    ni « ponts », ni « pont-levis ». L'écran la choisit parmi les étiquettes du fonds ;
+  - la **durée** se juge à la seconde affichée, strictement : « plus d'une minute » trouve
+    une idée affichée « 1:01 », jamais une affichée « 1:00 », même de 60,9 s. Une idée dont
+    une prise n'a pas encore sa durée est sans durée
+    ([CAP-02](#cap-02--trier-la-boîte-didées)) ;
+  - le **texte** : chaque mot cherché doit paraître, entier ou en fragment, dans le texte de
+    l'idée, sans égard à la casse ni aux accents : « eglise » trouve « Église », « oe »
+    trouve « œ ». La recherche lit tout le texte, même au-delà de ce que montre la ligne de
+    l'idée.
+- **Le repli.** Le texte de l'idée et le texte cherché se replient de même : chaque caractère
+  en minuscules, puis par la **table de repli** du noyau, qui ôte les marques combinantes
+  (U+0300 à U+036F) d'une lettre décomposée, réduit chaque lettre composée de Latin-1 et du
+  Latin étendu A à sa base, récrit œ en « oe », æ en « ae », ß en « ss », þ en « th » et
+  les ligatures ﬀ à ﬄ, ramène les apostrophes à `'` et les tirets à `-`, et ôte les
+  invisibles (le trait d'union conditionnel, les caractères sans chasse). Aucune forme de
+  compatibilité ; hors de sa table, une lettre ne se replie qu'en casse : une lettre grecque
+  ou cyrillique accentuée, d'un seul point de code, garde son accent.
+- **Le mot cherché.** Le texte cherché, replié, se coupe aux blancs, insécables compris ;
+  chaque morceau perd ce qui n'est ni lettre ni chiffre à ses bords, et garde une apostrophe
+  ou un tiret en son milieu : « l’église, » cherche « l'eglise ». Un mot n'a pas de longueur
+  minimale ; un texte sans mot, comme « … », ne pose aucun critère de texte.
 - **Toute réponse déclare son assiette** : « 3 morceaux en mi mineur · 6 dont la tonalité
-  n'est pas décidée · 41 interrogés ».
-- Un résultat ouvre l'objet **à l'endroit trouvé** (la mesure, la ligne).
+  n'est pas décidée · 41 interrogés ». Celle d'une requête sur les idées dit le nombre
+  d'idées trouvées ; puis, pour chaque critère posé qu'une idée peut manquer, l'étiquette,
+  la durée et le texte, dans cet ordre, combien en manquent l'attribut parmi celles qui
+  satisfont chacun des autres critères qu'elles portent : « sans étiquette », « sans durée »,
+  « sans texte » ; puis les idées illisibles ; puis les interrogées : « 4 idées · 3 sans
+  durée · 1 illisible · 13 interrogées ». Une idée qui manque deux de ces attributs compte
+  dans les deux parts ; une part nulle ne s'écrit pas. Toute idée porte une date, un état,
+  une provenance et ses contenus : leurs critères n'ont pas de part « sans ».
+- Les idées trouvées se rangent dans l'ordre de la boîte
+  ([CAP-02](#cap-02--trier-la-boîte-didées)), jamais par pertinence ; sans critère, une
+  requête rend toute la boîte. Un résultat ouvre l'objet **à l'endroit trouvé** (la mesure,
+  la ligne) ; une idée s'ouvre entière.
 - Une idée retirée n'est interrogée par aucune requête, et ne compte dans aucune assiette
   ([CAP-02](#cap-02--trier-la-boîte-didées)).
 - Une **requête enregistrée** garde un nom et ses critères, jamais ses résultats ni leur
   nombre : ils s'engendrent à chaque ouverture. Elle vit dans le document du fonds, avec ce
   qu'elle interroge
-  ([§ 30 · 13](../30-modele-de-domaine.md#13-ce-que-le-modèle-interdit-de-stocker)).
+  ([§ 30 · 13](../30-modele-de-domaine.md#13-ce-que-le-modèle-interdit-de-stocker)), et son
+  critère de date y garde des jours civils. Ses critères ne changent jamais : renommer ne
+  change que son nom, et supprimer l'efface d'un bloc, sans confirmation, puisque rien
+  d'autre ne s'efface (ce n'est pas une opération destructrice). Son nom n'est jamais vide,
+  et ses blancs autour ne s'enregistrent pas ; deux requêtes peuvent porter le même nom,
+  aucune longueur ne le borne, et la liste se range par nom replié. Une requête sans critère
+  ne s'enregistre pas, et renommer une requête du nom qu'elle porte est refusé.
   Enregistrer, renommer et supprimer une requête sont des opérations nommées du journal du
   fonds ([§ 30 · 11](../30-modele-de-domaine.md#11-journal-décisions-questions)) ; ce ne
-  sont pas des gestes de tri.
+  sont pas des gestes de tri, et annuler ne les vise pas. Dans un Pupitre neuf, qui n'a pas
+  encore de fonds, et dans un fonds en lecture seule, elles sont refusées, et le bandeau le
+  dit ; chercher reste permis. Une requête enregistrée par une version plus récente de
+  Pupitre, qui porte un critère ou une valeur que cette version ne connaît pas, paraît nommée
+  et ne se lance pas.
 
 **Ne fait pas** — ne classe pas par pertinence ; ne cherche pas dans l'audio brut ; ne
 cherche pas dans l'encre.
@@ -406,7 +456,9 @@ cherche pas dans l'encre.
 **Cas limites**
 - Attribut non renseigné : les objets concernés sont comptés à part, jamais exclus en
   silence.
-- Recherche sur des propositions : les résultats sont marqués `~`.
+- Un fonds importé, dont les idées n'ont souvent pas de texte propre, répond à une
+  recherche surtout par des idées « sans texte ».
+- Requête sur des propositions : les résultats sont marqués `~`.
 
 **Critères d'acceptation**
 1. *Quand* Sacha cherche les morceaux en mi mineur, *alors* la réponse liste les morceaux

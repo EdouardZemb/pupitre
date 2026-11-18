@@ -13,12 +13,17 @@ permissions:
 jobs:
   mutants:
     runs-on: ubuntu-latest
-    # Deux fois le plus long passage complet mesuré à froid (« No cache found. »), sur quatre
-    # cœurs, chaque mutant construisant aussi les tests du rendu : 638 mutants, la boîte comprise,
-    # en 35 min 14 s le 2026-11-16, PR #45 (exécution 43775891270) ; avant, 488 en 28 min 53 s,
-    # PR #37, et 549 en 23 min 59 s, PR #38, le 2026-11-14 (LE-29 de modele-projet). À remesurer
-    # quand le périmètre de la mutation s'étend.
-    timeout-minutes: 71
+    # Deux fois le plus long passage complet mesuré, sur quatre cœurs, chaque mutant construisant
+    # aussi les tests du rendu : 851 mutants, le repli, les requêtes, l'index et le journal
+    # compris, en 63 min 33 s le 2026-11-18, PR #47 (exécution 44256246979, sur sa branche), à
+    # chaud (« Cache hit for restore-key ») ; deux fois, 127 min 6 s. Faute d'un passage à froid
+    # (« No cache found. ») sur ce périmètre, le § 70 · 1 admet ce passage à chaud, à remesurer
+    # au premier passage à froid, qui peut durer plus. Avant, à froid :
+    # 638 mutants, la boîte comprise, en 35 min 14 s le 2026-11-16, PR #45 (exécution
+    # 43775891270) ; 488 en 28 min 53 s, PR #37, et 549 en 23 min 59 s, PR #38, le 2026-11-14 ;
+    # 551, sans la boîte, en 24 min 30 s le 2026-11-16, sur main (exécution 43874992227)
+    # (LE-29 de modele-projet).
+    timeout-minutes: 128
     permissions:
       contents: read
     steps:

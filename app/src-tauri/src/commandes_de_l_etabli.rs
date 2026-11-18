@@ -5,8 +5,9 @@
 //! arguments de Tauri ne change pas.
 
 use commandes::{
-    Boite, Completer, EntreeDuJournal, EtatDuFonds, Etiqueter, Faite, Fenetre, Notee, Noter,
-    Regrouper, Relier, Reponse, Viser, VueDUneIdee, VueDeLaBoite, VueDesRetirees,
+    Boite, Completer, Enregistrer, EtatDuFonds, Etiqueter, Faite, Fenetre, Notee, Noter, Regrouper,
+    Relier, Renommer, Reponse, RequeteEnregistree, Supprimer, Viser, VueDUneIdee, VueDeLaBoite,
+    VueDesRetirees, VueDuJournal,
 };
 
 use crate::fil::Ouverture;
@@ -120,13 +121,19 @@ pub async fn idees(ouverture: tauri::State<'_, Ouverture>) -> Reponse<Vec<String
     ouverture.demander(|services, _| services.idees()).await
 }
 
-/// Le journal du fonds (`Services::journal`).
+/// Le journal du fonds en fenêtre : son nombre d'entrées, son empreinte, et les lignes de la
+/// fenêtre, la plus récente d'abord (`Services::journal_en_fenetre`).
 #[tauri::command]
-pub async fn journal(ouverture: tauri::State<'_, Ouverture>) -> Reponse<Vec<EntreeDuJournal>> {
-    ouverture.demander(|services, _| services.journal()).await
+pub async fn journal(
+    ouverture: tauri::State<'_, Ouverture>,
+    commande: Fenetre,
+) -> Reponse<VueDuJournal> {
+    ouverture
+        .demander(move |services, _| services.journal_en_fenetre(&commande))
+        .await
 }
 
-/// La boîte d'idées : les non reliées, le filtre, la fenêtre de lignes (`Services::boite`).
+/// La boîte d'idées : les non reliées, la requête, la fenêtre de lignes (`Services::boite`).
 #[tauri::command]
 pub async fn boite(
     ouverture: tauri::State<'_, Ouverture>,
@@ -154,6 +161,49 @@ pub async fn retirees(
 pub async fn etat_du_fonds(ouverture: tauri::State<'_, Ouverture>) -> Reponse<EtatDuFonds> {
     ouverture
         .demander(|services, _| services.etat_du_fonds())
+        .await
+}
+
+/// Les requêtes enregistrées, par nom (`Services::requetes_enregistrees`).
+#[tauri::command]
+pub async fn requetes_enregistrees(
+    ouverture: tauri::State<'_, Ouverture>,
+) -> Reponse<Vec<RequeteEnregistree>> {
+    ouverture
+        .demander(|services, _| services.requetes_enregistrees())
+        .await
+}
+
+/// Enregistrer une requête sous un nom (`Services::enregistrer_une_requete`).
+#[tauri::command]
+pub async fn enregistrer_une_requete(
+    ouverture: tauri::State<'_, Ouverture>,
+    commande: Enregistrer,
+) -> Reponse<Faite> {
+    ouverture
+        .demander(move |services, contexte| services.enregistrer_une_requete(&commande, contexte))
+        .await
+}
+
+/// Renommer une requête enregistrée (`Services::renommer_une_requete`).
+#[tauri::command]
+pub async fn renommer_une_requete(
+    ouverture: tauri::State<'_, Ouverture>,
+    commande: Renommer,
+) -> Reponse<Faite> {
+    ouverture
+        .demander(move |services, contexte| services.renommer_une_requete(&commande, contexte))
+        .await
+}
+
+/// Supprimer une requête enregistrée (`Services::supprimer_une_requete`).
+#[tauri::command]
+pub async fn supprimer_une_requete(
+    ouverture: tauri::State<'_, Ouverture>,
+    commande: Supprimer,
+) -> Reponse<Faite> {
+    ouverture
+        .demander(move |services, contexte| services.supprimer_une_requete(&commande, contexte))
         .await
 }
 

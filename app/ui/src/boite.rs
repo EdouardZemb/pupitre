@@ -8,19 +8,18 @@
 //! champ de texte, annule le dernier geste de tri.
 
 use commandes::{
-    ANNULER, Assiette, BOITE, Boite, COMPLETER, Completer, Contenu, DELIER, ETAT_DU_FONDS,
+    ANNULER, Assiette, BOITE, Boite, Bornes, COMPLETER, Completer, Contenu, DELIER, ETAT_DU_FONDS,
     EtatDuFonds, Etiqueter, FENETRE_MAX, Faite, Fenetre, LONGUEUR_D_UNE_LIGNE, LigneDeLaBoite,
     NOTER, Notee, Noter, OTER_UNE_ETIQUETTE, Ordre, POSER_UNE_ETIQUETTE, Provenance, RELIER,
-    RETABLIR, RETIREES, RETIRER, Relier, VUE_D_UNE_IDEE, Viser, VueDUneIdee, VueDeLaBoite,
+    RETABLIR, RETIREES, RETIRER, Relier, Requete, VUE_D_UNE_IDEE, Viser, VueDUneIdee, VueDeLaBoite,
     VueDesRetirees,
 };
 use leptos::html;
 use leptos::prelude::*;
 use leptos::web_sys::{Element, HtmlElement, HtmlInputElement, HtmlTextAreaElement, Node};
-use noyau::donnees::boite::{
-    date_de_la_liste, duree_affichee, etiquette_saisie, texte_du_compte, texte_du_filtre,
-};
+use noyau::donnees::boite::{date_de_la_liste, duree_affichee, etiquette_saisie, texte_du_compte};
 use noyau::donnees::idee;
+use noyau::donnees::requete::{self, texte_de_la_reponse};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use wasm_bindgen::JsCast;
@@ -221,6 +220,61 @@ pub(crate) fn note_a_envoyer(champ: &str, touche: &str, decalage_minutes: i32) -
     })
 }
 
+/// La commande `Relier` des idées `a` et `b`, chacune avec l'instant de sa naissance, en
+/// secondes : chacune datée, dans le message du journal, au décalage local de cet instant, que
+/// rend `decalage` (`natif::decalage_a`), jamais à celui du geste. Relier et délier la partagent.
+pub(crate) fn commande_de_lien(
+    a: (String, i64),
+    b: (String, i64),
+    decalage: impl Fn(i64) -> i32,
+) -> Relier {
+    let (decalage_minutes, decalage_b_minutes) = (decalage(a.1), decalage(b.1));
+    Relier {
+        a: a.0,
+        b: b.0,
+        decalage_minutes,
+        decalage_b_minutes,
+    }
+}
+
+/// La commande `Relier` des idées cochées, si elles sont deux, chacune avec sa naissance
+/// (`commande_de_lien`) ; une seule, ou trois, aucune.
+pub(crate) fn relier_les_cochees(
+    cochees: &[(String, i64)],
+    decalage: impl Fn(i64) -> i32,
+) -> Option<Relier> {
+    match cochees {
+        [a, b] => Some(commande_de_lien(a.clone(), b.clone(), decalage)),
+        _ => None,
+    }
+}
+
+/// La commande qui délie l'idée du volet `idee` de l'autre bout `autre` de l'un de ses liens,
+/// chacun avec la naissance que le volet en a lue : `commande_de_lien`, par `decalage`. Un bout
+/// dont la naissance ne s'est pas lue (`None`) n'a pas d'instant où lire son décalage : il prend
+/// `du_geste`, le décalage du geste, et son jour, dans le message, peut s'écarter d'un de celui de
+/// sa naissance. C'est la limite d'un bout illisible.
+pub(crate) fn deliaison(
+    idee: (String, Option<i64>),
+    autre: (String, Option<i64>),
+    decalage: impl Fn(i64) -> i32,
+    du_geste: i32,
+) -> Relier {
+    let ((a, le_a), (b, le_b)) = (idee, autre);
+    let mut commande = commande_de_lien(
+        (a, le_a.unwrap_or_default()),
+        (b, le_b.unwrap_or_default()),
+        decalage,
+    );
+    if le_a.is_none() {
+        commande.decalage_minutes = du_geste;
+    }
+    if le_b.is_none() {
+        commande.decalage_b_minutes = du_geste;
+    }
+    commande
+}
+
 /// Une frappe d'`Entrée` envoie le champ, la première seulement : tenue, la touche se répète sans
 /// rien renvoyer, comme `Ctrl+Z` (R13) ; pendant une composition, elle la valide et n'envoie rien.
 fn envoi_au_clavier(touche: &str, tenue: bool, en_composition: bool) -> bool {
@@ -288,10 +342,14 @@ fn nom_de_la_ligne(date: &str, ligne: &LigneDeLaBoite) -> String {
     )
 }
 
-/// Un compte de la boîte et son assiette, tels que le noyau les dit (`texte_du_compte`,
-/// `texte_du_filtre`) : chaque compte en `usize`, `usize::MAX` s'il le dépasse.
-fn au_noyau(compte: u64, assiette: &Assiette) -> (usize, idee::Assiette) {
-    let en_usize = |n: u64| usize::try_from(n).unwrap_or(usize::MAX);
+/// `n` en `usize`, `usize::MAX` s'il le dépasse.
+fn en_usize(n: u64) -> usize {
+    usize::try_from(n).unwrap_or(usize::MAX)
+}
+
+/// Un compte de la boîte et son assiette, tels que le noyau les reçoit (`texte_du_compte`,
+/// `texte_de_la_reponse`) : chaque compte en `usize`, et les illisibles de l'assiette à part.
+fn au_noyau(compte: u64, assiette: &Assiette) -> (usize, idee::Assiette, usize) {
     (
         en_usize(compte),
         idee::Assiette {
@@ -299,7 +357,18 @@ fn au_noyau(compte: u64, assiette: &Assiette) -> (usize, idee::Assiette) {
             portant: en_usize(assiette.portant),
             decidees: en_usize(assiette.decidees),
         },
+        en_usize(assiette.illisibles),
     )
+}
+
+/// Les parts « sans … » d'une vue, telles que le noyau les reçoit (`texte_de_la_reponse`),
+/// chacune en `usize`.
+fn sans_au_noyau(sans: &commandes::Sans) -> requete::Sans {
+    requete::Sans {
+        etiquette: sans.etiquette.map(en_usize),
+        duree: sans.duree.map(en_usize),
+        texte: sans.texte.map(en_usize),
+    }
 }
 
 /// La date de la liste de l'instant `le`, au décalage local de cet instant (question 24).
@@ -387,8 +456,8 @@ fn argument<T: Serialize>(commande: &T) -> Option<serde_json::Value> {
     serde_json::to_value(commande).ok()
 }
 
-/// Une fenêtre de la boîte, lue : la fenêtre demandée, si un filtre la restreignait, et la vue
-/// rendue.
+/// Une fenêtre de la boîte, lue : la fenêtre demandée, si sa requête cherchait un contenu, et la
+/// vue rendue.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct BoiteLue {
     fenetre: Fenetre,
@@ -411,12 +480,13 @@ enum Volet {
     Retirees,
 }
 
-/// L'idée du volet, lue : sa vue, et chacun de ses liens, l'identifiant de l'autre bout et ce qui
-/// le nomme (`nom_d_une_idee_liee`), jamais l'identifiant.
+/// L'idée du volet, lue : sa vue, et chacun de ses liens, l'identifiant de l'autre bout, ce qui
+/// le nomme (`nom_d_une_idee_liee`), jamais l'identifiant, et sa naissance, `None` pour un bout
+/// qui ne s'est pas lu.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct IdeeOuverte {
     vue: VueDUneIdee,
-    liens: Vec<(String, String)>,
+    liens: Vec<(String, String, Option<i64>)>,
 }
 
 /// Les demandes d'une liste en fenêtre : la dernière fenêtre demandée, et son rang ; une réponse
@@ -463,8 +533,9 @@ pub(crate) struct EtatDeLaBoite {
     contenu: RwSignal<usize>,
     lue: RwSignal<Option<BoiteLue>>,
     demandes: Demandes,
-    /// Les idées cochées pour relier, dans l'ordre où elles l'ont été.
-    cochees: RwSignal<Vec<String>>,
+    /// Les idées cochées pour relier, dans l'ordre où elles l'ont été, chacune avec sa naissance,
+    /// qui date son jour dans le message du lien.
+    cochees: RwSignal<Vec<(String, i64)>>,
     volet: RwSignal<Volet>,
     idee: RwSignal<Option<IdeeOuverte>>,
     /// Le rang de la dernière lecture de l'idée du volet.
@@ -531,9 +602,10 @@ impl EtatDeLaBoite {
     }
 }
 
-/// Lit la fenêtre `fenetre` de la boîte, dans l'ordre et sous le filtre choisis. Une réponse
-/// qu'une demande plus récente a devancée s'ignore ; un refus va au bandeau. La fenêtre posée, et
-/// ses lignes rendues au tick suivant, le focus perdu se rend (`rendre_le_focus_perdu`).
+/// Lit la fenêtre `fenetre` de la boîte, dans l'ordre choisi, par la requête du contenu choisi,
+/// sans borne de date. Une réponse qu'une demande plus récente a devancée s'ignore ; un refus va
+/// au bandeau. La fenêtre posée, et ses lignes rendues au tick suivant, le focus perdu se rend
+/// (`rendre_le_focus_perdu`).
 async fn lire_la_boite(
     etat: Etat,
     boite: EtatDeLaBoite,
@@ -541,11 +613,15 @@ async fn lire_la_boite(
     fenetre: Fenetre,
 ) {
     let rang = boite.demandes.demander(&fenetre);
-    let filtre = CONTENUS[boite.contenu.get_untracked()].0.clone();
-    let filtree = filtre.is_some();
+    let contenu = CONTENUS[boite.contenu.get_untracked()].0.clone();
+    let filtree = contenu.is_some();
     let commande = Boite {
         ordre: ORDRES[boite.ordre.get_untracked()].0.clone(),
-        filtre,
+        requete: Requete {
+            contenu,
+            ..Requete::default()
+        },
+        bornes: Bornes::default(),
         debut: fenetre.debut,
         nombre: fenetre.nombre,
     };
@@ -615,16 +691,16 @@ async fn lire_l_idee(etat: Etat, boite: EtatDeLaBoite, focus: RwSignal<Option<Ci
     };
     let mut liens = Vec::new();
     for autre in &vue.liens {
-        let nom = match natif::invoquer::<VueDUneIdee>(
+        let (nom, le) = match natif::invoquer::<VueDUneIdee>(
             VUE_D_UNE_IDEE,
             Some(serde_json::Value::String(autre.clone())),
         )
         .await
         {
-            Ok(liee) => nom_d_une_idee_liee(&liee),
-            Err(_) => CASE_VIDE.to_string(),
+            Ok(liee) => (nom_d_une_idee_liee(&liee), Some(liee.le)),
+            Err(_) => (CASE_VIDE.to_string(), None),
         };
-        liens.push((autre.clone(), nom));
+        liens.push((autre.clone(), nom, le));
     }
     let au_volet = boite
         .volet
@@ -1073,17 +1149,17 @@ impl Ecran {
         self.faire(ANNULER, None, |_| {});
     }
 
-    /// Relie les deux idées cochées ; faite, aucune ne reste cochée.
+    /// Relie les deux idées cochées, chacune datée au décalage local de sa naissance
+    /// (`relier_les_cochees`) ; faite, aucune ne reste cochée.
     fn relier(self) {
-        let cochees = self.boite.cochees.get_untracked();
-        let [a, b] = cochees.as_slice() else {
+        let Some(relier) = self
+            .boite
+            .cochees
+            .with_untracked(|cochees| relier_les_cochees(cochees, natif::decalage_a))
+        else {
             return;
         };
-        let commande = argument(&Relier {
-            a: a.clone(),
-            b: b.clone(),
-            decalage_minutes: natif::decalage_du_geste(),
-        });
+        let commande = argument(&relier);
         let cochees = self.boite.cochees;
         self.faire(RELIER, commande, move |fait| {
             if fait {
@@ -1150,6 +1226,25 @@ impl Ecran {
         })
     }
 
+    /// La naissance de l'idée `idee`, si c'est l'idée lue du volet ; pas encore lue, `None`.
+    fn naissance_de_l_idee_du_volet(self, idee: &str) -> Option<i64> {
+        self.boite.idee.with_untracked(|lue| {
+            lue.as_ref()
+                .filter(|lue| lue.vue.idee == idee)
+                .map(|lue| lue.vue.le)
+        })
+    }
+
+    /// Le décalage local qui date l'idée `idee` du volet dans le message d'un geste : celui de
+    /// l'instant de sa naissance (`natif::decalage_a`) ; pas encore lue, celui du geste
+    /// (`natif::decalage_du_geste`).
+    fn decalage_de_l_idee_du_volet(self, idee: &str) -> i32 {
+        match self.naissance_de_l_idee_du_volet(idee) {
+            Some(le) => natif::decalage_a(le),
+            None => natif::decalage_du_geste(),
+        }
+    }
+
     /// Complète le texte de l'idée du volet par le champ « Texte complété » ; fait, le champ
     /// repartira du texte relu.
     fn completer(self) {
@@ -1157,9 +1252,9 @@ impl Ecran {
             return;
         };
         let commande = argument(&Completer {
+            decalage_minutes: self.decalage_de_l_idee_du_volet(&idee),
             idee,
             texte: self.boite.brouillon.get_untracked(),
-            decalage_minutes: natif::decalage_du_geste(),
         });
         let brouillon_de = self.boite.brouillon_de;
         self.faire(COMPLETER, commande, move |fait| {
@@ -1177,9 +1272,9 @@ impl Ecran {
         };
         let champ = self.boite.etiquette;
         let commande = argument(&Etiqueter {
+            decalage_minutes: self.decalage_de_l_idee_du_volet(&idee),
             idee,
             etiquette: etiquette_saisie(&champ.get_untracked()),
-            decalage_minutes: natif::decalage_du_geste(),
         });
         self.faire(POSER_UNE_ETIQUETTE, commande, move |fait| {
             if fait {
@@ -1195,9 +1290,9 @@ impl Ecran {
             return;
         };
         let commande = argument(&Etiqueter {
+            decalage_minutes: self.decalage_de_l_idee_du_volet(&idee),
             idee,
             etiquette,
-            decalage_minutes: natif::decalage_du_geste(),
         });
         let focus = self.focus;
         self.faire(OTER_UNE_ETIQUETTE, commande, move |fait| {
@@ -1207,17 +1302,20 @@ impl Ecran {
         });
     }
 
-    /// Délie l'idée du volet de l'idée `autre` ; son « Délier » parti, le focus va au titre du
-    /// volet.
-    fn delier(self, autre: String) {
+    /// Délie l'idée du volet de l'idée `autre`, née à `le_de_l_autre` si elle s'est lue, chacune
+    /// datée au décalage local de sa naissance (`deliaison`) ; son « Délier » parti, le focus va
+    /// au titre du volet.
+    fn delier(self, autre: String, le_de_l_autre: Option<i64>) {
         let Some(idee) = self.idee_du_volet() else {
             return;
         };
-        let commande = argument(&Relier {
-            a: idee,
-            b: autre,
-            decalage_minutes: natif::decalage_du_geste(),
-        });
+        let le_de_l_idee = self.naissance_de_l_idee_du_volet(&idee);
+        let commande = argument(&deliaison(
+            (idee, le_de_l_idee),
+            (autre, le_de_l_autre),
+            natif::decalage_a,
+            natif::decalage_du_geste(),
+        ));
         let focus = self.focus;
         self.faire(DELIER, commande, move |fait| {
             if fait {
@@ -1238,7 +1336,7 @@ impl Ecran {
             .with_untracked(|i| i.as_ref().is_some_and(|i| i.vue.retiree.is_some()));
         let commande = argument(&Viser {
             idee: idee.clone(),
-            decalage_minutes: natif::decalage_du_geste(),
+            decalage_minutes: self.decalage_de_l_idee_du_volet(&idee),
         });
         if retiree {
             self.faire(RETABLIR, commande, |_| {});
@@ -1249,18 +1347,19 @@ impl Ecran {
             if fait {
                 boite
                     .cochees
-                    .update(|cochees| cochees.retain(|c| *c != idee));
+                    .update(|cochees| cochees.retain(|(c, _)| *c != idee));
                 boite.volet.set(Volet::Aucun);
                 focus.set(Some(Cible::Liste));
             }
         });
     }
 
-    /// Rétablit l'idée retirée `idee` ; sa ligne partie, le focus va à la liste des idées retirées.
-    fn retablir(self, idee: String) {
+    /// Rétablit l'idée retirée `idee`, née à `le`, datée au décalage local de sa naissance ; sa
+    /// ligne partie, le focus va à la liste des idées retirées.
+    fn retablir(self, idee: String, le: i64) {
         let commande = argument(&Viser {
             idee,
-            decalage_minutes: natif::decalage_du_geste(),
+            decalage_minutes: natif::decalage_a(le),
         });
         let focus = self.focus;
         self.faire(RETABLIR, commande, move |fait| {
@@ -1369,14 +1468,19 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
     let comptes = move || {
         boite.lue.with(|lue| {
             lue.as_ref().map(|lue| {
-                let (non_reliees, assiette) =
+                let (non_reliees, assiette, _) =
                     au_noyau(lue.vue.non_reliees, &lue.vue.assiette_du_compte);
-                let filtre = lue.filtree.then(|| {
-                    let (retenues, assiette) =
-                        au_noyau(lue.vue.retenues, &lue.vue.assiette_du_filtre);
-                    texte_du_filtre(retenues, assiette)
+                let reponse = lue.filtree.then(|| {
+                    let (retenues, assiette, illisibles) =
+                        au_noyau(lue.vue.retenues, &lue.vue.assiette_de_la_requete);
+                    texte_de_la_reponse(
+                        retenues,
+                        assiette,
+                        illisibles,
+                        sans_au_noyau(&lue.vue.sans),
+                    )
                 });
-                (texte_du_compte(non_reliees, assiette), filtre)
+                (texte_du_compte(non_reliees, assiette), reponse)
             })
         })
     };
@@ -1460,7 +1564,7 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
                 </label>
                 <div class="comptes" aria-live="polite">
                     <p>{move || comptes().map(|(compte, _)| compte)}</p>
-                    <p>{move || comptes().and_then(|(_, filtre)| filtre)}</p>
+                    <p>{move || comptes().and_then(|(_, reponse)| reponse)}</p>
                 </div>
                 <fieldset class="reglage">
                     <legend>"Ranger par :"</legend>
@@ -1560,7 +1664,7 @@ fn ligne_de_la_boite(
         etat_de_la_ligne(&ligne).to_string(),
         provenance_de_la_ligne(&ligne).to_string(),
     ];
-    let id = ligne.idee;
+    let (id, le) = (ligne.idee, ligne.le);
     let (bouton, case) = (
         NodeRef::<html::Button>::new(),
         NodeRef::<html::Input>::new(),
@@ -1592,7 +1696,11 @@ fn ligne_de_la_boite(
     };
     let cochee = {
         let id = id.clone();
-        move || boite.cochees.with(|cochees| cochees.contains(&id))
+        move || {
+            boite
+                .cochees
+                .with(|cochees| cochees.iter().any(|(c, _)| *c == id))
+        }
     };
     let ouvrir = {
         let id = id.clone();
@@ -1624,9 +1732,9 @@ fn ligne_de_la_boite(
     let cocher = move |ev: leptos::ev::Event| {
         let coche = event_target_checked(&ev);
         boite.cochees.update(|cochees| {
-            cochees.retain(|c| *c != id);
+            cochees.retain(|(c, _)| *c != id);
             if coche {
-                cochees.push(id.clone());
+                cochees.push((id.clone(), le));
             }
         });
     };
@@ -1707,7 +1815,7 @@ fn ligne_retiree(ecran: Ecran, index: ReadSignal<usize>, ligne: LigneDeLaBoite) 
     let texte = texte_de_la_ligne(&ligne);
     let nom_du_bouton = format!("Rétablir : {date} · {texte}");
     let cellules = [date, texte, etiquettes_de_la_ligne(&ligne)];
-    let id = ligne.idee;
+    let (id, le) = (ligne.idee, ligne.le);
     let bouton = NodeRef::<html::Button>::new();
     focus_de_la_ligne(ecran, id.clone(), move |commande| match commande {
         Commande::Retablir => bouton.get().map(Into::into),
@@ -1755,7 +1863,7 @@ fn ligne_retiree(ecran: Ecran, index: ReadSignal<usize>, ligne: LigneDeLaBoite) 
                 aria-label=nom_du_bouton
                 node_ref=bouton
                 on:focus=bouton_pris
-                on:click=move |_| ecran.retablir(id.clone())
+                on:click=move |_| ecran.retablir(id.clone(), le)
             >
                 "Rétablir"
             </button>
@@ -1891,8 +1999,8 @@ fn VoletDeLIdee(ecran: Ecran) -> impl IntoView {
             <ul class="puces">
                 <For
                     each=liens
-                    key=|lien: &(String, String)| lien.clone()
-                    children=move |(autre, nom): (String, String)| {
+                    key=|lien: &(String, String, Option<i64>)| lien.clone()
+                    children=move |(autre, nom, le): (String, String, Option<i64>)| {
                         let nom_du_bouton = format!("Délier : {nom}");
                         view! {
                             <li>
@@ -1903,7 +2011,7 @@ fn VoletDeLIdee(ecran: Ecran) -> impl IntoView {
                                         aria-label=nom_du_bouton.clone()
                                         on:click={
                                             let autre = autre.clone();
-                                            move |_| ecran.delier(autre.clone())
+                                            move |_| ecran.delier(autre.clone(), le)
                                         }
                                     >
                                         "Délier"
@@ -2391,6 +2499,87 @@ mod tests {
                 texte: "Une idée de pont".to_string(),
                 decalage_minutes: -300
             })
+        );
+    }
+
+    /// Le décalage local de l'heure de Paris, en minutes : l'heure d'été (120) jusqu'au
+    /// 25 octobre 2026 à 1 h UTC, l'heure d'hiver (60) ensuite.
+    fn decalage_de_paris(le: i64) -> i32 {
+        if le < 1_792_890_000 { 120 } else { 60 }
+    }
+
+    #[test]
+    fn relier_les_cochees_date_chaque_idee_a_sa_naissance() {
+        // L'une née le 24 octobre 2026 à 22 h 30 UTC, à l'heure d'été ; l'autre le 17 novembre
+        // à 9 h UTC, à l'heure d'hiver.
+        let a = ("idee-a".to_string(), 1_792_881_000);
+        let b = ("idee-b".to_string(), 1_794_906_000);
+        assert_eq!(
+            relier_les_cochees(&[a.clone(), b.clone()], decalage_de_paris),
+            Some(Relier {
+                a: "idee-a".to_string(),
+                b: "idee-b".to_string(),
+                decalage_minutes: 120,
+                decalage_b_minutes: 60,
+            })
+        );
+        assert_eq!(
+            relier_les_cochees(std::slice::from_ref(&a), decalage_de_paris),
+            None
+        );
+        assert_eq!(
+            relier_les_cochees(
+                &[a, b, ("idee-c".to_string(), 1_793_750_400)],
+                decalage_de_paris
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn delier_depuis_le_volet_date_chaque_bout() {
+        // L'idée du volet née le 24 octobre 2026 à 22 h 30 UTC, l'autre bout le 17 novembre à
+        // 9 h UTC : chacun au décalage de son instant, jamais à celui du geste.
+        assert_eq!(
+            deliaison(
+                ("idee-du-volet".to_string(), Some(1_792_881_000)),
+                ("autre-bout".to_string(), Some(1_794_906_000)),
+                decalage_de_paris,
+                -300,
+            ),
+            Relier {
+                a: "idee-du-volet".to_string(),
+                b: "autre-bout".to_string(),
+                decalage_minutes: 120,
+                decalage_b_minutes: 60,
+            }
+        );
+        // Un bout dont la naissance ne s'est pas lue prend le décalage du geste : la limite.
+        let sans_naissance = deliaison(
+            ("idee-du-volet".to_string(), Some(1_792_881_000)),
+            ("autre-bout".to_string(), None),
+            decalage_de_paris,
+            -300,
+        );
+        assert_eq!(
+            (
+                sans_naissance.decalage_minutes,
+                sans_naissance.decalage_b_minutes
+            ),
+            (120, -300)
+        );
+        let volet_sans_naissance = deliaison(
+            ("idee-du-volet".to_string(), None),
+            ("autre-bout".to_string(), Some(1_794_906_000)),
+            decalage_de_paris,
+            -300,
+        );
+        assert_eq!(
+            (
+                volet_sans_naissance.decalage_minutes,
+                volet_sans_naissance.decalage_b_minutes
+            ),
+            (-300, 60)
         );
     }
 

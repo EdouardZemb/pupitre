@@ -7,8 +7,9 @@
 //! migration de test, les migrations qui la portent, une migration qui attend ses
 //! dépendances, le fonds de chaque geste, et les aides qui refusent ce qu'I28, I01 et les types
 //! interdisent (`une_modification`, `message_connu`, `parcourir`, `parcourir_les_types`) ; la
-//! boîte entière, l'assiette du noyau qui répond à celle des commandes, le texte du compte et un
-//! document dont une idée est illisible. Le fichier s'inclut par `mod suite;` dans les tests des
+//! boîte entière, l'assiette du noyau qui répond à celle des commandes, le texte du compte, celui
+//! de la réponse d'une requête, le jeu de requêtes d'I09 et d'I13, un document dont une idée est
+//! illisible, les commandes des requêtes enregistrées et la requête entière. Le fichier s'inclut par `mod suite;` dans les tests des
 //! services, et par
 //! `#[path = "../../services/tests/suite/mod.rs"]` dans ceux du stockage : il ne nomme que ce
 //! que les deux voient, les services, les commandes, le noyau et `automerge`.
@@ -16,28 +17,33 @@
 // Chaque fichier qui inclut la suite n'en emploie qu'une partie.
 #![allow(dead_code)]
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use automerge::transaction::{CommitOptions, Transactable};
 use automerge::{
     ActorId, Automerge, Change, ChangeHash, ObjId, ObjType, Prop, ROOT, ReadDoc, ScalarValue, Value,
 };
 use commandes::{
-    Assiette, Boite, Captation, Completer, Contenu, EntreeDuJournal, EtatDuFonds, Etiqueter,
-    FENETRE_MAX, Faite, Fenetre, LigneDeLaBoite, Notee, Noter, Ordre, Raison, Refus, Regrouper,
-    Relier, Reponse, Viser, VueDUneIdee, VueDeLaBoite, VueDesRetirees,
+    Assiette, Boite, Bornes, Captation, Completer, Contenu, Enregistrer, EntreeDuJournal, Etat,
+    EtatDuFonds, Etiqueter, FENETRE_MAX, Faite, Fenetre, Jour, LigneDeLaBoite, Notee, Noter, Ordre,
+    ProvenanceDeLIdee, Raison, Refus, Regrouper, Relier, Renommer, Reponse, Requete,
+    RequeteEnregistree, Sans, Supprimer, Viser, VueDUneIdee, VueDeLaBoite, VueDesRetirees,
+    VueDuJournal,
 };
 use noyau::donnees::boite::texte_du_compte;
 use noyau::donnees::changement::{Changement, Operation, Simple};
 use noyau::donnees::fonds::{
-    ACTEUR_DE_LA_GENESE, APPARENTE, CONTENEURS_DE_LA_GENESE, DEPUIS, DUREE, ETIQUETTES, FORMAT,
-    GENESE, IDEE as IDEE_D_UNE_CAPTATION, IDEES, IDENTIFIANT, LE, LIENS, LIGNEE,
-    MESSAGE_DE_LA_GENESE, MESSAGE_DE_LA_NAISSANCE, MIDI_VERSES, PAR, PHOTOS, PRISES, PROPRIETAIRE,
-    PROVENANCE, RETIREE, TEXTE, TEXTES_VERSES, VERSION_DE_SCHEMA,
+    ACTEUR_DE_LA_GENESE, APPARENTE, AU, CONTENEURS_DE_LA_GENESE, CONTENU, DEPUIS, DU, DUREE, ETAT,
+    ETIQUETTE, ETIQUETTES, FORMAT, GENESE, IDEE as IDEE_D_UNE_CAPTATION, IDEES, IDENTIFIANT, LE,
+    LIENS, LIGNEE, MESSAGE_DE_LA_GENESE, MESSAGE_DE_LA_NAISSANCE, MIDI_VERSES, NOM, PAR, PHOTOS,
+    PLUS_DE_SECONDES, PRISES, PROPRIETAIRE, PROVENANCE, REQUETES_ENREGISTREES, RETIREE, TEXTE,
+    TEXTES_VERSES, VERSION_DE_SCHEMA,
 };
 use noyau::donnees::gestes;
 use noyau::donnees::idee::cle_du_lien;
 use noyau::donnees::identifiants::empreinte;
+use noyau::donnees::journal::empreinte_du_journal;
+use noyau::donnees::requete::texte_de_la_reponse;
 use noyau::donnees::version::{Migration, message_de_la_migration};
 use services::application;
 use services::lecture::{lire_l_idee, teneur, version_de_schema};
@@ -254,16 +260,18 @@ pub fn etiquetage(idee: &str, etiquette: &str) -> Etiqueter {
     }
 }
 
-/// La commande qui relie ou délie les idées `a` et `b`, au décalage local nul.
+/// La commande qui relie ou délie les idées `a` et `b`, chacune au décalage local nul.
 pub fn lien(a: &str, b: &str) -> Relier {
     Relier {
         a: a.to_string(),
         b: b.to_string(),
         decalage_minutes: 0,
+        decalage_b_minutes: 0,
     }
 }
 
-/// La commande qui regroupe la prise `empreinte` dans l'idée `cible`, au décalage local nul.
+/// La commande qui regroupe la prise `empreinte` dans l'idée `cible`, la cible et la source au
+/// décalage local nul.
 pub fn regroupement(empreinte: &str, cible: &str) -> Regrouper {
     Regrouper {
         captation: Captation {
@@ -272,6 +280,7 @@ pub fn regroupement(empreinte: &str, cible: &str) -> Regrouper {
         },
         cible: cible.to_string(),
         decalage_minutes: 0,
+        decalage_source_minutes: 0,
     }
 }
 
@@ -281,6 +290,59 @@ pub fn visee(idee: &str) -> Viser {
         idee: idee.to_string(),
         decalage_minutes: 0,
     }
+}
+
+/// La commande qui enregistre `requete` sous le nom `nom`.
+pub fn enregistrement(nom: &str, requete: Requete) -> Enregistrer {
+    Enregistrer {
+        nom: nom.to_string(),
+        requete,
+    }
+}
+
+/// La commande qui renomme `nom` la requête enregistrée `requete`, un ULID.
+pub fn renommage(requete: &str, nom: &str) -> Renommer {
+    Renommer {
+        requete: requete.to_string(),
+        nom: nom.to_string(),
+    }
+}
+
+/// La commande qui supprime la requête enregistrée `requete`, un ULID.
+pub fn suppression(requete: &str) -> Supprimer {
+    Supprimer {
+        requete: requete.to_string(),
+    }
+}
+
+/// La requête dont chaque critère est posé : le texte « église », du 1er au 30 novembre 2023,
+/// l'étiquette `pont`, plus d'une minute, les reliées, les captées, le texte de l'idée.
+pub fn requete_entiere() -> Requete {
+    Requete {
+        texte: "église".to_string(),
+        du: Some(Jour {
+            annee: 2023,
+            mois: 11,
+            jour: 1,
+        }),
+        au: Some(Jour {
+            annee: 2023,
+            mois: 11,
+            jour: 30,
+        }),
+        etiquette: Some("pont".to_string()),
+        plus_de_secondes: Some(60),
+        etat: Some(Etat::Reliee),
+        provenance: Some(ProvenanceDeLIdee::Captee),
+        contenu: Some(Contenu::TexteDeLIdee),
+    }
+}
+
+/// Les requêtes enregistrées des services, qui se lisent en lecture seule comme ailleurs.
+fn les_requetes<D: Documents, C: Captations>(services: &Services<D, C>) -> Vec<RequeteEnregistree> {
+    services
+        .requetes_enregistrees()
+        .expect("les requêtes enregistrées se lisent")
 }
 
 /// Verse `octets`, de sorte `sorte` et de fiche `fiche`, importés (`importee`), au décalage local
@@ -450,6 +512,7 @@ fn temoin_suivi<D: Documents, C: Captations>(
         },
         cible: a.idee,
         decalage_minutes: 0,
+        decalage_source_minutes: 0,
     };
     faire_sans_avertissement(
         services,
@@ -693,15 +756,35 @@ fn est_un_geste_de_tri(message: &str) -> bool {
     })
 }
 
+/// `message` est celui d'une opération sur une requête enregistrée : « Requête « », un nom non
+/// vide, puis « » enregistrée » ou « » supprimée » ; ou « Requête « », un nom non vide,
+/// « » renommée « », un nom non vide, puis « » ».
+fn est_une_operation_sur_une_requete(message: &str) -> bool {
+    let Some(reste) = message.strip_prefix("Requête « ") else {
+        return false;
+    };
+    if let Some(nom) = reste
+        .strip_suffix(" » enregistrée")
+        .or_else(|| reste.strip_suffix(" » supprimée"))
+    {
+        return !nom.is_empty();
+    }
+    reste
+        .strip_suffix(" »")
+        .and_then(|noms| noms.split_once(" » renommée « "))
+        .is_some_and(|(ancien, nouveau)| !ancien.is_empty() && !nouveau.is_empty())
+}
+
 /// I28 (§ 70 · 3) : `message` est celui d'une opération connue : la genèse, la naissance, une
-/// migration, ou l'une des formes fermées d'une note, d'un versement ou d'un geste de tri, ou
-/// « Annulé : » suivi d'une forme d'un geste de tri.
+/// migration, ou l'une des formes fermées d'une note, d'un versement, d'un geste de tri ou d'une
+/// opération sur une requête enregistrée, ou « Annulé : » suivi d'une forme d'un geste de tri.
 pub fn message_connu(message: &str) -> bool {
     message == MESSAGE_DE_LA_GENESE
         || message == MESSAGE_DE_LA_NAISSANCE
         || est_une_migration(message)
         || est_une_note_ou_un_versement(message)
         || est_un_geste_de_tri(message)
+        || est_une_operation_sur_une_requete(message)
         || message
             .strip_prefix("Annulé : ")
             .is_some_and(est_un_geste_de_tri)
@@ -766,6 +849,22 @@ const INTERDITS_SOUS_UNE_IDEE: [&str; 6] =
     [DUREE, "reliee", PRISES, PHOTOS, MIDI_VERSES, TEXTES_VERSES];
 /// Les noms qu'aucune clé ne porte (§ 30 · 13) : un compte, un total, l'état « à envoyer ».
 const INTERDITS_PARTOUT: [&str; 3] = ["compte", "total", "a_envoyer"];
+/// Les clés d'une requête enregistrée : son nom, et une par sorte de critère, celles qu'écrit
+/// `noyau::donnees::requete::enregistrer_une_requete`.
+const CHAMPS_D_UNE_REQUETE: [&str; 9] = [
+    NOM,
+    TEXTE,
+    DU,
+    AU,
+    ETIQUETTE,
+    PLUS_DE_SECONDES,
+    ETAT,
+    PROVENANCE,
+    CONTENU,
+];
+/// Les noms qu'une requête enregistrée ne porte jamais (I01) : ses résultats et leur nombre, que
+/// chaque lecture engendre du fonds.
+const INTERDITS_SOUS_UNE_REQUETE: [&str; 2] = ["resultats", "nombre"];
 
 /// `cle` est `<empreinte>/<fait>`, coupée au premier `/`, l'empreinte non vide et le fait l'un de
 /// `faits`.
@@ -785,7 +884,9 @@ fn cle_d_un_lien(cle: &str) -> bool {
 /// La liste blanche, tirée des clés du schéma : à la racine du document, ses champs et ses neuf
 /// conteneurs ; sous `idees`, chaque idée, ses champs, et chaque étiquette sous `etiquettes` ;
 /// sous `prises`, `<empreinte>/` suivi de `idee`, `format` ou `duree` ; sous `midi_verses` et
-/// `textes_verses`, `<empreinte>/` suivi de `idee` ou `format` ; sous `liens`, la clé d'un lien.
+/// `textes_verses`, `<empreinte>/` suivi de `idee` ou `format` ; sous `liens`, la clé d'un lien ;
+/// sous `requetes_enregistrees`, chaque requête enregistrée et ses champs
+/// (`CHAMPS_D_UNE_REQUETE`), rien d'autre dessous.
 fn permis(chemin: &[String]) -> bool {
     match chemin {
         [cle] => {
@@ -800,18 +901,26 @@ fn permis(chemin: &[String]) -> bool {
             fait_d_une_captation(cle, &FAITS_D_UN_MIDI_OU_D_UN_TEXTE)
         }
         [conteneur, cle] if conteneur == LIENS => cle_d_un_lien(cle),
+        [conteneur, _] if conteneur == REQUETES_ENREGISTREES => true,
+        [conteneur, _, champ] if conteneur == REQUETES_ENREGISTREES => {
+            CHAMPS_D_UNE_REQUETE.contains(&champ.as_str())
+        }
         _ => false,
     }
 }
 
 /// Un nom interdit (§ 30 · 13) : `etiquettes` à la racine du document ; sous une idée, l'un de
-/// `INTERDITS_SOUS_UNE_IDEE` ; partout, chaque clé coupée à chaque `/`, l'un de
-/// `INTERDITS_PARTOUT`, une étiquette ou un identifiant de ce nom compris.
+/// `INTERDITS_SOUS_UNE_IDEE` ; sous une requête enregistrée, l'un de `INTERDITS_SOUS_UNE_REQUETE` ;
+/// partout, chaque clé coupée à chaque `/`, l'un de `INTERDITS_PARTOUT`, une étiquette ou un
+/// identifiant de ce nom compris.
 fn interdit(chemin: &[String]) -> bool {
     let sous_son_parent = match chemin {
         [cle] => cle == ETIQUETTES,
         [conteneur, _, champ] if conteneur == IDEES => {
             INTERDITS_SOUS_UNE_IDEE.contains(&champ.as_str())
+        }
+        [conteneur, _, champ] if conteneur == REQUETES_ENREGISTREES => {
+            INTERDITS_SOUS_UNE_REQUETE.contains(&champ.as_str())
         }
         _ => false,
     };
@@ -1104,6 +1213,88 @@ pub fn une_note_au_decalage_local_dit_le_jour_decale<P: Paire>(paire: &mut P) {
         .vue_d_une_idee(IDEE)
         .expect("la vue de l'idée se lit");
     assert_eq!(vue.le, HEURE);
+}
+
+/// Un geste qui nomme deux idées : les services passent au noyau le décalage de chacune, celui
+/// qui la date, jamais l'un pour l'autre. Deux notes et une prise versée, toutes nées à `HEURE`
+/// (22 h 13 UTC, le 14 novembre) : à 120 minutes, une idée est du 15 novembre ; à 0, du 14.
+/// Relier à (120, 0), délier à (0, 120), regrouper la prise dans la première note à 120 pour la
+/// cible et 0 pour la source qu'il retire : chaque message dit deux jours distincts, si bien qu'un
+/// décalage passé deux fois, ou les deux échangés, se voit au journal.
+pub fn chaque_idee_d_un_geste_se_date_a_son_propre_decalage<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    services
+        .noter(&une_note("Un refrain qui monte, en ré"), &mut contexte)
+        .expect("la note est faite");
+    services
+        .noter(&une_note("Un pont en mi mineur"), &mut contexte)
+        .expect("la note est faite");
+    let versee = verser_une_prise(
+        &mut services,
+        PRISE_DE_TEST,
+        &fiche_wav(42_000),
+        &mut contexte,
+    );
+    let derniere_entree = |services: &Services<P::D, P::C>| {
+        services
+            .journal()
+            .expect("le journal se lit")
+            .last()
+            .cloned()
+    };
+
+    let relier = Relier {
+        decalage_minutes: 120,
+        decalage_b_minutes: 0,
+        ..lien(IDEE, SECONDE_IDEE)
+    };
+    services
+        .relier(&relier, &mut contexte)
+        .expect("les idées se relient");
+    assert_eq!(
+        derniere_entree(&services),
+        Some(entree(
+            "Idée du 15 novembre reliée à l'idée du 14 novembre",
+            HEURE
+        ))
+    );
+
+    let delier = Relier {
+        decalage_minutes: 0,
+        decalage_b_minutes: 120,
+        ..lien(IDEE, SECONDE_IDEE)
+    };
+    services
+        .delier(&delier, &mut contexte)
+        .expect("les idées se délient");
+    assert_eq!(
+        derniere_entree(&services),
+        Some(entree(
+            "Idée du 14 novembre déliée de l'idée du 15 novembre",
+            HEURE
+        ))
+    );
+
+    let regrouper = Regrouper {
+        decalage_minutes: 120,
+        decalage_source_minutes: 0,
+        ..regroupement(&versee.empreinte, IDEE)
+    };
+    services
+        .regrouper(&regrouper, &mut contexte)
+        .expect("la prise se regroupe");
+    assert_eq!(
+        derniere_entree(&services),
+        Some(entree(
+            "Idée du 15 novembre : prise regroupée, idée du 14 novembre retirée",
+            HEURE
+        ))
+    );
 }
 
 /// Une empreinte qu'aucune captation ne porte ne se relit pas : `Raison::Impossible`, sur des
@@ -1925,6 +2116,7 @@ pub fn la_vue_tire_reliee_et_la_duree_des_regles_du_noyau<P: Paire>(paire: &mut 
         },
         cible: v1.idee.clone(),
         decalage_minutes: 0,
+        decalage_source_minutes: 0,
     };
     services
         .regrouper(&regroupement_du_midi, &mut contexte)
@@ -2294,17 +2486,60 @@ pub fn chaque_operation_laisse_une_seule_modification_avec_son_message<P: Paire>
     }
 }
 
-/// I28 sur l'historique (§ 70 · 3) : sur le fonds de chaque geste, chaque message du journal est
-/// celui d'une opération connue (`message_connu`). `message_connu` refuse « Idée du 3 novembre :
-/// autre chose », une forme qu'aucune opération n'écrit, « Annulé : Idée du 3 novembre notée »,
-/// une note, qu'annuler ne vise pas, et des messages bien formés hors d'une date que le noyau
-/// n'écrit pas (un jour 0, 1, 01, 03 ou 32, un mois inconnu) ou d'une étiquette vide ; il
-/// reconnaît la genèse, la naissance, une migration, un exemple de chaque forme d'une note, d'un
-/// versement et d'un geste de tri, et « Annulé : » suivi de chaque forme d'un geste de tri.
+/// Sur `services`, dont le fonds est né, à `LENDEMAIN`, sous un aléa de graine 1 : enregistrer
+/// « Ponts lents » (la requête entière, `requete_entiere`), la renommer « Ponts du soir », puis la
+/// supprimer, chacune faite sans avertissement.
+fn les_operations_sur_une_requete<D: Documents, C: Captations>(services: &mut Services<D, C>) {
+    let mut alea = AleaDeTest {
+        graine: 1,
+        appels: 0,
+    };
+    let mut contexte = Contexte {
+        heure: LENDEMAIN,
+        alea: &mut alea,
+    };
+    let fait = || -> Reponse<Faite> {
+        Ok(Faite {
+            avertissement: None,
+        })
+    };
+    assert_eq!(
+        services.enregistrer_une_requete(
+            &enregistrement("Ponts lents", requete_entiere()),
+            &mut contexte
+        ),
+        fait()
+    );
+    let id = les_requetes(services)
+        .pop()
+        .expect("la requête enregistrée se lit")
+        .id;
+    assert_eq!(
+        services.renommer_une_requete(&renommage(&id, "Ponts du soir"), &mut contexte),
+        fait()
+    );
+    assert_eq!(
+        services.supprimer_une_requete(&suppression(&id), &mut contexte),
+        fait()
+    );
+}
+
+/// I28 sur l'historique (§ 70 · 3) : sur le fonds de chaque geste, où une requête est aussi
+/// enregistrée, renommée et supprimée (`les_operations_sur_une_requete`), chaque message du
+/// journal est celui d'une opération connue (`message_connu`). `message_connu` refuse « Idée du
+/// 3 novembre : autre chose », une forme qu'aucune opération n'écrit, « Annulé : Idée du
+/// 3 novembre notée », une note, qu'annuler ne vise pas, des messages bien formés hors d'une date
+/// que le noyau n'écrit pas (un jour 0, 1, 01, 03 ou 32, un mois inconnu) ou d'une étiquette vide,
+/// et, d'une requête enregistrée, un nom vide, une autre forme, ou « Annulé : » suivi d'une
+/// opération sur elle, qu'annuler ne vise pas ; il reconnaît la genèse, la naissance, une
+/// migration, un exemple de chaque forme d'une note, d'un versement, d'un geste de tri et d'une
+/// opération sur une requête enregistrée, et « Annulé : » suivi de chaque forme d'un geste de tri.
 pub fn l_historique_ne_porte_que_des_operations_connues<P: Paire>(paire: &mut P) {
-    let services = le_fonds_de_chaque_geste(paire, &mut |_, _, _| {});
+    let mut services = le_fonds_de_chaque_geste(paire, &mut |_, _, _| {});
+    les_operations_sur_une_requete(&mut services);
     let journal = services.journal().expect("le journal se lit");
-    assert_eq!(journal.len(), 19, "{journal:?}");
+    // Les dix-neuf modifications du fonds de chaque geste, puis les trois de la requête.
+    assert_eq!(journal.len(), 19 + 3, "{journal:?}");
     for entree_du_journal in &journal {
         assert!(
             message_connu(&entree_du_journal.message),
@@ -2326,6 +2561,15 @@ pub fn l_historique_ne_porte_que_des_operations_connues<P: Paire>(paire: &mut P)
         "Idée du 32 novembre notée",
         "Idée du 3 brumaire notée",
         "Idée du 3 novembre : étiquette # posée",
+        "Requête «  » enregistrée",
+        "Requête «  » supprimée",
+        "Requête «  » renommée « Ponts du soir »",
+        "Requête « Ponts lents » renommée «  »",
+        "Requête « Ponts lents » renommée",
+        "Requête « Ponts lents » oubliée",
+        "Requête « Ponts lents » enregistrée hier",
+        "Requête Ponts lents enregistrée",
+        "Annulé : Requête « Ponts lents » enregistrée",
     ] {
         assert!(!message_connu(inconnu), "« {inconnu} » est reconnu");
     }
@@ -2350,6 +2594,11 @@ pub fn l_historique_ne_porte_que_des_operations_connues<P: Paire>(paire: &mut P)
         "Idée du 5 novembre retirée",
         "Idée du 6 novembre rétablie",
     ];
+    let operations_sur_une_requete = [
+        "Requête « Ponts lents » enregistrée",
+        "Requête « Ponts lents » renommée « Ponts du soir »",
+        "Requête « Ponts du soir » supprimée",
+    ];
     let migration = message_de_la_migration(2);
     let connus = [
         MESSAGE_DE_LA_GENESE,
@@ -2360,6 +2609,7 @@ pub fn l_historique_ne_porte_que_des_operations_connues<P: Paire>(paire: &mut P)
         .into_iter()
         .chain(notes_et_versements)
         .chain(gestes_de_tri)
+        .chain(operations_sur_une_requete)
     {
         assert!(message_connu(connu), "« {connu} » n'est pas reconnu");
     }
@@ -2373,22 +2623,41 @@ pub fn l_historique_ne_porte_que_des_operations_connues<P: Paire>(paire: &mut P)
 }
 
 // § 31 · 10, test 7 : chercher les champs interdits du § 30 · 13
-/// I01 (§ 70 · 3) : sur le fonds de chaque geste, chaque clé est dans la liste blanche que tirent
-/// les clés du schéma (`noyau::donnees::fonds`), et aucune ne porte un nom interdit (§ 30 · 13) :
-/// `parcourir` n'y trouve rien. Sur un document de test, une durée posée à la main sous l'idée,
-/// `idees/<i>/duree`, la durée d'une idée étant engendrée de ses prises, puis une date et un
-/// appareil sous une prise, `prises/<empreinte>/le` et `prises/<empreinte>/par`, qu'une prise ne
-/// porte pas, des faits de sa captation que rien ne lit encore sur elle (§ 30 · 9.2), sont les
-/// trois chemins qu'il rend.
+/// I01 (§ 70 · 3) : sur le fonds de chaque geste, où une requête entière (`requete_entiere`) est
+/// enregistrée de plus, chacune de ses neuf clés écrite, chaque clé est dans la liste blanche que
+/// tirent les clés du schéma (`noyau::donnees::fonds`), et aucune ne porte un nom interdit
+/// (§ 30 · 13) : `parcourir` n'y trouve rien. Sur un document de test, une durée posée à la main
+/// sous l'idée, `idees/<i>/duree`, la durée d'une idée étant engendrée de ses prises, puis une
+/// date et un appareil sous une prise, `prises/<empreinte>/le` et `prises/<empreinte>/par`,
+/// qu'une prise ne porte pas, des faits de sa captation que rien ne lit encore sur elle
+/// (§ 30 · 9.2), puis, sous une requête enregistrée plantée avec son nom, ses résultats et leur
+/// nombre, `requetes_enregistrees/<r>/resultats` et `requetes_enregistrees/<r>/nombre`, et une clé
+/// sous son contenu, posé en objet, `requetes_enregistrees/<r>/contenu/prise`, sont les six
+/// chemins qu'il rend.
 pub fn rien_d_engendre_n_est_stocke<P: Paire>(paire: &mut P) {
-    let services = le_fonds_de_chaque_geste(paire, &mut |_, _, _| {});
+    let mut services = le_fonds_de_chaque_geste(paire, &mut |_, _, _| {});
+    let mut alea = AleaDeTest {
+        graine: 1,
+        appels: 0,
+    };
+    services
+        .enregistrer_une_requete(
+            &enregistrement("Ponts lents", requete_entiere()),
+            &mut Contexte {
+                heure: LENDEMAIN,
+                alea: &mut alea,
+            },
+        )
+        .expect("la requête entière est enregistrée");
     let fonds = services.documents().fonds().expect("le fonds est né");
     assert_eq!(parcourir(fonds), Vec::<String>::new());
 
     let mut doc = un_document_de_test();
     let idee = objet_au_bout(&doc, &[IDEES, IDEE]);
     let prises_du_document = objet_au_bout(&doc, &[PRISES]);
+    let requetes = objet_au_bout(&doc, &[REQUETES_ENREGISTREES]);
     let prise = empreinte(PRISE_DE_TEST);
+    let plantee = "01HF7YAT000000000000000009";
     let mut tx = doc.transaction();
     tx.put(&idee, DUREE, 30_000u64)
         .expect("poser une durée sous l'idée");
@@ -2396,6 +2665,20 @@ pub fn rien_d_engendre_n_est_stocke<P: Paire>(paire: &mut P) {
         .expect("poser une date sous la prise");
     tx.put(&prises_du_document, format!("{prise}/{PAR}"), "etabli")
         .expect("poser un appareil sous la prise");
+    let requete = tx
+        .put_object(&requetes, plantee, ObjType::Map)
+        .expect("créer une requête enregistrée");
+    tx.put(&requete, NOM, "Ponts lents")
+        .expect("poser le nom de la requête");
+    tx.put(&requete, "resultats", 3u64)
+        .expect("poser des résultats sous la requête");
+    tx.put(&requete, "nombre", 3u64)
+        .expect("poser un nombre sous la requête");
+    let contenu = tx
+        .put_object(&requete, CONTENU, ObjType::Map)
+        .expect("créer un objet sous le contenu de la requête");
+    tx.put(&contenu, "prise", true)
+        .expect("poser une clé sous le contenu de la requête");
     let (plantation, _) = tx.commit();
     plantation.expect("la plantation est une modification");
     assert_eq!(
@@ -2404,6 +2687,9 @@ pub fn rien_d_engendre_n_est_stocke<P: Paire>(paire: &mut P) {
             format!("{IDEES}/{IDEE}/{DUREE}"),
             format!("{PRISES}/{prise}/{LE}"),
             format!("{PRISES}/{prise}/{PAR}"),
+            format!("{REQUETES_ENREGISTREES}/{plantee}/{CONTENU}/prise"),
+            format!("{REQUETES_ENREGISTREES}/{plantee}/nombre"),
+            format!("{REQUETES_ENREGISTREES}/{plantee}/resultats"),
         ]
     );
 }
@@ -2440,12 +2726,13 @@ pub fn aucun_counter_ni_objet_text_dans_un_document_des_operations<P: Paire>(pai
 /// 40 s UTC, plus de trois ans avant `HEURE`.
 const EN_2020: i64 = 1_600_000_000;
 
-/// La boîte entière, autant qu'une fenêtre en rend : par date, sans filtre, de la première ligne,
-/// `FENETRE_MAX` lignes.
+/// La boîte entière, autant qu'une fenêtre en rend : par date, sans critère ni borne, de la
+/// première ligne, `FENETRE_MAX` lignes.
 pub fn toute_la_boite() -> Boite {
     Boite {
         ordre: Ordre::Date,
-        filtre: None,
+        requete: Requete::default(),
+        bornes: Bornes::default(),
         debut: 0,
         nombre: FENETRE_MAX,
     }
@@ -2469,17 +2756,19 @@ fn idees_des_lignes(lignes: &[LigneDeLaBoite]) -> Vec<String> {
     lignes.iter().map(|ligne| ligne.idee.clone()).collect()
 }
 
-/// L'assiette dont chaque compte vaut `n`.
+/// L'assiette dont chaque compte vaut `n`, sans illisible.
 fn assiette_de(n: u64) -> Assiette {
     Assiette {
         considerees: n,
         portant: n,
         decidees: n,
+        illisibles: 0,
     }
 }
 
-/// L'assiette du noyau qui répond à celle des commandes, chaque compte par `usize::try_from`,
-/// `usize::MAX` au-delà : la seule conversion de la suite d'une assiette des commandes.
+/// L'assiette du noyau qui répond à celle des commandes, sans ses illisibles, que le noyau ne
+/// porte pas dans l'assiette, chaque compte par `usize::try_from`, `usize::MAX` au-delà : la seule
+/// conversion de la suite d'une assiette des commandes.
 pub fn assiette_du_noyau(assiette: &Assiette) -> noyau::donnees::idee::Assiette {
     let compte = |n: u64| usize::try_from(n).unwrap_or(usize::MAX);
     noyau::donnees::idee::Assiette {
@@ -2547,11 +2836,55 @@ pub fn un_document_dont_une_idee_porte_une_photo() -> Vec<u8> {
     doc.save()
 }
 
+/// La requête enregistrée « Ponts lents » que plante
+/// `un_document_aux_requetes_d_une_version_plus_recente` : une sorte de critère inconnue.
+pub const REQUETE_PLUS_RECENTE: &str = "01HF7YAT000000000000000011";
+/// La requête enregistrée « Église » que plante le même document : son texte est un objet.
+pub const REQUETE_AU_TEXTE_EN_OBJET: &str = "01HF7YAT000000000000000012";
+
+/// Un document de test (`un_document_de_test`), où le test plante, sous `requetes_enregistrees`,
+/// ce qu'aucune opération de cette version n'écrit : « Ponts lents » (`REQUETE_PLUS_RECENTE`), le
+/// texte « pont » et une sorte de critère inconnue, `tempo`, comme d'une version plus récente de
+/// Pupitre ; « Église » (`REQUETE_AU_TEXTE_EN_OBJET`), dont le texte est un objet ; une requête sans
+/// nom, son texte seul ; et une valeur simple, qui n'est pas un objet. Rend les octets du document
+/// (`save()`).
+pub fn un_document_aux_requetes_d_une_version_plus_recente() -> Vec<u8> {
+    let mut doc = un_document_de_test();
+    let requetes = objet_au_bout(&doc, &[REQUETES_ENREGISTREES]);
+    let mut tx = doc.transaction();
+    let plus_recente = tx
+        .put_object(&requetes, REQUETE_PLUS_RECENTE, ObjType::Map)
+        .expect("créer la requête d'une version plus récente");
+    tx.put(&plus_recente, NOM, "Ponts lents")
+        .expect("poser son nom");
+    tx.put(&plus_recente, TEXTE, "pont")
+        .expect("poser son texte");
+    tx.put(&plus_recente, "tempo", "lent")
+        .expect("poser une sorte de critère inconnue");
+    let texte_en_objet = tx
+        .put_object(&requetes, REQUETE_AU_TEXTE_EN_OBJET, ObjType::Map)
+        .expect("créer la requête au texte en objet");
+    tx.put(&texte_en_objet, NOM, "Église")
+        .expect("poser son nom");
+    tx.put_object(&texte_en_objet, TEXTE, ObjType::Map)
+        .expect("poser son texte en objet");
+    let sans_nom = tx
+        .put_object(&requetes, "01HF7YAT000000000000000013", ObjType::Map)
+        .expect("créer la requête sans nom");
+    tx.put(&sans_nom, TEXTE, "pont").expect("poser son texte");
+    tx.put(&requetes, "01HF7YAT000000000000000014", "une valeur simple")
+        .expect("poser une valeur simple sous les requêtes enregistrées");
+    let (plantation, _) = tx.commit();
+    plantation.expect("la plantation est une modification");
+    doc.save()
+}
+
 /// CAP-02 · 1 : cinquante idées non reliées, notées en 2020, plus de trois ans avant `HEURE`. La
 /// boîte en compte cinquante, sur une assiette de cinquante, « 50 idées non reliées · 50
 /// interrogées », et ses lignes ne portent que ce que montre une ligne, sans ancienneté : la vue,
 /// puis chaque ligne, se défont par un motif exhaustif, si bien qu'un champ ajouté, un âge, un
-/// badge ou une alerte, casse la compilation.
+/// badge ou une alerte, casse la compilation. Ni les parts « sans … » de la requête, aucune sans
+/// critère, ni les étiquettes du fonds, aucune ici, ne datent une idée.
 pub fn aucun_compteur_d_anciennete<P: Paire>(paire: &mut P) {
     let mut services = paire.neufs();
     let mut alea = AleaDeTest {
@@ -2575,13 +2908,17 @@ pub fn aucun_compteur_d_anciennete<P: Paire>(paire: &mut P) {
         non_reliees,
         assiette_du_compte,
         retenues,
-        assiette_du_filtre,
+        assiette_de_la_requete,
+        sans,
+        etiquettes_du_fonds,
         lignes,
     } = la_boite(&services);
     assert_eq!(non_reliees, 50);
     assert_eq!(assiette_du_compte, assiette_de(50));
     assert_eq!(retenues, 50);
-    assert_eq!(assiette_du_filtre, assiette_de(50));
+    assert_eq!(assiette_de_la_requete, assiette_de(50));
+    assert_eq!(sans, Sans::default());
+    assert_eq!(etiquettes_du_fonds, Vec::<String>::new());
     assert_eq!(
         texte_du_compte_de(non_reliees, &assiette_du_compte),
         "50 idées non reliées · 50 interrogées"
@@ -2844,8 +3181,10 @@ pub fn le_nombre_d_idees_non_reliees_suit_chaque_geste<P: Paire>(paire: &mut P) 
 }
 
 /// I31 : deux textes piégés, `<script>alert(1)</script>` et `<img src=x onerror=alert(1)>`,
-/// notés : la vue de l'idée et la ligne de la boîte les rendent octet pour octet, rien n'en étant
-/// échappé ni retiré.
+/// notés ; le second posé aussi en étiquette sur la première idée, et le premier donné pour nom à
+/// une requête enregistrée : la vue de l'idée et la ligne de la boîte rendent chaque texte, la
+/// vue de la première idée et les étiquettes du fonds l'étiquette, et la liste des requêtes
+/// enregistrées le nom, octet pour octet, rien n'en étant échappé ni retiré.
 pub fn un_texte_piege_revient_tel_quel<P: Paire>(paire: &mut P) {
     let mut services = paire.neufs();
     let mut alea = AleaDeTest {
@@ -2853,16 +3192,49 @@ pub fn un_texte_piege_revient_tel_quel<P: Paire>(paire: &mut P) {
         appels: 0,
     };
     let mut contexte = contexte_de_test(&mut alea);
+    let script = "<script>alert(1)</script>";
+    let image = "<img src=x onerror=alert(1)>";
     let mut notees = Vec::new();
-    for piege in ["<script>alert(1)</script>", "<img src=x onerror=alert(1)>"] {
+    for piege in [script, image] {
         let idee = services
             .noter(&une_note(piege), &mut contexte)
             .expect("le texte piégé est noté")
             .idee;
         notees.push((idee, piege));
     }
+    let premiere = notees[0].0.clone();
+    services
+        .poser_une_etiquette(&etiquetage(&premiere, image), &mut contexte)
+        .expect("l'étiquette piégée est posée");
+    services
+        .enregistrer_une_requete(&enregistrement(script, cherche("alert")), &mut contexte)
+        .expect("la requête au nom piégé est enregistrée");
 
     let vue = la_boite(&services);
+    assert_eq!(
+        services.vue_d_une_idee(&premiere).map(|vue| {
+            vue.etiquettes
+                .into_iter()
+                .map(String::into_bytes)
+                .collect::<Vec<_>>()
+        }),
+        Ok(vec![image.as_bytes().to_vec()]),
+        "les étiquettes de l'idée {premiere}"
+    );
+    assert_eq!(
+        vue.etiquettes_du_fonds
+            .iter()
+            .map(String::as_bytes)
+            .collect::<Vec<_>>(),
+        vec![image.as_bytes()]
+    );
+    assert_eq!(
+        les_requetes(&services)
+            .iter()
+            .map(|requete| requete.nom.as_bytes())
+            .collect::<Vec<_>>(),
+        vec![script.as_bytes()]
+    );
     for (idee, piege) in notees {
         assert_eq!(
             services
@@ -2914,7 +3286,8 @@ pub fn une_fenetre_hors_du_fonds_rend_les_comptes_et_aucune_ligne_de_trop<P: Pai
     let mut contexte = contexte_de_test(&mut alea);
     let fenetre = |debut: u32, nombre: u32| Boite {
         ordre: Ordre::Date,
-        filtre: None,
+        requete: Requete::default(),
+        bornes: Bornes::default(),
         debut,
         nombre,
     };
@@ -2946,9 +3319,10 @@ pub fn une_fenetre_hors_du_fonds_rend_les_comptes_et_aucune_ligne_de_trop<P: Pai
     assert_eq!(montrees.len(), 205);
 }
 
-/// Sans fonds, la boîte n'a aucune ligne, ses comptes à 0 et ses assiettes à `{0, 0, 0}`, aucune
-/// idée n'est retirée, et l'état du fonds le dit non né, sans lecture seule, ni avertissement, ni
-/// geste à annuler. Une note fait naître le fonds : l'état le dit né, et rien d'autre ne change.
+/// Sans fonds, la boîte n'a aucune ligne, ses comptes à 0, ses assiettes à `{0, 0, 0, 0}`, aucune
+/// part « sans … » ni étiquette du fonds, aucune idée n'est retirée, et l'état du fonds le dit non
+/// né, sans lecture seule, ni avertissement, ni geste à annuler. Une note fait naître le fonds :
+/// l'état le dit né, et rien d'autre ne change.
 pub fn la_boite_d_un_pupitre_neuf<P: Paire>(paire: &mut P) {
     let mut services = paire.neufs();
     let mut alea = AleaDeTest {
@@ -2961,7 +3335,9 @@ pub fn la_boite_d_un_pupitre_neuf<P: Paire>(paire: &mut P) {
             non_reliees: 0,
             assiette_du_compte: assiette_de(0),
             retenues: 0,
-            assiette_du_filtre: assiette_de(0),
+            assiette_de_la_requete: assiette_de(0),
+            sans: Sans::default(),
+            etiquettes_du_fonds: Vec::new(),
             lignes: Vec::new(),
         })
     );
@@ -2992,15 +3368,16 @@ pub fn la_boite_d_un_pupitre_neuf<P: Paire>(paire: &mut P) {
     );
 }
 
-/// Un texte de 250 `é` : la ligne de la boîte en porte les 200 premiers caractères, et la vue de
-/// l'idée les 250.
+/// Un texte de 250 `é`, puis « pont » : la ligne de la boîte en porte les 200 premiers caractères,
+/// et la vue de l'idée le texte entier. La recherche lit tout le texte : « pont », placé après le
+/// 200ᵉ caractère, trouve l'idée, et un index bâti des textes coupés se verrait.
 pub fn une_ligne_borne_son_texte<P: Paire>(paire: &mut P) {
     let mut services = paire.neufs();
     let mut alea = AleaDeTest {
         graine: 0,
         appels: 0,
     };
-    let long = "é".repeat(250);
+    let long = format!("{} pont", "é".repeat(250));
     let idee = services
         .noter(&une_note(&long), &mut contexte_de_test(&mut alea))
         .expect("la note est faite")
@@ -3017,6 +3394,12 @@ pub fn une_ligne_borne_son_texte<P: Paire>(paire: &mut P) {
         services.vue_d_une_idee(&idee).map(|vue| vue.texte),
         Ok(Some(long))
     );
+
+    let pont = services
+        .boite(&boite_de_la_requete(cherche("pont")))
+        .expect("la boîte se lit");
+    assert_eq!(idees_des_lignes(&pont.lignes), vec![idee]);
+    assert_eq!(pont.retenues, 1);
 }
 
 /// A notée : aucun geste à annuler. Une étiquette posée sur A : l'état du fonds dit le message de
@@ -3112,20 +3495,31 @@ pub fn les_retirees_se_rangent_par_la_date_du_retrait<P: Paire>(paire: &mut P) {
     assert_eq!(idees_des_lignes(&la_boite(&services).lignes), vec![c]);
 }
 
-/// Le filtre et l'ordre de la commande passent au noyau, et `retenues` compte les idées que le
-/// filtre retient. A, notée à `HEURE`, puis, de minute en minute, B, une prise de 12 000 ms, C,
+/// La requête et l'ordre de la commande passent au noyau, et `retenues` compte les idées que la
+/// requête trouve. A, notée à `HEURE`, puis, de minute en minute, B, une prise de 12 000 ms, C,
 /// une prise de 47 000 ms, D, un MIDI versé, et E, un texte versé, chacune importée et sans texte ;
-/// A reliée à C ; `#couplet` sur D, `#refrain` sur E. Sans filtre, cinq idées retenues, dont
-/// trois non reliées, B, D et E ; chaque filtre retient ses seules idées, par date, et laisse les
-/// trois non reliées : le texte de l'idée, A ; une prise, C puis B ; une photo, aucune ; un MIDI
-/// versé, D ; un texte versé, E. Chaque ordre range les cinq selon
-/// `noyau::donnees::boite::ordonner`, à égalité par la date, la plus récente d'abord, puis par
-/// l'identifiant : par date, E, D, C, B, A ; par étiquette, D (`couplet`), E (`refrain`), puis
-/// les sans étiquette, C, B, A ; par durée, C, B, puis les sans durée, E, D, A ; par état, les non
-/// reliées E, D, B, puis les reliées C, A ; par provenance, la captée A, puis les importées E, D,
-/// C, B. Les cinq suites, comme les cinq jeux que retiennent les filtres, sont deux à deux
-/// distinctes : un bras d'ordre ou de filtre inversé, un ordre ou un filtre perdu, se voient.
-pub fn le_filtre_et_l_ordre_passent_au_noyau<P: Paire>(paire: &mut P) {
+/// A reliée à C ; `#couplet` sur D, `#refrain` sur E. Sans critère, cinq idées retenues, dont
+/// trois non reliées, B, D et E, et les étiquettes du fonds, `couplet` puis `refrain` ; la requête
+/// d'un contenu ne trouve que ses idées, par date, et laisse les trois non reliées : le texte de
+/// l'idée, A ; une prise, C puis B ; une photo, aucune ; un MIDI versé, D ; un texte versé, E.
+/// La requête d'un état ou d'une provenance ne trouve, par date, que ses idées : les non reliées,
+/// E, D, B ; les reliées, C, A ; la captée, A ; les importées, E, D, C, B : un bras inversé de
+/// l'état ou de la provenance de la requête, dans sa conversion vers le noyau, se voit.
+/// Les bornes de `HEURE + 60`, comprise, à `HEURE + 180`, exclue, ne trouvent, par date, que C et
+/// B : A, née avant, D, née à la borne exclue, et E, née après, n'y sont pas ; des bornes
+/// échangées, perdues ou réduites à l'une d'elles, dans leur conversion vers le noyau, se voient.
+/// Chaque ordre range les cinq selon `noyau::donnees::boite::ordonner`, à égalité par la date, la
+/// plus récente d'abord, puis par l'identifiant : par date, E, D, C, B, A ; par étiquette, D
+/// (`couplet`), E (`refrain`), puis les sans étiquette, C, B, A ; par durée, C, B, puis les sans
+/// durée, E, D, A ; par état, les non reliées E, D, B, puis les reliées C, A ; par provenance, la
+/// captée A, puis les importées E, D, C, B. Les cinq suites, comme les cinq jeux que trouvent les
+/// requêtes d'un contenu, sont deux à deux distinctes : un bras d'ordre ou de contenu inversé, un
+/// ordre ou un contenu perdu, se voient. Puis, sur le fonds de `paire_des_notes`, trois idées
+/// notées, « Un refrain qui monte, en ré », « Un pont en mi mineur » et « Une coda qui
+/// ralentit » : la requête de texte « pont » ne trouve que la deuxième ; aucune n'est sans texte
+/// (`sans.texte` à `Some(0)`, les deux autres parts à `None`, leur critère n'étant pas posé), et
+/// ce fonds n'a aucune étiquette.
+pub fn la_requete_passe_au_noyau<P: Paire>(paire: &mut P, paire_des_notes: &mut P) {
     let mut services = paire.neufs();
     let mut alea = AleaDeTest {
         graine: 0,
@@ -3191,9 +3585,13 @@ pub fn le_filtre_et_l_ordre_passent_au_noyau<P: Paire>(paire: &mut P) {
     services
         .poser_une_etiquette(&etiquetage(&e, "refrain"), &mut contexte)
         .expect("l'étiquette est posée sur E");
-    let boite_de = |ordre: Ordre, filtre: Option<Contenu>| Boite {
+    let boite_de = |ordre: Ordre, contenu: Option<Contenu>| Boite {
         ordre,
-        filtre,
+        requete: Requete {
+            contenu,
+            ..Requete::default()
+        },
+        bornes: Bornes::default(),
         debut: 0,
         nombre: FENETRE_MAX,
     };
@@ -3203,8 +3601,9 @@ pub fn le_filtre_et_l_ordre_passent_au_noyau<P: Paire>(paire: &mut P) {
         .expect("la boîte se lit");
     assert_eq!(toutes.retenues, 5);
     assert_eq!(toutes.non_reliees, 3);
+    assert_eq!(toutes.etiquettes_du_fonds, ["couplet", "refrain"]);
 
-    for (filtre, attendues, retenues) in [
+    for (contenu, attendues, retenues) in [
         (Contenu::TexteDeLIdee, vec![a.clone()], 1),
         (Contenu::Prise, vec![c.clone(), b.clone()], 2),
         (Contenu::Photo, Vec::new(), 0),
@@ -3212,16 +3611,80 @@ pub fn le_filtre_et_l_ordre_passent_au_noyau<P: Paire>(paire: &mut P) {
         (Contenu::TexteVerse, vec![e.clone()], 1),
     ] {
         let vue = services
-            .boite(&boite_de(Ordre::Date, Some(filtre.clone())))
+            .boite(&boite_de(Ordre::Date, Some(contenu.clone())))
             .expect("la boîte se lit");
         assert_eq!(
             idees_des_lignes(&vue.lignes),
             attendues,
-            "le filtre {filtre:?}"
+            "le contenu {contenu:?}"
         );
-        assert_eq!(vue.retenues, retenues, "le filtre {filtre:?}");
-        assert_eq!(vue.non_reliees, 3, "le filtre {filtre:?}");
+        assert_eq!(vue.retenues, retenues, "le contenu {contenu:?}");
+        assert_eq!(vue.non_reliees, 3, "le contenu {contenu:?}");
     }
+
+    for (requete, attendues) in [
+        (
+            Requete {
+                etat: Some(Etat::NonReliee),
+                ..Requete::default()
+            },
+            vec![e.clone(), d.clone(), b.clone()],
+        ),
+        (
+            Requete {
+                etat: Some(Etat::Reliee),
+                ..Requete::default()
+            },
+            vec![c.clone(), a.clone()],
+        ),
+        (
+            Requete {
+                provenance: Some(ProvenanceDeLIdee::Captee),
+                ..Requete::default()
+            },
+            vec![a.clone()],
+        ),
+        (
+            Requete {
+                provenance: Some(ProvenanceDeLIdee::Importee),
+                ..Requete::default()
+            },
+            vec![e.clone(), d.clone(), c.clone(), b.clone()],
+        ),
+    ] {
+        let vue = services
+            .boite(&Boite {
+                requete: requete.clone(),
+                ..toute_la_boite()
+            })
+            .expect("la boîte se lit");
+        assert_eq!(
+            idees_des_lignes(&vue.lignes),
+            attendues,
+            "la requête {requete:?}"
+        );
+        assert_eq!(
+            vue.retenues,
+            u64::try_from(attendues.len()).expect("un compte"),
+            "la requête {requete:?}"
+        );
+        assert_eq!(vue.non_reliees, 3, "la requête {requete:?}");
+    }
+
+    let periode = services
+        .boite(&Boite {
+            bornes: Bornes {
+                des: Some(HEURE + 60),
+                avant: Some(HEURE + 180),
+            },
+            ..toute_la_boite()
+        })
+        .expect("la boîte se lit");
+    assert_eq!(
+        idees_des_lignes(&periode.lignes),
+        vec![c.clone(), b.clone()]
+    );
+    assert_eq!(periode.retenues, 2);
 
     let mut suites = BTreeSet::new();
     for (ordre, attendue) in [
@@ -3239,4 +3702,1025 @@ pub fn le_filtre_et_l_ordre_passent_au_noyau<P: Paire>(paire: &mut P) {
         suites.insert(rangees);
     }
     assert_eq!(suites.len(), 5, "deux ordres rendent la même suite");
+
+    let mut services = paire_des_notes.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let notees: Vec<String> = [
+        "Un refrain qui monte, en ré",
+        "Un pont en mi mineur",
+        "Une coda qui ralentit",
+    ]
+    .into_iter()
+    .map(|texte| {
+        services
+            .noter(&une_note(texte), &mut contexte)
+            .expect("la note est faite")
+            .idee
+    })
+    .collect();
+    let pont = Boite {
+        requete: Requete {
+            texte: "pont".to_string(),
+            ..Requete::default()
+        },
+        ..toute_la_boite()
+    };
+    let vue = services.boite(&pont).expect("la boîte se lit");
+    assert_eq!(idees_des_lignes(&vue.lignes), vec![notees[1].clone()]);
+    assert_eq!(vue.retenues, 1);
+    assert_eq!(
+        vue.sans,
+        Sans {
+            etiquette: None,
+            duree: None,
+            texte: Some(0),
+        }
+    );
+    assert_eq!(vue.etiquettes_du_fonds, Vec::<String>::new());
+}
+
+/// Le texte de la réponse d'une vue de la boîte, tel que le dit le noyau (`texte_de_la_reponse`) :
+/// ses retenues, l'assiette de la requête (`assiette_du_noyau`), ses illisibles et ses parts
+/// « sans … », chaque compte par `usize::try_from`, `usize::MAX` au-delà.
+pub fn texte_de_la_reponse_de(vue: &VueDeLaBoite) -> String {
+    let compte = |n: u64| usize::try_from(n).unwrap_or(usize::MAX);
+    texte_de_la_reponse(
+        compte(vue.retenues),
+        assiette_du_noyau(&vue.assiette_de_la_requete),
+        compte(vue.assiette_de_la_requete.illisibles),
+        noyau::donnees::requete::Sans {
+            etiquette: vue.sans.etiquette.map(compte),
+            duree: vue.sans.duree.map(compte),
+            texte: vue.sans.texte.map(compte),
+        },
+    )
+}
+
+/// La boîte sous `requete`, autant qu'une fenêtre en rend : `toute_la_boite`, la requête posée.
+fn boite_de_la_requete(requete: Requete) -> Boite {
+    Boite {
+        requete,
+        ..toute_la_boite()
+    }
+}
+
+/// La requête du texte `texte`, sans autre critère.
+fn cherche(texte: &str) -> Requete {
+    Requete {
+        texte: texte.to_string(),
+        ..Requete::default()
+    }
+}
+
+/// La requête « plus d'une minute » : une durée affichée de plus de 60 secondes.
+fn plus_d_une_minute() -> Requete {
+    Requete {
+        plus_de_secondes: Some(60),
+        ..Requete::default()
+    }
+}
+
+/// Le jeu de requêtes d'I09, d'I13 et de « chercher n'écrit rien » : la requête vide ; « eglise » ;
+/// l'étiquette `pont` ; plus d'une minute ; les non reliées ; les importées ; le contenu `Prise` ;
+/// « pont » et les non reliées ensemble.
+fn jeu_de_requetes() -> Vec<Requete> {
+    vec![
+        Requete::default(),
+        cherche("eglise"),
+        Requete {
+            etiquette: Some("pont".to_string()),
+            ..Requete::default()
+        },
+        plus_d_une_minute(),
+        Requete {
+            etat: Some(Etat::NonReliee),
+            ..Requete::default()
+        },
+        Requete {
+            provenance: Some(ProvenanceDeLIdee::Importee),
+            ..Requete::default()
+        },
+        Requete {
+            contenu: Some(Contenu::Prise),
+            ..Requete::default()
+        },
+        Requete {
+            etat: Some(Etat::NonReliee),
+            ..cherche("pont")
+        },
+    ]
+}
+
+/// Note `texte` (`une_note`) ; rend l'idée notée.
+fn noter_l_idee<D: Documents, C: Captations>(
+    services: &mut Services<D, C>,
+    texte: &str,
+    contexte: &mut Contexte<'_>,
+) -> String {
+    services
+        .noter(&une_note(texte), contexte)
+        .expect("la note est faite")
+        .idee
+}
+
+/// Verse une prise WAV de `duree_ms` millisecondes (`fiche_wav`), d'octets propres à sa durée
+/// (« une prise de N ms »), par `verser_une_prise`.
+fn verser_la_prise_de<D: Documents, C: Captations>(
+    services: &mut Services<D, C>,
+    duree_ms: u64,
+    contexte: &mut Contexte<'_>,
+) -> Versee {
+    verser_une_prise(
+        services,
+        format!("une prise de {duree_ms} ms").as_bytes(),
+        &fiche_wav(duree_ms),
+        contexte,
+    )
+}
+
+/// CAP-06 · 7, l'exemple de la tâche 3 (`plus_d_une_minute_se_juge_a_la_seconde_affichee`, dans
+/// `crates/noyau/tests/index.rs`) rejoué par les opérations nommées : trois idées notées, sans
+/// prise ; neuf nées du versement d'une prise, de 61 000, 90 000, 600 000, 75 000, 60 999,
+/// 59 999, 30 000, 20 000 et 999 ms ; une prise de 12 000 ms regroupée dans l'idée de celle de
+/// 90 000, une de 5 000 dans celle de 20 000, chacune retirant l'idée née avec elle. La requête
+/// « plus d'une minute » retient quatre idées, et les lignes les listent : celles des prises de
+/// 61 000, 90 000, 600 000 et 75 000 ms, 61 000 comprise, 60 999 (« 1:00 ») non ; elle
+/// interroge douze idées, dont neuf portent une durée, décidée, sans illisible ; les trois notées
+/// sont sans durée : « 4 idées · 3 sans durée · 12 interrogées ».
+pub fn plus_d_une_minute_declare_son_assiette<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    for texte in [
+        "Un refrain qui monte, en ré",
+        "Un pont en mi mineur",
+        "Une coda en suspens",
+    ] {
+        noter_l_idee(&mut services, texte, &mut contexte);
+    }
+    let idees: BTreeMap<u64, String> = [
+        61_000, 90_000, 600_000, 75_000, 60_999, 59_999, 30_000, 20_000, 999,
+    ]
+    .into_iter()
+    .map(|duree_ms| {
+        let idee = verser_la_prise_de(&mut services, duree_ms, &mut contexte).idee;
+        (duree_ms, idee)
+    })
+    .collect();
+    for (duree_ms, cible) in [(12_000, 90_000_u64), (5_000, 20_000)] {
+        let versee = verser_la_prise_de(&mut services, duree_ms, &mut contexte);
+        services
+            .regrouper(
+                &regroupement(&versee.empreinte, &idees[&cible]),
+                &mut contexte,
+            )
+            .expect("la prise se regroupe");
+    }
+
+    let vue = services
+        .boite(&boite_de_la_requete(plus_d_une_minute()))
+        .expect("la boîte se lit");
+    assert_eq!(vue.retenues, 4);
+    assert_eq!(
+        idees_des_lignes(&vue.lignes)
+            .into_iter()
+            .collect::<BTreeSet<_>>(),
+        BTreeSet::from(
+            [61_000_u64, 90_000, 600_000, 75_000].map(|duree_ms| idees[&duree_ms].clone())
+        )
+    );
+    assert_eq!(
+        vue.assiette_de_la_requete,
+        Assiette {
+            considerees: 12,
+            portant: 9,
+            decidees: 9,
+            illisibles: 0,
+        }
+    );
+    assert_eq!(vue.sans.duree, Some(3));
+    assert_eq!(
+        texte_de_la_reponse_de(&vue),
+        "4 idées · 3 sans durée · 12 interrogées"
+    );
+}
+
+/// CAP-06 · 8, l'exemple de la tâche 3 (`une_idee_retiree_n_est_ni_trouvee_ni_comptee`, dans
+/// `crates/noyau/tests/index.rs`) rejoué par les opérations nommées : cinq idées notées,
+/// « Église du port », « une église retirée », que le test retire, « le phare et la jetée »,
+/// « … », un texte sans mot, et « L’EGLISE, encore » ; deux nées du versement d'une prise, sans
+/// texte. « eglise » trouve deux idées, compte les deux prises sans texte, et interroge les six
+/// idées non retirées : « 2 idées · 2 sans texte · 6 interrogées » ; l'idée retirée n'est pas dans
+/// les lignes.
+pub fn une_idee_retiree_n_est_ni_trouvee_ni_comptee<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let mut notees = Vec::new();
+    for texte in [
+        "Église du port",
+        "une église retirée",
+        "le phare et la jetée",
+        "\u{2026}",
+        "L\u{2019}EGLISE, encore",
+    ] {
+        notees.push(noter_l_idee(&mut services, texte, &mut contexte));
+    }
+    verser_la_prise_de(&mut services, 30_000, &mut contexte);
+    verser_la_prise_de(&mut services, 47_000, &mut contexte);
+    let retiree = &notees[1];
+    services
+        .retirer(&visee(retiree), &mut contexte)
+        .expect("l'idée est retirée");
+
+    let vue = services
+        .boite(&boite_de_la_requete(cherche("eglise")))
+        .expect("la boîte se lit");
+    assert_eq!(
+        texte_de_la_reponse_de(&vue),
+        "2 idées · 2 sans texte · 6 interrogées"
+    );
+    assert!(
+        !idees_des_lignes(&vue.lignes).contains(retiree),
+        "l'idée retirée est dans les lignes"
+    );
+}
+
+/// CAP-02 · 5, la part des requêtes (les photos viennent au lot 2) : X, notée « Un pont en mi
+/// mineur », porte `pont` ; Y, notée « Un refrain qui monte, en ré », n'a aucune étiquette. La
+/// requête de l'étiquette `pont` trouve X ; X retirée, elle quitte les lignes, et la requête
+/// interroge une idée de moins.
+pub fn une_idee_retiree_quitte_les_requetes<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let x = noter_l_idee(&mut services, "Un pont en mi mineur", &mut contexte);
+    noter_l_idee(&mut services, "Un refrain qui monte, en ré", &mut contexte);
+    services
+        .poser_une_etiquette(&etiquetage(&x, "pont"), &mut contexte)
+        .expect("l'étiquette est posée sur X");
+    let pont = boite_de_la_requete(Requete {
+        etiquette: Some("pont".to_string()),
+        ..Requete::default()
+    });
+
+    let avant = services.boite(&pont).expect("la boîte se lit");
+    assert_eq!(idees_des_lignes(&avant.lignes), vec![x.clone()]);
+    services
+        .retirer(&visee(&x), &mut contexte)
+        .expect("X est retirée");
+    let apres = services.boite(&pont).expect("la boîte se lit");
+    assert_eq!(apres.lignes, Vec::new());
+    assert_eq!(
+        apres.assiette_de_la_requete.considerees + 1,
+        avant.assiette_de_la_requete.considerees
+    );
+}
+
+/// CAP-06 · 9 : P, née du versement d'une prise de 30 000 ms, où se regroupe une prise versée
+/// sans durée (`Fiche { duree_ms: None, … }`) : la durée de P ne se lit pas (`idee::duree`), et
+/// l'idée née avec la prise sans durée est retirée par le regroupement. La requête « plus d'une
+/// minute » ne trouve pas P, la compte parmi les sans durée, et interroge une idée, P, qui ne porte
+/// pas de durée : l'assiette `{1, 0, 0}`, sans illisible.
+pub fn une_prise_sans_duree_compte_parmi_les_sans_duree<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let p = verser_la_prise_de(&mut services, 30_000, &mut contexte).idee;
+    let sans_duree = verser_une_prise(
+        &mut services,
+        b"une prise sans duree",
+        &gestes::Fiche {
+            format: "wav".to_string(),
+            duree_ms: None,
+        },
+        &mut contexte,
+    );
+    services
+        .regrouper(&regroupement(&sans_duree.empreinte, &p), &mut contexte)
+        .expect("la prise sans durée se regroupe dans P");
+
+    let vue = services
+        .boite(&boite_de_la_requete(plus_d_une_minute()))
+        .expect("la boîte se lit");
+    assert!(
+        !idees_des_lignes(&vue.lignes).contains(&p),
+        "P est dans les lignes"
+    );
+    assert_eq!(
+        vue.assiette_de_la_requete,
+        Assiette {
+            considerees: 1,
+            portant: 0,
+            decidees: 0,
+            illisibles: 0,
+        }
+    );
+    assert_eq!(vue.sans.duree, Some(1));
+}
+
+/// CAP-06 · 10 : « Église du port », son É d'un seul point de code (U+00C9), et
+/// « E\u{301}glise du port », un E suivi de l'accent aigu combinant (U+0301), notées : « eglise »
+/// les trouve toutes deux.
+pub fn eglise_trouve_eglise_du_port<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let composee = noter_l_idee(&mut services, "\u{c9}glise du port", &mut contexte);
+    let decomposee = noter_l_idee(&mut services, "E\u{301}glise du port", &mut contexte);
+
+    let vue = services
+        .boite(&boite_de_la_requete(cherche("eglise")))
+        .expect("la boîte se lit");
+    assert_eq!(
+        idees_des_lignes(&vue.lignes)
+            .into_iter()
+            .collect::<BTreeSet<_>>(),
+        BTreeSet::from([composee, decomposee])
+    );
+}
+
+/// I09 : sur le fonds de chaque geste (`le_fonds_de_chaque_geste`), chaque requête du jeu
+/// (`jeu_de_requetes`) déclare son assiette : elle considère les idées lisibles non retirées
+/// (`Services::idees`) et les illisibles ; celles dont la donnée est décidée sont celles qui la
+/// portent ; les idées retenues ne dépassent pas celles qui la portent, ni aucune part « sans … »
+/// les considérées ; et son texte (`texte_de_la_reponse`) finit par « interrogée » ou
+/// « interrogées ».
+pub fn chaque_reponse_declare_son_assiette<P: Paire>(paire: &mut P) {
+    let services = le_fonds_de_chaque_geste(paire, &mut |_, _, _| {});
+    let lisibles = u64::try_from(services.idees().expect("les idées se lisent").len())
+        .expect("un compte d'idées");
+    for requete in jeu_de_requetes() {
+        let vue = services
+            .boite(&boite_de_la_requete(requete.clone()))
+            .expect("la boîte se lit");
+        let assiette = &vue.assiette_de_la_requete;
+        assert_eq!(
+            assiette.considerees,
+            lisibles + assiette.illisibles,
+            "la requête {requete:?}"
+        );
+        assert_eq!(
+            assiette.decidees, assiette.portant,
+            "la requête {requete:?}"
+        );
+        assert!(
+            vue.retenues <= assiette.portant,
+            "la requête {requete:?} : {vue:?}"
+        );
+        for part in [vue.sans.etiquette, vue.sans.duree, vue.sans.texte]
+            .into_iter()
+            .flatten()
+        {
+            assert!(
+                part <= assiette.considerees,
+                "la requête {requete:?} : {vue:?}"
+            );
+        }
+        let texte = texte_de_la_reponse_de(&vue);
+        assert!(
+            texte.ends_with(" interrogée") || texte.ends_with(" interrogées"),
+            "la requête {requete:?} : {texte}"
+        );
+    }
+}
+
+/// L'empreinte d'une vue de la boîte (I13) : `identifiants::empreinte` de ses octets en JSON
+/// (`serde_json::to_vec`).
+fn empreinte_de_la_vue(vue: &VueDeLaBoite) -> String {
+    empreinte(&serde_json::to_vec(vue).expect("la vue s'écrit en JSON"))
+}
+
+/// Pour chaque requête du jeu (`jeu_de_requetes`), dans son ordre, la fenêtre de `FENETRE_MAX`
+/// lignes : l'empreinte de la vue que rend l'index tenu (`Services::boite`), puis celle que rend un
+/// index neuf (`Services::boite_sans_index`), chacune par `empreinte_de_la_vue`.
+fn empreintes_du_jeu<D: Documents, C: Captations>(
+    services: &Services<D, C>,
+) -> Vec<(String, String)> {
+    jeu_de_requetes()
+        .into_iter()
+        .map(|requete| {
+            let boite = boite_de_la_requete(requete);
+            let tenu = services.boite(&boite).expect("la boîte se lit");
+            let neuf = services
+                .boite_sans_index(&boite)
+                .expect("la boîte se lit sans index");
+            (empreinte_de_la_vue(&tenu), empreinte_de_la_vue(&neuf))
+        })
+        .collect()
+}
+
+/// I13 : l'index est un dérivé jetable. A, « Église du port », et B, « Un pont en mi mineur »,
+/// notées ; P, née du versement d'une prise de 61 000 ms, puis Q, d'une prise de 30 000 ms ; `pont`
+/// posée sur B ; A reliée à P ; P retirée, si bien que A redevient non reliée ; le retrait
+/// annulé ; puis une étiquette de blancs sur B, refusée. Après chaque geste, chaque requête du jeu
+/// (`jeu_de_requetes`) rend, par l'index tenu, la vue de même empreinte que par un index neuf
+/// (`empreintes_du_jeu`) ; puis le fonds rouvert rend, par les deux, les empreintes d'avant la
+/// réouverture.
+pub fn l_index_reconstruit_rend_les_memes_reponses<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let memes_reponses = |services: &Services<P::D, P::C>, geste: &str| {
+        let empreintes = empreintes_du_jeu(services);
+        for (requete, (tenu, neuf)) in jeu_de_requetes().iter().zip(&empreintes) {
+            assert_eq!(tenu, neuf, "après {geste}, la requête {requete:?}");
+        }
+        empreintes
+    };
+
+    let a = noter_l_idee(&mut services, "Église du port", &mut contexte);
+    memes_reponses(&services, "la note A");
+    let b = noter_l_idee(&mut services, "Un pont en mi mineur", &mut contexte);
+    memes_reponses(&services, "la note B");
+    let p = verser_la_prise_de(&mut services, 61_000, &mut contexte).idee;
+    memes_reponses(&services, "le versement de P");
+    verser_la_prise_de(&mut services, 30_000, &mut contexte);
+    memes_reponses(&services, "le versement de Q");
+    services
+        .poser_une_etiquette(&etiquetage(&b, "pont"), &mut contexte)
+        .expect("l'étiquette est posée sur B");
+    memes_reponses(&services, "l'étiquette posée sur B");
+    services
+        .relier(&lien(&a, &p), &mut contexte)
+        .expect("A est reliée à P");
+    memes_reponses(&services, "le lien de A et de P");
+    services
+        .retirer(&visee(&p), &mut contexte)
+        .expect("P est retirée");
+    assert_eq!(services.vue_d_une_idee(&a).map(|vue| vue.reliee), Ok(false));
+    memes_reponses(&services, "le retrait de P");
+    services
+        .annuler(&mut contexte)
+        .expect("le retrait est annulé");
+    memes_reponses(&services, "l'annulation");
+    assert_eq!(
+        services.poser_une_etiquette(&etiquetage(&b, "   "), &mut contexte),
+        Err(impossible("L'étiquette est vide.".to_string()))
+    );
+    let avant = memes_reponses(&services, "l'étiquette de blancs refusée");
+
+    let services = paire.rouvrir(services, &[]);
+    assert_eq!(memes_reponses(&services, "la réouverture"), avant);
+}
+
+/// Chercher n'écrit rien (question 14) : sur le fonds de chaque geste
+/// (`le_fonds_de_chaque_geste`), chaque requête du jeu (`jeu_de_requetes`) laisse les têtes du
+/// fonds (`Automerge::get_heads`) et le journal tels qu'ils étaient avant elle.
+pub fn chercher_n_ecrit_rien<P: Paire>(paire: &mut P) {
+    let services = le_fonds_de_chaque_geste(paire, &mut |_, _, _| {});
+    let tetes = |services: &Services<P::D, P::C>| {
+        services
+            .documents()
+            .fonds()
+            .expect("le fonds est né")
+            .get_heads()
+    };
+    for requete in jeu_de_requetes() {
+        let tetes_d_avant = tetes(&services);
+        let journal = services.journal().expect("le journal se lit");
+        services
+            .boite(&boite_de_la_requete(requete.clone()))
+            .expect("la boîte se lit");
+        assert_eq!(tetes(&services), tetes_d_avant, "la requête {requete:?}");
+        assert_eq!(services.journal(), Ok(journal), "la requête {requete:?}");
+    }
+}
+
+/// Le point de revue 1 : une note faite sous une requête en cours la laisse en place. « Église du
+/// port » et « le phare et la jetée » notées, sous la requête « eglise » : noter « pont du soir »,
+/// que la requête ne trouve pas ; la vue suivante, sous la même requête, ne la montre pas, garde
+/// les lignes et les retenues de la vue d'avant, et compte une idée non reliée de plus. Puis
+/// noter « l’église du soir » : la vue suivante la montre, retient une idée de plus, et compte
+/// encore une idée non reliée de plus.
+pub fn noter_pendant_une_requete_la_laisse_en_place<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    noter_l_idee(&mut services, "Église du port", &mut contexte);
+    noter_l_idee(&mut services, "le phare et la jetée", &mut contexte);
+    let eglise = boite_de_la_requete(cherche("eglise"));
+    let avant = services.boite(&eglise).expect("la boîte se lit");
+
+    let pont = noter_l_idee(&mut services, "pont du soir", &mut contexte);
+    let pendant = services.boite(&eglise).expect("la boîte se lit");
+    assert!(
+        !idees_des_lignes(&pendant.lignes).contains(&pont),
+        "« pont du soir » est dans les lignes"
+    );
+    assert_eq!(
+        idees_des_lignes(&pendant.lignes),
+        idees_des_lignes(&avant.lignes)
+    );
+    assert_eq!(pendant.retenues, avant.retenues);
+    assert_eq!(pendant.non_reliees, avant.non_reliees + 1);
+
+    let soir = noter_l_idee(&mut services, "l\u{2019}église du soir", &mut contexte);
+    let apres = services.boite(&eglise).expect("la boîte se lit");
+    assert!(
+        idees_des_lignes(&apres.lignes).contains(&soir),
+        "« l’église du soir » n'est pas dans les lignes"
+    );
+    assert_eq!(apres.retenues, pendant.retenues + 1);
+    assert_eq!(apres.non_reliees, pendant.non_reliees + 1);
+}
+
+/// Une note, puis une étiquette posée sur elle, le dernier geste de tri. Enregistrer « Ponts
+/// lents » (la requête « pont ») : sous l'ULID tiré à l'heure du contexte, le cinquième tirage,
+/// après les quatre de la naissance et de la note ; la renommer « Ponts du soir » ; enregistrer
+/// « Église » (la requête entière, `requete_entiere`), sous le sixième : la liste les range par
+/// nom replié, « Église » d'abord, quand leurs ULID les rangeraient « Ponts du soir » d'abord ;
+/// supprimer « Ponts du soir » : la liste rend « Église » seule. Le journal finit par les trois
+/// messages, puis « Requête « Ponts du soir » supprimée », à l'heure du contexte. Renommer, même
+/// sous un nom vide, ou supprimer la requête supprimée est refusé (`Impossible::RequeteAbsente`) ;
+/// enregistrer sous un nom vide (`NomVide`) ou renommer « Église » « Église » (`MemeNom`) aussi, du
+/// constat du noyau ; le journal ne change pas. Aucune de ces opérations ne touche ce qu'annuler
+/// vise : l'état du fonds dit toujours l'étiquette posée, et l'annulation la défait.
+pub fn enregistrer_renommer_et_supprimer_une_requete<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let fait = || -> Reponse<Faite> {
+        Ok(Faite {
+            avertissement: None,
+        })
+    };
+    let a = noter_l_idee(&mut services, "Un pont en mi mineur", &mut contexte);
+    services
+        .poser_une_etiquette(&etiquetage(&a, "lent"), &mut contexte)
+        .expect("l'étiquette est posée");
+    let geste = "Idée du 14 novembre : étiquette #lent posée";
+    let ponts = "01HF7YAT000000000000000005";
+    let eglise = "01HF7YAT000000000000000006";
+
+    assert_eq!(
+        services.enregistrer_une_requete(
+            &enregistrement("Ponts lents", cherche("pont")),
+            &mut contexte
+        ),
+        fait()
+    );
+    assert_eq!(
+        les_requetes(&services),
+        vec![RequeteEnregistree {
+            id: ponts.to_string(),
+            nom: "Ponts lents".to_string(),
+            requete: Some(cherche("pont")),
+        }]
+    );
+    assert_eq!(
+        services.renommer_une_requete(&renommage(ponts, "Ponts du soir"), &mut contexte),
+        fait()
+    );
+    assert_eq!(
+        services
+            .enregistrer_une_requete(&enregistrement("Église", requete_entiere()), &mut contexte),
+        fait()
+    );
+    let l_eglise = RequeteEnregistree {
+        id: eglise.to_string(),
+        nom: "Église".to_string(),
+        requete: Some(requete_entiere()),
+    };
+    let ponts_du_soir = RequeteEnregistree {
+        id: ponts.to_string(),
+        nom: "Ponts du soir".to_string(),
+        requete: Some(cherche("pont")),
+    };
+    assert_eq!(
+        les_requetes(&services),
+        vec![l_eglise.clone(), ponts_du_soir]
+    );
+    assert_eq!(
+        services.supprimer_une_requete(&suppression(ponts), &mut contexte),
+        fait()
+    );
+    assert_eq!(les_requetes(&services), vec![l_eglise]);
+    let journal = services.journal().expect("le journal se lit");
+    assert_eq!(
+        journal,
+        vec![
+            entree(MESSAGE_DE_LA_GENESE, 0),
+            entree(MESSAGE_DE_LA_NAISSANCE, HEURE),
+            entree("Idée du 14 novembre notée", HEURE),
+            entree(geste, HEURE),
+            entree("Requête « Ponts lents » enregistrée", HEURE),
+            entree("Requête « Ponts lents » renommée « Ponts du soir »", HEURE),
+            entree("Requête « Église » enregistrée", HEURE),
+            entree("Requête « Ponts du soir » supprimée", HEURE),
+        ]
+    );
+
+    let absente = Err(impossible(
+        "Aucune requête enregistrée ne porte cet identifiant.".to_string(),
+    ));
+    assert_eq!(
+        services.renommer_une_requete(&renommage(ponts, "Ponts lents"), &mut contexte),
+        absente
+    );
+    assert_eq!(
+        services.renommer_une_requete(&renommage(ponts, ""), &mut contexte),
+        absente
+    );
+    assert_eq!(
+        services.supprimer_une_requete(&suppression(ponts), &mut contexte),
+        absente
+    );
+    assert_eq!(
+        services.enregistrer_une_requete(&enregistrement(" \t ", cherche("pont")), &mut contexte),
+        Err(impossible("Le nom est vide.".to_string()))
+    );
+    assert_eq!(
+        services.renommer_une_requete(&renommage(eglise, "Église"), &mut contexte),
+        Err(impossible("Le nom est déjà celui-ci.".to_string()))
+    );
+    assert_eq!(services.journal(), Ok(journal));
+    assert_eq!(
+        services.etat_du_fonds().map(|etat| etat.a_annuler),
+        Ok(Some(geste.to_string()))
+    );
+    annule(&mut services, &mut contexte, geste);
+}
+
+/// Cinq requêtes enregistrées qui posent, à elles toutes, chaque valeur de l'état, de la
+/// provenance et du contenu, et chaque autre critère : « Zéphyr » (les non reliées, les importées,
+/// une prise), « abeille » (une photo), « Écluse » (un MIDI versé), « Barque » (un texte versé) et
+/// « cyprès » (la requête entière, `requete_entiere`), enregistrées dans cet ordre, celui de leurs
+/// ULID. La liste rend chacune telle qu'elle est enregistrée, rangée par nom replié : « abeille »,
+/// « Barque », « cyprès », « Écluse », « Zéphyr » ; rouverte, de même. Les services, hors de la
+/// mutation, convertissent la requête du noyau en celle des commandes : une valeur mal convertie se
+/// voit ici.
+pub fn une_requete_enregistree_se_relit_critere_pour_critere<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    noter_l_idee(&mut services, "Un pont en mi mineur", &mut contexte);
+    let enregistrees = [
+        (
+            "Zéphyr",
+            Requete {
+                etat: Some(Etat::NonReliee),
+                provenance: Some(ProvenanceDeLIdee::Importee),
+                contenu: Some(Contenu::Prise),
+                ..Requete::default()
+            },
+        ),
+        (
+            "abeille",
+            Requete {
+                contenu: Some(Contenu::Photo),
+                ..Requete::default()
+            },
+        ),
+        (
+            "Écluse",
+            Requete {
+                contenu: Some(Contenu::MidiVerse),
+                ..Requete::default()
+            },
+        ),
+        (
+            "Barque",
+            Requete {
+                contenu: Some(Contenu::TexteVerse),
+                ..Requete::default()
+            },
+        ),
+        ("cyprès", requete_entiere()),
+    ];
+    for (nom, requete) in &enregistrees {
+        services
+            .enregistrer_une_requete(&enregistrement(nom, requete.clone()), &mut contexte)
+            .expect("la requête est enregistrée");
+    }
+    let attendues: Vec<(String, Option<Requete>)> = [1, 3, 4, 2, 0]
+        .into_iter()
+        .map(|rang| {
+            let (nom, requete) = &enregistrees[rang];
+            (nom.to_string(), Some(requete.clone()))
+        })
+        .collect();
+    let relues = |services: &Services<P::D, P::C>| -> Vec<(String, Option<Requete>)> {
+        les_requetes(services)
+            .into_iter()
+            .map(|relue| (relue.nom, relue.requete))
+            .collect()
+    };
+    assert_eq!(relues(&services), attendues);
+
+    let services = paire.rouvrir(services, &[]);
+    assert_eq!(relues(&services), attendues);
+}
+
+/// Dans un Pupitre neuf, la liste des requêtes enregistrées est vide. Enregistrer, même sous un
+/// nom vide et sans critère, renommer et supprimer sont refusés, « Aucun fonds n'est né. »
+/// (`Raison::Impossible`, question 20), avant tout constat du noyau et toute requête absente, sans
+/// rien tirer de l'aléa ; rien ne naît : ni fonds, ni journal, ni requête, et l'état du fonds le
+/// dit non né.
+pub fn enregistrer_dans_un_pupitre_neuf_est_refuse_et_rien_ne_nait<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    assert_eq!(services.requetes_enregistrees(), Ok(Vec::new()));
+    let non_ne = Err(impossible("Aucun fonds n'est né.".to_string()));
+    assert_eq!(
+        services.enregistrer_une_requete(
+            &enregistrement("Ponts lents", cherche("pont")),
+            &mut contexte
+        ),
+        non_ne
+    );
+    assert_eq!(
+        services.enregistrer_une_requete(&enregistrement("", Requete::default()), &mut contexte),
+        non_ne
+    );
+    let ponts = "01HF7YAT000000000000000005";
+    assert_eq!(
+        services.renommer_une_requete(&renommage(ponts, "Ponts du soir"), &mut contexte),
+        non_ne
+    );
+    assert_eq!(
+        services.supprimer_une_requete(&suppression(ponts), &mut contexte),
+        non_ne
+    );
+
+    assert!(services.documents().fonds().is_none());
+    assert_eq!(services.journal(), Ok(Vec::new()));
+    assert_eq!(services.requetes_enregistrees(), Ok(Vec::new()));
+    assert_eq!(services.etat_du_fonds().map(|etat| etat.ne), Ok(false));
+    assert_eq!(alea.appels, 0);
+}
+
+/// Le point de revue 2. La note « Un pont en mi mineur » et la requête « Ponts lents » (la requête
+/// « pont »), puis le fonds migré vers la version de schéma 2 et rouvert par une application qui
+/// ne connaît que la 1, comme dans `une_commande_sur_un_fonds_plus_recent_est_refusee_et_le_nomme` :
+/// chercher sert, la boîte sous « pont » trouve la note, et la liste des requêtes enregistrées se
+/// lit. Enregistrer, même sous un nom vide, renommer et supprimer, la requête enregistrée comme une
+/// requête absente, rendent le refus de `lecture_seule()`, tel quel, avant tout autre refus, sans
+/// rien tirer de l'aléa ; ni le journal ni la liste ne changent.
+pub fn en_lecture_seule_chercher_sert_et_enregistrer_est_refuse<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let idee = noter_l_idee(
+        &mut services,
+        "Un pont en mi mineur",
+        &mut contexte_de_test(&mut alea),
+    );
+    services
+        .enregistrer_une_requete(
+            &enregistrement("Ponts lents", cherche("pont")),
+            &mut contexte_de_test(&mut alea),
+        )
+        .expect("la requête est enregistrée");
+    let enregistrees = les_requetes(&services);
+    let ponts = enregistrees[0].id.clone();
+    let migration = migration_de_test();
+    let services = paire.rouvrir(services, &migrations_de_test(&migration));
+    let mut services = paire.rouvrir(services, &[]);
+
+    let refus = services
+        .documents()
+        .lecture_seule()
+        .expect("le fonds se lit sans écrire");
+    assert_eq!(refus.raison, Raison::VersionPlusRecente { version: 2 });
+    let vue = services
+        .boite(&boite_de_la_requete(cherche("pont")))
+        .expect("la boîte se lit");
+    assert_eq!(idees_des_lignes(&vue.lignes), vec![idee]);
+    assert_eq!(vue.retenues, 1);
+    assert_eq!(les_requetes(&services), enregistrees);
+
+    let journal = services.journal();
+    let absente = "01HF7YAT000000000000000009";
+    let mut contexte = contexte_de_test(&mut alea);
+    assert_eq!(
+        services
+            .enregistrer_une_requete(&enregistrement("Église", requete_entiere()), &mut contexte),
+        Err(refus.clone())
+    );
+    assert_eq!(
+        services.enregistrer_une_requete(&enregistrement("", Requete::default()), &mut contexte),
+        Err(refus.clone())
+    );
+    assert_eq!(
+        services.renommer_une_requete(&renommage(&ponts, "Ponts du soir"), &mut contexte),
+        Err(refus.clone())
+    );
+    assert_eq!(
+        services.renommer_une_requete(&renommage(absente, "Ponts du soir"), &mut contexte),
+        Err(refus.clone())
+    );
+    assert_eq!(
+        services.supprimer_une_requete(&suppression(&ponts), &mut contexte),
+        Err(refus.clone())
+    );
+    assert_eq!(
+        services.supprimer_une_requete(&suppression(absente), &mut contexte),
+        Err(refus)
+    );
+    // Les quatre tirages de la naissance et de la note, puis celui de la requête, et aucun de plus.
+    assert_eq!(alea.appels, 5);
+    assert_eq!(services.journal(), journal);
+    assert_eq!(les_requetes(&services), enregistrees);
+}
+
+/// Chaque clé de l'objet de la requête enregistrée `id`, et sa valeur, simple.
+fn objet_de_la_requete(doc: &Automerge, id: &str) -> BTreeMap<String, ScalarValue> {
+    let objet = objet_au_bout(doc, &[REQUETES_ENREGISTREES, id]);
+    doc.keys(&objet)
+        .map(|cle| {
+            let valeur = match doc.get(&objet, cle.as_str()) {
+                Ok(Some((Value::Scalar(simple), _))) => simple.into_owned(),
+                autre => panic!("{cle} n'a pas de valeur simple : {autre:?}"),
+            };
+            (cle, valeur)
+        })
+        .collect()
+}
+
+/// Sur des services neufs de `paire`, sous `AleaDeTest { graine: 0, appels: 0 }`, note chacun de
+/// `textes`, puis enregistre `requete` sous le nom « Ponts lents » ; rend les services et l'ULID
+/// de la requête enregistrée.
+fn la_requete_enregistree_apres<P: Paire>(
+    paire: &mut P,
+    textes: &[&str],
+    requete: &Requete,
+) -> (Services<P::D, P::C>, String) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    for texte in textes {
+        noter_l_idee(&mut services, texte, &mut contexte);
+    }
+    services
+        .enregistrer_une_requete(
+            &enregistrement("Ponts lents", requete.clone()),
+            &mut contexte,
+        )
+        .expect("la requête est enregistrée");
+    let id = les_requetes(&services)
+        .pop()
+        .expect("la requête enregistrée se lit")
+        .id;
+    (services, id)
+}
+
+/// I01 (§ 70 · 3), une requête enregistrée : la même requête (« pont », du 1er au 30 novembre
+/// 2023, les non reliées, les captées, le texte de l'idée), enregistrée dans deux fonds aux idées
+/// différentes, deux notes sur `paire`, cinq sur `autre_paire`, où elle trouve une idée, puis
+/// trois : les clés et les valeurs de son objet sont les mêmes, son ULID à part, et ce sont son nom
+/// et les clés de ses critères, ni résultats ni nombre ; `parcourir` ne rend aucun chemin fautif.
+pub fn une_requete_enregistree_ne_garde_ni_resultats_ni_nombre<P: Paire>(
+    paire: &mut P,
+    autre_paire: &mut P,
+) {
+    let requete = Requete {
+        du: Some(Jour {
+            annee: 2023,
+            mois: 11,
+            jour: 1,
+        }),
+        au: Some(Jour {
+            annee: 2023,
+            mois: 11,
+            jour: 30,
+        }),
+        etat: Some(Etat::NonReliee),
+        provenance: Some(ProvenanceDeLIdee::Captee),
+        contenu: Some(Contenu::TexteDeLIdee),
+        ..cherche("pont")
+    };
+    let (deux, id_des_deux) = la_requete_enregistree_apres(
+        paire,
+        &["Un pont en mi mineur", "Un refrain qui monte, en ré"],
+        &requete,
+    );
+    let (cinq, id_des_cinq) = la_requete_enregistree_apres(
+        autre_paire,
+        &[
+            "Un pont en mi mineur",
+            "Un refrain qui monte, en ré",
+            "Un pont lent, en la",
+            "Une coda sans paroles",
+            "Encore un pont, plus court",
+        ],
+        &requete,
+    );
+    assert_ne!(id_des_deux, id_des_cinq);
+    let retenues = |services: &Services<P::D, P::C>| {
+        services
+            .boite(&boite_de_la_requete(requete.clone()))
+            .expect("la boîte se lit")
+            .retenues
+    };
+    assert_eq!((retenues(&deux), retenues(&cinq)), (1, 3));
+
+    let fonds_des_deux = deux.documents().fonds().expect("le fonds est né");
+    let fonds_des_cinq = cinq.documents().fonds().expect("le fonds est né");
+    let objet = objet_de_la_requete(fonds_des_deux, &id_des_deux);
+    assert_eq!(objet_de_la_requete(fonds_des_cinq, &id_des_cinq), objet);
+    assert_eq!(
+        objet.keys().map(String::as_str).collect::<BTreeSet<_>>(),
+        BTreeSet::from([NOM, TEXTE, DU, AU, ETAT, PROVENANCE, CONTENU])
+    );
+    assert_eq!(parcourir(fonds_des_deux), Vec::<String>::new());
+    assert_eq!(parcourir(fonds_des_cinq), Vec::<String>::new());
+}
+
+/// Le journal en fenêtre (question 29) : un fonds de trois notes, chacune un jour après la
+/// précédente, porte cinq entrées : la genèse, la naissance et les trois notes. La fenêtre (0, 2)
+/// en rend le nombre, deux lignes, la plus récente d'abord, et l'empreinte que le noyau calcule
+/// (`empreinte_du_journal`) sur le journal entier, tel que `Services::journal` le rend ; la
+/// fenêtre (4, 200), la seule genèse, sous le même nombre et la même empreinte.
+pub fn le_journal_se_lit_en_fenetre<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    for (texte, heure) in [
+        ("Un refrain qui monte, en ré", HEURE),
+        ("Un pont en mi mineur", LENDEMAIN),
+        ("Une coda sans paroles", LENDEMAIN + 86_400),
+    ] {
+        let mut contexte = Contexte {
+            heure,
+            alea: &mut alea,
+        };
+        services
+            .noter(&une_note(texte), &mut contexte)
+            .expect("la note est faite");
+    }
+    let entrees: Vec<(String, i64)> = services
+        .journal()
+        .expect("le journal se lit")
+        .into_iter()
+        .map(|entree| (entree.message, entree.heure))
+        .collect();
+    let empreinte = empreinte_du_journal(&entrees);
+    assert_eq!(
+        services.journal_en_fenetre(&Fenetre {
+            debut: 0,
+            nombre: 2,
+        }),
+        Ok(VueDuJournal {
+            total: 5,
+            empreinte: empreinte.clone(),
+            lignes: vec![
+                entree("Idée du 16 novembre notée", LENDEMAIN + 86_400),
+                entree("Idée du 15 novembre notée", LENDEMAIN),
+            ],
+        })
+    );
+    assert_eq!(
+        services.journal_en_fenetre(&Fenetre {
+            debut: 4,
+            nombre: 200,
+        }),
+        Ok(VueDuJournal {
+            total: 5,
+            empreinte,
+            lignes: vec![entree("Genèse du fonds", 0)],
+        })
+    );
 }

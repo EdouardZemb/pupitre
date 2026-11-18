@@ -4136,6 +4136,7 @@ dependencies = [
  "automerge",
  "commandes",
  "noyau",
+ "serde_json",
  "services",
 ]
 
@@ -4312,6 +4313,7 @@ dependencies = [
  "commandes",
  "noyau",
  "proptest",
+ "serde_json",
  "services",
  "stockage",
  "synchro",
