@@ -135,7 +135,7 @@ pub const TABLE: &[(char, &str)] = &[
 pub fn replier(texte: &str) -> String {
     let mut replie = String::with_capacity(texte.len());
     for minuscule in texte.chars().flat_map(char::to_lowercase) {
-        if ('\u{0301}'..='\u{036e}').contains(&minuscule) {
+        if ('\u{0300}'..='\u{036f}').contains(&minuscule) {
             continue;
         }
         match TABLE.binary_search_by_key(&minuscule, |(caractere, _)| *caractere) {
