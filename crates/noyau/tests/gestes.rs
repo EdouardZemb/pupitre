@@ -7,9 +7,9 @@ use std::collections::BTreeSet;
 
 use noyau::donnees::changement::{Changement, Operation, Simple};
 use noyau::donnees::gestes::{
-    Appareil, CaptationLue, ENTIER_SUR, Fiche, IdeeLue, Impossible, Provenance, Sorte, annulation,
-    completer, date_du_message, delier, naissance, noter, oter_une_etiquette, poser_une_etiquette,
-    presente, regrouper, relier, retablir, retirer, verser,
+    Appareil, CaptationLue, ENTIER_SUR, Fiche, GesteDeTri, IdeeLue, Impossible, Provenance, Sorte,
+    annulation, completer, date_du_message, delier, naissance, noter, oter_une_etiquette,
+    poser_une_etiquette, presente, regrouper, relier, retablir, retirer, verser,
 };
 
 const HEURE: i64 = 1_700_000_000; // le 14 novembre 2023, 22 h 13 min 20 s UTC
@@ -336,7 +336,7 @@ fn oter_une_etiquette_l_ote_et_son_inverse_la_repose() {
 
 #[test]
 fn relier_pose_le_lien_sous_sa_cle_dans_un_sens_ou_dans_l_autre() {
-    let geste = relier(&idee(A), &idee(B), HEURE, 0).unwrap();
+    let geste = relier(&idee(A), &idee(B), HEURE, 0, 0).unwrap();
     assert_eq!(
         geste.operation.message,
         "Idée du 14 novembre reliée à l'idée du 14 novembre"
@@ -351,12 +351,12 @@ fn relier_pose_le_lien_sous_sa_cle_dans_un_sens_ou_dans_l_autre() {
     // la clé range les bouts dans l'ordre de leurs octets, quel que soit le sens.
     let mut b = idee(B);
     b.le = DEUX_JOURS_APRES;
-    let ab = relier(&idee(A), &b, HEURE, 0).unwrap();
+    let ab = relier(&idee(A), &b, HEURE, 0, 0).unwrap();
     assert_eq!(
         ab.operation.message,
         "Idée du 14 novembre reliée à l'idée du 16 novembre"
     );
-    let ba = relier(&b, &idee(A), HEURE, 0).unwrap();
+    let ba = relier(&b, &idee(A), HEURE, 0, 0).unwrap();
     assert_eq!(
         ba.operation.message,
         "Idée du 16 novembre reliée à l'idée du 14 novembre"
@@ -370,7 +370,7 @@ fn delier_ote_le_lien_et_son_inverse_le_repose() {
     let (mut a, mut b) = (idee(A), idee(B));
     a.liens.insert(LIEN_AB.into());
     b.liens.insert(LIEN_AB.into());
-    let geste = delier(&a, &b, HEURE, 0).unwrap();
+    let geste = delier(&a, &b, HEURE, 0, 0).unwrap();
     assert_eq!(
         geste.operation.message,
         "Idée du 14 novembre déliée de l'idée du 14 novembre"
@@ -383,7 +383,7 @@ fn delier_ote_le_lien_et_son_inverse_le_repose() {
     );
     // Depuis l'autre bout, née deux jours plus tard : le même lien, chaque bout à son jour.
     b.le = DEUX_JOURS_APRES;
-    let ba = delier(&b, &a, HEURE, 0).unwrap();
+    let ba = delier(&b, &a, HEURE, 0, 0).unwrap();
     assert_eq!(
         ba.operation.message,
         "Idée du 16 novembre déliée de l'idée du 14 novembre"
@@ -395,7 +395,16 @@ fn delier_ote_le_lien_et_son_inverse_le_repose() {
 #[test]
 fn regrouper_la_seule_prise_d_une_idee_qui_n_a_rien_d_autre_la_retire() {
     // regrouper la seule prise P de V, qui n'a rien d'autre, dans A : V est vidée.
-    let geste = regrouper(&captation(Sorte::Prise, V), &idee(V), 1, &idee(A), HEURE, 0).unwrap();
+    let geste = regrouper(
+        &captation(Sorte::Prise, V),
+        &idee(V),
+        1,
+        &idee(A),
+        HEURE,
+        0,
+        0,
+    )
+    .unwrap();
     let cle = format!("{P}/idee");
     assert_eq!(
         geste.operation.message,
@@ -420,7 +429,7 @@ fn regrouper_la_seule_prise_d_une_idee_qui_n_a_rien_d_autre_la_retire() {
     // source.
     let mut a = idee(A);
     a.le = DEUX_JOURS_APRES;
-    let vers_a = regrouper(&captation(Sorte::Prise, V), &idee(V), 1, &a, HEURE, 0).unwrap();
+    let vers_a = regrouper(&captation(Sorte::Prise, V), &idee(V), 1, &a, HEURE, 0, 0).unwrap();
     assert_eq!(
         vers_a.operation.message,
         "Idée du 16 novembre : prise regroupée, idée du 14 novembre retirée"
@@ -435,10 +444,19 @@ fn regrouper_une_prise_d_une_idee_qui_garde_autre_chose_ne_la_retire_pas() {
     // La source garde un texte.
     let mut v = idee(V);
     v.texte = Some("Une boucle de basse".into());
-    let avec_un_texte = regrouper(&captation(Sorte::Prise, V), &v, 1, &idee(A), HEURE, 0).unwrap();
+    let avec_un_texte =
+        regrouper(&captation(Sorte::Prise, V), &v, 1, &idee(A), HEURE, 0, 0).unwrap();
     // La source garde une autre captation.
-    let avec_une_autre =
-        regrouper(&captation(Sorte::Prise, V), &idee(V), 2, &idee(A), HEURE, 0).unwrap();
+    let avec_une_autre = regrouper(
+        &captation(Sorte::Prise, V),
+        &idee(V),
+        2,
+        &idee(A),
+        HEURE,
+        0,
+        0,
+    )
+    .unwrap();
     for geste in [avec_un_texte, avec_une_autre] {
         assert_eq!(
             geste.operation.message,
@@ -464,7 +482,7 @@ fn regrouper_un_midi_ou_un_texte_verse_le_deplace_dans_son_conteneur() {
             "Idée du 14 novembre : texte versé regroupé, idée du 14 novembre retirée",
         ),
     ] {
-        let geste = regrouper(&captation(sorte, V), &idee(V), 1, &idee(A), HEURE, 0).unwrap();
+        let geste = regrouper(&captation(sorte, V), &idee(V), 1, &idee(A), HEURE, 0, 0).unwrap();
         assert_eq!(geste.operation.message, message);
         assert_eq!(
             geste.operation.changements,
@@ -481,6 +499,69 @@ fn regrouper_un_midi_ou_un_texte_verse_le_deplace_dans_son_conteneur() {
             ]
         );
     }
+}
+
+/// Le message d'un geste qui nomme deux idées date chacune au décalage local de son propre
+/// instant, jamais à celui de l'autre ni à celui du geste : `a`, née le 24 octobre 2026 à 22 h 30
+/// UTC, est du 25 octobre à l'heure d'été de Paris (120 minutes) et du 24 à l'heure d'hiver
+/// (60) ; `b`, née le 17 novembre à 9 h UTC, est du 17 à l'un comme à l'autre. Chaque geste se
+/// joue dans les deux sens : l'échange des deux décalages se verrait.
+#[test]
+fn le_message_date_chaque_idee_a_son_propre_decalage() {
+    let (mut a, mut b) = (idee(A), idee(B));
+    a.le = 1_792_881_000;
+    b.le = 1_794_906_000;
+    let message = |geste: Result<GesteDeTri, Impossible>| geste.unwrap().operation.message;
+
+    assert_eq!(
+        message(relier(&a, &b, HEURE, 120, 60)),
+        "Idée du 25 octobre reliée à l'idée du 17 novembre"
+    );
+    assert_eq!(
+        message(relier(&a, &b, HEURE, 60, 60)),
+        "Idée du 24 octobre reliée à l'idée du 17 novembre"
+    );
+    assert_eq!(
+        message(relier(&b, &a, HEURE, 60, 120)),
+        "Idée du 17 novembre reliée à l'idée du 25 octobre"
+    );
+
+    a.liens.insert(LIEN_AB.into());
+    b.liens.insert(LIEN_AB.into());
+    assert_eq!(
+        message(delier(&a, &b, HEURE, 120, 60)),
+        "Idée du 25 octobre déliée de l'idée du 17 novembre"
+    );
+    assert_eq!(
+        message(delier(&a, &b, HEURE, 60, 60)),
+        "Idée du 24 octobre déliée de l'idée du 17 novembre"
+    );
+    assert_eq!(
+        message(delier(&b, &a, HEURE, 60, 120)),
+        "Idée du 17 novembre déliée de l'idée du 25 octobre"
+    );
+
+    // Regrouper : la cible, au décalage de la cible, puis la source retirée, au sien ; sans lien,
+    // la source que le geste vide est retirée.
+    a.liens.clear();
+    b.liens.clear();
+    let (prise_de_a, prise_de_b) = (captation(Sorte::Prise, A), captation(Sorte::Prise, B));
+    assert_eq!(
+        message(regrouper(&prise_de_b, &b, 1, &a, HEURE, 120, 60)),
+        "Idée du 25 octobre : prise regroupée, idée du 17 novembre retirée"
+    );
+    assert_eq!(
+        message(regrouper(&prise_de_b, &b, 1, &a, HEURE, 60, 60)),
+        "Idée du 24 octobre : prise regroupée, idée du 17 novembre retirée"
+    );
+    assert_eq!(
+        message(regrouper(&prise_de_a, &a, 1, &b, HEURE, 60, 120)),
+        "Idée du 17 novembre : prise regroupée, idée du 25 octobre retirée"
+    );
+    assert_eq!(
+        message(regrouper(&prise_de_a, &a, 1, &b, HEURE, 60, 60)),
+        "Idée du 17 novembre : prise regroupée, idée du 24 octobre retirée"
+    );
 }
 
 #[test]
@@ -548,16 +629,16 @@ fn un_geste_de_tri_qui_touche_une_idee_retiree_est_refuse() {
     assert_eq!(completer(&a, "Un autre texte", HEURE, 0), retiree);
     assert_eq!(poser_une_etiquette(&a, "refrain", HEURE, 0), retiree);
     assert_eq!(oter_une_etiquette(&a, "pont", HEURE, 0), retiree);
-    assert_eq!(relier(&a, &c, HEURE, 0), retiree);
-    assert_eq!(relier(&c, &a, HEURE, 0), retiree);
-    assert_eq!(delier(&a, &b, HEURE, 0), retiree);
-    assert_eq!(delier(&b, &a, HEURE, 0), retiree);
+    assert_eq!(relier(&a, &c, HEURE, 0, 0), retiree);
+    assert_eq!(relier(&c, &a, HEURE, 0, 0), retiree);
+    assert_eq!(delier(&a, &b, HEURE, 0, 0), retiree);
+    assert_eq!(delier(&b, &a, HEURE, 0, 0), retiree);
     assert_eq!(
-        regrouper(&captation(Sorte::Prise, A), &a, 2, &c, HEURE, 0),
+        regrouper(&captation(Sorte::Prise, A), &a, 2, &c, HEURE, 0, 0),
         retiree
     );
     assert_eq!(
-        regrouper(&captation(Sorte::Prise, C), &c, 2, &a, HEURE, 0),
+        regrouper(&captation(Sorte::Prise, C), &c, 2, &a, HEURE, 0, 0),
         retiree
     );
     assert_eq!(retirer(&a, HEURE, 0), retiree);
@@ -704,7 +785,7 @@ fn deux_formes_d_une_meme_etiquette_font_deux_cles() {
 
 #[test]
 fn relier_une_idee_a_elle_meme_est_refuse() {
-    let refus = relier(&idee(A), &idee(A), HEURE, 0);
+    let refus = relier(&idee(A), &idee(A), HEURE, 0, 0);
     assert_eq!(refus, Err(Impossible::RelieeAElleMeme));
     assert_eq!(
         refus.unwrap_err().to_string(),
@@ -717,8 +798,8 @@ fn relier_deux_idees_deja_reliees_est_refuse() {
     let (mut a, mut b) = (idee(A), idee(B));
     a.liens.insert(LIEN_AB.into());
     b.liens.insert(LIEN_AB.into());
-    assert_eq!(relier(&a, &b, HEURE, 0), Err(Impossible::LienDejaPose));
-    assert_eq!(relier(&b, &a, HEURE, 0), Err(Impossible::LienDejaPose));
+    assert_eq!(relier(&a, &b, HEURE, 0, 0), Err(Impossible::LienDejaPose));
+    assert_eq!(relier(&b, &a, HEURE, 0, 0), Err(Impossible::LienDejaPose));
     assert_eq!(
         Impossible::LienDejaPose.to_string(),
         "Ces deux idées sont déjà reliées."
@@ -727,7 +808,7 @@ fn relier_deux_idees_deja_reliees_est_refuse() {
 
 #[test]
 fn delier_deux_idees_qui_ne_sont_pas_reliees_est_refuse() {
-    let refus = delier(&idee(A), &idee(B), HEURE, 0);
+    let refus = delier(&idee(A), &idee(B), HEURE, 0, 0);
     assert_eq!(refus, Err(Impossible::LienAbsent));
     assert_eq!(
         refus.unwrap_err().to_string(),
@@ -737,7 +818,15 @@ fn delier_deux_idees_qui_ne_sont_pas_reliees_est_refuse() {
 
 #[test]
 fn regrouper_une_captation_dans_son_idee_est_refuse() {
-    let refus = regrouper(&captation(Sorte::Prise, A), &idee(A), 2, &idee(A), HEURE, 0);
+    let refus = regrouper(
+        &captation(Sorte::Prise, A),
+        &idee(A),
+        2,
+        &idee(A),
+        HEURE,
+        0,
+        0,
+    );
     assert_eq!(refus, Err(Impossible::DejaDansLIdee));
     assert_eq!(
         refus.unwrap_err().to_string(),
@@ -769,8 +858,16 @@ fn annuler_rend_l_inverse_sous_annule() {
         }
     );
     // L'inverse d'un regroupement qui vide sa source : la captation rendue, le retrait ôté.
-    let regroupement =
-        regrouper(&captation(Sorte::Prise, V), &idee(V), 1, &idee(A), HEURE, 0).unwrap();
+    let regroupement = regrouper(
+        &captation(Sorte::Prise, V),
+        &idee(V),
+        1,
+        &idee(A),
+        HEURE,
+        0,
+        0,
+    )
+    .unwrap();
     let annule = annulation(&regroupement, plus_tard);
     assert_eq!(annule.changements, regroupement.inverse);
     assert_eq!(

@@ -2418,6 +2418,84 @@ mod tests {
         );
     }
 
+    /// Le décalage local de l'heure de Paris, en minutes : l'heure d'été (120) jusqu'au
+    /// 25 octobre 2026 à 1 h UTC, l'heure d'hiver (60) ensuite.
+    fn decalage_de_paris(le: i64) -> i32 {
+        if le < 1_792_890_000 { 120 } else { 60 }
+    }
+
+    #[test]
+    fn relier_les_cochees_date_chaque_idee_a_sa_naissance() {
+        // L'une née le 24 octobre 2026 à 22 h 30 UTC, à l'heure d'été ; l'autre le 17 novembre
+        // à 9 h UTC, à l'heure d'hiver.
+        let a = ("idee-a".to_string(), 1_792_881_000);
+        let b = ("idee-b".to_string(), 1_794_906_000);
+        assert_eq!(
+            relier_les_cochees(&[a.clone(), b.clone()], decalage_de_paris),
+            Some(Relier {
+                a: "idee-a".to_string(),
+                b: "idee-b".to_string(),
+                decalage_minutes: 120,
+                decalage_b_minutes: 60,
+            })
+        );
+        assert_eq!(relier_les_cochees(&[a.clone()], decalage_de_paris), None);
+        assert_eq!(
+            relier_les_cochees(
+                &[a, b, ("idee-c".to_string(), 1_793_750_400)],
+                decalage_de_paris
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn delier_depuis_le_volet_date_chaque_bout() {
+        // L'idée du volet née le 24 octobre 2026 à 22 h 30 UTC, l'autre bout le 17 novembre à
+        // 9 h UTC : chacun au décalage de son instant, jamais à celui du geste.
+        assert_eq!(
+            deliaison(
+                ("idee-du-volet".to_string(), Some(1_792_881_000)),
+                ("autre-bout".to_string(), Some(1_794_906_000)),
+                decalage_de_paris,
+                -300,
+            ),
+            Relier {
+                a: "idee-du-volet".to_string(),
+                b: "autre-bout".to_string(),
+                decalage_minutes: 120,
+                decalage_b_minutes: 60,
+            }
+        );
+        // Un bout dont la naissance ne s'est pas lue prend le décalage du geste : la limite.
+        let sans_naissance = deliaison(
+            ("idee-du-volet".to_string(), Some(1_792_881_000)),
+            ("autre-bout".to_string(), None),
+            decalage_de_paris,
+            -300,
+        );
+        assert_eq!(
+            (
+                sans_naissance.decalage_minutes,
+                sans_naissance.decalage_b_minutes
+            ),
+            (120, -300)
+        );
+        let volet_sans_naissance = deliaison(
+            ("idee-du-volet".to_string(), None),
+            ("autre-bout".to_string(), Some(1_794_906_000)),
+            decalage_de_paris,
+            -300,
+        );
+        assert_eq!(
+            (
+                volet_sans_naissance.decalage_minutes,
+                volet_sans_naissance.decalage_b_minutes
+            ),
+            (-300, 60)
+        );
+    }
+
     #[test]
     fn un_texte_piege_se_montre_tel_quel() {
         let piege = "<img src=x onerror=alert(1)>";

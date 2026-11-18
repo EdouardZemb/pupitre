@@ -12,7 +12,7 @@ use commandes::{
     LigneDeLaBoite, NOMS, Notee, Noter, Ordre, Provenance, ProvenanceDeLIdee, RENOMMER_UNE_REQUETE,
     REQUETES_ENREGISTREES, RETIREES, Raison, Refus, Regrouper, Relier, Renommer, Reponse, Requete,
     RequeteEnregistree, SUPPRIMER_UNE_REQUETE, Sans, Sorte, Supprimer, Viser, VueDUneIdee,
-    VueDeLaBoite, VueDesRetirees,
+    VueDeLaBoite, VueDesRetirees, VueDuJournal,
 };
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -136,7 +136,8 @@ fn chaque_type_fait_l_aller_retour_par_serde_json() {
     aller_retour(Relier {
         a: IDEE.to_string(),
         b: AUTRE_IDEE.to_string(),
-        decalage_minutes: 60,
+        decalage_minutes: 120,
+        decalage_b_minutes: 60,
     });
     for sorte in [Sorte::Prise, Sorte::MidiVerseSeul, Sorte::TexteVerse] {
         aller_retour(sorte);
@@ -152,6 +153,7 @@ fn chaque_type_fait_l_aller_retour_par_serde_json() {
         },
         cible: AUTRE_IDEE.to_string(),
         decalage_minutes: 120,
+        decalage_source_minutes: -300,
     });
     aller_retour(Viser {
         idee: IDEE.to_string(),
@@ -212,6 +214,25 @@ fn chaque_type_fait_l_aller_retour_par_serde_json() {
     aller_retour(EntreeDuJournal {
         message: "Idée du 14 novembre notée".to_string(),
         heure: HEURE,
+    });
+    aller_retour(VueDuJournal {
+        total: 3,
+        empreinte: EMPREINTE.to_string(),
+        lignes: vec![
+            EntreeDuJournal {
+                message: "Idée du 14 novembre notée".to_string(),
+                heure: HEURE,
+            },
+            EntreeDuJournal {
+                message: "Genèse du fonds".to_string(),
+                heure: 0,
+            },
+        ],
+    });
+    aller_retour(VueDuJournal {
+        total: 0,
+        empreinte: AUTRE_EMPREINTE.to_string(),
+        lignes: Vec::new(),
     });
     for ordre in [
         Ordre::Date,
@@ -450,6 +471,19 @@ fn les_entiers_d_une_reponse_restent_sous_2_puissance_53() {
         heure: PREMIER_JANVIER_2100,
     });
     assert_eq!(entier_sur(&json["heure"]), 4_102_444_800);
+
+    // Le nombre d'entrées du journal à `FENETRE_MAX` : ce n'est pas sa borne, que donne le nombre
+    // des modifications du document, mais un entier de la même sorte, écrit de même.
+    let json = en_json(&VueDuJournal {
+        total: u64::from(FENETRE_MAX),
+        empreinte: EMPREINTE.to_string(),
+        lignes: vec![EntreeDuJournal {
+            message: "Idée du 1er janvier notée".to_string(),
+            heure: PREMIER_JANVIER_2100,
+        }],
+    });
+    assert_eq!(entier_sur(&json["total"]), 200);
+    assert_eq!(entier_sur(&json["lignes"][0]["heure"]), 4_102_444_800);
 
     let la_ligne = ligne(
         PREMIER_JANVIER_2100,

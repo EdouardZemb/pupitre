@@ -28,6 +28,7 @@ use commandes::{
     EtatDuFonds, Etiqueter, FENETRE_MAX, Faite, Fenetre, Jour, LigneDeLaBoite, Notee, Noter, Ordre,
     ProvenanceDeLIdee, Raison, Refus, Regrouper, Relier, Renommer, Reponse, Requete,
     RequeteEnregistree, Sans, Supprimer, Viser, VueDUneIdee, VueDeLaBoite, VueDesRetirees,
+    VueDuJournal,
 };
 use noyau::donnees::boite::texte_du_compte;
 use noyau::donnees::changement::{Changement, Operation, Simple};
@@ -41,6 +42,7 @@ use noyau::donnees::fonds::{
 use noyau::donnees::gestes;
 use noyau::donnees::idee::cle_du_lien;
 use noyau::donnees::identifiants::empreinte;
+use noyau::donnees::journal::empreinte_du_journal;
 use noyau::donnees::requete::texte_de_la_reponse;
 use noyau::donnees::version::{Migration, message_de_la_migration};
 use services::application;
@@ -258,16 +260,18 @@ pub fn etiquetage(idee: &str, etiquette: &str) -> Etiqueter {
     }
 }
 
-/// La commande qui relie ou délie les idées `a` et `b`, au décalage local nul.
+/// La commande qui relie ou délie les idées `a` et `b`, chacune au décalage local nul.
 pub fn lien(a: &str, b: &str) -> Relier {
     Relier {
         a: a.to_string(),
         b: b.to_string(),
         decalage_minutes: 0,
+        decalage_b_minutes: 0,
     }
 }
 
-/// La commande qui regroupe la prise `empreinte` dans l'idée `cible`, au décalage local nul.
+/// La commande qui regroupe la prise `empreinte` dans l'idée `cible`, la cible et la source au
+/// décalage local nul.
 pub fn regroupement(empreinte: &str, cible: &str) -> Regrouper {
     Regrouper {
         captation: Captation {
@@ -276,6 +280,7 @@ pub fn regroupement(empreinte: &str, cible: &str) -> Regrouper {
         },
         cible: cible.to_string(),
         decalage_minutes: 0,
+        decalage_source_minutes: 0,
     }
 }
 
@@ -507,6 +512,7 @@ fn temoin_suivi<D: Documents, C: Captations>(
         },
         cible: a.idee,
         decalage_minutes: 0,
+        decalage_source_minutes: 0,
     };
     faire_sans_avertissement(
         services,
@@ -2028,6 +2034,7 @@ pub fn la_vue_tire_reliee_et_la_duree_des_regles_du_noyau<P: Paire>(paire: &mut 
         },
         cible: v1.idee.clone(),
         decalage_minutes: 0,
+        decalage_source_minutes: 0,
     };
     services
         .regrouper(&regroupement_du_midi, &mut contexte)
@@ -4551,4 +4558,62 @@ pub fn une_requete_enregistree_ne_garde_ni_resultats_ni_nombre<P: Paire>(
     );
     assert_eq!(parcourir(fonds_des_deux), Vec::<String>::new());
     assert_eq!(parcourir(fonds_des_cinq), Vec::<String>::new());
+}
+
+/// Le journal en fenêtre (question 29) : un fonds de trois notes, chacune un jour après la
+/// précédente, porte cinq entrées : la genèse, la naissance et les trois notes. La fenêtre (0, 2)
+/// en rend le nombre, deux lignes, la plus récente d'abord, et l'empreinte que le noyau calcule
+/// (`empreinte_du_journal`) sur le journal entier, tel que `Services::journal` le rend ; la
+/// fenêtre (4, 200), la seule genèse, sous le même nombre et la même empreinte.
+pub fn le_journal_se_lit_en_fenetre<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    for (texte, heure) in [
+        ("Un refrain qui monte, en ré", HEURE),
+        ("Un pont en mi mineur", LENDEMAIN),
+        ("Une coda sans paroles", LENDEMAIN + 86_400),
+    ] {
+        let mut contexte = Contexte {
+            heure,
+            alea: &mut alea,
+        };
+        services
+            .noter(&une_note(texte), &mut contexte)
+            .expect("la note est faite");
+    }
+    let entrees: Vec<(String, i64)> = services
+        .journal()
+        .expect("le journal se lit")
+        .into_iter()
+        .map(|entree| (entree.message, entree.heure))
+        .collect();
+    let empreinte = empreinte_du_journal(&entrees);
+    assert_eq!(
+        services.journal_en_fenetre(&Fenetre {
+            debut: 0,
+            nombre: 2,
+        }),
+        Ok(VueDuJournal {
+            total: 5,
+            empreinte: empreinte.clone(),
+            lignes: vec![
+                entree("Idée du 16 novembre notée", LENDEMAIN + 86_400),
+                entree("Idée du 15 novembre notée", LENDEMAIN),
+            ],
+        })
+    );
+    assert_eq!(
+        services.journal_en_fenetre(&Fenetre {
+            debut: 4,
+            nombre: 200,
+        }),
+        Ok(VueDuJournal {
+            total: 5,
+            empreinte,
+            lignes: vec![entree("Genèse du fonds", 0)],
+        })
+    );
 }

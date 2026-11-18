@@ -352,6 +352,11 @@ fn i01_une_requete_enregistree_ne_garde_ni_resultats_ni_nombre() {
     );
 }
 
+#[test]
+fn le_journal_se_lit_en_fenetre() {
+    suite::le_journal_se_lit_en_fenetre(&mut PaireEnMemoire);
+}
+
 /// Un fonds où « Ponts lents » est enregistrée (le texte « pont », l'étiquette `lent`, plus d'une
 /// minute), et deux répliques de son document (`Automerge::fork`) : l'une renomme la requête
 /// « Ponts du soir » (`renommer_une_requete`), l'autre la supprime (`supprimer_une_requete`),

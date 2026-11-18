@@ -467,6 +467,12 @@ fn i01_une_requete_enregistree_ne_garde_ni_resultats_ni_nombre() {
 }
 
 #[test]
+fn le_journal_se_lit_en_fenetre() {
+    let racine = racine_jetable("commandes-journal-en-fenetre");
+    suite::le_journal_se_lit_en_fenetre(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
 fn la_migration_de_test_est_la_meme_dans_les_deux_crates() {
     assert_eq!(suite::migration_de_test(), commun::migration_de_test());
 }
