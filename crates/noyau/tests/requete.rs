@@ -1,6 +1,10 @@
-//! Les jours civils et les bornes d'une période (question 9 ; CAP-06).
+//! Les jours civils et les bornes d'une période (question 9), et le texte de la réponse d'une
+//! requête (question 7) ; CAP-06.
 
-use noyau::donnees::requete::{Bornes, Jour, bornes_de_la_periode, debut_du_jour};
+use noyau::donnees::idee::Assiette;
+use noyau::donnees::requete::{
+    Bornes, Jour, Sans, bornes_de_la_periode, debut_du_jour, texte_de_la_reponse,
+};
 
 fn j(texte: &str) -> Jour {
     Jour::depuis_iso(texte).unwrap()
@@ -243,4 +247,46 @@ fn le_debut_du_jour_relit_le_decalage_a_l_instant_approche() {
     let m = j("2026-10-25").minuit_utc();
     let decalage = |t: i64| if t >= m - 1_800 { 60 } else { 0 };
     assert_eq!(debut_du_jour(j("2026-10-25"), decalage), m);
+}
+
+#[test]
+fn le_texte_de_la_reponse_ordonne_ses_parts_et_s_accorde() {
+    let a = |c, p| Assiette {
+        considerees: c,
+        portant: p,
+        decidees: p,
+    };
+    assert_eq!(
+        texte_de_la_reponse(0, a(4, 4), 0, Sans::default()),
+        "0 idée · 4 interrogées"
+    );
+    assert_eq!(
+        texte_de_la_reponse(1, a(1, 1), 0, Sans::default()),
+        "1 idée · 1 interrogée"
+    );
+    assert_eq!(
+        texte_de_la_reponse(2, a(5, 4), 1, Sans::default()),
+        "2 idées · 1 illisible · 5 interrogées"
+    );
+    let toutes = Sans {
+        etiquette: Some(1),
+        duree: Some(1),
+        texte: Some(2),
+    };
+    assert_eq!(
+        texte_de_la_reponse(1, a(6, 1), 1, toutes),
+        "1 idée · 1 sans étiquette · 1 sans durée · 2 sans texte · 1 illisible · 6 interrogées"
+    );
+    assert_eq!(
+        texte_de_la_reponse(
+            2,
+            a(5, 3),
+            2,
+            Sans {
+                duree: Some(0),
+                ..Sans::default()
+            }
+        ),
+        "2 idées · 2 illisibles · 5 interrogées"
+    );
 }
