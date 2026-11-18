@@ -11,18 +11,19 @@
 
 use commandes::{
     ANNULER, Assiette, BOITE, Boite, COMPLETER, Completer, Contenu, DELIER,
-    ENREGISTRER_UNE_REQUETE, ETAT_DU_FONDS, Enregistrer, EtatDuFonds, Etiqueter, FENETRE_MAX,
-    Faite, Fenetre, LONGUEUR_D_UNE_LIGNE, LigneDeLaBoite, NOTER, Notee, Noter, OTER_UNE_ETIQUETTE,
-    Ordre, POSER_UNE_ETIQUETTE, Provenance, RELIER, RENOMMER_UNE_REQUETE, REQUETES_ENREGISTREES,
-    RETABLIR, RETIREES, RETIRER, Relier, Renommer, Requete, RequeteEnregistree,
-    SUPPRIMER_UNE_REQUETE, Supprimer, VUE_D_UNE_IDEE, Viser, VueDUneIdee, VueDeLaBoite,
-    VueDesRetirees,
+    ENREGISTRER_UNE_REQUETE, ETAT_DU_FONDS, Enregistrer, EntreeDuJournal, EtatDuFonds, Etiqueter,
+    FENETRE_MAX, Faite, Fenetre, JOURNAL, LONGUEUR_D_UNE_LIGNE, LigneDeLaBoite, NOTER, Notee,
+    Noter, OTER_UNE_ETIQUETTE, Ordre, POSER_UNE_ETIQUETTE, Provenance, RELIER,
+    RENOMMER_UNE_REQUETE, REQUETES_ENREGISTREES, RETABLIR, RETIREES, RETIRER, Relier, Renommer,
+    Requete, RequeteEnregistree, SUPPRIMER_UNE_REQUETE, Supprimer, VUE_D_UNE_IDEE, Viser,
+    VueDUneIdee, VueDeLaBoite, VueDesRetirees, VueDuJournal,
 };
 use leptos::html;
 use leptos::prelude::*;
 use leptos::web_sys::{Element, HtmlElement, HtmlInputElement, HtmlTextAreaElement, Node};
 use noyau::donnees::boite::{date_de_la_liste, duree_affichee, etiquette_saisie, texte_du_compte};
 use noyau::donnees::idee;
+use noyau::donnees::journal::{empreinte_courte, heure_du_journal};
 use noyau::donnees::repli::mots;
 use noyau::donnees::requete::{self, texte_de_la_reponse};
 use serde::Serialize;
@@ -592,23 +593,33 @@ struct RetireesLues {
     vue: VueDesRetirees,
 }
 
-/// Ce que montre le volet, à droite de la liste : rien, l'idée choisie, ou les idées retirées.
+/// Une fenêtre du journal du fonds, lue : la fenêtre demandée, et la vue rendue.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct JournalLu {
+    fenetre: Fenetre,
+    vue: VueDuJournal,
+}
+
+/// Ce que montre le volet, à droite de la liste : rien, l'idée choisie, les idées retirées, ou le
+/// journal du fonds.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Volet {
     Aucun,
     Idee(String),
     Retirees,
+    Journal,
 }
 
 /// Où va le focus quand le volet `volet` se ferme, par « Fermer » comme par Échap : au bouton de
 /// la ligne qui a ouvert l'idée, si elle est dans les lignes lues `lues`, sinon à la liste
-/// (`cible_apres_le_volet`) ; au bouton « Idées retirées » pour les retirées. `None` quand aucun
-/// volet n'est ouvert : rien ne se ferme. Un volet de plus (le journal) ajoute sa branche ici.
+/// (`cible_apres_le_volet`) ; au bouton « Idées retirées » pour les retirées, au bouton « Journal
+/// du fonds » pour le journal. `None` quand aucun volet n'est ouvert : rien ne se ferme.
 fn cible_de_fermeture(volet: &Volet, lues: &[LigneDeLaBoite]) -> Option<Cible> {
     match volet {
         Volet::Aucun => None,
         Volet::Idee(id) => Some(cible_apres_le_volet(id, lues)),
         Volet::Retirees => Some(Cible::BoutonDesRetirees),
+        Volet::Journal => Some(Cible::BoutonDuJournal),
     }
 }
 
@@ -673,6 +684,9 @@ pub(crate) struct EtatDeLaBoite {
     lectures_de_l_idee: StoredValue<u64>,
     retirees: RwSignal<Option<RetireesLues>>,
     demandes_des_retirees: Demandes,
+    /// Le journal du fonds lu, et ses demandes.
+    journal: RwSignal<Option<JournalLu>>,
+    demandes_du_journal: Demandes,
     /// Le champ « Noter une idée ».
     note: RwSignal<String>,
     /// Une note est partie, sans relecture encore : `Entrée` n'en envoie pas une seconde.
@@ -713,6 +727,8 @@ impl EtatDeLaBoite {
             lectures_de_l_idee: StoredValue::new(0),
             retirees: RwSignal::new(None),
             demandes_des_retirees: Demandes::nouvelles(),
+            journal: RwSignal::new(None),
+            demandes_du_journal: Demandes::nouvelles(),
             note: RwSignal::new(String::new()),
             note_en_cours: StoredValue::new(false),
             brouillon: RwSignal::new(String::new()),
@@ -880,6 +896,20 @@ async fn lire_les_retirees(
     }
 }
 
+/// Lit la fenêtre `fenetre` du journal du fonds, comme `lire_les_retirees` ; ses lignes n'ont
+/// aucune commande, le focus n'a rien à y rendre.
+async fn lire_le_journal(etat: Etat, boite: EtatDeLaBoite, fenetre: Fenetre) {
+    let rang = boite.demandes_du_journal.demander(&fenetre);
+    let lu = natif::invoquer::<VueDuJournal>(JOURNAL, argument(&fenetre)).await;
+    if !boite.demandes_du_journal.est_la_derniere(rang) {
+        return;
+    }
+    match lu {
+        Ok(vue) => boite.journal.set(Some(JournalLu { fenetre, vue })),
+        Err(refus) => etat.apres_un_geste(&Err(refus)),
+    }
+}
+
 /// Lit l'idée `id`, puis chacune de ses idées liées, pour les nommer. Le refus de l'idée va au
 /// bandeau ; une idée liée qui ne se lit pas se nomme `CASE_VIDE`, qui le dit déjà, et son refus
 /// ne va pas au bandeau. La lecture finie, si l'idée est encore celle du volet et que nulle
@@ -975,6 +1005,11 @@ async fn relire(etat: Etat, boite: EtatDeLaBoite, focus: RwSignal<Option<Cible>>
         Volet::Retirees => {
             if let Some(fenetre) = boite.demandes_des_retirees.derniere.get_value() {
                 lire_les_retirees(etat, boite, focus, fenetre).await;
+            }
+        }
+        Volet::Journal => {
+            if let Some(fenetre) = boite.demandes_du_journal.derniere.get_value() {
+                lire_le_journal(etat, boite, fenetre).await;
             }
         }
         Volet::Idee(id) => lire_l_idee(etat, boite, focus, id).await,
@@ -1189,8 +1224,10 @@ enum Cible {
     ChampDeNom,
     ListeDesRetirees,
     BoutonDesRetirees,
+    BoutonDuJournal,
     TitreDeLIdee,
     TitreDesRetirees,
+    TitreDuJournal,
     Ligne {
         gardee: Gardee,
         defilement: Defilement,
@@ -1219,8 +1256,11 @@ struct Ecran {
     etalon: NodeRef<html::Div>,
     liste_des_retirees: NodeRef<html::Div>,
     bouton_des_retirees: NodeRef<html::Button>,
+    liste_du_journal: NodeRef<html::Div>,
+    bouton_du_journal: NodeRef<html::Button>,
     titre_de_l_idee: NodeRef<html::H2>,
     titre_des_retirees: NodeRef<html::H2>,
+    titre_du_journal: NodeRef<html::H2>,
 }
 
 impl Ecran {
@@ -1274,6 +1314,18 @@ impl Ecran {
             leptos::task::spawn_local(lire_les_retirees(
                 self.etat, self.boite, self.focus, fenetre,
             ));
+        }
+    }
+
+    /// Lit la fenêtre du journal que demande son défilement (`a_demander`).
+    fn demander_le_journal(self, forcer: bool) {
+        let total = self
+            .boite
+            .journal
+            .with_untracked(|lu| lu.as_ref().map(|lu| lu.vue.total));
+        let demandes = self.boite.demandes_du_journal;
+        if let Some(fenetre) = self.a_demander(self.liste_du_journal, demandes, total, forcer) {
+            leptos::task::spawn_local(lire_le_journal(self.etat, self.boite, fenetre));
         }
     }
 
@@ -1569,6 +1621,17 @@ impl Ecran {
         }
     }
 
+    /// Ouvre le volet du journal du fonds, qui prend le focus, ou le ferme.
+    fn basculer_le_journal(self) {
+        if self.boite.volet.with_untracked(|v| *v == Volet::Journal) {
+            self.boite.volet.set(Volet::Aucun);
+        } else {
+            self.boite.journal.set(None);
+            self.boite.volet.set(Volet::Journal);
+            self.focus.set(Some(Cible::TitreDuJournal));
+        }
+    }
+
     /// L'identifiant de l'idée du volet, s'il en montre une.
     fn idee_du_volet(self) -> Option<String> {
         self.boite.volet.with_untracked(|volet| match volet {
@@ -1793,8 +1856,11 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
         etalon: NodeRef::new(),
         liste_des_retirees: NodeRef::new(),
         bouton_des_retirees: NodeRef::new(),
+        liste_du_journal: NodeRef::new(),
+        bouton_du_journal: NodeRef::new(),
         titre_de_l_idee: NodeRef::new(),
         titre_des_retirees: NodeRef::new(),
+        titre_du_journal: NodeRef::new(),
     };
     // Montés, la liste et l'étalon donnent la fenêtre à lire. Chaque changement de la requête en
     // cours, son texte dans l'en-tête ou un critère, ramène la liste au début et la relit
@@ -1818,8 +1884,10 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
             Cible::ChampDeNom => ecran.champ_de_nom.get().map(Into::into),
             Cible::ListeDesRetirees => ecran.liste_des_retirees.get().map(Into::into),
             Cible::BoutonDesRetirees => ecran.bouton_des_retirees.get().map(Into::into),
+            Cible::BoutonDuJournal => ecran.bouton_du_journal.get().map(Into::into),
             Cible::TitreDeLIdee => ecran.titre_de_l_idee.get().map(Into::into),
             Cible::TitreDesRetirees => ecran.titre_des_retirees.get().map(Into::into),
+            Cible::TitreDuJournal => ecran.titre_du_journal.get().map(Into::into),
             // Chaque ligne résout la sienne (`focus_de_la_ligne`).
             Cible::Ligne { .. } => return,
         };
@@ -1864,6 +1932,9 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
             .with_untracked(|volet| *volet == Volet::Retirees)
         {
             ecran.demander_les_retirees(false);
+        }
+        if boite.volet.with_untracked(|volet| *volet == Volet::Journal) {
+            ecran.demander_le_journal(false);
         }
     });
     on_cleanup(move || {
@@ -1955,6 +2026,7 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
     let une_requete_est_choisie = move || boite.requete_choisie.with(Option::is_some);
     let requetes_enregistrees = move || boite.requetes.get();
     let retirees_ouvertes = move || boite.volet.with(|volet| *volet == Volet::Retirees);
+    let journal_ouvert = move || boite.volet.with(|volet| *volet == Volet::Journal);
     let idee_ouverte = move || boite.volet.with(|volet| matches!(volet, Volet::Idee(_)));
     // La page du fonds vide : aucune idée interrogée (`page_du_fonds_vide`), lue au moins une fois.
     let fonds_vide = move || {
@@ -2173,6 +2245,15 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
                     >
                         "Idées retirées"
                     </button>
+                    <button
+                        type="button"
+                        node_ref=ecran.bouton_du_journal
+                        aria-expanded=move || journal_ouvert().to_string()
+                        aria-controls=move || journal_ouvert().then_some("volet-du-journal")
+                        on:click=move |_| ecran.basculer_le_journal()
+                    >
+                        "Journal du fonds"
+                    </button>
                 </div>
             </div>
             <div class="boite-corps">
@@ -2228,9 +2309,30 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
                 <Show when=retirees_ouvertes>
                     <VoletDesRetirees ecran=ecran />
                 </Show>
+                <Show when=journal_ouvert>
+                    <VoletDuJournal ecran=ecran />
+                </Show>
             </div>
         </main>
     }
+}
+
+/// « 25 oct. 2026 · 02:30 · Idée du 25 octobre notée » : l'heure de l'entrée au décalage
+/// `decalage` de son instant (`heure_du_journal`), « — » pour l'heure 0, puis son message.
+fn ligne_du_journal(entree: &EntreeDuJournal, decalage: i32) -> String {
+    format!(
+        "{} · {}",
+        heure_du_journal(entree.heure, decalage),
+        entree.message
+    )
+}
+
+/// « 3 entrées · empreinte 570cda » : le nombre d'entrées du journal, et les six premiers
+/// caractères de son empreinte (`empreinte_courte`) ; « 1 entrée » au singulier, « 0 entrée » de
+/// même.
+fn entete_du_journal(total: u64, empreinte: &str) -> String {
+    let mot = if total <= 1 { "entrée" } else { "entrées" };
+    format!("{total} {mot} · empreinte {}", empreinte_courte(empreinte))
 }
 
 /// Une ligne de la boîte, de rang `index` dans la fenêtre lue : un bouton qui ouvre le volet de
@@ -2689,6 +2791,107 @@ fn VoletDesRetirees(ecran: Ecran) -> impl IntoView {
                             children={move |index: ReadSignal<usize>, ligne: LigneDeLaBoite| {
                                 ligne_retiree(ecran, index, ligne)
                             }}
+                        />
+                    </div>
+                </div>
+            </div>
+        </aside>
+    }
+}
+
+/// Le volet du journal du fonds, en lecture seule : son titre, qui prend le focus à l'ouverture,
+/// « Fermer », qui rend le focus à « Journal du fonds », son en-tête (le nombre d'entrées et
+/// l'empreinte), et la liste de ses entrées, la plus récente d'abord, en fenêtre comme celle des
+/// idées retirées. Chaque ligne se date au décalage de son instant (`natif::decalage_a`). Monté,
+/// il lit la fenêtre que sa liste montre.
+#[component]
+fn VoletDuJournal(ecran: Ecran) -> impl IntoView {
+    let boite = ecran.boite;
+    Effect::new(move |_| {
+        if ecran.liste_du_journal.get().is_some() && ecran.etalon.get().is_some() {
+            ecran.demander_le_journal(true);
+        }
+    });
+    let total = move || boite.journal.with(|lu| lu.as_ref().map(|lu| lu.vue.total));
+    let entete = move || {
+        boite.journal.with(|lu| {
+            lu.as_ref()
+                .map(|lu| entete_du_journal(lu.vue.total, &lu.vue.empreinte))
+                .unwrap_or_default()
+        })
+    };
+    let hauteur_de_la_piste = move || {
+        let lignes = total().unwrap_or(0);
+        format!("calc({lignes} * var(--ligne))")
+    };
+    let haut_des_lignes = move || {
+        let debut = boite
+            .journal
+            .with(|lu| lu.as_ref().map_or(0, |lu| lu.fenetre.debut));
+        format!("calc({debut} * var(--ligne))")
+    };
+    // Une ligne par entrée, sa clé son rang dans le journal et son texte : deux entrées peuvent
+    // porter le même message à la même heure.
+    let lignes = move || {
+        boite.journal.with(|lu| {
+            lu.as_ref()
+                .map(|lu| {
+                    let debut = u64::from(lu.fenetre.debut);
+                    lu.vue
+                        .lignes
+                        .iter()
+                        .enumerate()
+                        .map(|(rang, entree)| {
+                            let texte = ligne_du_journal(entree, natif::decalage_a(entree.heure));
+                            (debut + rang as u64, texte)
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default()
+        })
+    };
+    view! {
+        <aside
+            id="volet-du-journal"
+            class="volet volet-du-journal"
+            aria-labelledby="titre-du-journal"
+        >
+            <div class="volet-haut">
+                <h2 id="titre-du-journal" tabindex="-1" node_ref=ecran.titre_du_journal>
+                    "Journal du fonds"
+                </h2>
+                <button type="button" on:click=move |_| ecran.fermer_par_echap()>
+                    "Fermer"
+                </button>
+            </div>
+            <p>{entete}</p>
+            <div
+                class="liste"
+                tabindex="0"
+                role="region"
+                aria-label="Entrées du journal"
+                node_ref=ecran.liste_du_journal
+                on:scroll=move |_| ecran.demander_le_journal(false)
+            >
+                <div class="piste" style:height=hauteur_de_la_piste>
+                    <div class="lignes" role="list" style:top=haut_des_lignes>
+                        <For
+                            each=lignes
+                            key=|(rang, texte)| (*rang, texte.clone())
+                            children=move |(rang, texte)| {
+                                view! {
+                                    <div
+                                        class="ligne"
+                                        role="listitem"
+                                        aria-posinset=(rang + 1).to_string()
+                                        aria-setsize=move || total().unwrap_or(0).to_string()
+                                    >
+                                        <span class="cellules journal">
+                                            <span class="cellule">{texte}</span>
+                                        </span>
+                                    </div>
+                                }
+                            }
                         />
                     </div>
                 </div>
@@ -3501,8 +3704,11 @@ mod tests {
             etalon: NodeRef::new(),
             liste_des_retirees: NodeRef::new(),
             bouton_des_retirees: NodeRef::new(),
+            liste_du_journal: NodeRef::new(),
+            bouton_du_journal: NodeRef::new(),
             titre_de_l_idee: NodeRef::new(),
             titre_des_retirees: NodeRef::new(),
+            titre_du_journal: NodeRef::new(),
         }
     }
 

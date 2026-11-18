@@ -467,6 +467,10 @@ textarea {
   grid-template-columns: minmax(0, 7fr) minmax(0, 20fr) minmax(0, 9fr);
 }
 
+.cellules.journal {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .cellule {
   overflow: hidden;
   white-space: nowrap;
@@ -573,11 +577,13 @@ input[type="checkbox"] {
   overflow-y: auto;
 }
 
-.volet-des-retirees {
+.volet-des-retirees,
+.volet-du-journal {
   overflow: hidden;
 }
 
-.volet-des-retirees .liste {
+.volet-des-retirees .liste,
+.volet-du-journal .liste {
   min-height: 8rem;
   border-top: 1px solid #000;
 }
