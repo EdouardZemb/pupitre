@@ -8,6 +8,7 @@ mod entete;
 mod export;
 mod natif;
 mod panneau_palette;
+mod recherche;
 mod vue_table;
 
 fn main() {
