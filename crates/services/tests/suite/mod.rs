@@ -7,8 +7,9 @@
 //! migration de test, les migrations qui la portent, une migration qui attend ses
 //! dépendances, le fonds de chaque geste, et les aides qui refusent ce qu'I28, I01 et les types
 //! interdisent (`une_modification`, `message_connu`, `parcourir`, `parcourir_les_types`) ; la
-//! boîte entière, l'assiette du noyau qui répond à celle des commandes, le texte du compte et un
-//! document dont une idée est illisible. Le fichier s'inclut par `mod suite;` dans les tests des
+//! boîte entière, l'assiette du noyau qui répond à celle des commandes, le texte du compte, celui
+//! de la réponse d'une requête, le jeu de requêtes d'I09 et d'I13, et un document dont une idée
+//! est illisible. Le fichier s'inclut par `mod suite;` dans les tests des
 //! services, et par
 //! `#[path = "../../services/tests/suite/mod.rs"]` dans ceux du stockage : il ne nomme que ce
 //! que les deux voient, les services, les commandes, le noyau et `automerge`.
@@ -16,7 +17,7 @@
 // Chaque fichier qui inclut la suite n'en emploie qu'une partie.
 #![allow(dead_code)]
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use automerge::transaction::{CommitOptions, Transactable};
 use automerge::{
@@ -39,6 +40,7 @@ use noyau::donnees::fonds::{
 use noyau::donnees::gestes;
 use noyau::donnees::idee::cle_du_lien;
 use noyau::donnees::identifiants::empreinte;
+use noyau::donnees::requete::texte_de_la_reponse;
 use noyau::donnees::version::{Migration, message_de_la_migration};
 use services::application;
 use services::lecture::{lire_l_idee, teneur, version_de_schema};
@@ -3353,4 +3355,485 @@ pub fn la_requete_passe_au_noyau<P: Paire>(paire: &mut P, paire_des_notes: &mut 
         }
     );
     assert_eq!(vue.etiquettes_du_fonds, Vec::<String>::new());
+}
+
+/// Le texte de la réponse d'une vue de la boîte, tel que le dit le noyau (`texte_de_la_reponse`) :
+/// ses retenues, l'assiette de la requête (`assiette_du_noyau`), ses illisibles et ses parts
+/// « sans … », chaque compte par `usize::try_from`, `usize::MAX` au-delà.
+pub fn texte_de_la_reponse_de(vue: &VueDeLaBoite) -> String {
+    let compte = |n: u64| usize::try_from(n).unwrap_or(usize::MAX);
+    texte_de_la_reponse(
+        compte(vue.retenues),
+        assiette_du_noyau(&vue.assiette_de_la_requete),
+        compte(vue.assiette_de_la_requete.illisibles),
+        noyau::donnees::requete::Sans {
+            etiquette: vue.sans.etiquette.map(compte),
+            duree: vue.sans.duree.map(compte),
+            texte: vue.sans.texte.map(compte),
+        },
+    )
+}
+
+/// La boîte sous `requete`, autant qu'une fenêtre en rend : `toute_la_boite`, la requête posée.
+fn boite_de_la_requete(requete: Requete) -> Boite {
+    Boite {
+        requete,
+        ..toute_la_boite()
+    }
+}
+
+/// La requête du texte `texte`, sans autre critère.
+fn cherche(texte: &str) -> Requete {
+    Requete {
+        texte: texte.to_string(),
+        ..Requete::default()
+    }
+}
+
+/// La requête « plus d'une minute » : une durée affichée de plus de 60 secondes.
+fn plus_d_une_minute() -> Requete {
+    Requete {
+        plus_de_secondes: Some(60),
+        ..Requete::default()
+    }
+}
+
+/// Le jeu de requêtes d'I09, d'I13 et de « chercher n'écrit rien » : la requête vide ; « eglise » ;
+/// l'étiquette `pont` ; plus d'une minute ; les non reliées ; les importées ; le contenu `Prise` ;
+/// « pont » et les non reliées ensemble.
+fn jeu_de_requetes() -> Vec<Requete> {
+    vec![
+        Requete::default(),
+        cherche("eglise"),
+        Requete {
+            etiquette: Some("pont".to_string()),
+            ..Requete::default()
+        },
+        plus_d_une_minute(),
+        Requete {
+            etat: Some(Etat::NonReliee),
+            ..Requete::default()
+        },
+        Requete {
+            provenance: Some(ProvenanceDeLIdee::Importee),
+            ..Requete::default()
+        },
+        Requete {
+            contenu: Some(Contenu::Prise),
+            ..Requete::default()
+        },
+        Requete {
+            etat: Some(Etat::NonReliee),
+            ..cherche("pont")
+        },
+    ]
+}
+
+/// Note `texte` (`une_note`) ; rend l'idée notée.
+fn noter_l_idee<D: Documents, C: Captations>(
+    services: &mut Services<D, C>,
+    texte: &str,
+    contexte: &mut Contexte<'_>,
+) -> String {
+    services
+        .noter(&une_note(texte), contexte)
+        .expect("la note est faite")
+        .idee
+}
+
+/// Verse une prise WAV de `duree_ms` millisecondes (`fiche_wav`), d'octets propres à sa durée
+/// (« une prise de N ms »), par `verser_une_prise`.
+fn verser_la_prise_de<D: Documents, C: Captations>(
+    services: &mut Services<D, C>,
+    duree_ms: u64,
+    contexte: &mut Contexte<'_>,
+) -> Versee {
+    verser_une_prise(
+        services,
+        format!("une prise de {duree_ms} ms").as_bytes(),
+        &fiche_wav(duree_ms),
+        contexte,
+    )
+}
+
+/// CAP-06 · 7, l'exemple de la tâche 3 (`plus_d_une_minute_se_juge_a_la_seconde_affichee`, dans
+/// `crates/noyau/tests/index.rs`) rejoué par les opérations nommées : trois idées notées, sans
+/// prise ; neuf nées du versement d'une prise, de 61 000, 90 000, 600 000, 75 000, 60 999,
+/// 59 999, 30 000, 20 000 et 999 ms ; une prise de 12 000 ms regroupée dans l'idée de celle de
+/// 90 000, une de 5 000 dans celle de 20 000, chacune retirant l'idée née avec elle. La requête
+/// « plus d'une minute » retient quatre idées, 61 000 comprise, 60 999 (« 1:00 ») non ; elle
+/// interroge douze idées, dont neuf portent une durée, décidée, sans illisible ; les trois notées
+/// sont sans durée : « 4 idées · 3 sans durée · 12 interrogées ».
+pub fn plus_d_une_minute_declare_son_assiette<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    for texte in [
+        "Un refrain qui monte, en ré",
+        "Un pont en mi mineur",
+        "Une coda en suspens",
+    ] {
+        noter_l_idee(&mut services, texte, &mut contexte);
+    }
+    let idees: BTreeMap<u64, String> = [
+        61_000, 90_000, 600_000, 75_000, 60_999, 59_999, 30_000, 20_000, 999,
+    ]
+    .into_iter()
+    .map(|duree_ms| {
+        let idee = verser_la_prise_de(&mut services, duree_ms, &mut contexte).idee;
+        (duree_ms, idee)
+    })
+    .collect();
+    for (duree_ms, cible) in [(12_000, 90_000_u64), (5_000, 20_000)] {
+        let versee = verser_la_prise_de(&mut services, duree_ms, &mut contexte);
+        services
+            .regrouper(
+                &regroupement(&versee.empreinte, &idees[&cible]),
+                &mut contexte,
+            )
+            .expect("la prise se regroupe");
+    }
+
+    let vue = services
+        .boite(&boite_de_la_requete(plus_d_une_minute()))
+        .expect("la boîte se lit");
+    assert_eq!(vue.retenues, 4);
+    assert_eq!(
+        vue.assiette_de_la_requete,
+        Assiette {
+            considerees: 12,
+            portant: 9,
+            decidees: 9,
+            illisibles: 0,
+        }
+    );
+    assert_eq!(vue.sans.duree, Some(3));
+    assert_eq!(
+        texte_de_la_reponse_de(&vue),
+        "4 idées · 3 sans durée · 12 interrogées"
+    );
+}
+
+/// CAP-06 · 8, l'exemple de la tâche 3 (`une_idee_retiree_n_est_ni_trouvee_ni_comptee`, dans
+/// `crates/noyau/tests/index.rs`) rejoué par les opérations nommées : cinq idées notées,
+/// « Église du port », « une église retirée », que le test retire, « le phare et la jetée »,
+/// « … », un texte sans mot, et « L’EGLISE, encore » ; deux nées du versement d'une prise, sans
+/// texte. « eglise » trouve deux idées, compte les deux prises sans texte, et interroge les six
+/// idées non retirées : « 2 idées · 2 sans texte · 6 interrogées » ; l'idée retirée n'est pas dans
+/// les lignes.
+pub fn une_idee_retiree_n_est_ni_trouvee_ni_comptee<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let mut notees = Vec::new();
+    for texte in [
+        "Église du port",
+        "une église retirée",
+        "le phare et la jetée",
+        "\u{2026}",
+        "L\u{2019}EGLISE, encore",
+    ] {
+        notees.push(noter_l_idee(&mut services, texte, &mut contexte));
+    }
+    verser_la_prise_de(&mut services, 30_000, &mut contexte);
+    verser_la_prise_de(&mut services, 47_000, &mut contexte);
+    let retiree = &notees[1];
+    services
+        .retirer(&visee(retiree), &mut contexte)
+        .expect("l'idée est retirée");
+
+    let vue = services
+        .boite(&boite_de_la_requete(cherche("eglise")))
+        .expect("la boîte se lit");
+    assert_eq!(
+        texte_de_la_reponse_de(&vue),
+        "2 idées · 2 sans texte · 6 interrogées"
+    );
+    assert!(
+        !idees_des_lignes(&vue.lignes).contains(retiree),
+        "l'idée retirée est dans les lignes"
+    );
+}
+
+/// CAP-02 · 5, la part des requêtes (les photos viennent au lot 2) : X, notée « Un pont en mi
+/// mineur », porte `pont` ; Y, notée « Un refrain qui monte, en ré », n'a aucune étiquette. La
+/// requête de l'étiquette `pont` trouve X ; X retirée, elle quitte les lignes, et la requête
+/// interroge une idée de moins.
+pub fn une_idee_retiree_quitte_les_requetes<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let x = noter_l_idee(&mut services, "Un pont en mi mineur", &mut contexte);
+    noter_l_idee(&mut services, "Un refrain qui monte, en ré", &mut contexte);
+    services
+        .poser_une_etiquette(&etiquetage(&x, "pont"), &mut contexte)
+        .expect("l'étiquette est posée sur X");
+    let pont = boite_de_la_requete(Requete {
+        etiquette: Some("pont".to_string()),
+        ..Requete::default()
+    });
+
+    let avant = services.boite(&pont).expect("la boîte se lit");
+    assert_eq!(idees_des_lignes(&avant.lignes), vec![x.clone()]);
+    services
+        .retirer(&visee(&x), &mut contexte)
+        .expect("X est retirée");
+    let apres = services.boite(&pont).expect("la boîte se lit");
+    assert_eq!(apres.lignes, Vec::new());
+    assert_eq!(
+        apres.assiette_de_la_requete.considerees + 1,
+        avant.assiette_de_la_requete.considerees
+    );
+}
+
+/// CAP-06 · 9 : P, née du versement d'une prise de 30 000 ms, où se regroupe une prise versée
+/// sans durée (`Fiche { duree_ms: None, … }`) : la durée de P ne se lit pas (`idee::duree`). La
+/// requête « plus d'une minute » ne la trouve pas, et la compte parmi les sans durée.
+pub fn une_prise_sans_duree_compte_parmi_les_sans_duree<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let p = verser_la_prise_de(&mut services, 30_000, &mut contexte).idee;
+    let sans_duree = verser_une_prise(
+        &mut services,
+        b"une prise sans duree",
+        &gestes::Fiche {
+            format: "wav".to_string(),
+            duree_ms: None,
+        },
+        &mut contexte,
+    );
+    services
+        .regrouper(&regroupement(&sans_duree.empreinte, &p), &mut contexte)
+        .expect("la prise sans durée se regroupe dans P");
+
+    let vue = services
+        .boite(&boite_de_la_requete(plus_d_une_minute()))
+        .expect("la boîte se lit");
+    assert!(
+        !idees_des_lignes(&vue.lignes).contains(&p),
+        "P est dans les lignes"
+    );
+    assert_eq!(vue.sans.duree, Some(1));
+}
+
+/// CAP-06 · 10 : « Église du port », son É d'un seul point de code (U+00C9), et « Église du
+/// port », un E suivi de l'accent aigu combinant (U+0301), notées : « eglise » les trouve toutes
+/// deux.
+pub fn eglise_trouve_eglise_du_port<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let composee = noter_l_idee(&mut services, "\u{c9}glise du port", &mut contexte);
+    let decomposee = noter_l_idee(&mut services, "E\u{301}glise du port", &mut contexte);
+
+    let vue = services
+        .boite(&boite_de_la_requete(cherche("eglise")))
+        .expect("la boîte se lit");
+    assert_eq!(
+        idees_des_lignes(&vue.lignes)
+            .into_iter()
+            .collect::<BTreeSet<_>>(),
+        BTreeSet::from([composee, decomposee])
+    );
+}
+
+/// I09 : sur le fonds de chaque geste (`le_fonds_de_chaque_geste`), chaque requête du jeu
+/// (`jeu_de_requetes`) déclare son assiette : elle considère les idées lisibles non retirées
+/// (`Services::idees`) et les illisibles ; celles dont la donnée est décidée sont celles qui la
+/// portent ; les idées retenues ne dépassent pas celles qui la portent, ni aucune part « sans … »
+/// les considérées ; et son texte (`texte_de_la_reponse`) finit par « interrogée » ou
+/// « interrogées ».
+pub fn chaque_reponse_declare_son_assiette<P: Paire>(paire: &mut P) {
+    let services = le_fonds_de_chaque_geste(paire, &mut |_, _, _| {});
+    let lisibles = u64::try_from(services.idees().expect("les idées se lisent").len())
+        .expect("un compte d'idées");
+    for requete in jeu_de_requetes() {
+        let vue = services
+            .boite(&boite_de_la_requete(requete.clone()))
+            .expect("la boîte se lit");
+        let assiette = &vue.assiette_de_la_requete;
+        assert_eq!(
+            assiette.considerees,
+            lisibles + assiette.illisibles,
+            "la requête {requete:?}"
+        );
+        assert_eq!(
+            assiette.decidees, assiette.portant,
+            "la requête {requete:?}"
+        );
+        assert!(
+            vue.retenues <= assiette.portant,
+            "la requête {requete:?} : {vue:?}"
+        );
+        for part in [vue.sans.etiquette, vue.sans.duree, vue.sans.texte]
+            .into_iter()
+            .flatten()
+        {
+            assert!(
+                part <= assiette.considerees,
+                "la requête {requete:?} : {vue:?}"
+            );
+        }
+        let texte = texte_de_la_reponse_de(&vue);
+        assert!(
+            texte.ends_with(" interrogée") || texte.ends_with(" interrogées"),
+            "la requête {requete:?} : {texte}"
+        );
+    }
+}
+
+/// L'empreinte d'une vue de la boîte (I13) : `identifiants::empreinte` de ses octets en JSON
+/// (`serde_json::to_vec`).
+fn empreinte_de_la_vue(vue: &VueDeLaBoite) -> String {
+    empreinte(&serde_json::to_vec(vue).expect("la vue s'écrit en JSON"))
+}
+
+/// Pour chaque requête du jeu (`jeu_de_requetes`), dans son ordre, la fenêtre de `FENETRE_MAX`
+/// lignes : l'empreinte de la vue que rend l'index tenu (`Services::boite`), puis celle que rend un
+/// index neuf (`Services::boite_sans_index`), chacune par `empreinte_de_la_vue`.
+fn empreintes_du_jeu<D: Documents, C: Captations>(
+    services: &Services<D, C>,
+) -> Vec<(String, String)> {
+    jeu_de_requetes()
+        .into_iter()
+        .map(|requete| {
+            let boite = boite_de_la_requete(requete);
+            let tenu = services.boite(&boite).expect("la boîte se lit");
+            let neuf = services
+                .boite_sans_index(&boite)
+                .expect("la boîte se lit sans index");
+            (empreinte_de_la_vue(&tenu), empreinte_de_la_vue(&neuf))
+        })
+        .collect()
+}
+
+/// I13 : l'index est un dérivé jetable. A, « Église du port », et B, « Un pont en mi mineur »,
+/// notées ; P, née du versement d'une prise de 61 000 ms, puis Q, d'une prise de 30 000 ms ; `pont`
+/// posée sur B ; A reliée à P ; P retirée, si bien que A redevient non reliée ; le retrait
+/// annulé ; puis une étiquette de blancs sur B, refusée. Après chaque geste, chaque requête du jeu
+/// (`jeu_de_requetes`) rend, par l'index tenu, la vue de même empreinte que par un index neuf
+/// (`empreintes_du_jeu`) ; puis le fonds rouvert rend, par les deux, les empreintes d'avant la
+/// réouverture.
+pub fn l_index_reconstruit_rend_les_memes_reponses<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let memes_reponses = |services: &Services<P::D, P::C>, geste: &str| {
+        let empreintes = empreintes_du_jeu(services);
+        for (requete, (tenu, neuf)) in jeu_de_requetes().iter().zip(&empreintes) {
+            assert_eq!(tenu, neuf, "après {geste}, la requête {requete:?}");
+        }
+        empreintes
+    };
+
+    let a = noter_l_idee(&mut services, "Église du port", &mut contexte);
+    memes_reponses(&services, "la note A");
+    let b = noter_l_idee(&mut services, "Un pont en mi mineur", &mut contexte);
+    memes_reponses(&services, "la note B");
+    let p = verser_la_prise_de(&mut services, 61_000, &mut contexte).idee;
+    memes_reponses(&services, "le versement de P");
+    verser_la_prise_de(&mut services, 30_000, &mut contexte);
+    memes_reponses(&services, "le versement de Q");
+    services
+        .poser_une_etiquette(&etiquetage(&b, "pont"), &mut contexte)
+        .expect("l'étiquette est posée sur B");
+    memes_reponses(&services, "l'étiquette posée sur B");
+    services
+        .relier(&lien(&a, &p), &mut contexte)
+        .expect("A est reliée à P");
+    memes_reponses(&services, "le lien de A et de P");
+    services
+        .retirer(&visee(&p), &mut contexte)
+        .expect("P est retirée");
+    assert_eq!(services.vue_d_une_idee(&a).map(|vue| vue.reliee), Ok(false));
+    memes_reponses(&services, "le retrait de P");
+    services
+        .annuler(&mut contexte)
+        .expect("le retrait est annulé");
+    memes_reponses(&services, "l'annulation");
+    assert_eq!(
+        services.poser_une_etiquette(&etiquetage(&b, "   "), &mut contexte),
+        Err(impossible("L'étiquette est vide.".to_string()))
+    );
+    let avant = memes_reponses(&services, "l'étiquette de blancs refusée");
+
+    let services = paire.rouvrir(services, &[]);
+    assert_eq!(memes_reponses(&services, "la réouverture"), avant);
+}
+
+/// Chercher n'écrit rien (question 14) : sur le fonds de chaque geste
+/// (`le_fonds_de_chaque_geste`), chaque requête du jeu (`jeu_de_requetes`) laisse les têtes du
+/// fonds (`Automerge::get_heads`) et le journal tels qu'ils étaient avant elle.
+pub fn chercher_n_ecrit_rien<P: Paire>(paire: &mut P) {
+    let services = le_fonds_de_chaque_geste(paire, &mut |_, _, _| {});
+    let tetes = |services: &Services<P::D, P::C>| {
+        services
+            .documents()
+            .fonds()
+            .expect("le fonds est né")
+            .get_heads()
+    };
+    for requete in jeu_de_requetes() {
+        let tetes_d_avant = tetes(&services);
+        let journal = services.journal().expect("le journal se lit");
+        services
+            .boite(&boite_de_la_requete(requete.clone()))
+            .expect("la boîte se lit");
+        assert_eq!(tetes(&services), tetes_d_avant, "la requête {requete:?}");
+        assert_eq!(services.journal(), Ok(journal), "la requête {requete:?}");
+    }
+}
+
+/// Le point de revue 1 : une note faite sous une requête en cours la laisse en place. « Église du
+/// port » et « le phare et la jetée » notées, sous la requête « eglise » : noter « pont du soir »,
+/// que la requête ne trouve pas ; la vue suivante, sous la même requête, ne la montre pas, et
+/// compte une idée non reliée de plus. Puis noter « l’église du soir » : la vue suivante la
+/// montre, retient une idée de plus, et compte encore une idée non reliée de plus.
+pub fn noter_pendant_une_requete_la_laisse_en_place<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    noter_l_idee(&mut services, "Église du port", &mut contexte);
+    noter_l_idee(&mut services, "le phare et la jetée", &mut contexte);
+    let eglise = boite_de_la_requete(cherche("eglise"));
+    let avant = services.boite(&eglise).expect("la boîte se lit");
+
+    let pont = noter_l_idee(&mut services, "pont du soir", &mut contexte);
+    let pendant = services.boite(&eglise).expect("la boîte se lit");
+    assert!(
+        !idees_des_lignes(&pendant.lignes).contains(&pont),
+        "« pont du soir » est dans les lignes"
+    );
+    assert_eq!(pendant.non_reliees, avant.non_reliees + 1);
+
+    let soir = noter_l_idee(&mut services, "l\u{2019}église du soir", &mut contexte);
+    let apres = services.boite(&eglise).expect("la boîte se lit");
+    assert!(
+        idees_des_lignes(&apres.lignes).contains(&soir),
+        "« l’église du soir » n'est pas dans les lignes"
+    );
+    assert_eq!(apres.retenues, pendant.retenues + 1);
+    assert_eq!(apres.non_reliees, pendant.non_reliees + 1);
 }

@@ -273,6 +273,51 @@ fn la_requete_passe_au_noyau() {
     suite::la_requete_passe_au_noyau(&mut PaireEnMemoire, &mut PaireEnMemoire);
 }
 
+#[test]
+fn cap06_7_plus_d_une_minute_declare_son_assiette() {
+    suite::plus_d_une_minute_declare_son_assiette(&mut PaireEnMemoire);
+}
+
+#[test]
+fn cap06_8_une_idee_retiree_n_est_ni_trouvee_ni_comptee() {
+    suite::une_idee_retiree_n_est_ni_trouvee_ni_comptee(&mut PaireEnMemoire);
+}
+
+#[test]
+fn cap02_5_une_idee_retiree_quitte_les_requetes() {
+    suite::une_idee_retiree_quitte_les_requetes(&mut PaireEnMemoire);
+}
+
+#[test]
+fn cap06_9_une_prise_sans_duree_compte_parmi_les_sans_duree() {
+    suite::une_prise_sans_duree_compte_parmi_les_sans_duree(&mut PaireEnMemoire);
+}
+
+#[test]
+fn cap06_10_eglise_trouve_eglise_du_port() {
+    suite::eglise_trouve_eglise_du_port(&mut PaireEnMemoire);
+}
+
+#[test]
+fn i09_chaque_reponse_declare_son_assiette() {
+    suite::chaque_reponse_declare_son_assiette(&mut PaireEnMemoire);
+}
+
+#[test]
+fn i13_l_index_reconstruit_rend_les_memes_reponses() {
+    suite::l_index_reconstruit_rend_les_memes_reponses(&mut PaireEnMemoire);
+}
+
+#[test]
+fn chercher_n_ecrit_rien() {
+    suite::chercher_n_ecrit_rien(&mut PaireEnMemoire);
+}
+
+#[test]
+fn noter_pendant_une_requete_la_laisse_en_place() {
+    suite::noter_pendant_une_requete_la_laisse_en_place(&mut PaireEnMemoire);
+}
+
 /// Un document écrit par le test, dont le conteneur `photos` porte une clé `<empreinte>/idee`
 /// qui nomme `SECONDE_IDEE` (`suite::un_document_dont_une_idee_porte_une_photo`), rouvert en
 /// mémoire : la requête du contenu « photo » ne trouve que cette idée, et la boîte compte toujours

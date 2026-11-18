@@ -369,6 +369,62 @@ fn la_requete_passe_au_noyau() {
 }
 
 #[test]
+fn cap06_7_plus_d_une_minute_declare_son_assiette() {
+    let racine = racine_jetable("commandes-cap06-7");
+    suite::plus_d_une_minute_declare_son_assiette(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn cap06_8_une_idee_retiree_n_est_ni_trouvee_ni_comptee() {
+    let racine = racine_jetable("commandes-cap06-8");
+    suite::une_idee_retiree_n_est_ni_trouvee_ni_comptee(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn cap02_5_une_idee_retiree_quitte_les_requetes() {
+    let racine = racine_jetable("commandes-cap02-5-les-requetes");
+    suite::une_idee_retiree_quitte_les_requetes(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn cap06_9_une_prise_sans_duree_compte_parmi_les_sans_duree() {
+    let racine = racine_jetable("commandes-cap06-9");
+    suite::une_prise_sans_duree_compte_parmi_les_sans_duree(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn cap06_10_eglise_trouve_eglise_du_port() {
+    let racine = racine_jetable("commandes-cap06-10");
+    suite::eglise_trouve_eglise_du_port(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn i09_chaque_reponse_declare_son_assiette() {
+    let racine = racine_jetable("commandes-i09");
+    suite::chaque_reponse_declare_son_assiette(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn i13_l_index_reconstruit_rend_les_memes_reponses() {
+    let racine = racine_jetable("commandes-i13");
+    suite::l_index_reconstruit_rend_les_memes_reponses(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn chercher_n_ecrit_rien() {
+    let racine = racine_jetable("commandes-chercher-n-ecrit-rien");
+    suite::chercher_n_ecrit_rien(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn noter_pendant_une_requete_la_laisse_en_place() {
+    let racine = racine_jetable("commandes-noter-sous-une-requete");
+    suite::noter_pendant_une_requete_la_laisse_en_place(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
 fn la_migration_de_test_est_la_meme_dans_les_deux_crates() {
     assert_eq!(suite::migration_de_test(), commun::migration_de_test());
 }
