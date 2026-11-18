@@ -77,7 +77,11 @@ jobs:
     # l'interface compris, et 4 min 11 s le 2026-11-16, PR #45 (exécution 43775887636), la boîte,
     # le bandeau et I29 compris (LE-29 de modele-projet). Le 2026-11-18, la PR #47, les requêtes,
     # leur index et le journal compris, n'a passé qu'à chaud (« Cache hit ») : 1 min 49 s
-    # (exécution 44254030959) ; le double reste sous le délai, qui ne baisse pas.
+    # (exécution 44254030959). La PR #48, la vue du fonds comprise, de même : dix passages verts
+    # à chaud, le plus long en 2 min 45 s (exécution 44286444480). Faute d'un passage à froid
+    # sur ce périmètre, le plus long passage à chaud en tient lieu, comme le § 70 · 1 l'admet
+    # pour la mutation, à remesurer au premier passage à froid ; son double reste sous le
+    # délai, qui ne baisse pas.
     timeout-minutes: 12
     permissions:
       contents: read
@@ -176,8 +180,12 @@ jobs:
     # 2026-11-16, PR #45 (exécution 43775887636), la boîte, le bandeau et I29 compris, dont
     # 16 min 17 s (LE-29 de modele-projet). Le 2026-11-18, la PR #47, les requêtes comprises
     # dans les tests du stockage et de l'établi, n'a passé qu'à chaud (« Cache hit ») : 5 min 44 s
-    # (exécution 44254030959), dont 2 s pour trunk et tauri-cli ; le double reste sous le délai,
-    # qui ne baisse pas.
+    # (exécution 44254030959), dont 2 s pour trunk et tauri-cli. La PR #48, la vue du fonds
+    # comprise, de même : dix passages verts à chaud, le plus long en 6 min 27 s (exécution
+    # 44305210149), dont 1 s pour trunk et tauri-cli. Faute d'un passage à froid sur ce
+    # périmètre, le plus long passage à chaud en tient lieu, comme le § 70 · 1 l'admet pour la
+    # mutation, à remesurer au premier passage à froid ; son double reste sous le délai, qui
+    # ne baisse pas.
     timeout-minutes: 60
     permissions:
       contents: read
