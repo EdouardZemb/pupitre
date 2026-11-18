@@ -30,7 +30,9 @@ use wasm_bindgen::JsCast;
 use crate::app::Etat;
 use crate::entete::choix;
 use crate::natif;
-use crate::recherche::{DUREES, ETATS, PROVENANCES, bornes_de_la_requete};
+use crate::recherche::{
+    DUREES, ETATS, PROVENANCES, bornes_de_la_requete, echap_ferme, est_la_recherche,
+};
 
 /// La marge de la fenêtre, en lignes, de chaque côté de ce qui se voit.
 pub(crate) const MARGE: u32 = 5;
@@ -206,6 +208,24 @@ pub(crate) fn libelle_d_annulation(a_annuler: Option<&str>) -> String {
         Some(message) => format!("Annuler : {message}"),
         None => "Rien à annuler".to_string(),
     }
+}
+
+/// La page d'un fonds vide, quand aucune idée n'est interrogée (`considerees` vaut 0, Pupitre neuf
+/// compris) : deux constats, jamais un ordre. En lecture seule, le second renvoie au bandeau.
+/// Une recherche qui ne trouve rien n'est pas un fonds vide : ses idées sont interrogées, et la
+/// liste vide dit son compte.
+pub(crate) fn page_du_fonds_vide(
+    considerees: u64,
+    lecture_seule: bool,
+) -> Option<[&'static str; 2]> {
+    (considerees == 0).then_some([
+        "Le fonds ne porte encore aucune idée.",
+        if lecture_seule {
+            "Le fonds est en lecture seule : le bandeau dit pourquoi."
+        } else {
+            "Une idée se note dans le champ « Noter une idée »."
+        },
+    ])
 }
 
 /// `Ctrl+Z` annule un geste de tri hors d'un champ de texte seulement ; `Ctrl+Maj+Z`, qui donne
@@ -534,6 +554,18 @@ enum Volet {
     Aucun,
     Idee(String),
     Retirees,
+}
+
+/// Où va le focus quand le volet `volet` se ferme, par « Fermer » comme par Échap : au bouton de
+/// la ligne qui a ouvert l'idée, si elle est dans les lignes lues `lues`, sinon à la liste
+/// (`cible_apres_le_volet`) ; au bouton « Idées retirées » pour les retirées. `None` quand aucun
+/// volet n'est ouvert : rien ne se ferme. Un volet de plus (le journal) ajoute sa branche ici.
+fn cible_de_fermeture(volet: &Volet, lues: &[LigneDeLaBoite]) -> Option<Cible> {
+    match volet {
+        Volet::Aucun => None,
+        Volet::Idee(id) => Some(cible_apres_le_volet(id, lues)),
+        Volet::Retirees => Some(Cible::BoutonDesRetirees),
+    }
 }
 
 /// L'idée du volet, lue : sa vue, et chacun de ses liens, l'identifiant de l'autre bout, ce qui
@@ -1266,16 +1298,30 @@ impl Ecran {
     /// lue, sinon à la liste (`cible_apres_le_volet`).
     fn fermer_l_idee(self) {
         let cible = match self.idee_du_volet() {
-            Some(id) => self.boite.lue.with_untracked(|lue| {
-                cible_apres_le_volet(
-                    &id,
-                    lue.as_ref()
-                        .map_or(&[][..], |lue| lue.vue.lignes.as_slice()),
-                )
-            }),
+            Some(_) => self.cible_de_fermeture().unwrap_or(Cible::Liste),
             None => Cible::Liste,
         };
         self.fermer_le_volet(cible);
+    }
+
+    /// Où va le focus à la fermeture du volet ouvert (`cible_de_fermeture`), `None` sans volet.
+    fn cible_de_fermeture(self) -> Option<Cible> {
+        let volet = self.boite.volet.get_untracked();
+        self.boite.lue.with_untracked(|lue| {
+            cible_de_fermeture(
+                &volet,
+                lue.as_ref()
+                    .map_or(&[][..], |lue| lue.vue.lignes.as_slice()),
+            )
+        })
+    }
+
+    /// Échap ferme le volet ouvert et rend le focus comme « Fermer » ; sans volet ouvert, rien ne
+    /// se ferme.
+    fn fermer_par_echap(self) {
+        if let Some(cible) = self.cible_de_fermeture() {
+            self.fermer_le_volet(cible);
+        }
     }
 
     /// La commande `commande` de la ligne de l'idée `idee` a pris le focus : elle est la ligne
@@ -1554,11 +1600,27 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
         }
     });
     // `Ctrl+Z`, hors d'un champ de texte, annule le dernier geste de tri tant que la boîte se
-    // montre ; une touche tenue ne le répète pas.
+    // montre ; une touche tenue ne le répète pas. Échap ferme le volet ouvert (`echap_ferme`), sauf
+    // dans la recherche de l'en-tête, où le navigateur vide le champ, et pendant une composition.
     let ecouteur = window_event_listener(leptos::ev::keydown, move |ev| {
         if !ev.repeat() && ctrl_z_annule(&ev.key(), ev.ctrl_key(), dans_un_champ_de_texte(&ev)) {
             ev.prevent_default();
             ecran.annuler();
+            return;
+        }
+        let id_de_la_cible = ev
+            .target()
+            .and_then(|cible| cible.dyn_into::<Element>().ok())
+            .map(|element| element.id());
+        let volet_ouvert = boite.volet.with_untracked(|volet| *volet != Volet::Aucun);
+        if echap_ferme(
+            &ev.key(),
+            ev.is_composing(),
+            volet_ouvert,
+            est_la_recherche(id_de_la_cible.as_deref()),
+        ) {
+            ev.prevent_default();
+            ecran.fermer_par_echap();
         }
     });
     // La fenêtre de l'application change de taille, la liste vue aussi : chaque liste montrée
@@ -1659,6 +1721,17 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
     };
     let retirees_ouvertes = move || boite.volet.with(|volet| *volet == Volet::Retirees);
     let idee_ouverte = move || boite.volet.with(|volet| matches!(volet, Volet::Idee(_)));
+    // La page du fonds vide : aucune idée interrogée (`page_du_fonds_vide`), lue au moins une fois.
+    let fonds_vide = move || {
+        let considerees = boite.lue.with(|lue| {
+            lue.as_ref()
+                .map(|lue| lue.vue.assiette_du_compte.considerees)
+        })?;
+        let lecture_seule = etat
+            .etat_du_fonds
+            .with(|fonds| fonds.as_ref().is_some_and(|f| f.lecture_seule.is_some()));
+        page_du_fonds_vide(considerees, lecture_seule)
+    };
     let total = move || {
         boite
             .lue
@@ -1763,7 +1836,11 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
                     >
                         "Relier"
                     </button>
-                    <button type="button" on:click=move |_| ecran.annuler()>
+                    <button
+                        type="button"
+                        aria-keyshortcuts="Control+Z"
+                        on:click=move |_| ecran.annuler()
+                    >
                         {annulation}
                     </button>
                     <button
@@ -1790,6 +1867,17 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
                         </span>
                         <span class="cocher">"Relier"</span>
                     </div>
+                    {move || {
+                        fonds_vide()
+                            .map(|[constat, suite]| {
+                                view! {
+                                    <div class="fonds-vide" role="status">
+                                        <p>{constat}</p>
+                                        <p>{suite}</p>
+                                    </div>
+                                }
+                            })
+                    }}
                     <div
                         class="liste"
                         tabindex="0"

@@ -408,6 +408,17 @@ textarea {
   border: 1px solid #000;
 }
 
+/* La page d'un fonds vide : deux constats, sous les titres de colonnes ; la liste, vide, reste
+   dessous. */
+.fonds-vide {
+  flex: none;
+  padding: 0.75rem 0.5rem;
+}
+
+.fonds-vide p {
+  margin: 0;
+}
+
 /* Les cases d'une ligne, et leurs titres, en colonnes de même proportion : à 200 %, chacune se
    resserre, et son texte se coupe. */
 .cellules {
