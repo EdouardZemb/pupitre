@@ -60,7 +60,9 @@ théorie. En INC-1 :
 liste des tests que rejoue chaque mutant. Les deux passages de mutation, celui d'une PR et
 celui de chaque lundi, ont un délai de deux fois le plus long passage complet mesuré à froid :
 la PR qui étend le périmètre remesure ce passage, et relève les deux délais si sa mesure est
-plus longue ; un délai ne baisse pas.
+plus longue ; un délai ne baisse pas. Faute d'un passage à froid mesuré sur le périmètre
+étendu, le plus long passage complet mesuré à chaud en tient lieu, à remesurer au premier
+passage à froid.
 
 ---
 
