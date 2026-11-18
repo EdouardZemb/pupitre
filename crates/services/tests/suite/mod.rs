@@ -3461,7 +3461,8 @@ fn verser_la_prise_de<D: Documents, C: Captations>(
 /// prise ; neuf nées du versement d'une prise, de 61 000, 90 000, 600 000, 75 000, 60 999,
 /// 59 999, 30 000, 20 000 et 999 ms ; une prise de 12 000 ms regroupée dans l'idée de celle de
 /// 90 000, une de 5 000 dans celle de 20 000, chacune retirant l'idée née avec elle. La requête
-/// « plus d'une minute » retient quatre idées, 61 000 comprise, 60 999 (« 1:00 ») non ; elle
+/// « plus d'une minute » retient quatre idées, et les lignes les listent : celles des prises de
+/// 61 000, 90 000, 600 000 et 75 000 ms, 61 000 comprise, 60 999 (« 1:00 ») non ; elle
 /// interroge douze idées, dont neuf portent une durée, décidée, sans illisible ; les trois notées
 /// sont sans durée : « 4 idées · 3 sans durée · 12 interrogées ».
 pub fn plus_d_une_minute_declare_son_assiette<P: Paire>(paire: &mut P) {
@@ -3501,6 +3502,14 @@ pub fn plus_d_une_minute_declare_son_assiette<P: Paire>(paire: &mut P) {
         .boite(&boite_de_la_requete(plus_d_une_minute()))
         .expect("la boîte se lit");
     assert_eq!(vue.retenues, 4);
+    assert_eq!(
+        idees_des_lignes(&vue.lignes)
+            .into_iter()
+            .collect::<BTreeSet<_>>(),
+        BTreeSet::from(
+            [61_000_u64, 90_000, 600_000, 75_000].map(|duree_ms| idees[&duree_ms].clone())
+        )
+    );
     assert_eq!(
         vue.assiette_de_la_requete,
         Assiette {
@@ -3596,8 +3605,10 @@ pub fn une_idee_retiree_quitte_les_requetes<P: Paire>(paire: &mut P) {
 }
 
 /// CAP-06 · 9 : P, née du versement d'une prise de 30 000 ms, où se regroupe une prise versée
-/// sans durée (`Fiche { duree_ms: None, … }`) : la durée de P ne se lit pas (`idee::duree`). La
-/// requête « plus d'une minute » ne la trouve pas, et la compte parmi les sans durée.
+/// sans durée (`Fiche { duree_ms: None, … }`) : la durée de P ne se lit pas (`idee::duree`), et
+/// l'idée née avec la prise sans durée est retirée par le regroupement. La requête « plus d'une
+/// minute » ne trouve pas P, la compte parmi les sans durée, et interroge une idée, P, qui ne porte
+/// pas de durée : l'assiette `{1, 0, 0}`, sans illisible.
 pub fn une_prise_sans_duree_compte_parmi_les_sans_duree<P: Paire>(paire: &mut P) {
     let mut services = paire.neufs();
     let mut alea = AleaDeTest {
@@ -3626,12 +3637,21 @@ pub fn une_prise_sans_duree_compte_parmi_les_sans_duree<P: Paire>(paire: &mut P)
         !idees_des_lignes(&vue.lignes).contains(&p),
         "P est dans les lignes"
     );
+    assert_eq!(
+        vue.assiette_de_la_requete,
+        Assiette {
+            considerees: 1,
+            portant: 0,
+            decidees: 0,
+            illisibles: 0,
+        }
+    );
     assert_eq!(vue.sans.duree, Some(1));
 }
 
-/// CAP-06 · 10 : « Église du port », son É d'un seul point de code (U+00C9), et « Église du
-/// port », un E suivi de l'accent aigu combinant (U+0301), notées : « eglise » les trouve toutes
-/// deux.
+/// CAP-06 · 10 : « Église du port », son É d'un seul point de code (U+00C9), et
+/// « E\u{301}glise du port », un E suivi de l'accent aigu combinant (U+0301), notées : « eglise »
+/// les trouve toutes deux.
 pub fn eglise_trouve_eglise_du_port<P: Paire>(paire: &mut P) {
     let mut services = paire.neufs();
     let mut alea = AleaDeTest {
@@ -3805,9 +3825,10 @@ pub fn chercher_n_ecrit_rien<P: Paire>(paire: &mut P) {
 
 /// Le point de revue 1 : une note faite sous une requête en cours la laisse en place. « Église du
 /// port » et « le phare et la jetée » notées, sous la requête « eglise » : noter « pont du soir »,
-/// que la requête ne trouve pas ; la vue suivante, sous la même requête, ne la montre pas, et
-/// compte une idée non reliée de plus. Puis noter « l’église du soir » : la vue suivante la
-/// montre, retient une idée de plus, et compte encore une idée non reliée de plus.
+/// que la requête ne trouve pas ; la vue suivante, sous la même requête, ne la montre pas, garde
+/// les lignes et les retenues de la vue d'avant, et compte une idée non reliée de plus. Puis
+/// noter « l’église du soir » : la vue suivante la montre, retient une idée de plus, et compte
+/// encore une idée non reliée de plus.
 pub fn noter_pendant_une_requete_la_laisse_en_place<P: Paire>(paire: &mut P) {
     let mut services = paire.neufs();
     let mut alea = AleaDeTest {
@@ -3826,6 +3847,11 @@ pub fn noter_pendant_une_requete_la_laisse_en_place<P: Paire>(paire: &mut P) {
         !idees_des_lignes(&pendant.lignes).contains(&pont),
         "« pont du soir » est dans les lignes"
     );
+    assert_eq!(
+        idees_des_lignes(&pendant.lignes),
+        idees_des_lignes(&avant.lignes)
+    );
+    assert_eq!(pendant.retenues, avant.retenues);
     assert_eq!(pendant.non_reliees, avant.non_reliees + 1);
 
     let soir = noter_l_idee(&mut services, "l\u{2019}église du soir", &mut contexte);
