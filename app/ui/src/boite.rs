@@ -443,6 +443,11 @@ fn pose_un_critere(requete: &Requete) -> bool {
 const NOTE_D_UNE_REQUETE_PLUS_RECENTE: &str =
     "Cette requête vient d'une version plus récente de Pupitre.";
 
+/// Ce que dit, après la note, une requête d'une version plus récente : elle ne se lance pas, mais
+/// choisie elle se renomme ou se supprime. Son bouton lit les deux phrases (`aria-describedby`).
+const PRECISION_D_UNE_REQUETE_PLUS_RECENTE: &str =
+    "Elle ne se lance pas : choisie, elle se renomme ou se supprime.";
+
 /// Ce que montre une requête enregistrée : son nom et, si elle vient d'une version plus récente
 /// (`requete: None`), la note qui dit qu'elle ne se lance pas.
 fn ce_que_dit_la_requete(requete: &RequeteEnregistree) -> (String, Option<&'static str>) {
@@ -729,6 +734,41 @@ impl EtatDeLaBoite {
         self.nom_de_la_requete.set(requete.nom.clone());
     }
 
+    /// Un clic sur la requête enregistrée `requete` : elle se choisit, et se lance si elle est
+    /// lisible (`lancer`) ; celle d'une version plus récente se choisit seulement, pour qu'on
+    /// puisse la renommer ou la supprimer.
+    fn choisir_et_lancer(self, etat: EtatDeLaRequete, requete: &RequeteEnregistree) {
+        self.choisir_la_requete(requete);
+        lancer(etat, requete);
+    }
+
+    /// Ce qui suit un geste d'une requête enregistrée, `fait` ou refusé, une fois son issue au
+    /// bandeau : rend la cible où va le focus. Supprimer, fait : la requête sort de la liste, le
+    /// choix s'oublie (`oublier_la_requete`), et le focus, qui était sur « Supprimer », va au champ
+    /// « Nom ». Enregistrer, fait : le champ « Nom » se vide s'il porte encore le nom envoyé.
+    /// Renommer garde le choix. Un refus ne change rien. La liste se relit après chaque geste, fait
+    /// ou refusé (`Ecran::geste_de_requete`).
+    fn apres_un_geste_de_requete(self, geste: &GesteDeRequete, fait: bool) -> Option<Cible> {
+        if !fait {
+            return None;
+        }
+        match geste {
+            GesteDeRequete::Enregistrer { nom } => {
+                self.nom_de_la_requete.update(|champ| {
+                    if *champ == *nom {
+                        champ.clear();
+                    }
+                });
+                None
+            }
+            GesteDeRequete::Renommer => None,
+            GesteDeRequete::Supprimer { requete } => {
+                self.oublier_la_requete(requete);
+                Some(Cible::ChampDeNom)
+            }
+        }
+    }
+
     /// La requête enregistrée `id` n'est plus : elle sort de la liste, et, si elle était choisie,
     /// le choix et le champ « Nom » se vident. La requête de l'écran (`Etat::requete`) reste : seule
     /// la liste des requêtes enregistrées change.
@@ -895,6 +935,20 @@ async fn lire_l_idee(etat: Etat, boite: EtatDeLaBoite, focus: RwSignal<Option<Ci
     if actif() == Actif::Absent {
         focus.set(Some(Cible::TitreDeLIdee));
     }
+}
+
+/// Un geste d'une requête enregistrée, avec ce qu'il faut pour conclure son issue.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum GesteDeRequete {
+    /// Enregistrer sous le nom envoyé.
+    Enregistrer {
+        nom: String,
+    },
+    Renommer,
+    /// Supprimer la requête enregistrée d'identifiant `requete`.
+    Supprimer {
+        requete: String,
+    },
 }
 
 /// Lit les requêtes enregistrées, rangées par nom par la commande ; un refus va au bandeau. Elle se
@@ -1131,6 +1185,8 @@ enum Defilement {
 enum Cible {
     Liste,
     ChampDeNote,
+    /// Le champ « Nom » des requêtes enregistrées, où va le focus après une suppression.
+    ChampDeNom,
     ListeDesRetirees,
     BoutonDesRetirees,
     TitreDeLIdee,
@@ -1158,6 +1214,7 @@ struct Ecran {
     boite: EtatDeLaBoite,
     focus: RwSignal<Option<Cible>>,
     champ_de_note: NodeRef<html::Input>,
+    champ_de_nom: NodeRef<html::Input>,
     liste: NodeRef<html::Div>,
     etalon: NodeRef<html::Div>,
     liste_des_retirees: NodeRef<html::Div>,
@@ -1358,40 +1415,44 @@ impl Ecran {
         });
     }
 
-    /// Un clic sur la requête enregistrée `requete` : elle se choisit, et se lance si elle est
-    /// lisible (`lancer`) ; celle d'une version plus récente se choisit seulement, pour qu'on
-    /// puisse la renommer ou la supprimer.
-    fn choisir_et_lancer(self, requete: &RequeteEnregistree) {
-        self.boite.choisir_la_requete(requete);
-        lancer(self.etat.requete, requete);
+    /// Un geste d'une requête enregistrée : la commande `nom`, puis son issue au bandeau, puis ce
+    /// qui suit (`apres_un_geste_de_requete`), dont le focus, puis la relecture de la liste des
+    /// requêtes, faite ou refusée : une requête disparue entre-temps ne reste pas offerte.
+    fn geste_de_requete(
+        self,
+        nom: &'static str,
+        commande: Option<serde_json::Value>,
+        geste: GesteDeRequete,
+    ) {
+        let (etat, boite, focus) = (self.etat, self.boite, self.focus);
+        self.geste::<Faite>(
+            nom,
+            commande,
+            |faite| faite.avertissement,
+            boite.requete_en_vol,
+            move |fait| {
+                if let Some(cible) = boite.apres_un_geste_de_requete(&geste, fait) {
+                    focus.set(Some(cible));
+                }
+                leptos::task::spawn_local(lire_les_requetes(etat, boite));
+            },
+        );
     }
 
     /// Enregistre la requête de l'écran sous le nom du champ « Nom ». Un nom de blancs, ou une
     /// requête sans critère, ne part pas (`enregistrer_possible`) ; les autres refus sont ceux des
-    /// services, au bandeau. Faite, le champ se vide, s'il porte encore ce nom.
+    /// services, au bandeau.
     fn enregistrer_la_requete(self) {
         let requete = requete_en_cours(self.etat);
         let nom = self.boite.nom_de_la_requete.get_untracked();
         if !enregistrer_possible(&requete, &nom) {
             return;
         }
-        let (etat, boite) = (self.etat, self.boite);
-        let envoye = nom.clone();
-        self.geste::<Faite>(
+        let geste = GesteDeRequete::Enregistrer { nom: nom.clone() };
+        self.geste_de_requete(
             ENREGISTRER_UNE_REQUETE,
             argument(&Enregistrer { nom, requete }),
-            |faite| faite.avertissement,
-            boite.requete_en_vol,
-            move |faite| {
-                if faite {
-                    boite.nom_de_la_requete.update(|champ| {
-                        if *champ == envoye {
-                            champ.clear();
-                        }
-                    });
-                    leptos::task::spawn_local(lire_les_requetes(etat, boite));
-                }
-            },
+            geste,
         );
     }
 
@@ -1402,17 +1463,10 @@ impl Ecran {
             return;
         };
         let nom = self.boite.nom_de_la_requete.get_untracked();
-        let (etat, boite) = (self.etat, self.boite);
-        self.geste::<Faite>(
+        self.geste_de_requete(
             RENOMMER_UNE_REQUETE,
             argument(&Renommer { requete, nom }),
-            |faite| faite.avertissement,
-            boite.requete_en_vol,
-            move |faite| {
-                if faite {
-                    leptos::task::spawn_local(lire_les_requetes(etat, boite));
-                }
-            },
+            GesteDeRequete::Renommer,
         );
     }
 
@@ -1422,19 +1476,12 @@ impl Ecran {
         let Some(requete) = self.boite.requete_choisie.get_untracked() else {
             return;
         };
-        let (etat, boite) = (self.etat, self.boite);
-        let supprimee = requete.clone();
-        self.geste::<Faite>(
+        self.geste_de_requete(
             SUPPRIMER_UNE_REQUETE,
-            argument(&Supprimer { requete }),
-            |faite| faite.avertissement,
-            boite.requete_en_vol,
-            move |faite| {
-                if faite {
-                    boite.oublier_la_requete(&supprimee);
-                    leptos::task::spawn_local(lire_les_requetes(etat, boite));
-                }
-            },
+            argument(&Supprimer {
+                requete: requete.clone(),
+            }),
+            GesteDeRequete::Supprimer { requete },
         );
     }
 
@@ -1741,6 +1788,7 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
         boite,
         focus: RwSignal::new(None),
         champ_de_note: NodeRef::new(),
+        champ_de_nom: NodeRef::new(),
         liste: NodeRef::new(),
         etalon: NodeRef::new(),
         liste_des_retirees: NodeRef::new(),
@@ -1767,6 +1815,7 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
         let element: Option<HtmlElement> = match cible_repliee(cible, ecran.fonds_vide()) {
             Cible::Liste => ecran.liste.get().map(Into::into),
             Cible::ChampDeNote => ecran.champ_de_note.get().map(Into::into),
+            Cible::ChampDeNom => ecran.champ_de_nom.get().map(Into::into),
             Cible::ListeDesRetirees => ecran.liste_des_retirees.get().map(Into::into),
             Cible::BoutonDesRetirees => ecran.bouton_des_retirees.get().map(Into::into),
             Cible::TitreDeLIdee => ecran.titre_de_l_idee.get().map(Into::into),
@@ -2027,6 +2076,9 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
                                 let (nom, note) = ce_que_dit_la_requete(&r);
                                 let id = r.id.clone();
                                 let id_de_la_note = format!("note-de-la-requete-{id}");
+                                let id_de_la_precision = format!("precision-de-la-requete-{id}");
+                                let lues_par_le_bouton = note
+                                    .map(|_| format!("{id_de_la_note} {id_de_la_precision}"));
                                 let choisie = move || {
                                     boite.requete_choisie.with(|c| c.as_deref() == Some(id.as_str()))
                                 };
@@ -2036,9 +2088,10 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
                                             type="button"
                                             class="choisir"
                                             aria-current=move || choisie().then_some("true")
-                                            aria-disabled=note.map(|_| "true")
-                                            aria-describedby=note.map(|_| id_de_la_note.clone())
-                                            on:click=move |_| ecran.choisir_et_lancer(&r)
+                                            aria-describedby=lues_par_le_bouton
+                                            on:click=move |_| {
+                                                boite.choisir_et_lancer(etat.requete, &r)
+                                            }
                                         >
                                             {nom}
                                         </button>
@@ -2047,6 +2100,12 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
                                                 view! {
                                                     <span class="note-de-la-requete" id=id_de_la_note.clone()>
                                                         {note}
+                                                    </span>
+                                                    <span
+                                                        class="note-de-la-requete"
+                                                        id=id_de_la_precision.clone()
+                                                    >
+                                                        {PRECISION_D_UNE_REQUETE_PLUS_RECENTE}
                                                     </span>
                                                 }
                                             })}
@@ -2059,6 +2118,7 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
                         "Nom"
                         <input
                             type="text"
+                            node_ref=ecran.champ_de_nom
                             prop:value=move || boite.nom_de_la_requete.get()
                             on:input=move |ev| boite.nom_de_la_requete.set(event_target_value(&ev))
                         />
