@@ -95,9 +95,9 @@ valeurs de sinus écrites dans le code, jamais d'une fonction comme `f64::sin`, 
 varie selon la plateforme ; et des images dessinées, dans un format qui s'écrit sans crate de
 plus, fixé avec la photo par la PR de conception du lot 2. Au lot 1, le jeu factice n'a donc
 aucune photo, et regrouper ne s'y éprouve que sur des prises ; les images s'y ajoutent au
-lot 2. Le filtre « photo » existe dès le lot 1 : tant qu'aucune photo n'est entrée, il répond
-« 0 idée », avec son assiette. Les empreintes des captations du jeu factice sont les mêmes
-sur chaque plateforme, et aucune dépendance ne s'ajoute. Aucune captation n'est donc suivie
+lot 2. Le critère de contenu « photo » existe dès le lot 1 : tant qu'aucune photo n'est
+entrée, sa requête répond « 0 idée », avec son assiette. Les empreintes des captations du
+jeu factice sont les mêmes sur chaque plateforme, et aucune dépendance ne s'ajoute. Aucune captation n'est donc suivie
 dans le dépôt, où la porte `contenu` refuse tout fichier audio, MIDI ou partition
 ([CONVENTIONS](../CONVENTIONS.md#portes-de-ci)). L'application l'écrit dans le dossier de la
 démonstration à sa première ouverture, et le réécrit à la demande : ses documents, ses
@@ -195,8 +195,22 @@ porte encore neuf conteneurs, chacun un objet à clés, que la genèse crée vid
   Un lien, comme une étiquette, vaut `true`, sans date : celle du geste qui l'a posé se lit
   dans le journal du fonds. Deux répliques qui posent le même lien, dans un sens ou dans
   l'autre, n'en font qu'une clé, où chacune a posé `true`.
-- `requetes_enregistrees`, `imports`, `origines_declarees` et `photos` : vides, jusqu'aux
-  lots qui les écrivent.
+- `requetes_enregistrees` : de l'identifiant d'une requête enregistrée, un ULID, à son objet
+  ([CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds)), un objet à clés
+  qui naît avec elle, toutes ses clés posées dans la même opération, chacune une valeur
+  simple : `nom`, une chaîne, sans ses blancs autour, et une clé par critère posé. `texte`,
+  le texte saisi, tel quel, posé seulement s'il a un mot ; `du` et `au`, des jours civils,
+  « AAAA-MM-JJ » ; `etiquette`, une chaîne ; `plus_de_secondes`, un entier non signé, au plus
+  2⁵³ − 1 ; `etat`, `reliee` ou `non_reliee` ; `provenance`, `captee` ou `importee` ;
+  `contenu`, `texte_de_l_idee`, `prise`, `photo`, `midi_verse` ou `texte_verse`. Renommer
+  pose de nouveau `nom`, et rien d'autre : ses critères ne changent jamais ; supprimer ôte
+  l'objet d'un bloc. Ni ses résultats ni leur nombre ne s'y écrivent
+  ([§ 30 · 13](30-modele-de-domaine.md#13-ce-que-le-modèle-interdit-de-stocker)). Une clé ou
+  une valeur que cette version ne connaît pas fait lire la requête comme venue d'une version
+  plus récente : elle paraît nommée, et ne se lance pas ; un objet sans `nom` en chaîne ne se
+  liste pas. Le conteneur est dans la genèse : cette forme s'y écrit sans migration ni genèse
+  changée, et se gèle avec le schéma, à la `v0.3.0`.
+- `imports`, `origines_declarees` et `photos` : vides, jusqu'aux lots qui les écrivent.
 
 Ce que l'import écrira encore ([ADR-024](adr/adr-024-import-d-un-fonds.md)) a déjà sa place
 dans ces conteneurs, sous des clés ajoutées, sans conteneur ni migration de plus :
@@ -411,10 +425,13 @@ deux règles.
   geste qui écrit, noter une idée ou importer un fonds existant
   ([CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)), jamais à
   la seule ouverture : jusque-là, la racine des données reste sans document, et Pupitre reste
-  neuf (§ 9.1). La naissance et ce premier geste s'écrivent ensemble, deux modifications avec
-  chacune son message, en un seul fichier : le premier fichier complet du document, qui porte
-  aussi la genèse. Si le geste est refusé, la naissance l'est avec lui, et la racine des données
-  reste sans document. Sa naissance, faite sur la genèse, écrit son identifiant, sa lignée (§ 2.5)
+  neuf (§ 9.1). Enregistrer une requête ne le fait pas naître : sans fonds, Pupitre le refuse
+  (« Aucun fonds n'est né. »), et rien n'est écrit
+  ([CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds)) ; renommer et
+  supprimer une requête de même. La naissance et ce premier geste s'écrivent ensemble, deux
+  modifications avec chacune son message, en un seul fichier : le premier fichier complet du
+  document, qui porte aussi la genèse. Si le geste est refusé, la naissance l'est avec lui, et
+  la racine des données reste sans document. Sa naissance, faite sur la genèse, écrit son identifiant, sa lignée (§ 2.5)
   et l'identifiant de propriétaire ([§ 30 · 2](30-modele-de-domaine.md#2-identités)). Un
   autre appareil part d'une copie de ce fonds, historique compris, jamais d'un fonds à lui :
   il la reçoit du nœud à l'appairage ;
@@ -770,13 +787,27 @@ dossier de l'application, **jamais dans un dossier temporaire** que le système 
 
 | Dérivé | Calculé où | Quand |
 |---|---|---|
-| Index de recherche (texte, attributs, motifs harmoniques) | Chaque appareil, en mémoire | À l'ouverture, puis à chaque modification |
+| Index de recherche (texte, attributs, motifs harmoniques) | Chaque appareil, en mémoire, côté natif | À la première lecture qui suit un changement du document, l'ouverture comprise |
 | Matériau effectif des occurrences, numéros de mesure, durées | Chaque appareil | À la demande |
 | Rendus (grille, portée, diagrammes, fiche, plan d'album) | Chaque appareil | À l'affichage |
 | Diagnostics | Chaque appareil | À la demande, et à la volée pour les plus légers |
 | Suggestions de règles | Chaque appareil | À la demande |
 | Suggestions génératives | Le nœud, via la passerelle IA | À la demande |
 | Analyses lourdes | Le nœud | À l'arrivée d'une prise, ou à la demande — leur résultat devient une **captation** |
+
+**L'index de recherche, au lot 1 d'INC-1**, est celui des idées interrogées
+([CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds)), que les services
+tiennent, côté natif : chaque idée non retirée qui se lit, avec son texte replié par la table
+de repli et ses attributs (sa date, ses étiquettes, sa durée, son état, sa provenance, ses
+contenus), et le nombre des idées illisibles. Il se bâtit en entier, du fonds lu, à la
+première lecture qui suit un changement des têtes du document (`Automerge::get_heads`) :
+une écriture, une annulation, et, plus tard, une réception ou un document remplacé. Il ne se
+refait jamais pendant une écriture, ni par morceaux ; une écriture refusée ne change pas les
+têtes, et ne le refait pas. Sa construction compte donc dans l'ouverture du fonds, et dans
+la lecture qui suit un geste ; sur un fonds qui n'a pas changé, une recherche n'en est qu'une
+lecture (CAP-06 · 6). Chaque requête le parcourt idée par idée, sans index inversé ; la
+boîte d'idées est la réponse de la requête sans critère. Il ne vit qu'en mémoire : rouvert,
+le fonds le rebâtit (§ 10, test 1).
 
 Pourquoi un résultat d'analyse lourde est une captation et non un dérivé : il coûte des
 minutes de calcul, il dépend d'une version d'analyseur, et il doit rester **la même
@@ -1001,7 +1032,7 @@ pupitre-archive-AAAA-MM-JJ/               un dossier, écrit sous un nom proviso
 
 | # | Test | Échoue si… |
 |---|---|---|
-| 1 | **Dérivés jetables** : supprimer tous les dérivés, les reconstruire, comparer les empreintes canoniques | Un dérivé dépend d'un état non stocké, ou un contenu décidé s'est logé dans un cache |
+| 1 | **Dérivés jetables** : supprimer tous les dérivés, les reconstruire, comparer les empreintes canoniques. Celles de l'index de recherche (§ 7) sont celles des réponses entières d'un jeu de requêtes fixé, chacune le SHA-256 de son JSON : après chaque geste, une annulation et une écriture refusée, l'index tenu et un index neuf, bâti à l'appel, rendent les mêmes, et le fonds rouvert, qui le rebâtit, rend celles d'avant sa réouverture | Un dérivé dépend d'un état non stocké, ou un contenu décidé s'est logé dans un cache |
 | 2 | **Aller-retour du miroir** : documents → miroir → documents, comparer leurs teneurs (§ 2.6) | Le miroir perd une information |
 | 3 | **Convergence** : trois répliques, opérations concurrentes aléatoires, synchronisation dans un ordre aléatoire | Les répliques divergent ; ou un conflit de texte, d'accord, de hauteur ou d'attribut est fusionné, ou perdu, au lieu d'être présenté « à trancher » |
 | 4 | **Captations** : l'empreinte de chaque objet égale son nom ; aucun objet modifié après écriture ; couper l'écriture à chaque étape ; renommage perdu après la réponse : la captation nommée par un document prend son nom au démarrage | Corruption ou réécriture ; ou une captation nommée a un contenu qui trahit son nom ; ou une captation qu'un document nomme manque ; ou, au démarrage, un nom provisoire de `captations/` est retiré |

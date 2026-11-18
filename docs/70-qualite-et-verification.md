@@ -52,6 +52,7 @@ théorie. En INC-1 :
 | Les faits d'un fichier versé | Ce qu'est un fichier versé (audio, MIDI, texte ou ignoré), d'après sa signature ou son extension ; le format et la durée d'un WAV, le format et la division d'un MIDI, lus de leurs octets ; le manifeste d'une prise en stems ; le stem qu'accompagne un MIDI, et le type proposé d'un stem, d'après leurs noms ; la proposition de déclarer un dossier jeu de stems ([ADR-024](adr/adr-024-import-d-un-fonds.md)) | 1 | [CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant) · 7, 8 et 11 |
 | Le relevé des conflits | Quelles valeurs concurrentes d'un même champ, lues à la synchronisation, sont relevées pour être présentées « à trancher » ([§ 31 · 5](31-persistance-et-synchronisation.md#5-les-conflits)) | 3 | I11 ; le test 3 du [§ 31 · 10](31-persistance-et-synchronisation.md#10-les-tests-qui-verrouillent-ce-document) |
 | Les gestes du fonds | Regrouper, relier et délier, retirer et rétablir, annuler le dernier geste de tri ; la clé d'un lien, l'état « reliée » d'une idée, sa durée, l'assiette d'une requête sur les idées | 1 | [CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées), [CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds), [CAP-07](20-sfd/21-capter-et-organiser.md#cap-07--voir-le-fonds) ; I09, I28 |
+| Les requêtes du fonds | Le repli d'un texte et les mots cherchés ; les jours civils et les bornes d'une période ; ce qu'une requête trouve, son assiette et ses parts « sans … » ; l'index des idées interrogées ; la forme d'une requête enregistrée et son rangement ; le journal rangé, l'heure de chacune de ses entrées et son empreinte | 1 | [CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds) · 7 à 10 ; I01, I09, I13 ; le journal, par ses tests au noyau (`crates/noyau/tests/journal.rs`) |
 | Le stockage des documents | Quelle lignée l'emporte, quand une version de schéma oblige à lire sans écrire, quels fichiers une compaction retire, l'écriture de la teneur | 1 ; la lignée, de bout en bout, au lot 4 | Les tests 8 à 11, 13 et 14 du [§ 31 · 10](31-persistance-et-synchronisation.md#10-les-tests-qui-verrouillent-ce-document) ; la règle de la lignée, sur des lignées que le test écrit ; au lot 4, avec le miroir, le test 12 et I12 |
 
 **La mutation suit le noyau.** Le module qui porte l'une de ces règles entre dans
@@ -121,7 +122,7 @@ Chaque invariant verrouille une décision. Un invariant sans test est une intent
 | I10 | Trois répliques convergent | Opérations concurrentes aléatoires sur trois répliques, synchronisation dans un ordre aléatoire, états égaux | [ADR-002](adr/adr-002-local-first.md) |
 | I11 | Aucune fusion ne produit une valeur que personne n'a écrite : ni un texte caractère par caractère, ni un accord ou une hauteur champ par champ | Deux répliques modifient hors ligne la même ligne, le même accord, la même hauteur : après synchronisation, deux variantes intactes de chacun, dont une « à trancher ». Un objet harmonique, une hauteur et une provenance s'écrivent d'un bloc, comme un objet neuf, jamais champ par champ ; les modifications concurrentes d'un même attribut sont relevées à la synchronisation et présentées « à trancher » | [ADR-003](adr/adr-003-crdt-et-miroir-durable.md) |
 | I12 | Le miroir durable fait un aller-retour fidèle | Documents → miroir → documents ; teneurs égales ([§ 31 · 2.6](31-persistance-et-synchronisation.md#26-la-teneur)) | [ADR-003](adr/adr-003-crdt-et-miroir-durable.md) |
-| I13 | Les dérivés sont jetables | Supprimer tous les dérivés, les reconstruire, comparer les empreintes canoniques | [ADR-003](adr/adr-003-crdt-et-miroir-durable.md) |
+| I13 | Les dérivés sont jetables | Supprimer tous les dérivés, les reconstruire, comparer les empreintes canoniques. Pour l'index de recherche ([§ 31 · 7](31-persistance-et-synchronisation.md#7-les-dérivés)), ce sont celles des réponses entières d'un jeu de requêtes fixé, chacune le SHA-256 de son JSON : après chaque geste, une annulation et une écriture refusée, l'index tenu et un index neuf, bâti à l'appel, rendent les mêmes, et le fonds rouvert, qui le rebâtit, rend celles d'avant sa réouverture (le test 1 du [§ 31 · 10](31-persistance-et-synchronisation.md#10-les-tests-qui-verrouillent-ce-document)) | [ADR-003](adr/adr-003-crdt-et-miroir-durable.md) |
 | I14 | Les captations sont immuables | Empreinte de chaque objet égale à son nom ; aucune écriture sur un objet existant | [ADR-003](adr/adr-003-crdt-et-miroir-durable.md) |
 | I15 | Aucune captation n'est évincée avant accusé de réception | Nœud coupé, capter, purger le cache : la captation survit | [ADR-002](adr/adr-002-local-first.md) |
 | I16 | Tout ce qui est local marche réseau coupé | Parcours S1 entier en mode avion ; avant INC-4, la part de S1 déjà livrée ([§ 40 · 9](40-architecture.md#9-trajectoire-de-construction)) | [ADR-002](adr/adr-002-local-first.md) |
@@ -192,6 +193,7 @@ fonction Rust nommée d'après un critère que la SFD n'a pas ou qu'elle a retir
 |---|---|---|
 | [CAP-01](20-sfd/21-capter-et-organiser.md#cap-01--capter-en-un-geste) | 6 | INC-1, lot 1 |
 | [CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées) | 1, 3, 7, 8 | INC-1, lot 1 |
+| [CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds) | 7 à 10 | INC-1, lot 1 |
 | [CAP-07](20-sfd/21-capter-et-organiser.md#cap-07--voir-le-fonds) | 4 | INC-1, lot 1 |
 | [MIC-12](20-sfd/22-micro-motif-et-phrase.md#mic-12--parcourir-la-table-de-la-tonalité) | 1 à 4, 9 | INC-0 |
 | [MIC-13](20-sfd/22-micro-motif-et-phrase.md#mic-13--lire-la-palette-dun-accord) | 1 à 3, 5 | INC-0 |
@@ -377,7 +379,10 @@ qu'elle protège :
 **Où en est le tableau.** Les lignes 1 et 2 sont posées : `verifier`, `mutants` et
 `mutants-complet`. La ligne 3 l'est pour Windows (`windows`) ; la construction Android reste à
 poser avec l'application mobile. Dans la ligne 4, I17, I18, I19, I25, I26 et I27 ont leur test
-depuis INC-0 ; I01, I10 et I28, depuis la tranche 2 du lot 1 d'INC-1 ; I14 en a une part depuis
+depuis INC-0 ; I01, I10 et I28, depuis la tranche 2 du lot 1 d'INC-1 ; I09 et I13 ont leurs
+tests depuis la tranche 4 (PR #47), pour les requêtes sur les idées et pour l'index de
+recherche, les autres agrégats et les autres dérivés venant avec leur code ; I14 en a une
+part depuis
 H07, reprise et étendue en tranche 1, le reste venant en tranches 5 et 6 ; I30 a son garde-fou et son contrôle statique
 depuis la tranche 3 (PR #43), et son second test, la démonstration, vient en tranche 7 ; I31 a
 ses tests de la CSP, des droits et du manifeste de l'application, et le contrôle statique de
