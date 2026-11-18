@@ -2523,7 +2523,10 @@ mod tests {
                 decalage_b_minutes: 60,
             })
         );
-        assert_eq!(relier_les_cochees(&[a.clone()], decalage_de_paris), None);
+        assert_eq!(
+            relier_les_cochees(std::slice::from_ref(&a), decalage_de_paris),
+            None
+        );
         assert_eq!(
             relier_les_cochees(
                 &[a, b, ("idee-c".to_string(), 1_793_750_400)],
