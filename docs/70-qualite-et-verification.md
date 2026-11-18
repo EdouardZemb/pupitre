@@ -51,7 +51,7 @@ théorie. En INC-1 :
 | Un import rejoué ne crée aucun doublon | Ce qu'un import ajoute, au vu des empreintes que le fonds connaît déjà : rien d'autre que son rapport, la seconde fois ([§ 31 · 6.1](31-persistance-et-synchronisation.md#61-adressage-par-contenu)) | 1 | [CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant) · 1, 2 et 7 |
 | Les faits d'un fichier versé | Ce qu'est un fichier versé (audio, MIDI, texte ou ignoré), d'après sa signature ou son extension ; le format et la durée d'un WAV, le format et la division d'un MIDI, lus de leurs octets ; le manifeste d'une prise en stems ; le stem qu'accompagne un MIDI, et le type proposé d'un stem, d'après leurs noms ; la proposition de déclarer un dossier jeu de stems ([ADR-024](adr/adr-024-import-d-un-fonds.md)) | 1 | [CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant) · 7, 8 et 11 |
 | Le relevé des conflits | Quelles valeurs concurrentes d'un même champ, lues à la synchronisation, sont relevées pour être présentées « à trancher » ([§ 31 · 5](31-persistance-et-synchronisation.md#5-les-conflits)) | 3 | I11 ; le test 3 du [§ 31 · 10](31-persistance-et-synchronisation.md#10-les-tests-qui-verrouillent-ce-document) |
-| Les gestes du fonds | Regrouper, relier et délier, retirer et rétablir, annuler le dernier geste de tri ; la clé d'un lien, l'état « reliée » d'une idée, sa durée, l'assiette d'une requête sur les idées | 1 | [CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées), [CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds), [CAP-07](20-sfd/21-capter-et-organiser.md#cap-07--voir-le-fonds) ; I09, I28 |
+| Les gestes du fonds | Regrouper, relier et délier, retirer et rétablir, annuler le dernier geste de tri ; la clé d'un lien, l'état « reliée » d'une idée, sa durée | 1 | [CAP-02](20-sfd/21-capter-et-organiser.md#cap-02--trier-la-boîte-didées), [CAP-07](20-sfd/21-capter-et-organiser.md#cap-07--voir-le-fonds) ; I28 |
 | Les requêtes du fonds | Le repli d'un texte et les mots cherchés ; les jours civils et les bornes d'une période ; ce qu'une requête trouve, son assiette et ses parts « sans … » ; l'index des idées interrogées ; la forme d'une requête enregistrée et son rangement ; le journal rangé, l'heure de chacune de ses entrées et son empreinte | 1 | [CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds) · 7 à 10 ; I01, I09, I13 ; le journal, par ses tests au noyau (`crates/noyau/tests/journal.rs`) |
 | Le stockage des documents | Quelle lignée l'emporte, quand une version de schéma oblige à lire sans écrire, quels fichiers une compaction retire, l'écriture de la teneur | 1 ; la lignée, de bout en bout, au lot 4 | Les tests 8 à 11, 13 et 14 du [§ 31 · 10](31-persistance-et-synchronisation.md#10-les-tests-qui-verrouillent-ce-document) ; la règle de la lignée, sur des lignées que le test écrit ; au lot 4, avec le miroir, le test 12 et I12 |
 
@@ -99,7 +99,8 @@ refuse entre autres un `inner_html` hors du SVG du noyau et un attribut `style`,
 contrôle à l'œil « L'interface dans l'application installée » (§ 7), qui
 saisit dans une idée les textes piégés d'I31. La mesure « en moins d'une seconde » de
 [CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds) · 6 se prend sur la
-commande de recherche, construite en `--release`, sur le fonds de mesure, sur l'établi, au
+commande `boite`, qui porte la requête, construite en `--release`, sur le fonds de mesure,
+sur l'établi, au
 contrôle du § 7 ; elle n'est pas une porte de CI, où le temps varie d'une machine à l'autre.
 
 ---
@@ -382,9 +383,9 @@ poser avec l'application mobile. Dans la ligne 4, I17, I18, I19, I25, I26 et I27
 depuis INC-0 ; I01, I10 et I28, depuis la tranche 2 du lot 1 d'INC-1 ; I09 et I13 ont leurs
 tests depuis la tranche 4 (PR #47), pour les requêtes sur les idées et pour l'index de
 recherche, les autres agrégats et les autres dérivés venant avec leur code ; I14 en a une
-part depuis
-H07, reprise et étendue en tranche 1, le reste venant en tranches 5 et 6 ; I30 a son garde-fou et son contrôle statique
-depuis la tranche 3 (PR #43), et son second test, la démonstration, vient en tranche 7 ; I31 a
+part depuis H07, reprise et étendue en tranche 1, le reste venant en tranches 5 et 6 ; I30 a
+son garde-fou et son contrôle statique depuis la tranche 3 (PR #43), et son second test, la
+démonstration, vient en tranche 7 ; I31 a
 ses tests de la CSP, des droits et du manifeste de l'application, et le contrôle statique de
 l'interface, depuis la tranche 3 (PR #44) ; le protocole des captations refuse toute requête,
 ce qu'un test vérifie, et le test d'une empreinte connue ou inconnue vient en tranche 5 ; I29 a

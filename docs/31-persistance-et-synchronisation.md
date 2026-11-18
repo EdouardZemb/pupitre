@@ -97,8 +97,9 @@ plus, fixé avec la photo par la PR de conception du lot 2. Au lot 1, le jeu fac
 aucune photo, et regrouper ne s'y éprouve que sur des prises ; les images s'y ajoutent au
 lot 2. Le critère de contenu « photo » existe dès le lot 1 : tant qu'aucune photo n'est
 entrée, sa requête répond « 0 idée », avec son assiette. Les empreintes des captations du
-jeu factice sont les mêmes sur chaque plateforme, et aucune dépendance ne s'ajoute. Aucune captation n'est donc suivie
-dans le dépôt, où la porte `contenu` refuse tout fichier audio, MIDI ou partition
+jeu factice sont les mêmes sur chaque plateforme, et aucune dépendance ne s'ajoute. Aucune
+captation n'est donc suivie dans le dépôt, où la porte `contenu` refuse tout fichier audio,
+MIDI ou partition
 ([CONVENTIONS](../CONVENTIONS.md#portes-de-ci)). L'application l'écrit dans le dossier de la
 démonstration à sa première ouverture, et le réécrit à la demande : ses documents, ses
 captations et ses caches sont retirés, puisqu'ils ne portent que du jeu factice, puis
@@ -142,7 +143,7 @@ raisonnable, y compris sur un téléphone. Ce sont les captations audio qui pès
 **La taille visée du fonds** est celle de
 [CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds) · 6 : 2 000 idées,
 et, depuis l'import, 6 000 prises dont 100 prises en stems (plus bas). Les 300 morceaux de
-ce critère éprouvent la recherche, pas le budget ci-dessus, compté sur une soixantaine.
+ce critère éprouvent les requêtes, pas le budget ci-dessus, compté sur une soixantaine.
 Sacha écrit par périodes, depuis une quinzaine d'années, et apporte un fonds de démos, de
 *stems*, de fichiers MIDI, de textes et de notes
 ([§ 11](11-persona-et-situations.md#1-fiche)). À quelques idées par semaine, une semaine sur
@@ -431,8 +432,9 @@ deux règles.
   supprimer une requête de même. La naissance et ce premier geste s'écrivent ensemble, deux
   modifications avec chacune son message, en un seul fichier : le premier fichier complet du
   document, qui porte aussi la genèse. Si le geste est refusé, la naissance l'est avec lui, et
-  la racine des données reste sans document. Sa naissance, faite sur la genèse, écrit son identifiant, sa lignée (§ 2.5)
-  et l'identifiant de propriétaire ([§ 30 · 2](30-modele-de-domaine.md#2-identités)). Un
+  la racine des données reste sans document. Sa naissance, faite sur la genèse, écrit son
+  identifiant, sa lignée (§ 2.5) et l'identifiant de propriétaire
+  ([§ 30 · 2](30-modele-de-domaine.md#2-identités)). Un
   autre appareil part d'une copie de ce fonds, historique compris, jamais d'un fonds à lui :
   il la reçoit du nœud à l'appairage ;
   sans nœud, d'une copie des documents du premier, que décrit la PR de conception du lot 2
@@ -787,7 +789,7 @@ dossier de l'application, **jamais dans un dossier temporaire** que le système 
 
 | Dérivé | Calculé où | Quand |
 |---|---|---|
-| Index de recherche (texte, attributs, motifs harmoniques) | Chaque appareil, en mémoire, côté natif | À la première lecture qui suit un changement du document, l'ouverture comprise |
+| Index de recherche (texte, attributs, motifs harmoniques) | Chaque appareil, en mémoire, côté natif | À la première lecture de la boîte qui suit un changement du document, l'ouverture comprise |
 | Matériau effectif des occurrences, numéros de mesure, durées | Chaque appareil | À la demande |
 | Rendus (grille, portée, diagrammes, fiche, plan d'album) | Chaque appareil | À l'affichage |
 | Diagnostics | Chaque appareil | À la demande, et à la volée pour les plus légers |
@@ -800,14 +802,15 @@ dossier de l'application, **jamais dans un dossier temporaire** que le système 
 tiennent, côté natif : chaque idée non retirée qui se lit, avec son texte replié par la table
 de repli et ses attributs (sa date, ses étiquettes, sa durée, son état, sa provenance, ses
 contenus), et le nombre des idées illisibles. Il se bâtit en entier, du fonds lu, à la
-première lecture qui suit un changement des têtes du document (`Automerge::get_heads`) :
-une écriture, une annulation, et, plus tard, une réception ou un document remplacé. Il ne se
-refait jamais pendant une écriture, ni par morceaux ; une écriture refusée ne change pas les
-têtes, et ne le refait pas. Sa construction compte donc dans l'ouverture du fonds, et dans
-la lecture qui suit un geste ; sur un fonds qui n'a pas changé, une recherche n'en est qu'une
-lecture (CAP-06 · 6). Chaque requête le parcourt idée par idée, sans index inversé ; la
-boîte d'idées est la réponse de la requête sans critère. Il ne vit qu'en mémoire : rouvert,
-le fonds le rebâtit (§ 10, test 1).
+première lecture de la boîte (`Services::boite`, seule à le rebâtir) qui suit un changement
+des têtes du document (`Automerge::get_heads`) : une écriture, une annulation, et, plus
+tard, une réception ou un document remplacé. Il ne se refait jamais pendant une écriture, ni
+par morceaux ; une écriture refusée ne change pas les têtes, et ne le refait pas. Sa
+construction compte donc dans l'ouverture du fonds, et dans la lecture de la boîte qui suit
+un geste ; sur un fonds qui n'a pas changé, une requête n'en est qu'une lecture (CAP-06 · 6).
+Chaque requête le parcourt idée par idée, sans index inversé ; la boîte d'idées est la
+réponse de la requête sans critère. Il ne vit qu'en mémoire : rouvert, le fonds le rebâtit
+(§ 10, test 1).
 
 Pourquoi un résultat d'analyse lourde est une captation et non un dérivé : il coûte des
 minutes de calcul, il dépend d'une version d'analyseur, et il doit rester **la même

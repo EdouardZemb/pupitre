@@ -632,10 +632,12 @@ un MIDI versé ou un texte versé :
   est le nom de son dossier. Ils sont
   écrits dans le document du fonds, à côté de l'empreinte, pour les montrer et les ranger
   sans la captation, qu'un appareil n'a pas toujours
-  ([§ 31 · 6.2](31-persistance-et-synchronisation.md#62-ce-quun-appareil-garde)) ; une
-  requête ne cherche pas par eux, et chercher par le nom d'origine reste une piste
-  ([pistes](pistes.md) ;
-  [CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds)). Tant qu'un
+  ([§ 31 · 6.2](31-persistance-et-synchronisation.md#62-ce-quun-appareil-garde)). Une
+  requête ne cherche ni par leur format, ni par leur date, ni par leur appareil, ni par
+  leurs noms d'origine ; la durée d'une prise n'y entre que par celle de l'idée qui la
+  contient, que juge son critère de durée
+  ([CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds)). Chercher par
+  le nom d'origine reste une piste ([pistes](pistes.md)). Tant qu'un
   fait n'est pas lu, il vaut `—` ([ADR-006](adr/adr-006-le-partiel-est-normal.md)) ;
 - le **diapason** d'une prise est une mesure : proposé, puis décidé d'un geste (§ 4.3).
 

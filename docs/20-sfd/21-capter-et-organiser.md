@@ -371,7 +371,7 @@ de problème.
 | **Échelle · moment** | Fonds · M2, M6 |
 | **Appareils** | 💻 ✅ · 📱 ✅ · 📖 ✅ résultats en lecture |
 | **Besoins** | B02 |
-| **Lit · écrit** | Lit les dérivés de recherche ; n'écrit rien, sauf une requête enregistrée, dans le document du fonds |
+| **Lit · écrit** | Lit l'index de recherche, un dérivé ; n'écrit rien, sauf une requête enregistrée, dans le document du fonds |
 
 **Règles**
 - Une **requête** pose des **critères**, combinés par « et » : elle rend les éléments qui les
@@ -392,8 +392,9 @@ de problème.
     pas la provenance d'une idée, captée ou importée, qui est un critère d'une idée.
 - **Les critères d'une idée** :
   - la **date** est une période de jours civils, « du … au … », bornes comprises, chacune
-    facultative : un jour va de son minuit à celui du lendemain, à l'heure locale de chacun,
-    un jour de changement d'heure, de 23 ou de 25 heures, compris ; aucune date relative ;
+    facultative : un jour va de son minuit à celui du lendemain, chaque minuit à l'heure
+    locale de cet instant, un jour de changement d'heure, de 23 ou de 25 heures, compris ;
+    aucune date relative ;
   - l'**étiquette** se compare octet pour octet, sans repli : « pont » ne trouve ni « Pont »,
     ni « ponts », ni « pont-levis ». L'écran la choisit parmi les étiquettes du fonds ;
   - la **durée** se juge à la seconde affichée, strictement : « plus d'une minute » trouve
@@ -406,8 +407,8 @@ de problème.
     l'idée.
 - **Le repli.** Le texte de l'idée et le texte cherché se replient de même : chaque caractère
   en minuscules, puis par la **table de repli** du noyau, qui ôte les marques combinantes
-  (U+0300 à U+036F, en forme composée comme décomposée), réduit chaque lettre de Latin-1 et
-  du Latin étendu A à sa base, récrit œ en « oe », æ en « ae », ß en « ss », þ en « th » et
+  (U+0300 à U+036F) d'une lettre décomposée, réduit chaque lettre composée de Latin-1 et du
+  Latin étendu A à sa base, récrit œ en « oe », æ en « ae », ß en « ss », þ en « th » et
   les ligatures ﬀ à ﬄ, ramène les apostrophes à `'` et les tirets à `-`, et ôte les
   invisibles (le trait d'union conditionnel, les caractères sans chasse). Aucune forme de
   compatibilité ; hors de sa table, une lettre ne se replie qu'en casse : une lettre grecque
