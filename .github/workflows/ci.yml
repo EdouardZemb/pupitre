@@ -75,7 +75,9 @@ jobs:
     # 43717435077) ; avant, 4 min 47 s le 2026-11-14, PR #40, sans le fonds de mesure ; depuis,
     # 3 min 55 s le 2026-11-15, PR #44 (exécution 43733973477), le contrôle statique de
     # l'interface compris, et 4 min 11 s le 2026-11-16, PR #45 (exécution 43775887636), la boîte,
-    # le bandeau et I29 compris (LE-29 de modele-projet).
+    # le bandeau et I29 compris (LE-29 de modele-projet). Le 2026-11-18, la PR #47, les requêtes,
+    # leur index et le journal compris, n'a passé qu'à chaud (« Cache hit ») : 2 min 37 s
+    # (exécution 44247702454) ; le double reste sous le délai, qui ne baisse pas.
     timeout-minutes: 12
     permissions:
       contents: read
@@ -172,7 +174,10 @@ jobs:
     # 43717435077), la sentinelle d'I30 comprise, dont 16 min 11 s ; 23 min 20 s le 2026-11-15,
     # PR #44 (exécution 43733973477), les tests d'I31 compris, dont 13 min 32 s ; 28 min 56 s le
     # 2026-11-16, PR #45 (exécution 43775887636), la boîte, le bandeau et I29 compris, dont
-    # 16 min 17 s (LE-29 de modele-projet).
+    # 16 min 17 s (LE-29 de modele-projet). Le 2026-11-18, la PR #47, les requêtes comprises
+    # dans les tests du stockage et de l'établi, n'a passé qu'à chaud (« Cache hit ») : 5 min 49 s
+    # (exécution 44247702454), dont 2 s pour trunk et tauri-cli ; le double reste sous le délai,
+    # qui ne baisse pas.
     timeout-minutes: 60
     permissions:
       contents: read
@@ -252,13 +257,19 @@ jobs:
   mutants:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    # Deux fois le plus long passage complet mesuré à froid (« No cache found. »), sur quatre
-    # cœurs, chaque mutant construisant aussi les tests du rendu : 638 mutants, la boîte comprise,
-    # en 35 min 14 s le 2026-11-16, PR #45 (exécution 43775891270) ; avant, 488 en 28 min 53 s,
-    # PR #37, et 549 en 23 min 59 s, PR #38, le 2026-11-14 (LE-29 de modele-projet). Le job d'une
-    # PR mute, au pire, autant ; à froid, celui de la PR #45 a muté 102 mutants en 6 min 23 s
-    # (exécution 43775887636). À remesurer quand le périmètre de la mutation s'étend.
-    timeout-minutes: 71
+    # Deux fois le plus long passage complet, mesuré à froid (« No cache found. ») ou, quand le
+    # périmètre de la mutation s'étend avant toute mesure, estimé ; sur quatre cœurs, chaque
+    # mutant construisant aussi les tests du rendu. Mesurés : 638 mutants, la boîte comprise, en
+    # 35 min 14 s le 2026-11-16, PR #45 (exécution 43775891270) ; avant, 488 en 28 min 53 s,
+    # PR #37, et 549 en 23 min 59 s, PR #38, le 2026-11-14 ; 551, sans la boîte, en 24 min 30 s
+    # le 2026-11-16, sur main (exécution 43874992227). Estimé le 2026-11-18, PR #47 : le repli,
+    # les requêtes, l'index et le journal y ajoutent au plus 245 mutants, ceux que son job a
+    # mutés sur son diff (exécution 44247702454), soit 883 au plus, en 48 min 46 s au prorata du
+    # plus long passage (35 min 14 s × 883 / 638) ; deux fois, 97 min 32 s (LE-29 de
+    # modele-projet). Le job d'une PR mute, au pire, autant ; à chaud, celui de la PR #47 a muté
+    # 245 mutants en 15 min 31 s, et à froid, celui de la PR #45, 102 en 6 min 23 s (exécution
+    # 43775887636). À remesurer au prochain passage complet.
+    timeout-minutes: 98
     permissions:
       contents: read
     steps:
