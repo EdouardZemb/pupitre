@@ -25,9 +25,9 @@ use std::collections::BTreeSet;
 
 use automerge::{Automerge, ChangeHash};
 use commandes::{
-    Captation, Completer, EntreeDuJournal, EtatDuFonds, Etiqueter, FENETRE_MAX, Faite, Fenetre,
-    LONGUEUR_D_UNE_LIGNE, LigneDeLaBoite, Notee, Noter, Regrouper, Relier, Reponse, Viser,
-    VueDUneIdee, VueDeLaBoite, VueDesRetirees,
+    Captation, Completer, Enregistrer, EntreeDuJournal, EtatDuFonds, Etiqueter, FENETRE_MAX, Faite,
+    Fenetre, LONGUEUR_D_UNE_LIGNE, LigneDeLaBoite, Notee, Noter, Regrouper, Relier, Renommer,
+    Reponse, RequeteEnregistree, Supprimer, Viser, VueDUneIdee, VueDeLaBoite, VueDesRetirees,
 };
 use noyau::donnees::boite::{self, EnBoite};
 use noyau::donnees::changement::Operation;
@@ -69,6 +69,15 @@ pub struct Versee {
 /// `Raison::Impossible`, son message le constat du noyau ; puis `Documents::appliquer`. Fait, il
 /// devient le dernier geste de tri ; refusé, le dernier geste de tri ne change pas. Un geste de
 /// tri ne tire rien de l'aléa.
+///
+/// Une opération sur une requête enregistrée (enregistrer, renommer, supprimer) : en lecture
+/// seule, le refus de `lecture_seule()`, tel quel ; sans fonds, `Raison::Impossible`, « Aucun
+/// fonds n'est né. », sans rien faire naître (question 20) ; puis, pour renommer et supprimer, la
+/// requête que nomme la commande, qui ne se lit pas : `Impossible::RequeteAbsente` ; puis
+/// l'opération, que calcule le noyau (`noyau::donnees::requete`), à l'heure du contexte, et qui,
+/// impossible, est refusée de `Raison::Impossible`, son message le constat du noyau ; puis
+/// `Documents::appliquer`. Enregistrer tire l'ULID de la requête ; renommer et supprimer ne tirent
+/// rien. Aucune ne touche au dernier geste de tri : annuler ne la vise pas.
 ///
 /// Les services tiennent l'index des idées interrogées (`noyau::donnees::index::Index`), un dérivé
 /// jetable (I13), avec les têtes du fonds (`Automerge::get_heads`) dont il est bâti. Chaque lecture
@@ -287,6 +296,60 @@ impl<D: Documents, C: Captations> Services<D, C> {
         Ok(Faite { avertissement })
     }
 
+    /// Enregistrer la requête `commande.requete` sous le nom `commande.nom`
+    /// (`noyau::donnees::requete::enregistrer_une_requete`), sous un ULID tiré à l'heure du
+    /// contexte, après les refus de la lecture seule et du fonds non né (voir `Services`).
+    pub fn enregistrer_une_requete(
+        &mut self,
+        commande: &Enregistrer,
+        contexte: &mut Contexte<'_>,
+    ) -> Reponse<Faite> {
+        if let Some(refus) = self.documents.lecture_seule() {
+            return Err(refus);
+        }
+        if self.documents.fonds().is_none() {
+            return Err(fonds_non_ne());
+        }
+        let id = ulid_tire(contexte);
+        let operation = requete::enregistrer_une_requete(
+            &id,
+            &commande.nom,
+            &requete_du_noyau(&commande.requete),
+            contexte.heure,
+        )
+        .map_err(refus_impossible)?;
+        let avertissement = self.documents.appliquer(&operation)?;
+        Ok(Faite { avertissement })
+    }
+
+    /// Renommer `commande.nom` la requête enregistrée `commande.requete`
+    /// (`noyau::donnees::requete::renommer_une_requete`) : une opération sur une requête
+    /// enregistrée (voir `Services`).
+    pub fn renommer_une_requete(
+        &mut self,
+        commande: &Renommer,
+        contexte: &mut Contexte<'_>,
+    ) -> Reponse<Faite> {
+        let heure = contexte.heure;
+        self.sur_une_requete(&commande.requete, |lue| {
+            requete::renommer_une_requete(lue, &commande.nom, heure)
+        })
+    }
+
+    /// Supprimer la requête enregistrée `commande.requete`, sans confirmation (question 19 ;
+    /// `noyau::donnees::requete::supprimer_une_requete`) : une opération sur une requête
+    /// enregistrée (voir `Services`).
+    pub fn supprimer_une_requete(
+        &mut self,
+        commande: &Supprimer,
+        contexte: &mut Contexte<'_>,
+    ) -> Reponse<Faite> {
+        let heure = contexte.heure;
+        self.sur_une_requete(&commande.requete, |lue| {
+            Ok(requete::supprimer_une_requete(lue, heure))
+        })
+    }
+
     /// Verse `octets` par le contrat `Captations` (toujours, même devant un fonds en lecture
     /// seule), puis la fiche, sous une idée qui naît avec elle (son ULID tiré) ; sans fonds, la
     /// naissance d'abord, comme `noter`. En lecture seule, la captation versée, le refus de
@@ -442,6 +505,28 @@ impl<D: Documents, C: Captations> Services<D, C> {
         Ok(vue_de_la_boite(&l_index, commande))
     }
 
+    /// Les requêtes enregistrées du fonds, chacune qui a un nom (`lecture::requetes_enregistrees`),
+    /// rangées par nom replié, puis par nom, puis par ULID
+    /// (`noyau::donnees::requete::ranger_les_requetes`, question 18), chaque requête aux types des
+    /// commandes, `None` si elle vient d'une version plus récente de Pupitre (question 17). En
+    /// lecture seule comme ailleurs ; sans fonds, aucune.
+    pub fn requetes_enregistrees(&self) -> Reponse<Vec<RequeteEnregistree>> {
+        let mut lues = self
+            .documents
+            .fonds()
+            .map(lecture::requetes_enregistrees)
+            .unwrap_or_default();
+        requete::ranger_les_requetes(&mut lues);
+        Ok(lues
+            .into_iter()
+            .map(|lue| RequeteEnregistree {
+                id: lue.id,
+                nom: lue.nom,
+                requete: lue.requete.as_ref().map(requete_des_commandes),
+            })
+            .collect())
+    }
+
     /// Les idées retirées, rangées par `noyau::donnees::boite::retirees`, la plus récemment
     /// retirée d'abord, leur nombre, et la fenêtre de leurs lignes, comme celle de la boîte. Sans
     /// fonds : aucune. En lecture seule comme ailleurs.
@@ -486,6 +571,30 @@ impl<D: Documents, C: Captations> Services<D, C> {
         let geste = calculer(fonds, heure).map_err(refus_impossible)?;
         let avertissement = self.documents.appliquer(&geste.operation)?;
         self.dernier_geste = Some(geste);
+        Ok(Faite { avertissement })
+    }
+
+    /// Une opération sur la requête enregistrée `id`, conduite (voir `Services`) : `calculer`
+    /// demande l'opération au noyau, de la requête lue. Ne touche pas au dernier geste de tri.
+    fn sur_une_requete(
+        &mut self,
+        id: &str,
+        calculer: impl FnOnce(&requete::RequeteEnregistreeLue) -> Result<Operation, Impossible>,
+    ) -> Reponse<Faite> {
+        if let Some(refus) = self.documents.lecture_seule() {
+            return Err(refus);
+        }
+        let fonds = self.documents.fonds().ok_or_else(fonds_non_ne)?;
+        let lue = lecture::requetes_enregistrees(fonds)
+            .into_iter()
+            .find(|lue| lue.id == id)
+            .ok_or_else(|| {
+                refus_impossible(Impossible::RequeteAbsente {
+                    requete: id.to_string(),
+                })
+            })?;
+        let operation = calculer(&lue).map_err(refus_impossible)?;
+        let avertissement = self.documents.appliquer(&operation)?;
         Ok(Faite { avertissement })
     }
 }
@@ -661,6 +770,32 @@ fn requete_du_noyau(demandee: &commandes::Requete) -> requete::Requete {
     }
 }
 
+/// La requête des commandes qui répond à celle du noyau, champ pour champ : l'inverse de
+/// `requete_du_noyau`.
+fn requete_des_commandes(lue: &requete::Requete) -> commandes::Requete {
+    let jour = |jour: &requete::Jour| commandes::Jour {
+        annee: jour.annee,
+        mois: jour.mois,
+        jour: jour.jour,
+    };
+    commandes::Requete {
+        texte: lue.texte.clone(),
+        du: lue.du.as_ref().map(jour),
+        au: lue.au.as_ref().map(jour),
+        etiquette: lue.etiquette.clone(),
+        plus_de_secondes: lue.plus_de_secondes,
+        etat: lue.etat.map(|etat| match etat {
+            requete::Etat::Reliee => commandes::Etat::Reliee,
+            requete::Etat::NonReliee => commandes::Etat::NonReliee,
+        }),
+        provenance: lue.provenance.map(|provenance| match provenance {
+            requete::ProvenanceDeLIdee::Captee => commandes::ProvenanceDeLIdee::Captee,
+            requete::ProvenanceDeLIdee::Importee => commandes::ProvenanceDeLIdee::Importee,
+        }),
+        contenu: lue.contenu.map(contenu_des_commandes),
+    }
+}
+
 /// Les bornes du noyau qui répondent à celles des commandes.
 fn bornes_du_noyau(bornes: &commandes::Bornes) -> requete::Bornes {
     requete::Bornes {
@@ -688,6 +823,17 @@ fn contenu_du_noyau(contenu: &commandes::Contenu) -> boite::Contenu {
         commandes::Contenu::Photo => boite::Contenu::Photo,
         commandes::Contenu::MidiVerse => boite::Contenu::MidiVerse,
         commandes::Contenu::TexteVerse => boite::Contenu::TexteVerse,
+    }
+}
+
+/// Le contenu des commandes qui répond à celui du noyau.
+fn contenu_des_commandes(contenu: boite::Contenu) -> commandes::Contenu {
+    match contenu {
+        boite::Contenu::TexteDeLIdee => commandes::Contenu::TexteDeLIdee,
+        boite::Contenu::Prise => commandes::Contenu::Prise,
+        boite::Contenu::Photo => commandes::Contenu::Photo,
+        boite::Contenu::MidiVerse => commandes::Contenu::MidiVerse,
+        boite::Contenu::TexteVerse => commandes::Contenu::TexteVerse,
     }
 }
 
@@ -721,6 +867,16 @@ fn idee_absente(idee: &str) -> Refus {
     refus_impossible(Impossible::IdeeAbsente {
         idee: idee.to_string(),
     })
+}
+
+/// Le refus d'une opération sur une requête enregistrée sans fonds, qui n'en fait rien naître
+/// (question 20) : `Raison::Impossible`, du texte que rendent les deux adaptateurs à
+/// `Documents::appliquer` sans fonds.
+fn fonds_non_ne() -> Refus {
+    Refus {
+        raison: Raison::Impossible,
+        message: "Aucun fonds n'est né.".to_string(),
+    }
 }
 
 /// Le refus d'« annuler » sans dernier geste de tri : `Raison::RienAAnnuler`.

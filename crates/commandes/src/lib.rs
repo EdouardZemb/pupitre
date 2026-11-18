@@ -46,6 +46,14 @@ pub const BOITE: &str = "boite";
 pub const RETIREES: &str = "retirees";
 /// Lire l'état du fonds (`EtatDuFonds`).
 pub const ETAT_DU_FONDS: &str = "etat_du_fonds";
+/// Lire les requêtes enregistrées (`RequeteEnregistree`).
+pub const REQUETES_ENREGISTREES: &str = "requetes_enregistrees";
+/// Enregistrer une requête (`Enregistrer`).
+pub const ENREGISTRER_UNE_REQUETE: &str = "enregistrer_une_requete";
+/// Renommer une requête enregistrée (`Renommer`).
+pub const RENOMMER_UNE_REQUETE: &str = "renommer_une_requete";
+/// Supprimer une requête enregistrée (`Supprimer`).
+pub const SUPPRIMER_UNE_REQUETE: &str = "supprimer_une_requete";
 /// Exporter le cahier des tables, la commande de l'établi depuis INC-0.
 pub const EXPORTER_CAHIER: &str = "exporter_cahier";
 
@@ -70,6 +78,10 @@ pub const NOMS: &[&str] = &[
     BOITE,
     RETIREES,
     ETAT_DU_FONDS,
+    REQUETES_ENREGISTREES,
+    ENREGISTRER_UNE_REQUETE,
+    RENOMMER_UNE_REQUETE,
+    SUPPRIMER_UNE_REQUETE,
     EXPORTER_CAHIER,
 ];
 
@@ -393,6 +405,44 @@ pub struct Sans {
     pub duree: Option<u64>,
     /// Les idées sans texte.
     pub texte: Option<u64>,
+}
+
+/// Une requête enregistrée : son ULID, son nom, et sa requête, `None` si elle vient d'une version
+/// plus récente de Pupitre (question 17).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RequeteEnregistree {
+    /// Son identifiant, un ULID.
+    pub id: String,
+    /// Son nom, tel qu'il est enregistré.
+    pub nom: String,
+    /// Sa requête ; `None` si elle porte une sorte de critère ou une valeur que cette version de
+    /// Pupitre ne connaît pas : elle paraît nommée, et ne se lance pas.
+    pub requete: Option<Requete>,
+}
+
+/// Enregistrer la requête `requete` sous le nom `nom`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Enregistrer {
+    /// Son nom ; ses blancs autour ne s'enregistrent pas, et vide, il est refusé.
+    pub nom: String,
+    /// La requête, qui pose au moins un critère.
+    pub requete: Requete,
+}
+
+/// Renommer `nom` la requête enregistrée `requete`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Renommer {
+    /// L'identifiant de la requête enregistrée, un ULID.
+    pub requete: String,
+    /// Son nouveau nom ; ses blancs autour ne s'enregistrent pas, et vide, il est refusé.
+    pub nom: String,
+}
+
+/// Supprimer la requête enregistrée `requete` (question 19).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Supprimer {
+    /// L'identifiant de la requête enregistrée, un ULID.
+    pub requete: String,
 }
 
 /// Lire la boîte : l'ordre, la requête en cours, les bornes de sa date (que l'interface tire de
