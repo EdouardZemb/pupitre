@@ -3145,23 +3145,34 @@ mod tests {
         assert_eq!(
             page_du_fonds_vide(0, false),
             Some([
-                "Le fonds ne porte encore aucune idée.",
+                "La boîte d'idées est vide.",
                 "Une idée se note dans le champ « Noter une idée »."
             ])
         );
         assert_eq!(
             page_du_fonds_vide(0, true),
             Some([
-                "Le fonds ne porte encore aucune idée.",
+                "La boîte d'idées est vide.",
                 "Le fonds est en lecture seule : le bandeau dit pourquoi."
             ])
         );
-        // Un constat, jamais un ordre : aucun texte ne commence par un verbe à l'impératif.
         for lecture_seule in [false, true] {
             for texte in page_du_fonds_vide(0, lecture_seule).unwrap() {
-                for verbe in ["Notez", "Importez", "Créez", "Ajoutez", "Commencez"] {
+                // Un constat, jamais un ordre : aucun texte ne commence par un verbe à
+                // l'impératif, rétablir compris.
+                for verbe in [
+                    "Notez",
+                    "Importez",
+                    "Créez",
+                    "Ajoutez",
+                    "Commencez",
+                    "Rétablissez",
+                ] {
                     assert!(!texte.starts_with(verbe), "{texte}");
                 }
+                // Un constat vrai : retirer n'efface rien, et toutes les idées retirées, le fonds
+                // en porte encore. Aucun texte ne dit que le fonds n'a pas d'idée.
+                assert!(!texte.contains("aucune idée"), "{texte}");
             }
         }
     }
