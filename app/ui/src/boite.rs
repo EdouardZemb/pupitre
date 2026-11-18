@@ -3431,6 +3431,7 @@ mod tests {
             boite: EtatDeLaBoite::nouveau(),
             focus: RwSignal::new(None),
             champ_de_note: NodeRef::new(),
+            champ_de_nom: NodeRef::new(),
             liste: NodeRef::new(),
             etalon: NodeRef::new(),
             liste_des_retirees: NodeRef::new(),
@@ -3718,32 +3719,147 @@ mod tests {
         assert_eq!(etat.requete(), lisible);
     }
 
+    /// Une requête lancée inventée, ses réglages posés sur l'écran par un clic.
+    fn requete_lancee() -> Requete {
+        Requete {
+            texte: "refrain".into(),
+            du: jour_du_champ("2026-10-25"),
+            etiquette: Some("pont".into()),
+            plus_de_secondes: Some(60),
+            ..Requete::default()
+        }
+    }
+
     #[test]
     fn supprimer_la_requete_en_cours_laisse_ses_criteres() {
         let owner = Owner::new();
         owner.set();
         let boite = EtatDeLaBoite::nouveau();
         let etat = EtatDeLaRequete::nouveau();
-        let lancee = Requete {
-            texte: "refrain".into(),
-            du: jour_du_champ("2026-10-25"),
-            etiquette: Some("pont".into()),
-            plus_de_secondes: Some(60),
-            ..Requete::default()
-        };
+        let lancee = requete_lancee();
         let enregistree = enregistree("Mes refrains", Some(lancee.clone()));
         boite.requetes.set(vec![enregistree.clone()]);
-        assert!(lancer(etat, &enregistree));
-        boite.choisir_la_requete(&enregistree);
-        // Supprimée : la liste des requêtes enregistrées change, la requête de l'écran, non.
-        boite.oublier_la_requete(&enregistree.id);
+        boite.choisir_et_lancer(etat, &enregistree);
+        assert_eq!(boite.requete_choisie.get(), Some(enregistree.id.clone()));
+        // Le geste « Supprimer » fait : la liste des requêtes enregistrées change, le choix
+        // s'oublie, le focus va au champ « Nom » ; la requête de l'écran, non.
+        let cible = boite.apres_un_geste_de_requete(
+            &GesteDeRequete::Supprimer {
+                requete: enregistree.id.clone(),
+            },
+            true,
+        );
+        assert_eq!(cible, Some(Cible::ChampDeNom));
         assert!(boite.requetes.get().is_empty());
         assert_eq!(boite.requete_choisie.get(), None);
+        assert_eq!(boite.nom_de_la_requete.get(), "");
         assert_eq!(etat.requete(), lancee);
         assert_eq!(etat.texte.get(), "refrain");
         assert_eq!(etat.du.get(), "2026-10-25");
         assert_eq!(etat.etiquette.get(), Some("pont".to_string()));
         assert_eq!(etat.duree.get(), 2);
+    }
+
+    #[test]
+    fn un_refus_de_supprimer_laisse_le_choix_et_le_focus() {
+        let owner = Owner::new();
+        owner.set();
+        let boite = EtatDeLaBoite::nouveau();
+        let etat = EtatDeLaRequete::nouveau();
+        let enregistree = enregistree("Mes refrains", Some(requete_lancee()));
+        boite.requetes.set(vec![enregistree.clone()]);
+        boite.choisir_et_lancer(etat, &enregistree);
+        let cible = boite.apres_un_geste_de_requete(
+            &GesteDeRequete::Supprimer {
+                requete: enregistree.id.clone(),
+            },
+            false,
+        );
+        assert_eq!(cible, None);
+        assert_eq!(boite.requete_choisie.get(), Some(enregistree.id.clone()));
+        assert_eq!(boite.requetes.get(), vec![enregistree]);
+        assert_eq!(boite.nom_de_la_requete.get(), "Mes refrains");
+        assert_eq!(etat.requete(), requete_lancee());
+    }
+
+    #[test]
+    fn renommer_fait_laisse_le_choix_sur_le_meme_identifiant() {
+        let owner = Owner::new();
+        owner.set();
+        let boite = EtatDeLaBoite::nouveau();
+        let etat = EtatDeLaRequete::nouveau();
+        let enregistree = enregistree("Mes refrains", Some(requete_lancee()));
+        boite.choisir_et_lancer(etat, &enregistree);
+        boite.nom_de_la_requete.set("Refrains du pont".to_string());
+        let cible = boite.apres_un_geste_de_requete(&GesteDeRequete::Renommer, true);
+        assert_eq!(cible, None);
+        assert_eq!(boite.requete_choisie.get(), Some(enregistree.id.clone()));
+        assert_eq!(boite.nom_de_la_requete.get(), "Refrains du pont");
+        assert_eq!(etat.requete(), requete_lancee());
+        // Refusé, de même.
+        let cible = boite.apres_un_geste_de_requete(&GesteDeRequete::Renommer, false);
+        assert_eq!(cible, None);
+        assert_eq!(boite.requete_choisie.get(), Some(enregistree.id));
+    }
+
+    #[test]
+    fn enregistrer_fait_vide_le_champ_qui_porte_encore_le_nom_envoye() {
+        let owner = Owner::new();
+        owner.set();
+        let boite = EtatDeLaBoite::nouveau();
+        boite.nom_de_la_requete.set("Mes refrains".to_string());
+        let geste = GesteDeRequete::Enregistrer {
+            nom: "Mes refrains".to_string(),
+        };
+        // Refusé : le champ garde le nom.
+        assert_eq!(boite.apres_un_geste_de_requete(&geste, false), None);
+        assert_eq!(boite.nom_de_la_requete.get(), "Mes refrains");
+        // Fait, le champ ayant changé entre-temps : il garde ce qui y est tapé.
+        boite.nom_de_la_requete.set("Autre nom".to_string());
+        assert_eq!(boite.apres_un_geste_de_requete(&geste, true), None);
+        assert_eq!(boite.nom_de_la_requete.get(), "Autre nom");
+        // Fait, le champ portant encore le nom envoyé : il se vide.
+        boite.nom_de_la_requete.set("Mes refrains".to_string());
+        assert_eq!(boite.apres_un_geste_de_requete(&geste, true), None);
+        assert_eq!(boite.nom_de_la_requete.get(), "");
+    }
+
+    #[test]
+    fn choisir_une_requete_lisible_pose_ses_reglages() {
+        let owner = Owner::new();
+        owner.set();
+        let boite = EtatDeLaBoite::nouveau();
+        let etat = EtatDeLaRequete::nouveau();
+        let enregistree = enregistree("Mes refrains", Some(requete_lancee()));
+        boite.choisir_et_lancer(etat, &enregistree);
+        assert_eq!(boite.requete_choisie.get(), Some(enregistree.id));
+        assert_eq!(boite.nom_de_la_requete.get(), "Mes refrains");
+        assert_eq!(etat.requete(), requete_lancee());
+    }
+
+    #[test]
+    fn choisir_une_requete_plus_recente_la_choisit_sans_rien_poser() {
+        let owner = Owner::new();
+        owner.set();
+        let boite = EtatDeLaBoite::nouveau();
+        let etat = EtatDeLaRequete::nouveau();
+        let deja = Requete {
+            texte: "pont".into(),
+            ..Requete::default()
+        };
+        etat.poser(&deja);
+        let plus_recente = enregistree("Venue d'ailleurs", None);
+        boite.choisir_et_lancer(etat, &plus_recente);
+        assert_eq!(boite.requete_choisie.get(), Some(plus_recente.id));
+        assert_eq!(etat.requete(), deja);
+    }
+
+    #[test]
+    fn une_requete_plus_recente_dit_qu_elle_ne_se_lance_pas() {
+        assert_eq!(
+            PRECISION_D_UNE_REQUETE_PLUS_RECENTE,
+            "Elle ne se lance pas : choisie, elle se renomme ou se supprime."
+        );
     }
 
     #[test]
