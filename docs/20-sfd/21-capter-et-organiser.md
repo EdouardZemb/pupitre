@@ -450,8 +450,8 @@ de problème.
   sont pas des gestes de tri, et annuler ne les vise pas. Dans un Pupitre neuf, qui n'a pas
   encore de fonds, et dans un fonds en lecture seule, elles sont refusées, et le bandeau le
   dit ; chercher reste permis. Une requête enregistrée par une version plus récente de
-  Pupitre, qui porte un critère ou une valeur que cette version ne connaît pas, paraît nommée
-  et ne se lance pas.
+  Pupitre, qui porte un critère ou une valeur que cette version ne connaît pas, paraît
+  nommée et ne se lance pas ; elle se choisit, se renomme et se supprime comme une autre.
 
 **Ne fait pas** — ne classe pas par pertinence ; ne cherche pas dans l'audio brut ; ne
 cherche pas dans l'encre.
@@ -522,8 +522,9 @@ aujourd'hui ».
   n'a encore aucun document
   ([§ 31 · 2.3](../31-persistance-et-synchronisation.md#23-la-genèse-et-le-point-de-départ-du-fonds)),
   montre la même page. Elle dit, par des constats, jamais par des ordres
-  ([§ 50 · 5](../50-interfaces-et-appareils.md#5-les-textes-de-linterface)), que le fonds ne
-  porte encore aucune idée, et les premiers gestes : noter ou capter une idée, sauf en lecture
+  ([§ 50 · 5](../50-interfaces-et-appareils.md#5-les-textes-de-linterface)), que la boîte
+  d'idées est vide, ce qui reste vrai quand toutes les idées sont retirées, puisque le
+  fonds les garde, et les premiers gestes : noter ou capter une idée, sauf en lecture
   seule, où elle renvoie au bandeau, qui dit pourquoi ; importer un fonds
   ([CAP-03](#cap-03--importer-un-fonds-existant)) ; créer un morceau ; et, dans un Pupitre
   neuf, réimporter une archive complète

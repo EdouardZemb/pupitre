@@ -84,12 +84,14 @@ une navigation de pages : on garde le contexte, le fil d'Ariane le montre (`Fond
 Northbound › Refrain › Phrase 2`), et un retour remonte d'un cran sans perdre la sélection.
 
 Le fil d'Ariane et le zoom viennent avec les échelles d'INC-2. Au lot 1 d'INC-1, l'établi
-n'a que le fonds et la table, qu'« Afficher » choisit dans l'en-tête de l'établi, et Échap y
-ferme le volet ouvert, celui de l'idée, des idées retirées ou du journal du fonds, le focus
-rendu comme par « Fermer ». Sans volet ouvert, ou pendant une composition, rien ne se ferme
-et le focus ne bouge pas ; dans la recherche, Échap garde son sens du navigateur, qui vide le
-champ, et ne ferme aucun volet. Hors d'un champ de texte, `/` porte le focus dans la
-recherche, du fonds comme de la table, sans s'y écrire ; dans un champ, il s'écrit.
+n'a que le fonds et la table, qu'« Afficher » choisit dans l'en-tête de l'établi. Il s'ouvre
+sur le fonds, et chercher depuis la table fait passer au fonds, dont la boîte d'idées montre
+la réponse. Échap ferme le volet ouvert, celui de l'idée, des idées retirées ou du journal du
+fonds, le focus rendu comme par « Fermer ». Sans volet ouvert, ou pendant une composition,
+rien ne se ferme et le focus ne bouge pas ; dans la recherche, Échap garde son sens du
+navigateur, qui vide le champ, et ne ferme aucun volet. Hors d'un champ de texte, `/` porte
+le focus dans la recherche, du fonds comme de la table, sans s'y écrire ; dans un champ, il
+s'écrit.
 
 | Geste de zoom | 💻 Établi | 📱 Carnet |
 |---|---|---|
@@ -391,7 +393,7 @@ couleurs. S'y ajoutent :
 
 | Exigence | Mise en œuvre |
 |---|---|
-| Tout se fait au clavier sur l'établi | Ordre de tabulation, raccourcis documentés, focus visible. Chaque raccourci se documente par `aria-keyshortcuts`, sur le contrôle qu'il sert : `/` sur la recherche, dont l'aide le dit aussi (« / porte le focus ici, depuis le fonds comme depuis la table »), `Control+Z` sur « Annuler » |
+| Tout se fait au clavier sur l'établi | Ordre de tabulation, raccourcis documentés, focus visible. Chaque raccourci se documente par `aria-keyshortcuts`, sur le contrôle qu'il sert : `/` sur la recherche, dont l'aide le dit aussi (« / porte le focus ici, depuis le fonds comme depuis la table »), `Control+Z` sur « Annuler », `Escape` sur le « Fermer » de chaque volet |
 | Lecteurs d'écran | Libellés sur les éléments graphiques : une pastille de fonction annonce « dominante » |
 | Mouvement réduit | Respect du réglage du système, et mode encre sans aucune animation |
 | Agrandissement | Interface utilisable à 200 % sans perte d'information |
