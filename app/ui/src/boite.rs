@@ -2997,6 +2997,11 @@ mod tests {
             cible_de_fermeture(&Volet::Retirees, &lues),
             Some(Cible::BoutonDesRetirees)
         );
+        // Le volet du journal : le focus va au bouton « Journal du fonds », comme « Fermer ».
+        assert_eq!(
+            cible_de_fermeture(&Volet::Journal, &lues),
+            Some(Cible::BoutonDuJournal)
+        );
         // Aucun volet : rien ne se ferme, le focus ne bouge pas.
         assert_eq!(cible_de_fermeture(&Volet::Aucun, &lues), None);
     }
@@ -3938,5 +3943,34 @@ mod tests {
             ..Requete::default()
         };
         assert!(!enregistrer_possible(&sans_mot, "Mes refrains"));
+    }
+
+    #[test]
+    fn chaque_ligne_du_journal_dit_son_heure_et_son_message() {
+        // L'heure 0, celle de la genèse : « — ».
+        let genese = EntreeDuJournal {
+            message: "Genèse du fonds".to_string(),
+            heure: 0,
+        };
+        assert_eq!(ligne_du_journal(&genese, 0), "— · Genèse du fonds");
+        // Une heure au décalage de son instant : le jour, puis l'heure du jour sur deux chiffres.
+        let notee = EntreeDuJournal {
+            message: "Idée du 25 octobre notée".to_string(),
+            heure: 1_792_888_200,
+        };
+        assert_eq!(
+            ligne_du_journal(&notee, 120),
+            "25 oct. 2026 · 02:30 · Idée du 25 octobre notée"
+        );
+    }
+
+    #[test]
+    fn l_entete_du_journal_dit_son_nombre_et_son_empreinte() {
+        let empreinte = "570cda0f1e2d3c4b5a69788796a5b4c3d2e1f00112233445566778899aabbccd";
+        assert_eq!(entete_du_journal(1, empreinte), "1 entrée · empreinte 570cda");
+        assert_eq!(
+            entete_du_journal(3, empreinte),
+            "3 entrées · empreinte 570cda"
+        );
     }
 }
