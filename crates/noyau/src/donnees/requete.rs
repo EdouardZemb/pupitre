@@ -1,5 +1,10 @@
 //! Les jours civils et les bornes d'une période : ce qu'un critère de date compare (question 9 ;
-//! CAP-06). Rien ici ne lit l'horloge : le décalage local se reçoit, pour un instant.
+//! CAP-06). Rien ici ne lit l'horloge : le décalage local se reçoit, pour un instant. Puis les
+//! critères d'une requête, et le texte de sa réponse (question 7).
+
+use super::boite::Contenu;
+use super::idee::Assiette;
+use super::repli::mots;
 
 /// Un jour civil (question 9) : l'année, le mois de 1 à 12, le jour de 1 à 31.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -111,4 +116,104 @@ pub fn bornes_de_la_periode(
         des: du.map(|jour| debut_du_jour(jour, &decalage)),
         avant: au.map(|jour| debut_depuis_minuit(jour.minuit_utc() + 86_400, &decalage)),
     }
+}
+
+/// L'état d'une idée, pour une requête : reliée ou non.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Etat {
+    /// Reliée, au sens d'`idee::reliee`.
+    Reliee,
+    /// Non reliée.
+    NonReliee,
+}
+
+/// La provenance d'une idée (§ 30 · 8.1, question 11) : captée ou importée.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProvenanceDeLIdee {
+    /// Née d'une capture.
+    Captee,
+    /// Née d'un fichier versé.
+    Importee,
+}
+
+/// Une requête (CAP-06) : une clé par sorte de critère, chacune facultative ; tous posés, ils se
+/// combinent par « et » (question 7). `texte` : le texte saisi, tel quel ; ses mots (`repli::mots`)
+/// sont les fragments cherchés, et sans mot, il ne pose aucun critère. `du`, `au` : la période, que
+/// la réponse juge sur les bornes qu'on lui donne. `plus_de_secondes` : la durée affichée, en
+/// secondes entières, strictement plus grande (question 8). `etiquette` : comparée octet pour octet
+/// (question 10).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Requete {
+    /// Le texte saisi, tel quel.
+    pub texte: String,
+    /// Le premier jour de la période, compris.
+    pub du: Option<Jour>,
+    /// Le dernier jour de la période, compris.
+    pub au: Option<Jour>,
+    /// L'étiquette cherchée.
+    pub etiquette: Option<String>,
+    /// Le seuil de la durée affichée, en secondes entières.
+    pub plus_de_secondes: Option<u64>,
+    /// L'état cherché.
+    pub etat: Option<Etat>,
+    /// La provenance cherchée.
+    pub provenance: Option<ProvenanceDeLIdee>,
+    /// Le contenu cherché.
+    pub contenu: Option<Contenu>,
+}
+
+impl Requete {
+    /// Aucun critère : ni mot, ni jour, ni étiquette, ni seuil, ni état, ni provenance, ni contenu.
+    /// Hors de son texte, la requête est celle par défaut, et son texte n'a aucun mot.
+    pub fn est_vide(&self) -> bool {
+        mots(&self.texte).is_empty()
+            && Requete {
+                texte: String::new(),
+                ..self.clone()
+            } == Requete::default()
+    }
+}
+
+/// Les parts « sans … » d'une réponse (question 7) : `Some` pour chaque critère posé dont une idée
+/// peut manquer l'attribut (l'étiquette, la durée, le texte), le nombre d'idées lisibles qui le
+/// manquent et satisfont chacun des autres critères qu'elles portent.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Sans {
+    /// Les idées sans étiquette.
+    pub etiquette: Option<usize>,
+    /// Les idées sans durée.
+    pub duree: Option<usize>,
+    /// Les idées sans texte.
+    pub texte: Option<usize>,
+}
+
+/// Le mot au singulier pour 0 et 1, au pluriel dès 2 (question 7), comme le compte de la boîte.
+fn accorde(n: usize, singulier: &str, pluriel: &str) -> String {
+    format!("{n} {}", if n >= 2 { pluriel } else { singulier })
+}
+
+/// « N idée(s) », puis « · K sans étiquette », « · K sans durée », « · K sans texte », chaque part
+/// non nulle, dans cet ordre, puis « · K illisible(s) » si K > 0, puis « · M interrogée(s) »,
+/// M = `assiette.considerees` ; singulier pour 0 et 1 (question 7).
+pub fn texte_de_la_reponse(
+    retenues: usize,
+    assiette: Assiette,
+    illisibles: usize,
+    sans: Sans,
+) -> String {
+    let mut parts = vec![accorde(retenues, "idée", "idées")];
+    for (part, attribut) in [
+        (sans.etiquette, "étiquette"),
+        (sans.duree, "durée"),
+        (sans.texte, "texte"),
+    ] {
+        if let Some(k) = part.filter(|&k| k > 0) {
+            parts.push(format!("{k} sans {attribut}"));
+        }
+    }
+    if illisibles > 0 {
+        parts.push(accorde(illisibles, "illisible", "illisibles"));
+    }
+    parts.push(accorde(assiette.considerees, "interrogée", "interrogées"));
+    parts.join(" · ")
 }
