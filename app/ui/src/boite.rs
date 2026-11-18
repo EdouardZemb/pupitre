@@ -3967,7 +3967,10 @@ mod tests {
     #[test]
     fn l_entete_du_journal_dit_son_nombre_et_son_empreinte() {
         let empreinte = "570cda0f1e2d3c4b5a69788796a5b4c3d2e1f00112233445566778899aabbccd";
-        assert_eq!(entete_du_journal(1, empreinte), "1 entrée · empreinte 570cda");
+        assert_eq!(
+            entete_du_journal(1, empreinte),
+            "1 entrée · empreinte 570cda"
+        );
         assert_eq!(
             entete_du_journal(3, empreinte),
             "3 entrées · empreinte 570cda"
