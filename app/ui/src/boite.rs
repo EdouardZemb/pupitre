@@ -2109,7 +2109,8 @@ fn VoletDesRetirees(ecran: Ecran) -> impl IntoView {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use commandes::{Appareil, Provenance};
+    use crate::recherche::{EtatDeLaRequete, jour_du_champ};
+    use commandes::{Appareil, Bornes, Provenance};
 
     /// Une ligne inventée, captée sur l'établi, sans durée ni lien.
     fn ligne(texte: Option<&str>, etiquettes: &[&str]) -> LigneDeLaBoite {
@@ -2702,5 +2703,204 @@ mod tests {
         assert_eq!(idee_de_rang(&fenetre, &lignes, 12).as_deref(), Some("c"));
         assert_eq!(idee_de_rang(&fenetre, &lignes, 9), None);
         assert_eq!(idee_de_rang(&fenetre, &lignes, 13), None);
+    }
+
+    #[test]
+    fn la_commande_porte_la_requete_en_cours_et_ses_bornes() {
+        // La requête « eglise » du 25 octobre au 25 octobre 2026, jour de 25 heures à Paris : la
+        // date se borne du minuit local du 25 (22 h UTC le 24) à celui du 26 (23 h UTC le 25).
+        let jour = jour_du_champ("2026-10-25");
+        let requete = Requete {
+            texte: "eglise".to_string(),
+            du: jour.clone(),
+            au: jour,
+            contenu: Some(Contenu::Prise),
+            ..Requete::default()
+        };
+        let fenetre = Fenetre {
+            debut: 40,
+            nombre: 25,
+        };
+        assert_eq!(
+            commande_de_la_boite(Ordre::Duree, &requete, decalage_de_paris, &fenetre),
+            Boite {
+                ordre: Ordre::Duree,
+                requete: requete.clone(),
+                bornes: Bornes {
+                    des: Some(1_792_879_200),
+                    avant: Some(1_792_969_200)
+                },
+                debut: 40,
+                nombre: 25,
+            }
+        );
+        // Sans jour, rien ne borne la date.
+        assert_eq!(
+            commande_de_la_boite(
+                Ordre::Date,
+                &Requete::default(),
+                decalage_de_paris,
+                &fenetre
+            )
+            .bornes,
+            Bornes::default()
+        );
+    }
+
+    /// Une vue de la boîte écrite pour le test : deux idées trouvées parmi six interrogées, dont deux
+    /// sans texte, et aucune ligne.
+    fn vue_de_la_reponse() -> VueDeLaBoite {
+        VueDeLaBoite {
+            non_reliees: 5,
+            assiette_du_compte: Assiette {
+                considerees: 6,
+                portant: 6,
+                decidees: 6,
+                illisibles: 0,
+            },
+            retenues: 2,
+            assiette_de_la_requete: Assiette {
+                considerees: 6,
+                portant: 4,
+                decidees: 4,
+                illisibles: 0,
+            },
+            sans: commandes::Sans {
+                etiquette: None,
+                duree: None,
+                texte: Some(2),
+            },
+            etiquettes_du_fonds: vec!["pont".to_string()],
+            lignes: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn la_reponse_ne_se_dit_que_d_une_requete_posee() {
+        let vue = vue_de_la_reponse();
+        // Sans critère, la liste est toute la boîte : aucune réponse ne se dit.
+        assert_eq!(texte_de_la_requete(&vue, &Requete::default()), None);
+        // Un texte sans mot ne pose aucun critère (CAP-06).
+        let sans_mot = Requete {
+            texte: " … ".to_string(),
+            ..Requete::default()
+        };
+        assert_eq!(texte_de_la_requete(&vue, &sans_mot), None);
+        let eglise = Requete {
+            texte: "eglise".to_string(),
+            ..Requete::default()
+        };
+        assert_eq!(
+            texte_de_la_requete(&vue, &eglise).as_deref(),
+            Some("2 idées · 2 sans texte · 6 interrogées")
+        );
+        // Un critère hors du texte, seul, se répond de même.
+        let prise = Requete {
+            contenu: Some(Contenu::Prise),
+            ..Requete::default()
+        };
+        assert_eq!(
+            texte_de_la_requete(&vue, &prise).as_deref(),
+            Some("2 idées · 2 sans texte · 6 interrogées")
+        );
+    }
+
+    #[test]
+    fn chaque_frappe_demande_et_seule_la_derniere_reponse_compte() {
+        // Trois frappes de suite, chacune sa demande : aucune minuterie ne les retient (I18).
+        let demandes = Demandes::nouvelles();
+        let fenetres = [0, 1, 2].map(|debut| Fenetre { debut, nombre: 25 });
+        let rangs = fenetres.clone().map(|fenetre| demandes.demander(&fenetre));
+        assert_eq!(demandes.derniere.get_value(), Some(fenetres[2].clone()));
+        // Les deux premières répondent après la troisième : seule la dernière est retenue.
+        let mut retenue = None;
+        for (rang, reponse) in [
+            (rangs[2], "troisième"),
+            (rangs[0], "première"),
+            (rangs[1], "deuxième"),
+        ] {
+            if demandes.est_la_derniere(rang) {
+                retenue = Some(reponse);
+            }
+        }
+        assert_eq!(retenue, Some("troisième"));
+    }
+
+    /// Un écran de la boîte, ses repères jamais montés.
+    fn ecran() -> Ecran {
+        Ecran {
+            etat: Etat::nouveau(),
+            boite: EtatDeLaBoite::nouveau(),
+            focus: RwSignal::new(None),
+            liste: NodeRef::new(),
+            etalon: NodeRef::new(),
+            liste_des_retirees: NodeRef::new(),
+            bouton_des_retirees: NodeRef::new(),
+            titre_de_l_idee: NodeRef::new(),
+            titre_des_retirees: NodeRef::new(),
+        }
+    }
+
+    /// Chaque signal de la requête de l'écran, tel qu'il est, écrit.
+    fn signaux(requete: EtatDeLaRequete) -> [String; 8] {
+        [
+            requete.texte.get_untracked(),
+            requete.du.get_untracked(),
+            requete.au.get_untracked(),
+            format!("{:?}", requete.etiquette.get_untracked()),
+            requete.duree.get_untracked().to_string(),
+            requete.etat.get_untracked().to_string(),
+            requete.provenance.get_untracked().to_string(),
+            requete.contenu.get_untracked().to_string(),
+        ]
+    }
+
+    #[test]
+    fn noter_ne_touche_pas_la_requete_en_cours() {
+        // Le point de revue 1, côté écran : la note faite vide son champ, et la requête en cours
+        // reste ; la relecture qui suit la note la montre si elle la satisfait.
+        let owner = Owner::new();
+        owner.set();
+        let ecran = ecran();
+        let requete = ecran.etat.requete;
+        let jour = jour_du_champ("2026-10-25");
+        requete.poser(&Requete {
+            texte: "eglise".to_string(),
+            du: jour.clone(),
+            au: jour,
+            etiquette: Some("pont".to_string()),
+            plus_de_secondes: Some(60),
+            etat: Some(commandes::Etat::NonReliee),
+            provenance: Some(commandes::ProvenanceDeLIdee::Captee),
+            contenu: Some(Contenu::TexteDeLIdee),
+        });
+        let avant = signaux(requete);
+        ecran.boite.note.set("  Une idée d'église ".to_string());
+        ecran.conclure_la_note("Une idée d'église");
+        assert_eq!(ecran.boite.note.get_untracked(), "");
+        assert_eq!(signaux(requete), avant);
+        // Le champ réécrit depuis le départ de la note garde ce qui y est écrit.
+        ecran.boite.note.set("Une autre idée".to_string());
+        ecran.conclure_la_note("Une idée d'église");
+        assert_eq!(ecran.boite.note.get_untracked(), "Une autre idée");
+        assert_eq!(signaux(requete), avant);
+    }
+
+    #[test]
+    fn le_choix_toutes_ne_pose_aucune_etiquette() {
+        // « Toutes », de valeur vide, ne pose aucun critère : une étiquette vide ne trouverait rien.
+        assert_eq!(etiquette_du_choix(""), None);
+        assert_eq!(etiquette_du_choix("pont"), Some("pont".to_string()));
+        // Une étiquette du fonds s'écrit comme la liste l'écrit.
+        assert_eq!(etiquette_ecrite("pont"), "#pont");
+        let du_fonds = ["pont".to_string(), "refrain".to_string()];
+        assert_eq!(etiquettes_a_choisir(&du_fonds, None), du_fonds);
+        assert_eq!(etiquettes_a_choisir(&du_fonds, Some("refrain")), du_fonds);
+        // L'étiquette choisie que le fonds ne porte plus reste offerte, à son rang : le choix se
+        // voit.
+        assert_eq!(
+            etiquettes_a_choisir(&du_fonds, Some("couplet")),
+            ["couplet", "pont", "refrain"]
+        );
     }
 }
