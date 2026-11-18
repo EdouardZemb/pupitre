@@ -1,11 +1,16 @@
 //! Les jours civils et les bornes d'une période (question 9), la requête sans critère, et le texte
 //! de la réponse d'une requête (question 7) ; CAP-06.
 
+use std::collections::BTreeMap;
+
 use noyau::donnees::boite::Contenu;
+use noyau::donnees::changement::{Changement, Operation, Simple};
+use noyau::donnees::gestes::{ENTIER_SUR, Impossible};
 use noyau::donnees::idee::Assiette;
 use noyau::donnees::requete::{
-    Bornes, Etat, Jour, ProvenanceDeLIdee, Requete, Sans, bornes_de_la_periode, debut_du_jour,
-    texte_de_la_reponse,
+    Bornes, Etat, Jour, ProvenanceDeLIdee, Requete, RequeteEnregistreeLue, Sans,
+    bornes_de_la_periode, debut_du_jour, enregistrer_une_requete, lire_une_requete,
+    ranger_les_requetes, renommer_une_requete, supprimer_une_requete, texte_de_la_reponse,
 };
 
 fn j(texte: &str) -> Jour {
@@ -340,4 +345,384 @@ fn chaque_critere_pose_seul_rend_la_requete_non_vide() {
         assert!(!requete.est_vide(), "{requete:?}");
     }
     assert!(Requete::default().est_vide());
+}
+
+fn requete_complete() -> Requete {
+    Requete {
+        texte: "eglise".to_string(),
+        du: Some(j("2026-10-25")),
+        au: Some(j("2026-11-02")),
+        etiquette: Some("pont".to_string()),
+        plus_de_secondes: Some(60),
+        etat: Some(Etat::NonReliee),
+        provenance: Some(ProvenanceDeLIdee::Importee),
+        contenu: Some(Contenu::MidiVerse),
+    }
+}
+
+const ID: &str = "01JREQUETE0000000000000001";
+
+fn poser(cle: &str, valeur: Simple) -> Changement {
+    Changement::Poser {
+        chemin: vec![
+            "requetes_enregistrees".to_string(),
+            ID.to_string(),
+            cle.to_string(),
+        ],
+        valeur,
+    }
+}
+
+fn chaine(texte: &str) -> Simple {
+    Simple::Chaine(texte.to_string())
+}
+
+/// Les `Poser` d'une opération d'enregistrement, mis en `champs` comme le fait la lecture du document.
+fn champs_de(operation: &Operation) -> BTreeMap<String, Option<Simple>> {
+    operation
+        .changements
+        .iter()
+        .filter_map(|changement| match changement {
+            Changement::Poser { chemin, valeur } => Some((chemin[2].clone(), Some(valeur.clone()))),
+            _ => None,
+        })
+        .collect()
+}
+
+fn lue(nom: &str) -> RequeteEnregistreeLue {
+    RequeteEnregistreeLue {
+        id: ID.to_string(),
+        nom: nom.to_string(),
+        requete: None,
+    }
+}
+
+#[test]
+fn enregistrer_cree_l_objet_avec_son_nom_et_une_cle_par_critere() {
+    let requete = Requete {
+        texte: "eglise".to_string(),
+        du: Some(j("2026-10-25")),
+        plus_de_secondes: Some(60),
+        contenu: Some(Contenu::Prise),
+        ..Requete::default()
+    };
+    let operation = enregistrer_une_requete(ID, "Ponts lents", &requete, 1_794_906_000).unwrap();
+    assert_eq!(
+        operation.changements,
+        vec![
+            Changement::Creer {
+                chemin: vec!["requetes_enregistrees".to_string(), ID.to_string()],
+                conteneurs: Vec::new(),
+            },
+            poser("nom", chaine("Ponts lents")),
+            poser("texte", chaine("eglise")),
+            poser("du", chaine("2026-10-25")),
+            poser("plus_de_secondes", Simple::Naturel(60)),
+            poser("contenu", chaine("prise")),
+        ]
+    );
+    assert_eq!(operation.message, "Requête « Ponts lents » enregistrée");
+    assert_eq!(operation.heure, 1_794_906_000);
+    // Le nom se range sans ses blancs ; un texte sans mot ne pose pas de clé.
+    let sans_mot = Requete {
+        texte: "'".to_string(),
+        au: Some(j("2026-11-02")),
+        ..Requete::default()
+    };
+    let operation = enregistrer_une_requete(ID, "  Ponts lents\t", &sans_mot, 1).unwrap();
+    assert_eq!(
+        operation.changements[1..],
+        [
+            poser("nom", chaine("Ponts lents")),
+            poser("au", chaine("2026-11-02")),
+        ]
+    );
+    assert_eq!(operation.message, "Requête « Ponts lents » enregistrée");
+}
+
+#[test]
+fn un_nom_vide_ou_une_requete_sans_critere_est_refuse() {
+    let avec_texte = Requete {
+        texte: "eglise".to_string(),
+        ..Requete::default()
+    };
+    assert_eq!(
+        enregistrer_une_requete(ID, "\u{a0}", &avec_texte, 1),
+        Err(Impossible::NomVide)
+    );
+    assert_eq!(
+        enregistrer_une_requete(ID, "", &Requete::default(), 1),
+        Err(Impossible::NomVide)
+    );
+    for sans_critere in [
+        Requete::default(),
+        Requete {
+            texte: "'".to_string(),
+            ..Requete::default()
+        },
+    ] {
+        assert_eq!(
+            enregistrer_une_requete(ID, "Ponts", &sans_critere, 1),
+            Err(Impossible::RequeteSansCritere)
+        );
+    }
+    let trop_long = Requete {
+        plus_de_secondes: Some(ENTIER_SUR + 1),
+        ..Requete::default()
+    };
+    assert_eq!(
+        enregistrer_une_requete(ID, "Ponts", &trop_long, 1),
+        Err(Impossible::SeuilTropLong {
+            secondes: ENTIER_SUR + 1
+        })
+    );
+    let au_plus_long = Requete {
+        plus_de_secondes: Some(ENTIER_SUR),
+        ..Requete::default()
+    };
+    assert!(enregistrer_une_requete(ID, "Ponts", &au_plus_long, 1).is_ok());
+    assert_eq!(Impossible::NomVide.to_string(), "Le nom est vide.");
+    assert_eq!(Impossible::MemeNom.to_string(), "Le nom est déjà celui-ci.");
+    assert_eq!(
+        Impossible::RequeteSansCritere.to_string(),
+        "La requête n'a aucun critère."
+    );
+    assert_eq!(
+        Impossible::RequeteAbsente {
+            requete: ID.to_string()
+        }
+        .to_string(),
+        "Aucune requête enregistrée ne porte cet identifiant."
+    );
+    assert_eq!(
+        Impossible::SeuilTropLong { secondes: 1 }.to_string(),
+        "Ce seuil de durée est trop long."
+    );
+}
+
+#[test]
+fn renommer_et_supprimer_disent_le_nom() {
+    let ponts = lue("Ponts lents");
+    let renommee = renommer_une_requete(&ponts, "Ponts du soir", 5).unwrap();
+    assert_eq!(
+        renommee.changements,
+        vec![poser("nom", chaine("Ponts du soir"))]
+    );
+    assert_eq!(
+        renommee.message,
+        "Requête « Ponts lents » renommée « Ponts du soir »"
+    );
+    assert_eq!(renommee.heure, 5);
+    let blancs = renommer_une_requete(&ponts, " Ponts du soir ", 5).unwrap();
+    assert_eq!(blancs, renommee);
+    assert_eq!(
+        renommer_une_requete(&ponts, "Ponts lents", 5),
+        Err(Impossible::MemeNom)
+    );
+    assert_eq!(
+        renommer_une_requete(&ponts, " Ponts lents ", 5),
+        Err(Impossible::MemeNom)
+    );
+    assert_eq!(
+        renommer_une_requete(&ponts, "", 5),
+        Err(Impossible::NomVide)
+    );
+    let supprimee = supprimer_une_requete(&ponts, 6);
+    assert_eq!(
+        supprimee.changements,
+        vec![Changement::Oter {
+            chemin: vec!["requetes_enregistrees".to_string(), ID.to_string()],
+        }]
+    );
+    assert_eq!(supprimee.message, "Requête « Ponts lents » supprimée");
+    assert_eq!(supprimee.heure, 6);
+}
+
+#[test]
+fn une_requete_se_relit_telle_qu_elle_s_est_enregistree() {
+    let complete = requete_complete();
+    let mut requetes = vec![complete.clone()];
+    // Chaque critère seul.
+    requetes.push(Requete {
+        texte: complete.texte.clone(),
+        ..Requete::default()
+    });
+    for seul in [
+        Requete {
+            du: complete.du,
+            ..Requete::default()
+        },
+        Requete {
+            au: complete.au,
+            ..Requete::default()
+        },
+        Requete {
+            etiquette: complete.etiquette.clone(),
+            ..Requete::default()
+        },
+        Requete {
+            plus_de_secondes: complete.plus_de_secondes,
+            ..Requete::default()
+        },
+        Requete {
+            plus_de_secondes: Some(ENTIER_SUR),
+            ..Requete::default()
+        },
+    ] {
+        requetes.push(seul);
+    }
+    // Chaque valeur d'énumération.
+    for etat in [Etat::Reliee, Etat::NonReliee] {
+        requetes.push(Requete {
+            etat: Some(etat),
+            ..Requete::default()
+        });
+    }
+    for provenance in [ProvenanceDeLIdee::Captee, ProvenanceDeLIdee::Importee] {
+        requetes.push(Requete {
+            provenance: Some(provenance),
+            ..Requete::default()
+        });
+    }
+    for contenu in [
+        Contenu::TexteDeLIdee,
+        Contenu::Prise,
+        Contenu::Photo,
+        Contenu::MidiVerse,
+        Contenu::TexteVerse,
+    ] {
+        requetes.push(Requete {
+            contenu: Some(contenu),
+            ..Requete::default()
+        });
+    }
+    for requete in requetes {
+        let operation = enregistrer_une_requete(ID, "Ponts lents", &requete, 1).unwrap();
+        let relue = lire_une_requete(ID, &champs_de(&operation)).unwrap();
+        assert_eq!(relue.requete, Some(requete.clone()), "{requete:?}");
+        assert_eq!(relue.nom, "Ponts lents");
+        assert_eq!(relue.id, ID);
+    }
+    // Les chaînes que le document porte, valeur par valeur.
+    let operation = enregistrer_une_requete(ID, "Ponts lents", &complete, 1).unwrap();
+    for attendu in [
+        poser("etat", chaine("non_reliee")),
+        poser("provenance", chaine("importee")),
+        poser("contenu", chaine("midi_verse")),
+        poser("etiquette", chaine("pont")),
+    ] {
+        assert!(operation.changements.contains(&attendu), "{attendu:?}");
+    }
+    for (etat, chaine_attendue) in [(Etat::Reliee, "reliee"), (Etat::NonReliee, "non_reliee")] {
+        let requete = Requete {
+            etat: Some(etat),
+            ..Requete::default()
+        };
+        let operation = enregistrer_une_requete(ID, "x", &requete, 1).unwrap();
+        assert!(
+            operation
+                .changements
+                .contains(&poser("etat", chaine(chaine_attendue)))
+        );
+    }
+    for (provenance, chaine_attendue) in [
+        (ProvenanceDeLIdee::Captee, "captee"),
+        (ProvenanceDeLIdee::Importee, "importee"),
+    ] {
+        let requete = Requete {
+            provenance: Some(provenance),
+            ..Requete::default()
+        };
+        let operation = enregistrer_une_requete(ID, "x", &requete, 1).unwrap();
+        assert!(
+            operation
+                .changements
+                .contains(&poser("provenance", chaine(chaine_attendue)))
+        );
+    }
+    for (contenu, chaine_attendue) in [
+        (Contenu::TexteDeLIdee, "texte_de_l_idee"),
+        (Contenu::Prise, "prise"),
+        (Contenu::Photo, "photo"),
+        (Contenu::MidiVerse, "midi_verse"),
+        (Contenu::TexteVerse, "texte_verse"),
+    ] {
+        let requete = Requete {
+            contenu: Some(contenu),
+            ..Requete::default()
+        };
+        let operation = enregistrer_une_requete(ID, "x", &requete, 1).unwrap();
+        assert!(
+            operation
+                .changements
+                .contains(&poser("contenu", chaine(chaine_attendue)))
+        );
+    }
+}
+
+#[test]
+fn une_cle_inconnue_rend_la_requete_d_une_version_plus_recente() {
+    let base = || -> BTreeMap<String, Option<Simple>> {
+        BTreeMap::from([
+            ("nom".to_string(), Some(chaine("Ponts lents"))),
+            ("texte".to_string(), Some(chaine("eglise"))),
+        ])
+    };
+    let lue_ok = lire_une_requete(ID, &base()).unwrap();
+    assert_eq!(
+        lue_ok.requete,
+        Some(Requete {
+            texte: "eglise".to_string(),
+            ..Requete::default()
+        })
+    );
+    let variantes: Vec<(&str, Option<Simple>)> = vec![
+        ("tonalite", Some(chaine("do"))),
+        ("contenu", Some(chaine("video"))),
+        ("etat", Some(chaine("autre"))),
+        ("provenance", Some(chaine("autre"))),
+        ("etat", Some(Simple::Naturel(1))),
+        ("texte", Some(Simple::Naturel(1))),
+        ("du", Some(chaine("2026-02-30"))),
+        ("au", Some(chaine("2026-13-01"))),
+        ("du", Some(Simple::Naturel(1))),
+        ("etiquette", Some(Simple::Naturel(1))),
+        ("plus_de_secondes", Some(Simple::Naturel(ENTIER_SUR + 1))),
+        ("plus_de_secondes", Some(chaine("60"))),
+        ("plus_de_secondes", None),
+    ];
+    for (cle, valeur) in variantes {
+        let mut champs = base();
+        champs.insert(cle.to_string(), valeur.clone());
+        let relue = lire_une_requete(ID, &champs).unwrap();
+        assert_eq!(relue.requete, None, "{cle} {valeur:?}");
+        assert_eq!(relue.nom, "Ponts lents");
+    }
+    let mut sans_nom = base();
+    sans_nom.remove("nom");
+    assert_eq!(lire_une_requete(ID, &sans_nom), None);
+    let mut nom_naturel = base();
+    nom_naturel.insert("nom".to_string(), Some(Simple::Naturel(3)));
+    assert_eq!(lire_une_requete(ID, &nom_naturel), None);
+    let mut nom_autre_type = base();
+    nom_autre_type.insert("nom".to_string(), None);
+    assert_eq!(lire_une_requete(ID, &nom_autre_type), None);
+}
+
+#[test]
+fn les_requetes_se_rangent_par_nom_replie() {
+    let avec = |id: &str, nom: &str| RequeteEnregistreeLue {
+        id: format!("01JREQUETE00000000000000{id}"),
+        nom: nom.to_string(),
+        requete: None,
+    };
+    let mut requetes = vec![
+        avec("03", "ponts lents"),
+        avec("01", "Église"),
+        avec("02", "Ponts lents"),
+        avec("04", "Ponts lents"),
+    ];
+    ranger_les_requetes(&mut requetes);
+    let ids: Vec<&str> = requetes.iter().map(|r| &r.id[24..]).collect();
+    assert_eq!(ids, ["01", "02", "04", "03"]);
 }
