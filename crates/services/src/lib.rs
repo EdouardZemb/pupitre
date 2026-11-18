@@ -689,12 +689,7 @@ fn en_boite(fonds: &Automerge) -> (Vec<EnBoite>, usize) {
 /// L'index des idées interrogées de `fonds`, bâti de ses idées lues (`en_boite`), les retirées
 /// écartées par `Index::construire`.
 fn index_du_fonds(fonds: &Automerge) -> Index {
-    let (mut idees, illisibles) = en_boite(fonds);
-    for lue in &mut idees {
-        if let Some(texte) = &mut lue.idee.texte {
-            *texte = texte.chars().take(LONGUEUR_D_UNE_LIGNE).collect();
-        }
-    }
+    let (idees, illisibles) = en_boite(fonds);
     Index::construire(idees, illisibles)
 }
 
@@ -851,8 +846,8 @@ fn requete_des_commandes(lue: &requete::Requete) -> commandes::Requete {
 /// Les bornes du noyau qui répondent à celles des commandes.
 fn bornes_du_noyau(bornes: &commandes::Bornes) -> requete::Bornes {
     requete::Bornes {
-        des: bornes.avant,
-        avant: bornes.des,
+        des: bornes.des,
+        avant: bornes.avant,
     }
 }
 
