@@ -14,7 +14,7 @@ flowchart LR
     A3["Rendus, fiches, mode encre"]
     A4["Pistes de règles, diagnostics"]
     A5["Analyse légère, écoute de contrôle"]
-    A6["Recherche"]
+    A6["Requêtes du fonds, recherche comprise"]
   end
   subgraph MAISON["À la maison — nœud joignable"]
     direction TB
@@ -41,7 +41,8 @@ flowchart LR
 
 **Règles**
 - Hors ligne : capter, éditer à toutes les échelles, rendus et mode encre, pistes de règles,
-  diagnostics, analyse légère, écoute de contrôle, recherche, impression par le système.
+  diagnostics, analyse légère, écoute de contrôle, requêtes du fonds, recherche comprise,
+  impression par le système.
 - À la maison seulement : analyse lourde, pistes génératives, PDF canonique, extraction de
   l'encre des PDF, synchronisation. Ces demandes **attendent en file**, ou disent « à la
   maison » ; aucune n'échoue en silence.
