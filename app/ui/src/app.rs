@@ -244,12 +244,17 @@ mod tests {
     }
 
     #[test]
-    fn l_etabli_s_ouvre_sur_la_table_et_la_quitter_ferme_la_palette() {
+    fn l_etabli_s_ouvre_sur_le_fonds_et_quitter_la_table_ferme_sa_palette() {
         let etat = touchee_et_palette_ouverte();
+        assert_eq!(etat.vue.get_untracked(), Vue::Fonds);
+        // La table, puis sa palette ouverte : la case touchée reste.
+        etat.choisir_vue(Vue::Table);
         assert_eq!(etat.vue.get_untracked(), Vue::Table);
-        // La boîte d'idées : la palette se ferme, la case reste touchée.
-        etat.choisir_vue(Vue::Boite);
-        assert_eq!(etat.vue.get_untracked(), Vue::Boite);
+        etat.ouvrir_palette();
+        assert!(etat.palette.get_untracked());
+        // Revenir au fonds ferme la palette, la case reste touchée.
+        etat.choisir_vue(Vue::Fonds);
+        assert_eq!(etat.vue.get_untracked(), Vue::Fonds);
         assert!(!etat.palette.get_untracked());
         assert_eq!(etat.touchee.get_untracked(), Some(A7));
         // De retour à la table, la palette reste fermée, la case touchée.
@@ -257,6 +262,23 @@ mod tests {
         assert_eq!(etat.vue.get_untracked(), Vue::Table);
         assert!(!etat.palette.get_untracked());
         assert_eq!(etat.touchee.get_untracked(), Some(A7));
+    }
+
+    #[test]
+    fn chercher_depuis_la_table_passe_au_fonds() {
+        let etat = Etat::nouveau();
+        etat.choisir_vue(Vue::Table);
+        etat.chercher("eglise".to_string());
+        assert_eq!(etat.vue.get_untracked(), Vue::Fonds);
+        assert_eq!(etat.requete.texte.get_untracked(), "eglise");
+    }
+
+    #[test]
+    fn l_etat_de_synchronisation_dit_sans_noeud_aucune_archive() {
+        let texte = crate::entete::ETAT_DE_SYNCHRONISATION;
+        assert_eq!(texte, "Sans n\u{153}ud \u{b7} aucune archive");
+        assert_eq!(texte.chars().count(), 26);
+        assert_eq!(texte.len(), 28);
     }
 
     /// La valeur d'une propriété de la feuille de style : `--page-l: 209.5;` donne 209,5.
