@@ -10,10 +10,12 @@
 //! champ de texte, annule le dernier geste de tri.
 
 use commandes::{
-    ANNULER, Assiette, BOITE, Boite, COMPLETER, Completer, Contenu, DELIER, ETAT_DU_FONDS,
-    EtatDuFonds, Etiqueter, FENETRE_MAX, Faite, Fenetre, LONGUEUR_D_UNE_LIGNE, LigneDeLaBoite,
-    NOTER, Notee, Noter, OTER_UNE_ETIQUETTE, Ordre, POSER_UNE_ETIQUETTE, Provenance, RELIER,
-    RETABLIR, RETIREES, RETIRER, Relier, Requete, VUE_D_UNE_IDEE, Viser, VueDUneIdee, VueDeLaBoite,
+    ANNULER, Assiette, BOITE, Boite, COMPLETER, Completer, Contenu, DELIER,
+    ENREGISTRER_UNE_REQUETE, ETAT_DU_FONDS, Enregistrer, EtatDuFonds, Etiqueter, FENETRE_MAX,
+    Faite, Fenetre, LONGUEUR_D_UNE_LIGNE, LigneDeLaBoite, NOTER, Notee, Noter, OTER_UNE_ETIQUETTE,
+    Ordre, POSER_UNE_ETIQUETTE, Provenance, RELIER, RENOMMER_UNE_REQUETE, REQUETES_ENREGISTREES,
+    RETABLIR, RETIREES, RETIRER, Relier, Renommer, Requete, RequeteEnregistree,
+    SUPPRIMER_UNE_REQUETE, Supprimer, VUE_D_UNE_IDEE, Viser, VueDUneIdee, VueDeLaBoite,
     VueDesRetirees,
 };
 use leptos::html;
@@ -31,7 +33,8 @@ use crate::app::Etat;
 use crate::entete::choix;
 use crate::natif;
 use crate::recherche::{
-    DUREES, ETATS, PROVENANCES, bornes_de_la_requete, echap_ferme, est_la_recherche,
+    DUREES, ETATS, EtatDeLaRequete, PROVENANCES, bornes_de_la_requete, echap_ferme,
+    est_la_recherche,
 };
 
 /// La marge de la fenêtre, en lignes, de chaque côté de ce qui se voit.
@@ -436,6 +439,42 @@ fn pose_un_critere(requete: &Requete) -> bool {
             }
 }
 
+/// La note d'une requête enregistrée par une version plus récente de Pupitre (CAP-06).
+const NOTE_D_UNE_REQUETE_PLUS_RECENTE: &str =
+    "Cette requête vient d'une version plus récente de Pupitre.";
+
+/// Ce que montre une requête enregistrée : son nom et, si elle vient d'une version plus récente
+/// (`requete: None`), la note qui dit qu'elle ne se lance pas.
+fn ce_que_dit_la_requete(requete: &RequeteEnregistree) -> (String, Option<&'static str>) {
+    (
+        requete.nom.clone(),
+        requete
+            .requete
+            .is_none()
+            .then_some(NOTE_D_UNE_REQUETE_PLUS_RECENTE),
+    )
+}
+
+/// Lance la requête enregistrée `requete` : ses réglages se posent sur la requête de l'écran, et
+/// la liste suit. Vrai si elle est lancée ; celle d'une version plus récente ne l'est pas, et la
+/// requête de l'écran ne change pas.
+fn lancer(etat: EtatDeLaRequete, requete: &RequeteEnregistree) -> bool {
+    match &requete.requete {
+        Some(lue) => {
+            etat.poser(lue);
+            true
+        }
+        None => false,
+    }
+}
+
+/// « Enregistrer la requête » s'offre à une requête qui pose un critère (`pose_un_critere`) et à un
+/// nom qui n'est pas fait de blancs. Les autres refus, un fonds en lecture seule ou un Pupitre
+/// neuf, sont ceux des services, que le bandeau dit.
+fn enregistrer_possible(requete: &Requete, nom: &str) -> bool {
+    pose_un_critere(requete) && !nom.trim().is_empty()
+}
+
 /// La réponse de la requête lue `requete`, que dit sa vue `vue` (`texte_de_la_reponse`) : le
 /// nombre des idées trouvées, ses parts « sans … », ses illisibles et ses interrogées. Une requête
 /// qui ne pose aucun critère rend toute la boîte d'idées, qui est sa réponse : aucun texte de
@@ -644,6 +683,16 @@ pub(crate) struct EtatDeLaBoite {
     /// Un geste de tri, ou l'annulation, est parti, sans relecture encore : une seconde activation
     /// s'ignore.
     geste_en_vol: StoredValue<bool>,
+    /// Les requêtes enregistrées, rangées par nom par la commande qui les lit.
+    requetes: RwSignal<Vec<RequeteEnregistree>>,
+    /// L'identifiant de la requête enregistrée choisie, sur laquelle portent « Renommer » et
+    /// « Supprimer ».
+    requete_choisie: RwSignal<Option<String>>,
+    /// Le champ « Nom » des requêtes enregistrées.
+    nom_de_la_requete: RwSignal<String>,
+    /// Un geste d'une requête enregistrée est parti, sans relecture encore : une seconde
+    /// activation s'ignore.
+    requete_en_vol: StoredValue<bool>,
 }
 
 impl EtatDeLaBoite {
@@ -666,6 +715,31 @@ impl EtatDeLaBoite {
             etiquette: RwSignal::new(String::new()),
             gardee: StoredValue::new(None),
             geste_en_vol: StoredValue::new(false),
+            requetes: RwSignal::new(Vec::new()),
+            requete_choisie: RwSignal::new(None),
+            nom_de_la_requete: RwSignal::new(String::new()),
+            requete_en_vol: StoredValue::new(false),
+        }
+    }
+
+    /// Choisit la requête enregistrée `requete` : « Renommer » et « Supprimer » portent sur elle,
+    /// et le champ « Nom » prend son nom.
+    fn choisir_la_requete(self, requete: &RequeteEnregistree) {
+        self.requete_choisie.set(Some(requete.id.clone()));
+        self.nom_de_la_requete.set(requete.nom.clone());
+    }
+
+    /// La requête enregistrée `id` n'est plus : elle sort de la liste, et, si elle était choisie,
+    /// le choix et le champ « Nom » se vident. La requête de l'écran (`Etat::requete`) reste : seule
+    /// la liste des requêtes enregistrées change.
+    fn oublier_la_requete(self, id: &str) {
+        self.requetes.update(|liste| liste.retain(|r| r.id != id));
+        if self
+            .requete_choisie
+            .with_untracked(|choisie| choisie.as_deref() == Some(id))
+        {
+            self.requete_choisie.set(None);
+            self.nom_de_la_requete.set(String::new());
         }
     }
 
@@ -820,6 +894,15 @@ async fn lire_l_idee(etat: Etat, boite: EtatDeLaBoite, focus: RwSignal<Option<Ci
     leptos::task::tick().await;
     if actif() == Actif::Absent {
         focus.set(Some(Cible::TitreDeLIdee));
+    }
+}
+
+/// Lit les requêtes enregistrées, rangées par nom par la commande ; un refus va au bandeau. Elle se
+/// relit à l'ouverture de la boîte et après chaque geste fait d'une requête enregistrée.
+async fn lire_les_requetes(etat: Etat, boite: EtatDeLaBoite) {
+    match natif::invoquer::<Vec<RequeteEnregistree>>(REQUETES_ENREGISTREES, None).await {
+        Ok(lues) => boite.requetes.set(lues),
+        Err(refus) => etat.apres_un_geste(&Err(refus)),
     }
 }
 
@@ -1275,6 +1358,86 @@ impl Ecran {
         });
     }
 
+    /// Un clic sur la requête enregistrée `requete` : elle se choisit, et se lance si elle est
+    /// lisible (`lancer`) ; celle d'une version plus récente se choisit seulement, pour qu'on
+    /// puisse la renommer ou la supprimer.
+    fn choisir_et_lancer(self, requete: &RequeteEnregistree) {
+        self.boite.choisir_la_requete(requete);
+        lancer(self.etat.requete, requete);
+    }
+
+    /// Enregistre la requête de l'écran sous le nom du champ « Nom ». Un nom de blancs, ou une
+    /// requête sans critère, ne part pas (`enregistrer_possible`) ; les autres refus sont ceux des
+    /// services, au bandeau. Faite, le champ se vide, s'il porte encore ce nom.
+    fn enregistrer_la_requete(self) {
+        let requete = requete_en_cours(self.etat);
+        let nom = self.boite.nom_de_la_requete.get_untracked();
+        if !enregistrer_possible(&requete, &nom) {
+            return;
+        }
+        let (etat, boite) = (self.etat, self.boite);
+        let envoye = nom.clone();
+        self.geste::<Faite>(
+            ENREGISTRER_UNE_REQUETE,
+            argument(&Enregistrer { nom, requete }),
+            |faite| faite.avertissement,
+            boite.requete_en_vol,
+            move |faite| {
+                if faite {
+                    boite.nom_de_la_requete.update(|champ| {
+                        if *champ == envoye {
+                            champ.clear();
+                        }
+                    });
+                    leptos::task::spawn_local(lire_les_requetes(etat, boite));
+                }
+            },
+        );
+    }
+
+    /// Renomme la requête enregistrée choisie du nom du champ « Nom » ; un nom vide ou inchangé est
+    /// un refus des services, que le bandeau dit.
+    fn renommer_la_requete(self) {
+        let Some(requete) = self.boite.requete_choisie.get_untracked() else {
+            return;
+        };
+        let nom = self.boite.nom_de_la_requete.get_untracked();
+        let (etat, boite) = (self.etat, self.boite);
+        self.geste::<Faite>(
+            RENOMMER_UNE_REQUETE,
+            argument(&Renommer { requete, nom }),
+            |faite| faite.avertissement,
+            boite.requete_en_vol,
+            move |faite| {
+                if faite {
+                    leptos::task::spawn_local(lire_les_requetes(etat, boite));
+                }
+            },
+        );
+    }
+
+    /// Supprime la requête enregistrée choisie, sans confirmation (question 19) : ses critères, que
+    /// la requête de l'écran porte peut-être, restent à l'écran.
+    fn supprimer_la_requete(self) {
+        let Some(requete) = self.boite.requete_choisie.get_untracked() else {
+            return;
+        };
+        let (etat, boite) = (self.etat, self.boite);
+        let supprimee = requete.clone();
+        self.geste::<Faite>(
+            SUPPRIMER_UNE_REQUETE,
+            argument(&Supprimer { requete }),
+            |faite| faite.avertissement,
+            boite.requete_en_vol,
+            move |faite| {
+                if faite {
+                    boite.oublier_la_requete(&supprimee);
+                    leptos::task::spawn_local(lire_les_requetes(etat, boite));
+                }
+            },
+        );
+    }
+
     /// Annule le dernier geste de tri ; sans geste à annuler, le refus le dit.
     fn annuler(self) {
         self.faire(ANNULER, None, |_| {});
@@ -1594,6 +1757,8 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
             ecran.au_debut();
         }
     });
+    // Les requêtes enregistrées se lisent à l'ouverture de la boîte.
+    leptos::task::spawn_local(lire_les_requetes(etat, boite));
     // Le focus demandé va à sa cible, dès qu'elle est montée dans le document.
     Effect::new(move |_| {
         let Some(cible) = ecran.focus.get() else {
@@ -1736,6 +1901,10 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
         etat.etat_du_fonds
             .with(|fonds| libelle_d_annulation(fonds.as_ref().and_then(|f| f.a_annuler.as_deref())))
     };
+    let enregistrement_possible =
+        move || enregistrer_possible(&etat.requete.requete(), &boite.nom_de_la_requete.get());
+    let une_requete_est_choisie = move || boite.requete_choisie.with(Option::is_some);
+    let requetes_enregistrees = move || boite.requetes.get();
     let retirees_ouvertes = move || boite.volet.with(|volet| *volet == Volet::Retirees);
     let idee_ouverte = move || boite.volet.with(|volet| matches!(volet, Volet::Idee(_)));
     // La page du fonds vide : aucune idée interrogée (`page_du_fonds_vide`), lue au moins une fois.
@@ -1846,6 +2015,80 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
                     <legend>"Provenance :"</legend>
                     <div class="choix-en-ligne">{provenances}</div>
                 </fieldset>
+                <section class="requetes-enregistrees" aria-labelledby="titre-des-requetes">
+                    <h2 id="titre-des-requetes">"Requêtes enregistrées"</h2>
+                    <ul class="requetes">
+                        <For
+                            each=requetes_enregistrees
+                            key=|r: &RequeteEnregistree| {
+                                format!("{}|{}|{}", r.id, r.nom, r.requete.is_some())
+                            }
+                            children=move |r: RequeteEnregistree| {
+                                let (nom, note) = ce_que_dit_la_requete(&r);
+                                let id = r.id.clone();
+                                let id_de_la_note = format!("note-de-la-requete-{id}");
+                                let choisie = move || {
+                                    boite.requete_choisie.with(|c| c.as_deref() == Some(id.as_str()))
+                                };
+                                view! {
+                                    <li>
+                                        <button
+                                            type="button"
+                                            class="choisir"
+                                            aria-current=move || choisie().then_some("true")
+                                            aria-disabled=note.map(|_| "true")
+                                            aria-describedby=note.map(|_| id_de_la_note.clone())
+                                            on:click=move |_| ecran.choisir_et_lancer(&r)
+                                        >
+                                            {nom}
+                                        </button>
+                                        {note
+                                            .map(|note| {
+                                                view! {
+                                                    <span class="note-de-la-requete" id=id_de_la_note.clone()>
+                                                        {note}
+                                                    </span>
+                                                }
+                                            })}
+                                    </li>
+                                }
+                            }
+                        />
+                    </ul>
+                    <label class="champ">
+                        "Nom"
+                        <input
+                            type="text"
+                            prop:value=move || boite.nom_de_la_requete.get()
+                            on:input=move |ev| boite.nom_de_la_requete.set(event_target_value(&ev))
+                        />
+                    </label>
+                    <div class="gestes">
+                        <button
+                            type="button"
+                            aria-disabled=move || (!enregistrement_possible()).then_some("true")
+                            aria-describedby=move || {
+                                (!enregistrement_possible()).then_some("note-d-enregistrement")
+                            }
+                            on:click=move |_| ecran.enregistrer_la_requete()
+                        >
+                            "Enregistrer la requête"
+                        </button>
+                        <Show when=une_requete_est_choisie>
+                            <button type="button" on:click=move |_| ecran.renommer_la_requete()>
+                                "Renommer"
+                            </button>
+                            <button type="button" on:click=move |_| ecran.supprimer_la_requete()>
+                                "Supprimer"
+                            </button>
+                        </Show>
+                    </div>
+                    <Show when=move || !enregistrement_possible()>
+                        <p id="note-d-enregistrement">
+                            "Une requête s'enregistre avec au moins un critère et un nom."
+                        </p>
+                    </Show>
+                </section>
                 <div class="gestes">
                     <button
                         type="button"

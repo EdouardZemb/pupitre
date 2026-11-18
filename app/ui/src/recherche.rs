@@ -1,11 +1,4 @@
 //! La requête de l'écran et ses touches, en fonctions pures (CAP-06 ; questions 24 et 25).
-#![cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "l'en-tête et le fonds s'en servent à la tâche 12 ; les tests"
-    )
-)]
 
 use commandes::{Bornes, Etat, Jour, ProvenanceDeLIdee, Requete};
 use leptos::prelude::*;

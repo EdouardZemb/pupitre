@@ -385,6 +385,36 @@ textarea {
   gap: 0.5rem;
 }
 
+/* Les requêtes enregistrées : leur titre, leur liste (qui défile au-delà de quelques lignes), le
+   champ « Nom » et les gestes. La note d'une requête plus récente suit son bouton, en toutes
+   lettres : aucune information ne tient à la seule couleur. */
+.requetes-enregistrees {
+  flex: 1 1 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.requetes-enregistrees h2,
+.requetes-enregistrees p {
+  margin: 0;
+}
+
+.requetes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 6rem;
+  overflow-y: auto;
+}
+
+.requetes li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.5rem;
+}
+
 /* Le corps passe à la ligne : à 200 %, le volet passe sous la liste. Une rangée y prend au moins
    la hauteur de son contenu : la colonne de la liste et le volet se mesurent donc sans leur
    contenu (`contain: size`), et chacun défile en lui-même au lieu de faire défiler la page. Leur
