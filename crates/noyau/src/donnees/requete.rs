@@ -1,6 +1,8 @@
 //! Les jours civils et les bornes d'une période : ce qu'un critère de date compare (question 9 ;
 //! CAP-06). Rien ici ne lit l'horloge : le décalage local se reçoit, pour un instant. Puis les
-//! critères d'une requête, et le texte de sa réponse (question 7).
+//! critères d'une requête, et le texte de sa réponse (question 7). Enfin les requêtes enregistrées :
+//! leur écriture, leur lecture, tolérante à une clé ou une valeur d'une version plus récente, et
+//! leur rangement par nom.
 
 use std::collections::BTreeMap;
 
@@ -221,39 +223,56 @@ pub fn texte_de_la_reponse(
     parts.join(" · ")
 }
 
-/// Les deux valeurs d'un état dans le document, `reliee` et `non_reliee` : la seule
-/// correspondance, que l'enregistrement et la lecture partagent.
-const ETATS: [(Etat, &str); 2] = [(Etat::Reliee, "reliee"), (Etat::NonReliee, "non_reliee")];
-
-/// Les deux valeurs d'une provenance dans le document : celles d'une idée (`CAPTEE`, `IMPORTEE`).
-const PROVENANCES: [(ProvenanceDeLIdee, &str); 2] = [
-    (ProvenanceDeLIdee::Captee, CAPTEE),
-    (ProvenanceDeLIdee::Importee, IMPORTEE),
-];
-
-/// Les cinq valeurs d'un contenu dans le document.
-const CONTENUS: [(Contenu, &str); 5] = [
-    (Contenu::TexteDeLIdee, "texte_de_l_idee"),
-    (Contenu::Prise, "prise"),
-    (Contenu::Photo, "photo"),
-    (Contenu::MidiVerse, "midi_verse"),
-    (Contenu::TexteVerse, "texte_verse"),
-];
-
-/// La chaîne que le document range pour `valeur`, d'après `table`.
-fn chaine_de<T: Copy + PartialEq>(table: &[(T, &'static str)], valeur: T) -> Option<&'static str> {
-    table
-        .iter()
-        .find(|(candidate, _)| *candidate == valeur)
-        .map(|(_, chaine)| *chaine)
+/// La chaîne que le document range pour un état : `reliee` ou `non_reliee`. Un `match` exhaustif :
+/// une variante ajoutée sans sa chaîne ne compile pas. C'est la seule correspondance ; la lecture
+/// la parcourt à l'envers, sur la liste des variantes.
+fn chaine_de_l_etat(etat: Etat) -> &'static str {
+    match etat {
+        Etat::Reliee => "reliee",
+        Etat::NonReliee => "non_reliee",
+    }
 }
 
-/// La valeur que `chaine` désigne, d'après `table` ; une chaîne inconnue, `None`.
-fn valeur_de<T: Copy>(table: &[(T, &'static str)], chaine: &str) -> Option<T> {
-    table
-        .iter()
-        .find(|(_, candidate)| *candidate == chaine)
-        .map(|(valeur, _)| *valeur)
+/// Les états, chacun une fois, que la lecture parcourt.
+const ETATS: [Etat; 2] = [Etat::Reliee, Etat::NonReliee];
+
+/// La chaîne que le document range pour une provenance : celles d'une idée (`CAPTEE`, `IMPORTEE`).
+fn chaine_de_la_provenance(provenance: ProvenanceDeLIdee) -> &'static str {
+    match provenance {
+        ProvenanceDeLIdee::Captee => CAPTEE,
+        ProvenanceDeLIdee::Importee => IMPORTEE,
+    }
+}
+
+/// Les provenances, chacune une fois, que la lecture parcourt.
+const PROVENANCES: [ProvenanceDeLIdee; 2] =
+    [ProvenanceDeLIdee::Captee, ProvenanceDeLIdee::Importee];
+
+/// La chaîne que le document range pour un contenu.
+fn chaine_du_contenu(contenu: Contenu) -> &'static str {
+    match contenu {
+        Contenu::TexteDeLIdee => "texte_de_l_idee",
+        Contenu::Prise => "prise",
+        Contenu::Photo => "photo",
+        Contenu::MidiVerse => "midi_verse",
+        Contenu::TexteVerse => "texte_verse",
+    }
+}
+
+/// Les contenus, chacun une fois, que la lecture parcourt.
+const CONTENUS: [Contenu; 5] = [
+    Contenu::TexteDeLIdee,
+    Contenu::Prise,
+    Contenu::Photo,
+    Contenu::MidiVerse,
+    Contenu::TexteVerse,
+];
+
+/// La valeur de `tous` dont `chaine_de` rend `chaine` ; une chaîne inconnue, `None`.
+fn valeur_de<T: Copy>(tous: &[T], chaine_de: fn(T) -> &'static str, chaine: &str) -> Option<T> {
+    tous.iter()
+        .copied()
+        .find(|&valeur| chaine_de(valeur) == chaine)
 }
 
 /// Les clés que pose une requête, une par critère posé, dans l'ordre : le texte (s'il a un mot),
@@ -276,20 +295,18 @@ fn cles_de(requete: &Requete) -> Vec<(&'static str, Simple)> {
     if let Some(secondes) = requete.plus_de_secondes {
         cles.push((PLUS_DE_SECONDES, Simple::Naturel(secondes)));
     }
-    if let Some(chaine) = requete.etat.and_then(|etat| chaine_de(&ETATS, etat)) {
-        cles.push((ETAT, Simple::Chaine(chaine.to_string())));
+    if let Some(etat) = requete.etat {
+        cles.push((ETAT, Simple::Chaine(chaine_de_l_etat(etat).to_string())));
     }
-    if let Some(chaine) = requete
-        .provenance
-        .and_then(|provenance| chaine_de(&PROVENANCES, provenance))
-    {
+    if let Some(provenance) = requete.provenance {
+        let chaine = chaine_de_la_provenance(provenance);
         cles.push((PROVENANCE, Simple::Chaine(chaine.to_string())));
     }
-    if let Some(chaine) = requete
-        .contenu
-        .and_then(|contenu| chaine_de(&CONTENUS, contenu))
-    {
-        cles.push((CONTENU, Simple::Chaine(chaine.to_string())));
+    if let Some(contenu) = requete.contenu {
+        cles.push((
+            CONTENU,
+            Simple::Chaine(chaine_du_contenu(contenu).to_string()),
+        ));
     }
     cles
 }
@@ -312,12 +329,15 @@ fn requete_des_champs(champs: &BTreeMap<String, Option<Simple>>) -> Option<Reque
             (PLUS_DE_SECONDES, Simple::Naturel(secondes)) if *secondes <= ENTIER_SUR => {
                 requete.plus_de_secondes = Some(*secondes);
             }
-            (ETAT, Simple::Chaine(chaine)) => requete.etat = Some(valeur_de(&ETATS, chaine)?),
+            (ETAT, Simple::Chaine(chaine)) => {
+                requete.etat = Some(valeur_de(&ETATS, chaine_de_l_etat, chaine)?)
+            }
             (PROVENANCE, Simple::Chaine(chaine)) => {
-                requete.provenance = Some(valeur_de(&PROVENANCES, chaine)?);
+                requete.provenance =
+                    Some(valeur_de(&PROVENANCES, chaine_de_la_provenance, chaine)?);
             }
             (CONTENU, Simple::Chaine(chaine)) => {
-                requete.contenu = Some(valeur_de(&CONTENUS, chaine)?);
+                requete.contenu = Some(valeur_de(&CONTENUS, chaine_du_contenu, chaine)?);
             }
             _ => return None,
         }
@@ -437,6 +457,5 @@ pub fn ranger_les_requetes(requetes: &mut [RequeteEnregistreeLue]) {
         replier(&a.nom)
             .cmp(&replier(&b.nom))
             .then_with(|| a.nom.cmp(&b.nom))
-            .then_with(|| a.id.cmp(&b.id))
     });
 }

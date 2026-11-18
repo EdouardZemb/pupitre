@@ -1,5 +1,6 @@
 //! Les jours civils et les bornes d'une période (question 9), la requête sans critère, et le texte
-//! de la réponse d'une requête (question 7) ; CAP-06.
+//! de la réponse d'une requête (question 7) ; CAP-06. Puis les requêtes enregistrées : leur
+//! écriture, leur lecture tolérante d'une version plus récente, et leur rangement.
 
 use std::collections::BTreeMap;
 
@@ -724,5 +725,16 @@ fn les_requetes_se_rangent_par_nom_replie() {
     ];
     ranger_les_requetes(&mut requetes);
     let ids: Vec<&str> = requetes.iter().map(|r| &r.id[24..]).collect();
+    assert_eq!(ids, ["01", "02", "04", "03"]);
+    // Le départage par ULID, éprouvé dans les deux permutations : le tri est stable, donc seule
+    // l'entrée où …04 précède …02 le distingue d'un rangement sans lui.
+    let mut inverse = vec![
+        avec("03", "ponts lents"),
+        avec("04", "Ponts lents"),
+        avec("02", "Ponts lents"),
+        avec("01", "Église"),
+    ];
+    ranger_les_requetes(&mut inverse);
+    let ids: Vec<&str> = inverse.iter().map(|r| &r.id[24..]).collect();
     assert_eq!(ids, ["01", "02", "04", "03"]);
 }

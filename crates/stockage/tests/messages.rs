@@ -336,6 +336,15 @@ fn aucun_message_n_est_un_ordre() {
                 duree_ms: 9_007_199_254_740_992,
             },
             Impossible::HorsDeLImport,
+            Impossible::NomVide,
+            Impossible::MemeNom,
+            Impossible::RequeteSansCritere,
+            Impossible::RequeteAbsente {
+                requete: "01HF7YAT000000000000000005".to_string(),
+            },
+            Impossible::SeuilTropLong {
+                secondes: 9_007_199_254_740_992,
+            },
         ]
         .iter()
         .map(ToString::to_string),
