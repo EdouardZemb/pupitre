@@ -116,34 +116,36 @@ pub(crate) fn est_la_recherche(id_de_la_cible: Option<&str>) -> bool {
 
 /// Le jour d'un champ de date : « AAAA-MM-JJ », ou `None` pour un champ vide ou incomplet.
 pub(crate) fn jour_du_champ(valeur: &str) -> Option<Jour> {
-    JourDuNoyau::depuis_iso(valeur).map(|jour| Jour {
+    JourDuNoyau::depuis_iso(valeur).map(jour_des_commandes)
+}
+
+/// Le jour des commandes qui dit `jour`, celui du noyau.
+fn jour_des_commandes(jour: JourDuNoyau) -> Jour {
+    Jour {
         annee: jour.annee,
         mois: jour.mois,
         jour: jour.jour,
-    })
+    }
+}
+
+/// Le jour du noyau qui dit `jour`, celui des commandes.
+fn jour_du_noyau(jour: &Jour) -> JourDuNoyau {
+    JourDuNoyau {
+        annee: jour.annee,
+        mois: jour.mois,
+        jour: jour.jour,
+    }
 }
 
 /// La valeur du champ de date qui dit `jour` ; vide pour un jour absent ou illisible.
 fn champ_du_jour(jour: Option<&Jour>) -> String {
-    jour.map(|jour| {
-        JourDuNoyau {
-            annee: jour.annee,
-            mois: jour.mois,
-            jour: jour.jour,
-        }
-        .en_iso()
-    })
-    .filter(|iso| JourDuNoyau::depuis_iso(iso).is_some())
-    .unwrap_or_default()
+    jour.map(|jour| jour_du_noyau(jour).en_iso())
+        .filter(|iso| JourDuNoyau::depuis_iso(iso).is_some())
+        .unwrap_or_default()
 }
 
 /// Les bornes de la période de `requete`, au décalage que `decalage` dit de chaque instant.
 pub(crate) fn bornes_de_la_requete(requete: &Requete, decalage: impl Fn(i64) -> i32) -> Bornes {
-    let jour_du_noyau = |jour: &Jour| JourDuNoyau {
-        annee: jour.annee,
-        mois: jour.mois,
-        jour: jour.jour,
-    };
     let bornes = requete::bornes_de_la_periode(
         requete.du.as_ref().map(jour_du_noyau),
         requete.au.as_ref().map(jour_du_noyau),
@@ -283,5 +285,76 @@ mod tests {
             ..Requete::default()
         });
         assert_eq!(etat.requete().plus_de_secondes, None);
+    }
+
+    #[test]
+    fn les_choix_des_reglages_sont_ceux_de_la_fiche() {
+        assert_eq!(
+            DUREES,
+            [
+                (None, "Toutes"),
+                (Some(30), "Plus de 30 s"),
+                (Some(60), "Plus d'une minute"),
+                (Some(300), "Plus de 5 min"),
+            ]
+        );
+        assert_eq!(
+            ETATS,
+            [
+                (None, "Toutes"),
+                (Some(Etat::NonReliee), "Non reliées"),
+                (Some(Etat::Reliee), "Reliées"),
+            ]
+        );
+        assert_eq!(
+            PROVENANCES,
+            [
+                (None, "Toutes"),
+                (Some(ProvenanceDeLIdee::Captee), "Captées"),
+                (Some(ProvenanceDeLIdee::Importee), "Importées"),
+            ]
+        );
+    }
+
+    #[test]
+    fn poser_vide_un_jour_illisible_et_un_seuil_hors_tableau() {
+        let owner = Owner::new();
+        owner.set();
+        let etat = EtatDeLaRequete::nouveau();
+        let juste = jour_du_champ("2026-10-25");
+        etat.poser(&Requete {
+            du: juste.clone(),
+            au: juste,
+            ..Requete::default()
+        });
+        assert_eq!(etat.du.get(), "2026-10-25");
+        // Le mois 13, puis le 30 février : aucun ne passe l'aller-retour ISO.
+        let treize = Jour {
+            annee: 2026,
+            mois: 13,
+            jour: 1,
+        };
+        let trente_fevrier = Jour {
+            annee: 2026,
+            mois: 2,
+            jour: 30,
+        };
+        etat.poser(&Requete {
+            du: Some(treize),
+            au: Some(trente_fevrier),
+            plus_de_secondes: Some(300),
+            ..Requete::default()
+        });
+        assert_eq!(etat.du.get(), "");
+        assert_eq!(etat.au.get(), "");
+        assert_eq!(etat.requete().du, None);
+        assert_eq!(etat.requete().au, None);
+        assert_eq!(etat.duree.get(), 3);
+        // Un seuil absent de `DUREES` ramène « Toutes », après un réglage posé.
+        etat.poser(&Requete {
+            plus_de_secondes: Some(45),
+            ..Requete::default()
+        });
+        assert_eq!(etat.duree.get(), 0);
     }
 }
