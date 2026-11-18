@@ -2525,6 +2525,57 @@ mod tests {
     }
 
     #[test]
+    fn le_fonds_vide_se_dit_par_des_constats() {
+        // Dès qu'une idée est interrogée, il n'y a pas de page.
+        assert_eq!(page_du_fonds_vide(1, false), None);
+        assert_eq!(page_du_fonds_vide(12, true), None);
+        assert_eq!(
+            page_du_fonds_vide(0, false),
+            Some([
+                "Le fonds ne porte encore aucune idée.",
+                "Une idée se note dans le champ « Noter une idée »."
+            ])
+        );
+        assert_eq!(
+            page_du_fonds_vide(0, true),
+            Some([
+                "Le fonds ne porte encore aucune idée.",
+                "Le fonds est en lecture seule : le bandeau dit pourquoi."
+            ])
+        );
+        // Un constat, jamais un ordre : aucun texte ne commence par un verbe à l'impératif.
+        for lecture_seule in [false, true] {
+            for texte in page_du_fonds_vide(0, lecture_seule).unwrap() {
+                for verbe in ["Notez", "Importez", "Créez", "Ajoutez", "Commencez"] {
+                    assert!(!texte.starts_with(verbe), "{texte}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn echap_ferme_le_volet_et_rend_le_focus_comme_fermer() {
+        let lues = [ligne_de("a"), ligne_de("b")];
+        // Le volet de l'idée : le focus va à la ligne qui l'a ouvert, comme « Fermer ».
+        assert_eq!(
+            cible_de_fermeture(&Volet::Idee("b".to_string()), &lues),
+            Some(cible_apres_le_volet("b", &lues))
+        );
+        // Sa ligne sortie de la fenêtre lue, à la liste.
+        assert_eq!(
+            cible_de_fermeture(&Volet::Idee("c".to_string()), &lues),
+            Some(Cible::Liste)
+        );
+        // Le volet des retirées : le focus va au bouton « Idées retirées », comme « Fermer ».
+        assert_eq!(
+            cible_de_fermeture(&Volet::Retirees, &lues),
+            Some(Cible::BoutonDesRetirees)
+        );
+        // Aucun volet : rien ne se ferme, le focus ne bouge pas.
+        assert_eq!(cible_de_fermeture(&Volet::Aucun, &lues), None);
+    }
+
+    #[test]
     fn le_focus_rendu_apres_une_perte_ne_fait_pas_defiler_la_liste() {
         // Le focus rendu à la ligne gardée laisse la liste où la molette l'a menée, même si la
         // ligne est cachée dans la marge.
