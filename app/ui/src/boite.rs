@@ -3194,6 +3194,20 @@ mod tests {
     }
 
     #[test]
+    fn le_fonds_devenu_vide_rend_au_champ_de_note_le_focus_de_la_liste() {
+        // La dernière idée retirée, la liste a reçu le focus avant la relecture, et la page du
+        // fonds vide la cache : il va au champ « Noter une idée ».
+        assert_eq!(
+            cible_quand_le_fonds_se_vide(true, true),
+            Some(Cible::ChampDeNote)
+        );
+        // Le focus ailleurs, ou le fonds non vide : il reste où il est.
+        assert_eq!(cible_quand_le_fonds_se_vide(true, false), None);
+        assert_eq!(cible_quand_le_fonds_se_vide(false, true), None);
+        assert_eq!(cible_quand_le_fonds_se_vide(false, false), None);
+    }
+
+    #[test]
     fn echap_ferme_le_volet_et_rend_le_focus_comme_fermer() {
         let lues = [ligne_de("a"), ligne_de("b")];
         // Le volet de l'idée : le focus va à la ligne qui l'a ouvert, comme « Fermer ».
@@ -4020,7 +4034,7 @@ mod tests {
         let etat = EtatDeLaRequete::nouveau();
         let lancee = requete_lancee();
         let enregistree = enregistree("Mes refrains", Some(lancee.clone()));
-        boite.requetes.set(vec![enregistree.clone()]);
+        boite.requetes.set(Some(vec![enregistree.clone()]));
         boite.choisir_et_lancer(etat, &enregistree);
         assert_eq!(boite.requete_choisie.get(), Some(enregistree.id.clone()));
         // Le geste « Supprimer » fait : la liste des requêtes enregistrées change, le choix
@@ -4032,7 +4046,7 @@ mod tests {
             true,
         );
         assert_eq!(cible, Some(Cible::ChampDeNom));
-        assert!(boite.requetes.get().is_empty());
+        assert_eq!(boite.requetes.get(), Some(Vec::new()));
         assert_eq!(boite.requete_choisie.get(), None);
         assert_eq!(boite.nom_de_la_requete.get(), "");
         assert_eq!(etat.requete(), lancee);
@@ -4049,7 +4063,7 @@ mod tests {
         let boite = EtatDeLaBoite::nouveau();
         let etat = EtatDeLaRequete::nouveau();
         let enregistree = enregistree("Mes refrains", Some(requete_lancee()));
-        boite.requetes.set(vec![enregistree.clone()]);
+        boite.requetes.set(Some(vec![enregistree.clone()]));
         boite.choisir_et_lancer(etat, &enregistree);
         let cible = boite.apres_un_geste_de_requete(
             &GesteDeRequete::Supprimer {
@@ -4059,7 +4073,7 @@ mod tests {
         );
         assert_eq!(cible, None);
         assert_eq!(boite.requete_choisie.get(), Some(enregistree.id.clone()));
-        assert_eq!(boite.requetes.get(), vec![enregistree]);
+        assert_eq!(boite.requetes.get(), Some(vec![enregistree]));
         assert_eq!(boite.nom_de_la_requete.get(), "Mes refrains");
         assert_eq!(etat.requete(), requete_lancee());
     }
@@ -4134,6 +4148,21 @@ mod tests {
         boite.choisir_et_lancer(etat, &plus_recente);
         assert_eq!(boite.requete_choisie.get(), Some(plus_recente.id));
         assert_eq!(etat.requete(), deja);
+    }
+
+    #[test]
+    fn une_liste_vide_de_requetes_enregistrees_le_dit() {
+        // Lue et vide : un constat, de la forme d'« Aucune idée retirée. ».
+        let aucune: [RequeteEnregistree; 0] = [];
+        assert_eq!(
+            constat_des_requetes(Some(aucune.as_slice())),
+            Some("Aucune requête enregistrée.")
+        );
+        // Pas encore lue, ou sa lecture refusée : rien, puisque rien n'en est su.
+        assert_eq!(constat_des_requetes(None), None);
+        // Une requête, même d'une version plus récente : la liste la montre, sans constat.
+        let une = [enregistree("Venue d'ailleurs", None)];
+        assert_eq!(constat_des_requetes(Some(une.as_slice())), None);
     }
 
     #[test]
