@@ -80,8 +80,10 @@ jobs:
     # modele-projet). Le 2026-11-18, la PR #47, les requêtes, leur index et le journal compris,
     # n'a passé qu'à chaud (« Cache hit ») : 1 min 49 s (exécution 44254030959) ; la PR #48,
     # avant son passage à froid, dix passages verts à chaud, le plus long en 2 min 45 s
-    # (exécution 44286444480). Un délai ne baisse pas, comme le § 70 · 1 le veut pour la
-    # mutation.
+    # (exécution 44286444480). Le 2026-11-21, la PR #50, les règles de l'import au noyau
+    # comprises, n'a passé qu'à chaud : quatorze passages verts, le plus long en 2 min 44 s
+    # (exécution 44914073744), et 2 min 4 s sur sa tête (exécution 44942319369). Un délai ne
+    # baisse pas, comme le § 70 · 1 le veut pour la mutation.
     timeout-minutes: 13
     permissions:
       contents: read
@@ -185,7 +187,10 @@ jobs:
     # et de l'établi, n'a passé qu'à chaud (« Cache hit ») : 5 min 44 s (exécution 44254030959),
     # dont 2 s pour trunk et tauri-cli ; la PR #48, avant son passage à froid, dix passages verts
     # à chaud, le plus long en 6 min 27 s (exécution 44305210149), dont 1 s pour trunk et
-    # tauri-cli. Un délai ne baisse pas, comme le § 70 · 1 le veut pour la mutation.
+    # tauri-cli. Le 2026-11-21, la PR #50, les règles de l'import au noyau comprises, n'a passé
+    # qu'à chaud : quatorze passages verts, le plus long en 6 min 21 s (exécution 44933288106),
+    # dont 3 s pour trunk et tauri-cli, et 5 min 59 s sur sa tête (exécution 44942319369), dont
+    # 2 s. Un délai ne baisse pas, comme le § 70 · 1 le veut pour la mutation.
     timeout-minutes: 79
     permissions:
       contents: read
@@ -266,18 +271,18 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     # Deux fois le plus long passage complet mesuré, sur quatre cœurs, chaque mutant construisant
-    # aussi les tests du rendu : 851 mutants, le repli, les requêtes, l'index et le journal
+    # aussi les tests du rendu : 1 176 mutants, les règles de l'import comprises, en 89 min 8 s le
+    # 2026-11-21, PR #50 (exécution 44940683399, sur sa branche), à froid (« No cache found. ») ;
+    # deux fois, 178 min 16 s. Avant : 851 mutants, le repli, les requêtes, l'index et le journal
     # compris, en 63 min 33 s le 2026-11-18, PR #47 (exécution 44256246979, sur sa branche), à
-    # chaud (« Cache hit for restore-key ») ; deux fois, 127 min 6 s. Faute d'un passage à froid
-    # (« No cache found. ») sur ce périmètre, le § 70 · 1 admet ce passage à chaud, à remesurer
-    # au premier passage à froid, qui peut durer plus. Avant, à froid :
-    # 638 mutants, la boîte comprise, en 35 min 14 s le 2026-11-16, PR #45 (exécution
-    # 43775891270) ; 488 en 28 min 53 s, PR #37, et 549 en 23 min 59 s, PR #38, le 2026-11-14 ;
-    # 551, sans la boîte, en 24 min 30 s le 2026-11-16, sur main (exécution 43874992227)
-    # (LE-29 de modele-projet). Le job d'une PR mute, au pire, autant ; à chaud, celui de la
-    # PR #47 a muté 245 mutants en 15 min 39 s (exécution 44254030959), et à froid, celui de la
-    # PR #45, 102 en 6 min 23 s (exécution 43775887636).
-    timeout-minutes: 128
+    # chaud (« Cache hit for restore-key ») ; à froid, 638 mutants, la boîte comprise, en
+    # 35 min 14 s le 2026-11-16, PR #45 (exécution 43775891270) ; 488 en 28 min 53 s, PR #37, et
+    # 549 en 23 min 59 s, PR #38, le 2026-11-14 ; 551, sans la boîte, en 24 min 30 s le
+    # 2026-11-16, sur main (exécution 43874992227) (LE-29 de modele-projet). Le job d'une PR
+    # mute, au pire, autant ; à chaud, celui de la PR #50 a muté 332 mutants en 35 min 56 s
+    # (exécution 44936976403), celui de la PR #47, 245 en 15 min 39 s (exécution 44254030959), et
+    # à froid, celui de la PR #45, 102 en 6 min 23 s (exécution 43775887636).
+    timeout-minutes: 179
     permissions:
       contents: read
     steps:
