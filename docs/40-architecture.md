@@ -735,8 +735,13 @@ flowchart LR
     en stems, MIDI et textes versés compris ([ADR-024](adr/adr-024-import-d-un-fonds.md)).
     Les requêtes du fonds, par attribut d'idée et par texte, et les requêtes enregistrées
     ([CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds)), et la vue du
-    fonds, sans ses morceaux
-    ([CAP-07](20-sfd/21-capter-et-organiser.md#cap-07--voir-le-fonds)). L'archive complète
+    fonds ([CAP-07](20-sfd/21-capter-et-organiser.md#cap-07--voir-le-fonds)) : l'en-tête de
+    l'établi, qui porte la recherche et l'état de synchronisation ; la boîte d'idées, dont la
+    liste est la réponse de la requête en cours, avec ses critères et les requêtes
+    enregistrées ; le journal du fonds, à un geste
+    ([§ 50 · 3.1](50-interfaces-et-appareils.md#31-le-fonds)). Elle laisse les morceaux et
+    les albums, qui n'existent pas encore, les captations à envoyer, qui attendent le nœud du
+    lot 3, et la santé du nœud, qui vient au lot 4 avec la page de santé. L'archive complète
     du fonds, critères 4 à 6 de
     [SYN-07](20-sfd/29-socle-donnees-appareils.md#syn-07--exporter-et-importer), et la
     reprise depuis elle d'une racine des données abîmée
@@ -786,8 +791,10 @@ flowchart LR
     ([SYN-05](20-sfd/29-socle-donnees-appareils.md#syn-05--tenir-le-miroir-durable)), la
     sauvegarde et la restauration
     ([SYN-06](20-sfd/29-socle-donnees-appareils.md#syn-06--sauvegarder-et-restaurer)), la
-    page de santé de l'établi ([§ 8](#8-déploiement)). C'est là seulement que « rien ne se
-    perd » est tenu.
+    page de santé de l'établi ([§ 8](#8-déploiement)), et, à un geste de la vue du fonds, la
+    santé du nœud qu'elle montre
+    ([CAP-07](20-sfd/21-capter-et-organiser.md#cap-07--voir-le-fonds)). C'est là seulement
+    que « rien ne se perd » est tenu.
 - **Il prouve** le local-first ([ADR-002](adr/adr-002-local-first.md) : I10, I15, I16), les
   documents et les captations ([ADR-003](adr/adr-003-crdt-et-miroir-durable.md) : I11, I13,
   I14, I28), que rien d'engendré n'est stocké ([ADR-001](adr/adr-001-un-seul-materiau.md) :

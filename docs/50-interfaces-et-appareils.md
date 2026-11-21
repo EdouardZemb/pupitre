@@ -48,8 +48,9 @@ traitée.
 
 ```mermaid
 flowchart TB
-  F["Fonds<br/>catalogue · recherche · santé"]
-  B["Boîte d'idées"]
+  subgraph F["Fonds — catalogue · recherche · santé"]
+    B["Boîte d'idées"]
+  end
   M["Morceau — la frise"]
   S["Section — bloc et occurrences"]
   P["Loupe — motif ou phrase"]
@@ -59,7 +60,6 @@ flowchart TB
   T["Table de la tonalité"]
   L["Lutrin — fiche de travail<br/>feuille d'album · rendus annotés"]
   R["Réglages · appareils · passerelle IA"]
-  F --> B
   F --> M
   F --> A
   F --> R
@@ -78,9 +78,20 @@ flowchart TB
   T -->|"cahier des tables"| L
 ```
 
-Le passage d'une échelle à l'autre est un **zoom sémantique**, pas une navigation de
-pages : on garde le contexte, le fil d'Ariane le montre (`Fonds › Northbound › Refrain ›
-Phrase 2`), et un retour remonte d'un cran sans perdre la sélection.
+La boîte d'idées est une zone du fonds, pas un écran à part
+([§ 3.1](#31-le-fonds)). Le passage d'une échelle à l'autre est un **zoom sémantique**, pas
+une navigation de pages : on garde le contexte, le fil d'Ariane le montre (`Fonds ›
+Northbound › Refrain › Phrase 2`), et un retour remonte d'un cran sans perdre la sélection.
+
+Le fil d'Ariane et le zoom viennent avec les échelles d'INC-2. Au lot 1 d'INC-1, l'établi
+n'a que le fonds et la table, qu'« Afficher » choisit dans l'en-tête de l'établi. Il s'ouvre
+sur le fonds, et chercher depuis la table fait passer au fonds, dont la boîte d'idées montre
+la réponse. Échap ferme le volet ouvert, celui de l'idée, des idées retirées ou du journal du
+fonds, le focus rendu comme par « Fermer ». Sans volet ouvert, ou pendant une composition,
+rien ne se ferme et le focus ne bouge pas ; dans la recherche, Échap garde son sens du
+navigateur, qui vide le champ, et ne ferme aucun volet. Hors d'un champ de texte, `/` porte
+le focus dans la recherche, du fonds comme de la table, sans s'y écrire ; dans un champ, il
+s'écrit.
 
 | Geste de zoom | 💻 Établi | 📱 Carnet |
 |---|---|---|
@@ -102,10 +113,20 @@ sont dessinées en noir et blanc à dessein : ce qui se lit sans couleur se lira
 
 | Zone | Contenu |
 |---|---|
-| Bandeau | Recherche ; état de synchronisation (« Sans nœud · archive du 3 nov. » tant qu'aucun nœud n'est appairé, puis « À jour · il y a 2 min », ou « Hors ligne · 3 captations à envoyer », [§ 31 · 4.3](31-persistance-et-synchronisation.md#43-létat-visible-de-la-synchronisation)) |
-| Boîte d'idées | Le nombre d'idées non reliées, **sans** compteur d'ancienneté ni alerte (N2) |
+| En-tête de l'établi | Recherche ; état de synchronisation (« Sans nœud · aucune archive » avant toute archive complète, « Sans nœud · archive du 3 nov. » tant qu'aucun nœud n'est appairé, puis « À jour · il y a 2 min », ou « Hors ligne · 3 captations à envoyer », [§ 31 · 4.3](31-persistance-et-synchronisation.md#43-létat-visible-de-la-synchronisation)) ; « Afficher » : Fonds ou Table |
+| Boîte d'idées | Le nombre d'idées non reliées, **sans** compteur d'ancienneté ni alerte (N2) ; la liste, réponse de la requête en cours, et ses critères ([CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds)) ; les requêtes enregistrées ; les idées retirées et le journal du fonds, chacun à un geste ; dans un fonds vide, la page qui le dit ([CAP-07](20-sfd/21-capter-et-organiser.md#cap-07--voir-le-fonds)) |
 | Morceaux | Une ligne par morceau : titre, statut, tonalité, tempo, durée engendrée, **maturité** par dimension, part d'origine à la demande |
 | Albums | Leurs ordres, leur ordre retenu, leur cardinal **engendré** |
+
+Le bandeau, quand un état, un avertissement ou un refus l'occupe, se place au-dessus de
+l'en-tête de l'établi : ce n'est pas une zone du fonds, et l'état de synchronisation n'en est
+pas un ([glossaire](80-glossaire.md)). Au lot 1 d'INC-1, la vue du fonds n'a que l'en-tête de
+l'établi et la boîte d'idées : les morceaux et les albums attendent INC-2 et INC-5, les
+captations à envoyer le nœud du lot 3, et la santé du nœud le lot 4
+([§ 40 · 9](40-architecture.md#9-trajectoire-de-construction)). Une ligne de la liste date son
+idée sans heure (« 3 nov. 2026 ») et ouvre l'idée entière ; elle ne marque pas le mot trouvé.
+Une ligne du journal du fonds a la hauteur fixe de trois lignes de texte, où son message passe
+à la ligne : il ne se coupe qu'au-delà de la troisième.
 
 ### 3.2 Le morceau — la frise
 
@@ -206,7 +227,7 @@ La maquette n'est plus un dessin : c'est la page que le noyau rend, à 11 pt au 
 | **Accord employé** ([MOR-14](20-sfd/24-morceau.md#mor-14--poser-le-morceau-sur-la-table)) | Le cadre de sa famille, de même forme, en **trait épais**, et son nombre d'emplois en haut à droite : `× 3`. Dans la section choisie, chaque accord porte en haut à gauche son numéro d'ordre (`1 · 5` pour un accord joué deux fois). Le chemin se lit par ces numéros, sans trait : un trait se confondrait avec une flèche de résolution. Un accord proposé et non décidé porte `~` (§ 4.1). Un accord absent des rangées affichées est listé sous la table, « hors table » |
 | **Emprunt** | Dans la table, aucun nom ne porte l'astérisque de la grille (§ 6.2) : la rangée et le cadre disent la famille, y compris pour les accords hors tonalité des dominantes secondaires et de la couche sombre |
 | **Toucher une case** | Sur l'établi et le carnet, la case s'écoute, et sa cible passe en inverse, fond noir et texte blanc. Au lutrin, la case s'écoute et rien ne bouge à l'écran ([arbitrage A19](90-questions-ouvertes.md#les-arbitrages-pris-dans-cette-conception)) : les flèches y sont toujours dessinées |
-| **Gestes de l'établi et du carnet** | Après un toucher, deux boutons s'affichent au bas de la case touchée, par-dessus sa ligne d'effet, que la palette redit : « Palette », qui ouvre la palette de l'accord ([MIC-13](20-sfd/22-micro-motif-et-phrase.md#mic-13--lire-la-palette-dun-accord)), et, depuis un morceau ouvert, « Prendre », qui insère l'accord à la position courante ([MIC-12](20-sfd/22-micro-motif-et-phrase.md#mic-12--parcourir-la-table-de-la-tonalité)). La palette s'ouvre à droite de la table : c'est la fiche de l'accord, une page de la largeur d'une colonne de la table, marges comprises (37,2 mm), dont la hauteur suit le contenu. La tonalité se change dans l'en-tête, d'un geste ; la couche sombre s'y affiche ou s'y masque. Les flèches sont dessinées sur les trois appareils. Au lutrin, page fixe, on ne prend rien : on prend à l'établi ou au carnet ([Q22](90-questions-ouvertes.md#q22--peut-on-prendre-un-accord-de-la-table-au-lutrin-)) |
+| **Gestes de l'établi et du carnet** | Après un toucher, deux boutons s'affichent au bas de la case touchée, par-dessus sa ligne d'effet, que la palette redit : « Palette », qui ouvre la palette de l'accord ([MIC-13](20-sfd/22-micro-motif-et-phrase.md#mic-13--lire-la-palette-dun-accord)), et, depuis un morceau ouvert, « Prendre », qui insère l'accord à la position courante ([MIC-12](20-sfd/22-micro-motif-et-phrase.md#mic-12--parcourir-la-table-de-la-tonalité)). La palette s'ouvre à droite de la table : c'est la fiche de l'accord, une page de la largeur d'une colonne de la table, marges comprises (37,2 mm), dont la hauteur suit le contenu. La tonalité se change d'un geste dans l'en-tête de la table, que porte, sur l'établi, l'en-tête de l'établi ; la couche sombre s'y affiche ou s'y masque. Les flèches sont dessinées sur les trois appareils. Au lutrin, page fixe, on ne prend rien : on prend à l'établi ou au carnet ([Q22](90-questions-ouvertes.md#q22--peut-on-prendre-un-accord-de-la-table-au-lutrin-)) |
 | **Diagrammes** | Avec l'instrument réglé, chaque case peut porter son diagramme ([REN-04](20-sfd/28-rendus-encre-impression.md#ren-04--diagrammes-de-manche) ou [REN-08](20-sfd/28-rendus-encre-impression.md#ren-08--diagrammes-de-clavier)). Au lutrin, ceux des accords du centre passent au verso, avec leurs palettes |
 
 ---
@@ -276,7 +297,9 @@ du glyphe) pour répondre à « qu'est-ce qui est de ma main ? »
   engendrés des diagnostics.
 - **Toujours l'assiette** d'un chiffre agrégé : « 3 morceaux en mi mineur · 6 dont la
   tonalité n'est pas décidée · 41 interrogés »
-  ([CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds)).
+  ([CAP-06](20-sfd/21-capter-et-organiser.md#cap-06--interroger-le-fonds)). Celle d'une
+  requête sur les idées dit ses parts « sans … » et ses illisibles : « 4 idées · 3 sans
+  durée · 1 illisible · 13 interrogées ».
 - **Le vocabulaire du [glossaire](80-glossaire.md)**, et lui seul.
 - **Aucune urgence fabriquée** : ni « vous n'avez pas ouvert ce morceau depuis 12 jours »,
   ni série, ni badge rouge.
@@ -372,7 +395,7 @@ couleurs. S'y ajoutent :
 
 | Exigence | Mise en œuvre |
 |---|---|
-| Tout se fait au clavier sur l'établi | Ordre de tabulation, raccourcis documentés, focus visible |
+| Tout se fait au clavier sur l'établi | Ordre de tabulation, raccourcis documentés, focus visible. Chaque raccourci se documente par `aria-keyshortcuts`, sur le contrôle qu'il sert : `/` sur la recherche, dont l'aide le dit aussi (« / porte le focus ici, depuis le fonds comme depuis la table »), `Control+Z` sur « Annuler », `Escape` sur le « Fermer » de chaque volet |
 | Lecteurs d'écran | Libellés sur les éléments graphiques : une pastille de fonction annonce « dominante » |
 | Mouvement réduit | Respect du réglage du système, et mode encre sans aucune animation |
 | Agrandissement | Interface utilisable à 200 % sans perte d'information |

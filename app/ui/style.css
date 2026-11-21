@@ -38,6 +38,24 @@ body {
   border-bottom: 1px solid #000;
 }
 
+/* La recherche : son libellé, son champ et son aide se lisent en colonne. */
+.recherche {
+  display: flex;
+  flex-direction: column;
+  min-width: 14rem;
+}
+
+.recherche input {
+  font: inherit;
+  border: 1px solid #000;
+  padding: 0.125rem 0.25rem;
+}
+
+.etat-de-synchronisation {
+  margin: 0;
+  align-self: center;
+}
+
 fieldset {
   margin: 0;
   padding: 0.125rem 0.5rem 0.25rem;
@@ -274,14 +292,20 @@ button[aria-disabled="true"] {
 
 /* --- La boîte d'idées ------------------------------------------------------------------- */
 
-/* Sous l'en-tête : en tête, le champ de note, les comptes, l'ordre, le contenu et les gestes ;
-   dessous, la liste, et à sa droite le volet. `--ligne` est la hauteur fixe d'une ligne de la
-   liste ; l'étalon, hors du flux et sans place, en mesure cent. */
+/* Sous l'en-tête de l'établi : en tête, le champ de note, les comptes, « Ranger par : », les
+   critères de la requête en cours, les requêtes enregistrées et les gestes ; dessous, la liste,
+   ou la page d'un fonds vide, et à sa droite le volet. Plus haute que la place sous l'en-tête
+   (un petit écran, 200 %), la boîte défile en elle-même : l'en-tête, et l'état de
+   synchronisation qu'il porte, restent vus au lieu de partir avec la page. La liste et le volet
+   gardent chacun leur défilement. `--ligne` est la hauteur fixe d'une ligne de la liste, et
+   d'une idée retirée ; l'étalon de la boîte, hors du flux et sans place, en mesure cent. Une
+   ligne du journal a sa propre hauteur, et son propre étalon (`.volet-du-journal`). */
 .boite {
   --ligne: 2.5rem;
   position: relative;
   flex: 1;
   min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -320,13 +344,21 @@ button[aria-disabled="true"] {
   flex: 1 1 100%;
 }
 
+/* Les champs de la boîte, ceux des critères compris : « Date : » et « Étiquette : ». */
 input[type="text"],
+input[type="date"],
+select,
 textarea {
   font: inherit;
   color: #000;
   background: #fff;
   border: 1px solid #000;
   padding: 0.25rem 0.5rem;
+}
+
+/* Un champ de date suit son libellé, « du » ou « au », sur la même ligne. */
+.choix input[type="date"] {
+  margin-left: 0.25rem;
 }
 
 textarea {
@@ -359,11 +391,42 @@ textarea {
   gap: 0.5rem;
 }
 
+/* Les requêtes enregistrées : leur titre, leur liste (qui défile au-delà de quelques lignes), le
+   champ « Nom » et les gestes. La note d'une requête plus récente suit son bouton, en toutes
+   lettres : aucune information ne tient à la seule couleur. */
+.requetes-enregistrees {
+  flex: 1 1 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.requetes-enregistrees h2,
+.requetes-enregistrees p {
+  margin: 0;
+}
+
+.requetes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 6rem;
+  overflow-y: auto;
+}
+
+.requetes li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.5rem;
+}
+
 /* Le corps passe à la ligne : à 200 %, le volet passe sous la liste. Une rangée y prend au moins
    la hauteur de son contenu : la colonne de la liste et le volet se mesurent donc sans leur
-   contenu (`contain: size`), et chacun défile en lui-même au lieu de faire défiler la page. Leur
-   base de flex reste une longueur : sans contenu, une base `auto` serait nulle, et le volet ne
-   passerait plus sous la liste. */
+   contenu (`contain: size`), et chacun défile en lui-même au lieu d'allonger la boîte ; deux
+   rangées plus hautes que le corps, la boîte défile jusqu'au volet. Leur base de flex reste une
+   longueur : sans contenu, une base `auto` serait nulle, et le volet ne passerait plus sous la
+   liste. */
 .boite-corps {
   flex: 1;
   min-height: 12rem;
@@ -382,6 +445,17 @@ textarea {
   border: 1px solid #000;
 }
 
+/* La page d'un fonds vide : deux constats, sous les titres de colonnes ; la liste, vide, reste
+   dessous. */
+.fonds-vide {
+  flex: none;
+  padding: 0.75rem 0.5rem;
+}
+
+.fonds-vide p {
+  margin: 0;
+}
+
 /* Les cases d'une ligne, et leurs titres, en colonnes de même proportion : à 200 %, chacune se
    resserre, et son texte se coupe. */
 .cellules {
@@ -398,6 +472,10 @@ textarea {
 
 .cellules.retiree {
   grid-template-columns: minmax(0, 7fr) minmax(0, 20fr) minmax(0, 9fr);
+}
+
+.cellules.journal {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .cellule {
@@ -433,6 +511,12 @@ textarea {
   min-height: 0;
   overflow-y: auto;
   scrollbar-gutter: stable;
+}
+
+/* Sous la page d'un fonds vide, la liste reste montée, et mesurable, mais ni vue, ni dans l'ordre
+   de Tab, ni dans l'arbre d'accessibilité. */
+.liste.cachee {
+  visibility: hidden;
 }
 
 .liste:focus-visible {
@@ -486,7 +570,8 @@ input[type="checkbox"] {
   padding: 0.125rem 0.5rem;
 }
 
-/* Le volet : l'idée choisie, ou les idées retirées. */
+/* Le volet : l'idée choisie, les idées retirées, ou le journal du fonds. Les deux derniers
+   portent une liste en fenêtre, qui défile seule. */
 .volet {
   flex: 1 1 20rem;
   min-width: 0;
@@ -500,13 +585,42 @@ input[type="checkbox"] {
   overflow-y: auto;
 }
 
-.volet-des-retirees {
+.volet-des-retirees,
+.volet-du-journal {
   overflow: hidden;
 }
 
-.volet-des-retirees .liste {
+.volet-des-retirees .liste,
+.volet-du-journal .liste {
   min-height: 8rem;
   border-top: 1px solid #000;
+}
+
+/* Une ligne du journal tient trois lignes de texte, où son message passe à la ligne : il ne se
+   coupe qu'au-delà de la troisième, par une ellipse. `--ligne-du-journal` est sa hauteur fixe ;
+   elle s'écrit en rem, comme l'interligne, et suit la police : trois lignes de 1.25rem et leur
+   marge, le filet du bas compris, y tiennent, à 100 % comme à 200 %. L'étalon du journal, monté
+   dans le volet, en mesure cent, comme celui de la boîte en mesure cent de la liste : chaque liste
+   se mesure sur la hauteur de ses lignes. */
+.volet-du-journal {
+  --ligne-du-journal: 4.5rem;
+}
+
+.volet-du-journal .etalon > div {
+  height: calc(100 * var(--ligne-du-journal));
+}
+
+.volet-du-journal .ligne {
+  height: var(--ligne-du-journal);
+}
+
+.cellules.journal .cellule {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-height: 1.25rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .volet-haut {

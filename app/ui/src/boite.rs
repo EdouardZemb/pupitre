@@ -1,24 +1,34 @@
-//! La boîte d'idées à l'écran (CAP-02 ; questions 25 à 30). En tête, le champ « Noter une idée »,
-//! toujours présent, le compte, et sous un filtre son nombre, « Ranger par : », « Contenu : » et
-//! les gestes : relier, annuler, les idées retirées. Dessous, la liste en fenêtre, des lignes de
-//! hauteur fixe que suivent son défilement et la taille de la fenêtre de l'application, jamais
-//! une minuterie (I18) ; à sa droite, le volet de l'idée choisie, ou celui des idées retirées.
-//! Après chaque commande, l'interface relit l'état du fonds et les fenêtres, et le bandeau reçoit
-//! l'issue ; seul le refus d'une lecture y passe, jamais une lecture réussie. `Ctrl+Z`, hors d'un
-//! champ de texte, annule le dernier geste de tri.
+//! La boîte d'idées à l'écran, zone du fonds (CAP-02, CAP-06, CAP-07 ; questions 25 à 30). En
+//! tête, le champ « Noter une idée », toujours présent, le compte, et sous une requête qui pose un
+//! critère sa réponse, « Ranger par : », les critères de la requête en cours (« Contenu : »,
+//! « Date : », « Étiquette : », « Durée : », « État : », « Provenance : »), les requêtes
+//! enregistrées (les choisir, en enregistrer une, la renommer, la supprimer) et les gestes :
+//! relier, annuler, les idées retirées, le journal du fonds. Dessous, la liste en fenêtre, réponse
+//! de la requête en cours, des lignes de hauteur fixe que suivent son défilement et la taille de
+//! la fenêtre de l'application, jamais une minuterie (I18) ; sans idée interrogée, la page du
+//! fonds vide la cache et dit, par des constats, ce qu'il en est. À droite de la liste, le volet
+//! de l'idée choisie, celui des idées retirées, ou celui du journal du fonds, en lecture seule ;
+//! Échap ferme le volet ouvert comme « Fermer », sauf dans la recherche. Après chaque commande,
+//! l'interface relit l'état du fonds et les fenêtres, et le bandeau reçoit l'issue ; seul le
+//! refus d'une lecture y passe, jamais une lecture réussie. `Ctrl+Z`, hors d'un champ de texte,
+//! annule le dernier geste de tri.
 
 use commandes::{
-    ANNULER, Assiette, BOITE, Boite, Bornes, COMPLETER, Completer, Contenu, DELIER, ETAT_DU_FONDS,
-    EtatDuFonds, Etiqueter, FENETRE_MAX, Faite, Fenetre, LONGUEUR_D_UNE_LIGNE, LigneDeLaBoite,
-    NOTER, Notee, Noter, OTER_UNE_ETIQUETTE, Ordre, POSER_UNE_ETIQUETTE, Provenance, RELIER,
-    RETABLIR, RETIREES, RETIRER, Relier, Requete, VUE_D_UNE_IDEE, Viser, VueDUneIdee, VueDeLaBoite,
-    VueDesRetirees,
+    ANNULER, Assiette, BOITE, Boite, COMPLETER, Completer, Contenu, DELIER,
+    ENREGISTRER_UNE_REQUETE, ETAT_DU_FONDS, Enregistrer, EntreeDuJournal, EtatDuFonds, Etiqueter,
+    FENETRE_MAX, Faite, Fenetre, JOURNAL, LONGUEUR_D_UNE_LIGNE, LigneDeLaBoite, NOTER, Notee,
+    Noter, OTER_UNE_ETIQUETTE, Ordre, POSER_UNE_ETIQUETTE, Provenance, RELIER,
+    RENOMMER_UNE_REQUETE, REQUETES_ENREGISTREES, RETABLIR, RETIREES, RETIRER, Relier, Renommer,
+    Requete, RequeteEnregistree, SUPPRIMER_UNE_REQUETE, Supprimer, VUE_D_UNE_IDEE, Viser,
+    VueDUneIdee, VueDeLaBoite, VueDesRetirees, VueDuJournal,
 };
 use leptos::html;
 use leptos::prelude::*;
 use leptos::web_sys::{Element, HtmlElement, HtmlInputElement, HtmlTextAreaElement, Node};
 use noyau::donnees::boite::{date_de_la_liste, duree_affichee, etiquette_saisie, texte_du_compte};
 use noyau::donnees::idee;
+use noyau::donnees::journal::{empreinte_courte, heure_du_journal};
+use noyau::donnees::repli::mots;
 use noyau::donnees::requete::{self, texte_de_la_reponse};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -27,13 +37,46 @@ use wasm_bindgen::JsCast;
 use crate::app::Etat;
 use crate::entete::choix;
 use crate::natif;
+use crate::recherche::{
+    DUREES, ETATS, EtatDeLaRequete, PROVENANCES, bornes_de_la_requete, echap_ferme,
+    est_la_recherche,
+};
 
 /// La marge de la fenêtre, en lignes, de chaque côté de ce qui se voit.
 pub(crate) const MARGE: u32 = 5;
 
-/// Les lignes que mesure l'étalon de la feuille de style, `calc(100 * var(--ligne))` : sa hauteur,
-/// en pixels entiers, donne celle d'une ligne à un centième de pixel près.
+/// Les lignes que mesure chaque étalon de la feuille de style (`Etalon`),
+/// `calc(100 * var(--ligne))` ou `calc(100 * var(--ligne-du-journal))` : sa hauteur, en pixels
+/// entiers, donne celle d'une ligne à un centième de pixel près.
 const LIGNES_DE_L_ETALON: f64 = 100.0;
+
+/// Un étalon de la feuille de style, hors du flux et sans place : il mesure cent lignes d'une
+/// liste en fenêtre (`LIGNES_DE_L_ETALON`). Celui de la boîte mesure les lignes de la boîte d'idées
+/// et des idées retirées, de hauteur `--ligne` ; celui du journal, dans son volet, les lignes du
+/// journal du fonds, de hauteur `--ligne-du-journal`, qui tiennent trois lignes de texte. Chaque
+/// liste se mesure ainsi sur la hauteur de ses lignes, et sa piste se pose sur la même.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Etalon {
+    Boite,
+    Journal,
+}
+
+impl Etalon {
+    /// La propriété de la feuille de style qui porte la hauteur fixe d'une ligne que l'étalon
+    /// mesure.
+    fn hauteur_d_une_ligne(self) -> &'static str {
+        match self {
+            Etalon::Boite => "--ligne",
+            Etalon::Journal => "--ligne-du-journal",
+        }
+    }
+
+    /// La hauteur de `lignes` lignes que l'étalon mesure, en CSS : celle de la piste d'une liste,
+    /// ou le haut de ses lignes rendues.
+    fn hauteur(self, lignes: u64) -> String {
+        format!("calc({lignes} * var({}))", self.hauteur_d_une_ligne())
+    }
+}
 
 /// Ce qu'écrit une case vide (question 25).
 const CASE_VIDE: &str = "—";
@@ -48,8 +91,9 @@ const ORDRES: [(Ordre, &str); 5] = [
     (Ordre::Provenance, "provenance"),
 ];
 
-/// Les choix de « Contenu : », chacun avec son libellé ; tout d'abord, sans filtre (question 22).
-const CONTENUS: [(Option<Contenu>, &str); 6] = [
+/// Les choix de « Contenu : », chacun avec son libellé ; tout d'abord, sans critère de contenu
+/// (question 22).
+pub(crate) const CONTENUS: [(Option<Contenu>, &str); 6] = [
     (None, "tout"),
     (Some(Contenu::TexteDeLIdee), "texte de l'idée"),
     (Some(Contenu::Prise), "prise"),
@@ -203,6 +247,25 @@ pub(crate) fn libelle_d_annulation(a_annuler: Option<&str>) -> String {
     }
 }
 
+/// La page d'un fonds vide, quand aucune idée n'est interrogée (`considerees` vaut 0, Pupitre neuf
+/// compris) : deux constats, jamais un ordre. Le premier dit la boîte d'idées vide, ce qui reste
+/// vrai quand toutes les idées sont retirées : seule une idée retirée quitte la boîte, et le fonds
+/// la garde. En lecture seule, le second renvoie au bandeau. Une recherche qui ne trouve rien
+/// n'est pas un fonds vide : ses idées sont interrogées, et la liste vide dit son compte.
+pub(crate) fn page_du_fonds_vide(
+    considerees: u64,
+    lecture_seule: bool,
+) -> Option<[&'static str; 2]> {
+    (considerees == 0).then_some([
+        "La boîte d'idées est vide.",
+        if lecture_seule {
+            "Le fonds est en lecture seule : le bandeau dit pourquoi."
+        } else {
+            "Une idée se note dans le champ « Noter une idée »."
+        },
+    ])
+}
+
 /// `Ctrl+Z` annule un geste de tri hors d'un champ de texte seulement ; `Ctrl+Maj+Z`, qui donne
 /// « Z », aussi.
 pub(crate) fn ctrl_z_annule(touche: &str, ctrl: bool, dans_un_champ: bool) -> bool {
@@ -315,9 +378,36 @@ pub(crate) fn etiquettes_de_la_ligne(ligne: &LigneDeLaBoite) -> String {
     ligne
         .etiquettes
         .iter()
-        .map(|etiquette| format!("#{etiquette}"))
+        .map(String::as_str)
+        .map(etiquette_ecrite)
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+/// L'étiquette `nom` écrite comme la liste l'écrit, et comme « Étiquette : » l'offre : `#nom`.
+fn etiquette_ecrite(nom: &str) -> String {
+    format!("#{nom}")
+}
+
+/// L'étiquette que dit la valeur du choix fait dans « Étiquette : » : « Toutes », de valeur vide,
+/// n'en pose aucune (`None`), puisqu'une étiquette vide ne trouverait rien ; une autre valeur est
+/// le nom de l'étiquette.
+fn etiquette_du_choix(valeur: &str) -> Option<String> {
+    (!valeur.is_empty()).then(|| valeur.to_string())
+}
+
+/// Les étiquettes que « Étiquette : » offre après « Toutes » : celles du fonds, `du_fonds`, et
+/// l'étiquette `choisie` si le fonds ne la porte plus (une étiquette ôtée, une requête posée),
+/// pour que le choix fait se voie ; chacune une fois, dans l'ordre de leurs octets.
+fn etiquettes_a_choisir(du_fonds: &[String], choisie: Option<&str>) -> Vec<String> {
+    let mut etiquettes = du_fonds.to_vec();
+    if let Some(choisie) = choisie
+        && !etiquettes.iter().any(|etiquette| etiquette == choisie)
+    {
+        etiquettes.push(choisie.to_string());
+        etiquettes.sort();
+    }
+    etiquettes
 }
 
 pub(crate) fn etat_de_la_ligne(ligne: &LigneDeLaBoite) -> &'static str {
@@ -371,6 +461,79 @@ fn sans_au_noyau(sans: &commandes::Sans) -> requete::Sans {
     }
 }
 
+/// La requête pose au moins un critère : un mot dans son texte (`repli::mots`), ou un critère hors
+/// du texte ; un texte sans mot, « … », n'en pose aucun. C'est l'inverse de `Requete::est_vide` du
+/// noyau, recopié sur la requête des commandes, que l'interface ne convertit pas : la règle reste
+/// hors mutation, et le test `pose_un_critere_dit_comme_le_noyau` garde qu'elle suit `est_vide`.
+fn pose_un_critere(requete: &Requete) -> bool {
+    !mots(&requete.texte).is_empty()
+        || *requete
+            != Requete {
+                texte: requete.texte.clone(),
+                ..Requete::default()
+            }
+}
+
+/// La note d'une requête enregistrée par une version plus récente de Pupitre (CAP-06).
+const NOTE_D_UNE_REQUETE_PLUS_RECENTE: &str =
+    "Cette requête vient d'une version plus récente de Pupitre.";
+
+/// Ce que dit, après la note, une requête d'une version plus récente : elle ne se lance pas, mais
+/// choisie elle se renomme ou se supprime. Son bouton lit les deux phrases (`aria-describedby`).
+const PRECISION_D_UNE_REQUETE_PLUS_RECENTE: &str =
+    "Elle ne se lance pas : choisie, elle se renomme ou se supprime.";
+
+/// Le constat d'une liste de requêtes enregistrées lue et vide, de la forme d'« Aucune idée
+/// retirée. ». Rien avant la première lecture, ou quand la lecture est refusée, puisque rien n'en
+/// est su ; rien non plus quand la liste porte une requête.
+fn constat_des_requetes(lues: Option<&[RequeteEnregistree]>) -> Option<&'static str> {
+    lues.is_some_and(<[RequeteEnregistree]>::is_empty)
+        .then_some("Aucune requête enregistrée.")
+}
+
+/// Ce que montre une requête enregistrée : son nom et, si elle vient d'une version plus récente
+/// (`requete: None`), la note qui dit qu'elle ne se lance pas.
+fn ce_que_dit_la_requete(requete: &RequeteEnregistree) -> (String, Option<&'static str>) {
+    (
+        requete.nom.clone(),
+        requete
+            .requete
+            .is_none()
+            .then_some(NOTE_D_UNE_REQUETE_PLUS_RECENTE),
+    )
+}
+
+/// Lance la requête enregistrée `requete` : ses réglages se posent sur la requête de l'écran, et
+/// la liste suit. Vrai si elle est lancée ; celle d'une version plus récente ne l'est pas, et la
+/// requête de l'écran ne change pas.
+fn lancer(etat: EtatDeLaRequete, requete: &RequeteEnregistree) -> bool {
+    match &requete.requete {
+        Some(lue) => {
+            etat.poser(lue);
+            true
+        }
+        None => false,
+    }
+}
+
+/// « Enregistrer la requête » s'offre à une requête qui pose un critère (`pose_un_critere`) et à un
+/// nom qui n'est pas fait de blancs. Les autres refus, un fonds en lecture seule ou un Pupitre
+/// neuf, sont ceux des services, que le bandeau dit.
+fn enregistrer_possible(requete: &Requete, nom: &str) -> bool {
+    pose_un_critere(requete) && !nom.trim().is_empty()
+}
+
+/// La réponse de la requête lue `requete`, que dit sa vue `vue` (`texte_de_la_reponse`) : le
+/// nombre des idées trouvées, ses parts « sans … », ses illisibles et ses interrogées. Une requête
+/// qui ne pose aucun critère rend toute la boîte d'idées, qui est sa réponse : aucun texte de
+/// réponse ne se dit.
+fn texte_de_la_requete(vue: &VueDeLaBoite, requete: &Requete) -> Option<String> {
+    pose_un_critere(requete).then(|| {
+        let (retenues, assiette, illisibles) = au_noyau(vue.retenues, &vue.assiette_de_la_requete);
+        texte_de_la_reponse(retenues, assiette, illisibles, sans_au_noyau(&vue.sans))
+    })
+}
+
 /// La date de la liste de l'instant `le`, au décalage local de cet instant (question 24).
 fn date_locale(le: i64) -> String {
     date_de_la_liste(le, natif::decalage_a(le))
@@ -415,7 +578,7 @@ fn cle_de_la_ligne(ligne: &LigneDeLaBoite) -> String {
 
 /// Vrai si la touche part d'un champ de texte, reconnu à la cible de l'événement : un
 /// `<textarea>`, ou un `<input>` qui n'est ni une case à cocher, ni un bouton radio, ni un bouton.
-fn dans_un_champ_de_texte(ev: &leptos::ev::KeyboardEvent) -> bool {
+pub(crate) fn dans_un_champ_de_texte(ev: &leptos::ev::KeyboardEvent) -> bool {
     let Some(cible) = ev.target() else {
         return false;
     };
@@ -439,7 +602,8 @@ fn dans_un_champ_de_texte(ev: &leptos::ev::KeyboardEvent) -> bool {
 }
 
 /// Le défilement de la liste montée `liste`, sa hauteur vue, et la hauteur d'une ligne, que donne
-/// l'étalon monté `etalon`, en pixels ; rien si l'une ou l'autre n'est pas montée.
+/// l'étalon monté `etalon`, celui qui mesure les lignes de cette liste, en pixels ; rien si l'une
+/// ou l'autre n'est pas montée.
 fn mesures(liste: NodeRef<html::Div>, etalon: NodeRef<html::Div>) -> Option<(f64, f64, f64)> {
     let liste = liste.get_untracked()?;
     let etalon = etalon.get_untracked()?;
@@ -456,12 +620,12 @@ fn argument<T: Serialize>(commande: &T) -> Option<serde_json::Value> {
     serde_json::to_value(commande).ok()
 }
 
-/// Une fenêtre de la boîte, lue : la fenêtre demandée, si sa requête cherchait un contenu, et la
-/// vue rendue.
+/// Une fenêtre de la boîte, lue : la fenêtre demandée, la requête qui l'a lue, et la vue rendue,
+/// sa réponse (`texte_de_la_requete`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct BoiteLue {
     fenetre: Fenetre,
-    filtree: bool,
+    requete: Requete,
     vue: VueDeLaBoite,
 }
 
@@ -472,12 +636,34 @@ struct RetireesLues {
     vue: VueDesRetirees,
 }
 
-/// Ce que montre le volet, à droite de la liste : rien, l'idée choisie, ou les idées retirées.
+/// Une fenêtre du journal du fonds, lue : la fenêtre demandée, et la vue rendue.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct JournalLu {
+    fenetre: Fenetre,
+    vue: VueDuJournal,
+}
+
+/// Ce que montre le volet, à droite de la liste : rien, l'idée choisie, les idées retirées, ou le
+/// journal du fonds.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Volet {
     Aucun,
     Idee(String),
     Retirees,
+    Journal,
+}
+
+/// Où va le focus quand le volet `volet` se ferme, par « Fermer » comme par Échap : au bouton de
+/// la ligne qui a ouvert l'idée, si elle est dans les lignes lues `lues`, sinon à la liste
+/// (`cible_apres_le_volet`) ; au bouton « Idées retirées » pour les retirées, au bouton « Journal
+/// du fonds » pour le journal. `None` quand aucun volet n'est ouvert : rien ne se ferme.
+fn cible_de_fermeture(volet: &Volet, lues: &[LigneDeLaBoite]) -> Option<Cible> {
+    match volet {
+        Volet::Aucun => None,
+        Volet::Idee(id) => Some(cible_apres_le_volet(id, lues)),
+        Volet::Retirees => Some(Cible::BoutonDesRetirees),
+        Volet::Journal => Some(Cible::BoutonDuJournal),
+    }
 }
 
 /// L'idée du volet, lue : sa vue, et chacun de ses liens, l'identifiant de l'autre bout, ce qui
@@ -521,16 +707,15 @@ impl Demandes {
     }
 }
 
-/// Ce que la boîte garde tant que l'établi est ouvert, qu'elle se montre ou non : l'ordre et le
-/// contenu choisis, la fenêtre lue, les lignes cochées, le volet et son idée, les idées retirées
-/// lues, et les champs en cours. Rien n'en est gardé d'une ouverture à l'autre. L'établi le crée,
-/// hors de la boîte : une réponse arrivée la boîte cachée trouve où s'écrire.
+/// Ce que la boîte garde tant que l'établi est ouvert, qu'elle se montre ou non : l'ordre choisi,
+/// la fenêtre lue, les lignes cochées, le volet et son idée, les idées retirées lues, et les champs
+/// en cours. La requête en cours, elle, est à l'établi (`Etat::requete`). Rien n'en est gardé
+/// d'une ouverture à l'autre. L'établi le crée, hors de la boîte : une réponse arrivée la boîte
+/// cachée trouve où s'écrire.
 #[derive(Clone, Copy)]
 pub(crate) struct EtatDeLaBoite {
     /// Le rang de l'ordre dans `ORDRES`.
     ordre: RwSignal<usize>,
-    /// Le rang du contenu dans `CONTENUS`.
-    contenu: RwSignal<usize>,
     lue: RwSignal<Option<BoiteLue>>,
     demandes: Demandes,
     /// Les idées cochées pour relier, dans l'ordre où elles l'ont été, chacune avec sa naissance,
@@ -542,6 +727,9 @@ pub(crate) struct EtatDeLaBoite {
     lectures_de_l_idee: StoredValue<u64>,
     retirees: RwSignal<Option<RetireesLues>>,
     demandes_des_retirees: Demandes,
+    /// Le journal du fonds lu, et ses demandes.
+    journal: RwSignal<Option<JournalLu>>,
+    demandes_du_journal: Demandes,
     /// Le champ « Noter une idée ».
     note: RwSignal<String>,
     /// Une note est partie, sans relecture encore : `Entrée` n'en envoie pas une seconde.
@@ -557,14 +745,24 @@ pub(crate) struct EtatDeLaBoite {
     /// Un geste de tri, ou l'annulation, est parti, sans relecture encore : une seconde activation
     /// s'ignore.
     geste_en_vol: StoredValue<bool>,
+    /// Les requêtes enregistrées lues, rangées par nom par la commande qui les lit ; aucune avant
+    /// la première lecture.
+    requetes: RwSignal<Option<Vec<RequeteEnregistree>>>,
+    /// L'identifiant de la requête enregistrée choisie, sur laquelle portent « Renommer » et
+    /// « Supprimer ».
+    requete_choisie: RwSignal<Option<String>>,
+    /// Le champ « Nom » des requêtes enregistrées.
+    nom_de_la_requete: RwSignal<String>,
+    /// Un geste d'une requête enregistrée est parti, sans relecture encore : une seconde
+    /// activation s'ignore.
+    requete_en_vol: StoredValue<bool>,
 }
 
 impl EtatDeLaBoite {
-    /// La boîte rangée par date, sans filtre, rien de lu ni de coché, aucun volet.
+    /// La boîte rangée par date, rien de lu ni de coché, aucun volet.
     pub(crate) fn nouveau() -> Self {
         EtatDeLaBoite {
             ordre: RwSignal::new(0),
-            contenu: RwSignal::new(0),
             lue: RwSignal::new(None),
             demandes: Demandes::nouvelles(),
             cochees: RwSignal::new(Vec::new()),
@@ -573,6 +771,8 @@ impl EtatDeLaBoite {
             lectures_de_l_idee: StoredValue::new(0),
             retirees: RwSignal::new(None),
             demandes_des_retirees: Demandes::nouvelles(),
+            journal: RwSignal::new(None),
+            demandes_du_journal: Demandes::nouvelles(),
             note: RwSignal::new(String::new()),
             note_en_cours: StoredValue::new(false),
             brouillon: RwSignal::new(String::new()),
@@ -580,6 +780,70 @@ impl EtatDeLaBoite {
             etiquette: RwSignal::new(String::new()),
             gardee: StoredValue::new(None),
             geste_en_vol: StoredValue::new(false),
+            requetes: RwSignal::new(None),
+            requete_choisie: RwSignal::new(None),
+            nom_de_la_requete: RwSignal::new(String::new()),
+            requete_en_vol: StoredValue::new(false),
+        }
+    }
+
+    /// Choisit la requête enregistrée `requete` : « Renommer » et « Supprimer » portent sur elle,
+    /// et le champ « Nom » prend son nom.
+    fn choisir_la_requete(self, requete: &RequeteEnregistree) {
+        self.requete_choisie.set(Some(requete.id.clone()));
+        self.nom_de_la_requete.set(requete.nom.clone());
+    }
+
+    /// Un clic sur la requête enregistrée `requete` : elle se choisit, et se lance si elle est
+    /// lisible (`lancer`) ; celle d'une version plus récente se choisit seulement, pour qu'on
+    /// puisse la renommer ou la supprimer.
+    fn choisir_et_lancer(self, etat: EtatDeLaRequete, requete: &RequeteEnregistree) {
+        self.choisir_la_requete(requete);
+        lancer(etat, requete);
+    }
+
+    /// Ce qui suit un geste d'une requête enregistrée, `fait` ou refusé, une fois son issue au
+    /// bandeau : rend la cible où va le focus. Supprimer, fait : la requête sort de la liste, le
+    /// choix s'oublie (`oublier_la_requete`), et le focus, qui était sur « Supprimer », va au champ
+    /// « Nom ». Enregistrer, fait : le champ « Nom » se vide s'il porte encore le nom envoyé.
+    /// Renommer garde le choix. Un refus ne change rien. La liste se relit après chaque geste, fait
+    /// ou refusé (`Ecran::geste_de_requete`).
+    fn apres_un_geste_de_requete(self, geste: &GesteDeRequete, fait: bool) -> Option<Cible> {
+        if !fait {
+            return None;
+        }
+        match geste {
+            GesteDeRequete::Enregistrer { nom } => {
+                self.nom_de_la_requete.update(|champ| {
+                    if *champ == *nom {
+                        champ.clear();
+                    }
+                });
+                None
+            }
+            GesteDeRequete::Renommer => None,
+            GesteDeRequete::Supprimer { requete } => {
+                self.oublier_la_requete(requete);
+                Some(Cible::ChampDeNom)
+            }
+        }
+    }
+
+    /// La requête enregistrée `id` n'est plus : elle sort de la liste, et, si elle était choisie,
+    /// le choix et le champ « Nom » se vident. La requête de l'écran (`Etat::requete`) reste : seule
+    /// la liste des requêtes enregistrées change.
+    fn oublier_la_requete(self, id: &str) {
+        self.requetes.update(|lues| {
+            if let Some(liste) = lues {
+                liste.retain(|r| r.id != id);
+            }
+        });
+        if self
+            .requete_choisie
+            .with_untracked(|choisie| choisie.as_deref() == Some(id))
+        {
+            self.requete_choisie.set(None);
+            self.nom_de_la_requete.set(String::new());
         }
     }
 
@@ -602,29 +866,44 @@ impl EtatDeLaBoite {
     }
 }
 
-/// Lit la fenêtre `fenetre` de la boîte, dans l'ordre choisi, par la requête du contenu choisi,
-/// sans borne de date. Une réponse qu'une demande plus récente a devancée s'ignore ; un refus va
-/// au bandeau. La fenêtre posée, et ses lignes rendues au tick suivant, le focus perdu se rend
+/// La commande qui lit la fenêtre `fenetre` de la boîte, rangée par `ordre`, réponse de la requête
+/// `requete`, telle quelle, et les bornes de sa date, tirées de ses jours au décalage que
+/// `decalage` dit de chaque instant (`bornes_de_la_requete`, `natif::decalage_a`).
+fn commande_de_la_boite(
+    ordre: Ordre,
+    requete: &Requete,
+    decalage: impl Fn(i64) -> i32,
+    fenetre: &Fenetre,
+) -> Boite {
+    Boite {
+        ordre,
+        requete: requete.clone(),
+        bornes: bornes_de_la_requete(requete, decalage),
+        debut: fenetre.debut,
+        nombre: fenetre.nombre,
+    }
+}
+
+/// La requête en cours, lue sans suivre ses réglages : une lecture de la boîte la porte.
+fn requete_en_cours(etat: Etat) -> Requete {
+    untrack(|| etat.requete.requete())
+}
+
+/// Lit la fenêtre `fenetre` de la boîte, dans l'ordre choisi, réponse de la requête `requete`
+/// (`commande_de_la_boite`). Une réponse qu'une demande plus récente a devancée s'ignore : chaque
+/// frappe demande, et seule la dernière réponse compte ; un refus va au bandeau. La fenêtre posée,
+/// avec la requête qui l'a lue, et ses lignes rendues au tick suivant, le focus perdu se rend
 /// (`rendre_le_focus_perdu`).
 async fn lire_la_boite(
     etat: Etat,
     boite: EtatDeLaBoite,
     focus: RwSignal<Option<Cible>>,
     fenetre: Fenetre,
+    requete: Requete,
 ) {
     let rang = boite.demandes.demander(&fenetre);
-    let contenu = CONTENUS[boite.contenu.get_untracked()].0.clone();
-    let filtree = contenu.is_some();
-    let commande = Boite {
-        ordre: ORDRES[boite.ordre.get_untracked()].0.clone(),
-        requete: Requete {
-            contenu,
-            ..Requete::default()
-        },
-        bornes: Bornes::default(),
-        debut: fenetre.debut,
-        nombre: fenetre.nombre,
-    };
+    let ordre = ORDRES[boite.ordre.get_untracked()].0.clone();
+    let commande = commande_de_la_boite(ordre, &requete, natif::decalage_a, &fenetre);
     let lu = natif::invoquer::<VueDeLaBoite>(BOITE, argument(&commande)).await;
     if !boite.demandes.est_la_derniere(rang) {
         return;
@@ -633,7 +912,7 @@ async fn lire_la_boite(
         Ok(vue) => {
             boite.lue.set(Some(BoiteLue {
                 fenetre,
-                filtree,
+                requete,
                 vue,
             }));
             leptos::task::tick().await;
@@ -661,6 +940,20 @@ async fn lire_les_retirees(
             leptos::task::tick().await;
             rendre_le_focus_perdu(boite, focus, Liste::Retirees);
         }
+        Err(refus) => etat.apres_un_geste(&Err(refus)),
+    }
+}
+
+/// Lit la fenêtre `fenetre` du journal du fonds, comme `lire_les_retirees` ; ses lignes n'ont
+/// aucune commande, le focus n'a rien à y rendre.
+async fn lire_le_journal(etat: Etat, boite: EtatDeLaBoite, fenetre: Fenetre) {
+    let rang = boite.demandes_du_journal.demander(&fenetre);
+    let lu = natif::invoquer::<VueDuJournal>(JOURNAL, argument(&fenetre)).await;
+    if !boite.demandes_du_journal.est_la_derniere(rang) {
+        return;
+    }
+    match lu {
+        Ok(vue) => boite.journal.set(Some(JournalLu { fenetre, vue })),
         Err(refus) => etat.apres_un_geste(&Err(refus)),
     }
 }
@@ -722,21 +1015,49 @@ async fn lire_l_idee(etat: Etat, boite: EtatDeLaBoite, focus: RwSignal<Option<Ci
     }
 }
 
+/// Un geste d'une requête enregistrée, avec ce qu'il faut pour conclure son issue.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum GesteDeRequete {
+    /// Enregistrer sous le nom envoyé.
+    Enregistrer {
+        nom: String,
+    },
+    Renommer,
+    /// Supprimer la requête enregistrée d'identifiant `requete`.
+    Supprimer {
+        requete: String,
+    },
+}
+
+/// Lit les requêtes enregistrées, rangées par nom par la commande ; un refus va au bandeau. Elle se
+/// relit à l'ouverture de la boîte et après chaque geste fait d'une requête enregistrée.
+async fn lire_les_requetes(etat: Etat, boite: EtatDeLaBoite) {
+    match natif::invoquer::<Vec<RequeteEnregistree>>(REQUETES_ENREGISTREES, None).await {
+        Ok(lues) => boite.requetes.set(Some(lues)),
+        Err(refus) => etat.apres_un_geste(&Err(refus)),
+    }
+}
+
 /// Après une commande : l'état du fonds, hors de l'ouverture (`suivre_le_fonds`), puis la dernière
-/// fenêtre demandée de la boîte, celle des idées retirées si leur volet est ouvert, et l'idée du
-/// volet ; chaque lecture rend le focus perdu, par `focus`.
+/// fenêtre demandée de la boîte, réponse de la requête en cours, celle des idées retirées si leur
+/// volet est ouvert, et l'idée du volet ; chaque lecture rend le focus perdu, par `focus`.
 async fn relire(etat: Etat, boite: EtatDeLaBoite, focus: RwSignal<Option<Cible>>) {
     match natif::invoquer::<EtatDuFonds>(ETAT_DU_FONDS, None).await {
         Ok(fonds) => etat.suivre_le_fonds(fonds, false),
         Err(refus) => etat.apres_un_geste(&Err(refus)),
     }
     if let Some(fenetre) = boite.demandes.derniere.get_value() {
-        lire_la_boite(etat, boite, focus, fenetre).await;
+        lire_la_boite(etat, boite, focus, fenetre, requete_en_cours(etat)).await;
     }
     match boite.volet.get_untracked() {
         Volet::Retirees => {
             if let Some(fenetre) = boite.demandes_des_retirees.derniere.get_value() {
                 lire_les_retirees(etat, boite, focus, fenetre).await;
+            }
+        }
+        Volet::Journal => {
+            if let Some(fenetre) = boite.demandes_du_journal.derniere.get_value() {
+                lire_le_journal(etat, boite, fenetre).await;
             }
         }
         Volet::Idee(id) => lire_l_idee(etat, boite, focus, id).await,
@@ -946,14 +1267,44 @@ enum Defilement {
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Cible {
     Liste,
+    ChampDeNote,
+    /// Le champ « Nom » des requêtes enregistrées, où va le focus après une suppression.
+    ChampDeNom,
     ListeDesRetirees,
     BoutonDesRetirees,
+    BoutonDuJournal,
     TitreDeLIdee,
     TitreDesRetirees,
+    TitreDuJournal,
     Ligne {
         gardee: Gardee,
         defilement: Defilement,
     },
+}
+
+/// La cible qu'on atteint vraiment : tant que la page du fonds vide se montre, la liste est cachée
+/// et ne peut recevoir le focus ; il va au champ « Noter une idée ». Toute autre cible reste.
+fn cible_repliee(cible: Cible, fonds_vide: bool) -> Cible {
+    match cible {
+        Cible::Liste if fonds_vide => Cible::ChampDeNote,
+        autre => autre,
+    }
+}
+
+/// Où va le focus quand la page du fonds vide paraît ou s'en va (`vide`) : paraissant, elle cache
+/// la liste, qui ne peut plus garder le focus ; s'il est sur elle (`liste_a_le_focus`), il va au
+/// champ « Noter une idée », avant que le navigateur ne le perde. C'est le cas de la dernière idée
+/// retirée : son geste a rendu le focus à la liste avant la relecture qui vide le fonds
+/// (`cible_repliee` lisait encore l'ancienne fenêtre). Le fonds non vide, ou le focus ailleurs :
+/// il reste où il est.
+fn cible_quand_le_fonds_se_vide(vide: bool, liste_a_le_focus: bool) -> Option<Cible> {
+    (vide && liste_a_le_focus).then_some(Cible::ChampDeNote)
+}
+
+/// Aucune idée n'est interrogée dans la fenêtre lue `lue` : la page du fonds vide se montre
+/// (`page_du_fonds_vide`) ; rien de lu, elle ne se montre pas.
+fn fonds_vide_dans(lue: Option<&BoiteLue>) -> bool {
+    lue.is_some_and(|lue| lue.vue.assiette_du_compte.considerees == 0)
 }
 
 /// Ce que partagent les vues de la boîte : l'état de l'établi, celui de la boîte, le focus à
@@ -963,39 +1314,78 @@ struct Ecran {
     etat: Etat,
     boite: EtatDeLaBoite,
     focus: RwSignal<Option<Cible>>,
+    champ_de_note: NodeRef<html::Input>,
+    champ_de_nom: NodeRef<html::Input>,
     liste: NodeRef<html::Div>,
-    etalon: NodeRef<html::Div>,
+    etalon_de_la_boite: NodeRef<html::Div>,
     liste_des_retirees: NodeRef<html::Div>,
     bouton_des_retirees: NodeRef<html::Button>,
+    liste_du_journal: NodeRef<html::Div>,
+    etalon_du_journal: NodeRef<html::Div>,
+    bouton_du_journal: NodeRef<html::Button>,
     titre_de_l_idee: NodeRef<html::H2>,
     titre_des_retirees: NodeRef<html::H2>,
+    titre_du_journal: NodeRef<html::H2>,
 }
 
 impl Ecran {
-    /// La fenêtre que demande la liste montée `liste` (`fenetre_a_demander`), d'après la dernière
-    /// demandée (`demandes`) et le total lu ; rien sans mesure. Le défilement mesuré s'y note.
+    /// L'étalon `etalon`, monté ou non (`Etalon`).
+    fn etalon(self, etalon: Etalon) -> NodeRef<html::Div> {
+        match etalon {
+            Etalon::Boite => self.etalon_de_la_boite,
+            Etalon::Journal => self.etalon_du_journal,
+        }
+    }
+
+    /// Aucune idée n'est interrogée : la page du fonds vide se montre (`fonds_vide_dans`).
+    fn fonds_vide(self) -> bool {
+        self.boite
+            .lue
+            .with_untracked(|lue| fonds_vide_dans(lue.as_ref()))
+    }
+
+    /// Vrai si la liste de la boîte, montée, a le focus.
+    fn la_liste_a_le_focus(self) -> bool {
+        let Some(liste) = self.liste.get_untracked() else {
+            return false;
+        };
+        let liste: &Node = liste.as_ref();
+        document()
+            .active_element()
+            .is_some_and(|actif| actif.is_same_node(Some(liste)))
+    }
+
+    /// La fenêtre que demande la liste montée `liste` (`fenetre_a_demander`), ses lignes mesurées
+    /// par l'étalon `etalon`, d'après la dernière demandée (`demandes`) et le total lu ; rien sans
+    /// mesure. Le défilement mesuré s'y note.
     fn a_demander(
         self,
         liste: NodeRef<html::Div>,
+        etalon: Etalon,
         demandes: Demandes,
         total: Option<u64>,
         forcer: bool,
     ) -> Option<Fenetre> {
-        let (haut, vue, ligne) = mesures(liste, self.etalon)?;
+        let (haut, vue, ligne) = mesures(liste, self.etalon(etalon))?;
         demandes.defilement.set_value(haut);
         demandes.derniere.with_value(|derniere| {
             fenetre_a_demander(derniere.as_ref(), haut, vue, ligne, total, forcer)
         })
     }
 
-    /// Lit la fenêtre de la boîte que demande son défilement (`a_demander`).
+    /// Lit la fenêtre de la boîte que demande son défilement (`a_demander`), réponse de la requête
+    /// en cours, lue à la demande.
     fn demander_la_boite(self, forcer: bool) {
         let total = self
             .boite
             .lue
             .with_untracked(|lue| lue.as_ref().map(|lue| lue.vue.retenues));
-        if let Some(fenetre) = self.a_demander(self.liste, self.boite.demandes, total, forcer) {
-            leptos::task::spawn_local(lire_la_boite(self.etat, self.boite, self.focus, fenetre));
+        let demandes = self.boite.demandes;
+        if let Some(fenetre) = self.a_demander(self.liste, Etalon::Boite, demandes, total, forcer) {
+            let requete = requete_en_cours(self.etat);
+            leptos::task::spawn_local(lire_la_boite(
+                self.etat, self.boite, self.focus, fenetre, requete,
+            ));
         }
     }
 
@@ -1006,10 +1396,25 @@ impl Ecran {
             .retirees
             .with_untracked(|lues| lues.as_ref().map(|lues| lues.vue.total));
         let demandes = self.boite.demandes_des_retirees;
-        if let Some(fenetre) = self.a_demander(self.liste_des_retirees, demandes, total, forcer) {
+        let liste = self.liste_des_retirees;
+        if let Some(fenetre) = self.a_demander(liste, Etalon::Boite, demandes, total, forcer) {
             leptos::task::spawn_local(lire_les_retirees(
                 self.etat, self.boite, self.focus, fenetre,
             ));
+        }
+    }
+
+    /// Lit la fenêtre du journal que demande son défilement (`a_demander`), ses lignes mesurées par
+    /// l'étalon du journal, jamais par celui de la boîte.
+    fn demander_le_journal(self, forcer: bool) {
+        let total = self
+            .boite
+            .journal
+            .with_untracked(|lu| lu.as_ref().map(|lu| lu.vue.total));
+        let demandes = self.boite.demandes_du_journal;
+        let liste = self.liste_du_journal;
+        if let Some(fenetre) = self.a_demander(liste, Etalon::Journal, demandes, total, forcer) {
+            leptos::task::spawn_local(lire_le_journal(self.etat, self.boite, fenetre));
         }
     }
 
@@ -1027,13 +1432,20 @@ impl Ecran {
         {
             return;
         }
-        let (conteneur, demandes) = match liste {
-            Liste::Boite => (self.liste, self.boite.demandes),
-            Liste::Retirees => (self.liste_des_retirees, self.boite.demandes_des_retirees),
+        // Les lignes de la boîte et celles des idées retirées ont la même hauteur, que mesure
+        // l'étalon de la boîte.
+        let (conteneur, etalon, demandes) = match liste {
+            Liste::Boite => (self.liste, Etalon::Boite, self.boite.demandes),
+            Liste::Retirees => (
+                self.liste_des_retirees,
+                Etalon::Boite,
+                self.boite.demandes_des_retirees,
+            ),
         };
-        let (Some(conteneur), Some(etalon)) =
-            (conteneur.get_untracked(), self.etalon.get_untracked())
-        else {
+        let (Some(conteneur), Some(etalon)) = (
+            conteneur.get_untracked(),
+            self.etalon(etalon).get_untracked(),
+        ) else {
             return;
         };
         let region: &Node = conteneur.as_ref();
@@ -1079,7 +1491,8 @@ impl Ecran {
         }));
     }
 
-    /// Un autre ordre ou un autre contenu : la liste revient au début, et sa fenêtre se relit.
+    /// Un autre ordre, ou un réglage de la requête en cours changé, son texte ou un critère : la
+    /// liste revient au début, et sa fenêtre se relit.
     fn au_debut(self) {
         if let Some(liste) = self.liste.get_untracked() {
             liste.set_scroll_top(0);
@@ -1122,10 +1535,9 @@ impl Ecran {
         self.geste::<Faite>(nom, commande, |faite| faite.avertissement, en_vol, apres);
     }
 
-    /// Note l'idée `noter`, sous le drapeau des notes. Faite, le champ se vide, s'il porte encore
-    /// la note partie.
+    /// Note l'idée `noter`, sous le drapeau des notes. Faite, elle se conclut
+    /// (`conclure_la_note`).
     fn noter(self, noter: Noter) {
-        let note = self.boite.note;
         let partie = noter.texte.clone();
         self.geste::<Notee>(
             NOTER,
@@ -1134,13 +1546,90 @@ impl Ecran {
             self.boite.note_en_cours,
             move |faite| {
                 if faite {
-                    note.update(|champ| {
-                        if champ.trim() == partie {
-                            champ.clear();
-                        }
-                    });
+                    self.conclure_la_note(&partie);
                 }
             },
+        );
+    }
+
+    /// La note `partie` faite : le champ « Noter une idée » se vide, s'il la porte encore. La
+    /// requête en cours reste telle quelle, et la relecture qui suit la note la montre dans la
+    /// liste si elle la satisfait (point de revue 1).
+    fn conclure_la_note(self, partie: &str) {
+        self.boite.note.update(|champ| {
+            if champ.trim() == partie {
+                champ.clear();
+            }
+        });
+    }
+
+    /// Un geste d'une requête enregistrée : la commande `nom`, puis son issue au bandeau, puis ce
+    /// qui suit (`apres_un_geste_de_requete`), dont le focus, puis la relecture de la liste des
+    /// requêtes, faite ou refusée : une requête disparue entre-temps ne reste pas offerte.
+    fn geste_de_requete(
+        self,
+        nom: &'static str,
+        commande: Option<serde_json::Value>,
+        geste: GesteDeRequete,
+    ) {
+        let (etat, boite, focus) = (self.etat, self.boite, self.focus);
+        self.geste::<Faite>(
+            nom,
+            commande,
+            |faite| faite.avertissement,
+            boite.requete_en_vol,
+            move |fait| {
+                if let Some(cible) = boite.apres_un_geste_de_requete(&geste, fait) {
+                    focus.set(Some(cible));
+                }
+                leptos::task::spawn_local(lire_les_requetes(etat, boite));
+            },
+        );
+    }
+
+    /// Enregistre la requête de l'écran sous le nom du champ « Nom ». Un nom de blancs, ou une
+    /// requête sans critère, ne part pas (`enregistrer_possible`) ; les autres refus sont ceux des
+    /// services, au bandeau.
+    fn enregistrer_la_requete(self) {
+        let requete = requete_en_cours(self.etat);
+        let nom = self.boite.nom_de_la_requete.get_untracked();
+        if !enregistrer_possible(&requete, &nom) {
+            return;
+        }
+        let geste = GesteDeRequete::Enregistrer { nom: nom.clone() };
+        self.geste_de_requete(
+            ENREGISTRER_UNE_REQUETE,
+            argument(&Enregistrer { nom, requete }),
+            geste,
+        );
+    }
+
+    /// Renomme la requête enregistrée choisie du nom du champ « Nom » ; un nom vide ou inchangé est
+    /// un refus des services, que le bandeau dit.
+    fn renommer_la_requete(self) {
+        let Some(requete) = self.boite.requete_choisie.get_untracked() else {
+            return;
+        };
+        let nom = self.boite.nom_de_la_requete.get_untracked();
+        self.geste_de_requete(
+            RENOMMER_UNE_REQUETE,
+            argument(&Renommer { requete, nom }),
+            GesteDeRequete::Renommer,
+        );
+    }
+
+    /// Supprime la requête enregistrée choisie, sans confirmation (question 19) : ses critères, que
+    /// la requête de l'écran porte peut-être, restent à l'écran.
+    fn supprimer_la_requete(self) {
+        let Some(requete) = self.boite.requete_choisie.get_untracked() else {
+            return;
+        };
+        self.geste_de_requete(
+            SUPPRIMER_UNE_REQUETE,
+            argument(&Supprimer {
+                requete: requete.clone(),
+            }),
+            GesteDeRequete::Supprimer { requete },
         );
     }
 
@@ -1185,17 +1674,27 @@ impl Ecran {
     /// Ferme le volet de l'idée ; le focus va au bouton de la ligne qui l'a ouvert, si elle est
     /// lue, sinon à la liste (`cible_apres_le_volet`).
     fn fermer_l_idee(self) {
-        let cible = match self.idee_du_volet() {
-            Some(id) => self.boite.lue.with_untracked(|lue| {
-                cible_apres_le_volet(
-                    &id,
-                    lue.as_ref()
-                        .map_or(&[][..], |lue| lue.vue.lignes.as_slice()),
-                )
-            }),
-            None => Cible::Liste,
-        };
-        self.fermer_le_volet(cible);
+        self.fermer_le_volet(self.cible_de_fermeture().unwrap_or(Cible::Liste));
+    }
+
+    /// Où va le focus à la fermeture du volet ouvert (`cible_de_fermeture`), `None` sans volet.
+    fn cible_de_fermeture(self) -> Option<Cible> {
+        let volet = self.boite.volet.get_untracked();
+        self.boite.lue.with_untracked(|lue| {
+            cible_de_fermeture(
+                &volet,
+                lue.as_ref()
+                    .map_or(&[][..], |lue| lue.vue.lignes.as_slice()),
+            )
+        })
+    }
+
+    /// Échap ferme le volet ouvert et rend le focus comme « Fermer » ; sans volet ouvert, rien ne
+    /// se ferme.
+    fn fermer_par_echap(self) {
+        if let Some(cible) = self.cible_de_fermeture() {
+            self.fermer_le_volet(cible);
+        }
     }
 
     /// La commande `commande` de la ligne de l'idée `idee` a pris le focus : elle est la ligne
@@ -1215,6 +1714,17 @@ impl Ecran {
             self.boite.retirees.set(None);
             self.boite.volet.set(Volet::Retirees);
             self.focus.set(Some(Cible::TitreDesRetirees));
+        }
+    }
+
+    /// Ouvre le volet du journal du fonds, qui prend le focus, ou le ferme.
+    fn basculer_le_journal(self) {
+        if self.boite.volet.with_untracked(|v| *v == Volet::Journal) {
+            self.boite.volet.set(Volet::Aucun);
+        } else {
+            self.boite.journal.set(None);
+            self.boite.volet.set(Volet::Journal);
+            self.focus.set(Some(Cible::TitreDuJournal));
         }
     }
 
@@ -1370,44 +1880,113 @@ impl Ecran {
     }
 }
 
-/// La boîte d'idées. Montée, elle lit la fenêtre que sa liste montre ; un autre ordre ou un autre
-/// contenu la ramène au début. La liste suit son défilement et la taille de la fenêtre de
+/// Les choix en ligne d'un critère de la requête en cours, de groupe `groupe`, un par libellé de
+/// son tableau `tableau` (`CONTENUS`, `DUREES`, `ETATS`, `PROVENANCES`), dans son ordre : le choix
+/// fait écrit son rang dans `rang`, un signal de `Etat::requete`.
+fn choix_d_un_critere<T>(
+    groupe: &'static str,
+    tableau: &'static [(Option<T>, &'static str)],
+    rang: RwSignal<usize>,
+) -> impl IntoView {
+    tableau
+        .iter()
+        .enumerate()
+        .map(|(valeur, (_, libelle))| {
+            choix(
+                groupe,
+                valeur,
+                libelle.to_string(),
+                None,
+                rang.into(),
+                move |choisie| rang.set(choisie),
+            )
+        })
+        .collect_view()
+}
+
+/// Un champ de date de « Date : », libellé `libelle` : la frappe écrit sa valeur dans `valeur`,
+/// un signal de `Etat::requete`, « AAAA-MM-JJ », ou vide pour un champ vide ou incomplet ; et il
+/// prend toute autre valeur que le signal reçoit (une requête posée). Un champ qui porte déjà la
+/// valeur du signal ne se réécrit pas : incomplet, il vide la requête de son jour sans perdre ce
+/// qui y est tapé. Son `max`, le 31 décembre 9999, borne l'année à quatre chiffres : une année à
+/// cinq chiffres ne passerait pas l'aller-retour ISO, et la requête perdrait sa borne sans le dire.
+fn champ_de_date(libelle: &'static str, valeur: RwSignal<String>) -> impl IntoView {
+    let champ = NodeRef::<html::Input>::new();
+    Effect::new(move |_| {
+        let voulue = valeur.get();
+        if let Some(champ) = champ.get()
+            && champ.value() != voulue
+        {
+            champ.set_value(&voulue);
+        }
+    });
+    view! {
+        <label class="choix">
+            {libelle}
+            <input
+                type="date"
+                max="9999-12-31"
+                node_ref=champ
+                on:input=move |ev| valeur.set(event_target_value(&ev))
+            />
+        </label>
+    }
+}
+
+/// La boîte d'idées. Montée, elle lit la fenêtre que sa liste montre, réponse de la requête en
+/// cours ; un autre ordre, ou un réglage de la requête changé, son texte dans l'en-tête ou un
+/// critère, la ramène au début. La liste suit son défilement et la taille de la fenêtre de
 /// l'application, jamais une minuterie (I18) : chaque ligne a la hauteur fixe `--ligne`, que
-/// l'étalon mesure ; la piste a la hauteur de toutes les lignes, et seules celles de la fenêtre lue
-/// s'y posent, à leur rang. Chaque contrôle est un bouton, une case ou un champ, nommé ; le focus
-/// suit les volets (`Cible`), entre dans une liste sur une ligne entièrement vue
-/// (`entrer_dans_la_liste`), et revient à la ligne qui l'a perdu quand la fenêtre se pose
-/// (`rendre_le_focus_perdu`).
+/// l'étalon de la boîte mesure (`Etalon::Boite`) ; la piste a la hauteur de toutes les lignes, et
+/// seules celles de la fenêtre lue s'y posent, à leur rang. Chaque contrôle est un bouton, une case
+/// ou un champ, nommé ; le focus suit les volets (`Cible`), entre dans une liste sur une ligne
+/// entièrement vue (`entrer_dans_la_liste`), et revient à la ligne qui l'a perdu quand la fenêtre
+/// se pose (`rendre_le_focus_perdu`).
 #[component]
 pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
     let ecran = Ecran {
         etat,
         boite,
         focus: RwSignal::new(None),
+        champ_de_note: NodeRef::new(),
+        champ_de_nom: NodeRef::new(),
         liste: NodeRef::new(),
-        etalon: NodeRef::new(),
+        etalon_de_la_boite: NodeRef::new(),
         liste_des_retirees: NodeRef::new(),
         bouton_des_retirees: NodeRef::new(),
+        liste_du_journal: NodeRef::new(),
+        etalon_du_journal: NodeRef::new(),
+        bouton_du_journal: NodeRef::new(),
         titre_de_l_idee: NodeRef::new(),
         titre_des_retirees: NodeRef::new(),
+        titre_du_journal: NodeRef::new(),
     };
-    // Montés, la liste et l'étalon donnent la fenêtre à lire.
+    // Montés, la liste et l'étalon de la boîte donnent la fenêtre à lire. Chaque changement de la
+    // requête en cours, son texte dans l'en-tête ou un critère, ramène la liste au début et la
+    // relit (`au_debut`) : une demande par frappe, dont seule la dernière réponse compte.
     Effect::new(move |_| {
-        if ecran.liste.get().is_some() && ecran.etalon.get().is_some() {
-            ecran.demander_la_boite(true);
+        let _suivie = etat.requete.requete();
+        if ecran.liste.get().is_some() && ecran.etalon(Etalon::Boite).get().is_some() {
+            ecran.au_debut();
         }
     });
+    // Les requêtes enregistrées se lisent à l'ouverture de la boîte.
+    leptos::task::spawn_local(lire_les_requetes(etat, boite));
     // Le focus demandé va à sa cible, dès qu'elle est montée dans le document.
     Effect::new(move |_| {
         let Some(cible) = ecran.focus.get() else {
             return;
         };
-        let element: Option<HtmlElement> = match cible {
+        let element: Option<HtmlElement> = match cible_repliee(cible, ecran.fonds_vide()) {
             Cible::Liste => ecran.liste.get().map(Into::into),
+            Cible::ChampDeNote => ecran.champ_de_note.get().map(Into::into),
+            Cible::ChampDeNom => ecran.champ_de_nom.get().map(Into::into),
             Cible::ListeDesRetirees => ecran.liste_des_retirees.get().map(Into::into),
             Cible::BoutonDesRetirees => ecran.bouton_des_retirees.get().map(Into::into),
+            Cible::BoutonDuJournal => ecran.bouton_du_journal.get().map(Into::into),
             Cible::TitreDeLIdee => ecran.titre_de_l_idee.get().map(Into::into),
             Cible::TitreDesRetirees => ecran.titre_des_retirees.get().map(Into::into),
+            Cible::TitreDuJournal => ecran.titre_du_journal.get().map(Into::into),
             // Chaque ligne résout la sienne (`focus_de_la_ligne`).
             Cible::Ligne { .. } => return,
         };
@@ -1418,12 +1997,38 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
             ecran.focus.set(None);
         }
     });
+    // La page du fonds vide paraît ou s'en va. Paraissant, elle cache la liste : si la liste a le
+    // focus, il va au champ « Noter une idée » (`cible_quand_le_fonds_se_vide`). L'effet ne suit
+    // que ce passage, pas chaque fenêtre lue.
+    let fonds_vide_lu = Memo::new(move |_| boite.lue.with(|lue| fonds_vide_dans(lue.as_ref())));
+    Effect::new(move |_| {
+        let vide = fonds_vide_lu.get();
+        if let Some(cible) = cible_quand_le_fonds_se_vide(vide, ecran.la_liste_a_le_focus()) {
+            ecran.focus.set(Some(cible));
+        }
+    });
     // `Ctrl+Z`, hors d'un champ de texte, annule le dernier geste de tri tant que la boîte se
-    // montre ; une touche tenue ne le répète pas.
+    // montre ; une touche tenue ne le répète pas. Échap ferme le volet ouvert (`echap_ferme`), sauf
+    // dans la recherche de l'en-tête, où le navigateur vide le champ, et pendant une composition.
     let ecouteur = window_event_listener(leptos::ev::keydown, move |ev| {
         if !ev.repeat() && ctrl_z_annule(&ev.key(), ev.ctrl_key(), dans_un_champ_de_texte(&ev)) {
             ev.prevent_default();
             ecran.annuler();
+            return;
+        }
+        let id_de_la_cible = ev
+            .target()
+            .and_then(|cible| cible.dyn_into::<Element>().ok())
+            .map(|element| element.id());
+        let volet_ouvert = boite.volet.with_untracked(|volet| *volet != Volet::Aucun);
+        if echap_ferme(
+            &ev.key(),
+            ev.is_composing(),
+            volet_ouvert,
+            est_la_recherche(id_de_la_cible.as_deref()),
+        ) {
+            ev.prevent_default();
+            ecran.fermer_par_echap();
         }
     });
     // La fenêtre de l'application change de taille, la liste vue aussi : chaque liste montrée
@@ -1436,6 +2041,9 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
             .with_untracked(|volet| *volet == Volet::Retirees)
         {
             ecran.demander_les_retirees(false);
+        }
+        if boite.volet.with_untracked(|volet| *volet == Volet::Journal) {
+            ecran.demander_le_journal(false);
         }
     });
     on_cleanup(move || {
@@ -1470,17 +2078,10 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
             lue.as_ref().map(|lue| {
                 let (non_reliees, assiette, _) =
                     au_noyau(lue.vue.non_reliees, &lue.vue.assiette_du_compte);
-                let reponse = lue.filtree.then(|| {
-                    let (retenues, assiette, illisibles) =
-                        au_noyau(lue.vue.retenues, &lue.vue.assiette_de_la_requete);
-                    texte_de_la_reponse(
-                        retenues,
-                        assiette,
-                        illisibles,
-                        sans_au_noyau(&lue.vue.sans),
-                    )
-                });
-                (texte_du_compte(non_reliees, assiette), reponse)
+                (
+                    texte_du_compte(non_reliees, assiette),
+                    texte_de_la_requete(&lue.vue, &lue.requete),
+                )
             })
         })
     };
@@ -1501,44 +2102,68 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
             )
         })
         .collect_view();
-    let contenus = CONTENUS
-        .iter()
-        .enumerate()
-        .map(|(rang, (_, libelle))| {
-            choix(
-                "contenu",
-                rang,
-                libelle.to_string(),
-                None,
-                boite.contenu.into(),
-                move |rang| {
-                    boite.contenu.set(rang);
-                    ecran.au_debut();
-                },
-            )
-        })
-        .collect_view();
+    // Les critères de la requête en cours : chacun change un signal de `Etat::requete`, et l'effet
+    // du montage ramène la liste au début.
+    let requete = etat.requete;
+    let contenus = choix_d_un_critere("contenu", &CONTENUS, requete.contenu);
+    let durees = choix_d_un_critere("duree", &DUREES, requete.duree);
+    let etats = choix_d_un_critere("etat", &ETATS, requete.etat);
+    let provenances = choix_d_un_critere("provenance", &PROVENANCES, requete.provenance);
+    let etiquettes = move || {
+        let du_fonds = boite.lue.with(|lue| {
+            lue.as_ref()
+                .map(|lue| lue.vue.etiquettes_du_fonds.clone())
+                .unwrap_or_default()
+        });
+        requete
+            .etiquette
+            .with(|choisie| etiquettes_a_choisir(&du_fonds, choisie.as_deref()))
+    };
+    let toutes = move || requete.etiquette.with(Option::is_none);
+    let est_choisie = move |nom: &str| {
+        requete
+            .etiquette
+            .with(|choisie| choisie.as_deref() == Some(nom))
+    };
     let deux_cochees = move || boite.cochees.with(|cochees| cochees.len() == 2);
     let annulation = move || {
         etat.etat_du_fonds
             .with(|fonds| libelle_d_annulation(fonds.as_ref().and_then(|f| f.a_annuler.as_deref())))
     };
+    let enregistrement_possible =
+        move || enregistrer_possible(&etat.requete.requete(), &boite.nom_de_la_requete.get());
+    let une_requete_est_choisie = move || boite.requete_choisie.with(Option::is_some);
+    let requetes_enregistrees = move || boite.requetes.get().unwrap_or_default();
+    let constat_des_requetes_lues = move || {
+        boite
+            .requetes
+            .with(|lues| constat_des_requetes(lues.as_deref()))
+    };
     let retirees_ouvertes = move || boite.volet.with(|volet| *volet == Volet::Retirees);
+    let journal_ouvert = move || boite.volet.with(|volet| *volet == Volet::Journal);
     let idee_ouverte = move || boite.volet.with(|volet| matches!(volet, Volet::Idee(_)));
+    // La page du fonds vide : aucune idée interrogée (`page_du_fonds_vide`), lue au moins une fois.
+    let fonds_vide = move || {
+        let considerees = boite.lue.with(|lue| {
+            lue.as_ref()
+                .map(|lue| lue.vue.assiette_du_compte.considerees)
+        })?;
+        let lecture_seule = etat
+            .etat_du_fonds
+            .with(|fonds| fonds.as_ref().is_some_and(|f| f.lecture_seule.is_some()));
+        page_du_fonds_vide(considerees, lecture_seule)
+    };
     let total = move || {
         boite
             .lue
             .with(|lue| lue.as_ref().map_or(0, |lue| lue.vue.retenues))
     };
-    let hauteur_de_la_piste = move || {
-        let lignes = total();
-        format!("calc({lignes} * var(--ligne))")
-    };
+    let hauteur_de_la_piste = move || Etalon::Boite.hauteur(total());
     let haut_des_lignes = move || {
         let debut = boite
             .lue
             .with(|lue| lue.as_ref().map_or(0, |lue| lue.fenetre.debut));
-        format!("calc({debut} * var(--ligne))")
+        Etalon::Boite.hauteur(u64::from(debut))
     };
     let lignes = move || {
         boite.lue.with(|lue| {
@@ -1550,13 +2175,14 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
     view! {
         <main class="boite" aria-label="Boîte d'idées" on:focusin=hors_des_lignes>
             <div class="etalon" aria-hidden="true">
-                <div node_ref=ecran.etalon></div>
+                <div node_ref=ecran.etalon_de_la_boite></div>
             </div>
             <div class="boite-haut">
                 <label class="champ noter">
                     "Noter une idée"
                     <input
                         type="text"
+                        node_ref=ecran.champ_de_note
                         prop:value=move || boite.note.get()
                         on:input=move |ev| boite.note.set(event_target_value(&ev))
                         on:keydown=noter_au_clavier
@@ -1574,6 +2200,141 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
                     <legend>"Contenu :"</legend>
                     <div class="choix-en-ligne">{contenus}</div>
                 </fieldset>
+                <fieldset class="reglage">
+                    <legend>"Date :"</legend>
+                    <div class="choix-en-ligne">
+                        {champ_de_date("du", requete.du)}
+                        {champ_de_date("au", requete.au)}
+                    </div>
+                </fieldset>
+                <fieldset class="reglage">
+                    <legend id="legende-de-l-etiquette">"Étiquette :"</legend>
+                    <select
+                        aria-labelledby="legende-de-l-etiquette"
+                        on:change=move |ev| {
+                            requete.etiquette.set(etiquette_du_choix(&event_target_value(&ev)))
+                        }
+                    >
+                        <option value="" prop:selected=toutes>
+                            "Toutes"
+                        </option>
+                        <For
+                            each=etiquettes
+                            key=|nom: &String| nom.clone()
+                            children=move |nom: String| {
+                                let choisie = {
+                                    let nom = nom.clone();
+                                    move || est_choisie(&nom)
+                                };
+                                view! {
+                                    <option value=nom.clone() prop:selected=choisie>
+                                        {etiquette_ecrite(&nom)}
+                                    </option>
+                                }
+                            }
+                        />
+                    </select>
+                </fieldset>
+                <fieldset class="reglage">
+                    <legend>"Durée :"</legend>
+                    <div class="choix-en-ligne">{durees}</div>
+                </fieldset>
+                <fieldset class="reglage">
+                    <legend>"État :"</legend>
+                    <div class="choix-en-ligne">{etats}</div>
+                </fieldset>
+                <fieldset class="reglage">
+                    <legend>"Provenance :"</legend>
+                    <div class="choix-en-ligne">{provenances}</div>
+                </fieldset>
+                <section class="requetes-enregistrees" aria-labelledby="titre-des-requetes">
+                    <h2 id="titre-des-requetes">"Requêtes enregistrées"</h2>
+                    <p hidden=move || constat_des_requetes_lues().is_none()>
+                        {constat_des_requetes_lues}
+                    </p>
+                    <ul class="requetes">
+                        <For
+                            each=requetes_enregistrees
+                            key=|r: &RequeteEnregistree| {
+                                format!("{}|{}|{}", r.id, r.nom, r.requete.is_some())
+                            }
+                            children=move |r: RequeteEnregistree| {
+                                let (nom, note) = ce_que_dit_la_requete(&r);
+                                let id = r.id.clone();
+                                let id_de_la_note = format!("note-de-la-requete-{id}");
+                                let id_de_la_precision = format!("precision-de-la-requete-{id}");
+                                let lues_par_le_bouton = note
+                                    .map(|_| format!("{id_de_la_note} {id_de_la_precision}"));
+                                let choisie = move || {
+                                    boite.requete_choisie.with(|c| c.as_deref() == Some(id.as_str()))
+                                };
+                                view! {
+                                    <li>
+                                        <button
+                                            type="button"
+                                            class="choisir"
+                                            aria-current=move || choisie().then_some("true")
+                                            aria-describedby=lues_par_le_bouton
+                                            on:click=move |_| {
+                                                boite.choisir_et_lancer(etat.requete, &r)
+                                            }
+                                        >
+                                            {nom}
+                                        </button>
+                                        {note
+                                            .map(|note| {
+                                                view! {
+                                                    <span class="note-de-la-requete" id=id_de_la_note.clone()>
+                                                        {note}
+                                                    </span>
+                                                    <span
+                                                        class="note-de-la-requete"
+                                                        id=id_de_la_precision.clone()
+                                                    >
+                                                        {PRECISION_D_UNE_REQUETE_PLUS_RECENTE}
+                                                    </span>
+                                                }
+                                            })}
+                                    </li>
+                                }
+                            }
+                        />
+                    </ul>
+                    <label class="champ">
+                        "Nom"
+                        <input
+                            type="text"
+                            node_ref=ecran.champ_de_nom
+                            prop:value=move || boite.nom_de_la_requete.get()
+                            on:input=move |ev| boite.nom_de_la_requete.set(event_target_value(&ev))
+                        />
+                    </label>
+                    <div class="gestes">
+                        <button
+                            type="button"
+                            aria-disabled=move || (!enregistrement_possible()).then_some("true")
+                            aria-describedby=move || {
+                                (!enregistrement_possible()).then_some("note-d-enregistrement")
+                            }
+                            on:click=move |_| ecran.enregistrer_la_requete()
+                        >
+                            "Enregistrer la requête"
+                        </button>
+                        <Show when=une_requete_est_choisie>
+                            <button type="button" on:click=move |_| ecran.renommer_la_requete()>
+                                "Renommer"
+                            </button>
+                            <button type="button" on:click=move |_| ecran.supprimer_la_requete()>
+                                "Supprimer"
+                            </button>
+                        </Show>
+                    </div>
+                    <Show when=move || !enregistrement_possible()>
+                        <p id="note-d-enregistrement">
+                            "Une requête s'enregistre avec au moins un critère et un nom."
+                        </p>
+                    </Show>
+                </section>
                 <div class="gestes">
                     <button
                         type="button"
@@ -1582,7 +2343,11 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
                     >
                         "Relier"
                     </button>
-                    <button type="button" on:click=move |_| ecran.annuler()>
+                    <button
+                        type="button"
+                        aria-keyshortcuts="Control+Z"
+                        on:click=move |_| ecran.annuler()
+                    >
                         {annulation}
                     </button>
                     <button
@@ -1593,6 +2358,15 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
                         on:click=move |_| ecran.basculer_les_retirees()
                     >
                         "Idées retirées"
+                    </button>
+                    <button
+                        type="button"
+                        node_ref=ecran.bouton_du_journal
+                        aria-expanded=move || journal_ouvert().to_string()
+                        aria-controls=move || journal_ouvert().then_some("volet-du-journal")
+                        on:click=move |_| ecran.basculer_le_journal()
+                    >
+                        "Journal du fonds"
                     </button>
                 </div>
             </div>
@@ -1609,8 +2383,20 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
                         </span>
                         <span class="cocher">"Relier"</span>
                     </div>
+                    {move || {
+                        fonds_vide()
+                            .map(|[constat, suite]| {
+                                view! {
+                                    <div class="fonds-vide">
+                                        <p>{constat}</p>
+                                        <p>{suite}</p>
+                                    </div>
+                                }
+                            })
+                    }}
                     <div
                         class="liste"
+                        class:cachee=move || fonds_vide().is_some()
                         tabindex="0"
                         role="region"
                         aria-label="Idées de la boîte"
@@ -1637,9 +2423,30 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
                 <Show when=retirees_ouvertes>
                     <VoletDesRetirees ecran=ecran />
                 </Show>
+                <Show when=journal_ouvert>
+                    <VoletDuJournal ecran=ecran />
+                </Show>
             </div>
         </main>
     }
+}
+
+/// « 25 oct. 2026 · 02:30 · Idée du 25 octobre notée » : l'heure de l'entrée au décalage
+/// `decalage` de son instant (`heure_du_journal`), « — » pour l'heure 0, puis son message.
+fn ligne_du_journal(entree: &EntreeDuJournal, decalage: i32) -> String {
+    format!(
+        "{} · {}",
+        heure_du_journal(entree.heure, decalage),
+        entree.message
+    )
+}
+
+/// « 3 entrées · empreinte 570cda » : le nombre d'entrées du journal, et les six premiers
+/// caractères de son empreinte (`empreinte_courte`) ; « 1 entrée » au singulier, « 0 entrée » de
+/// même.
+fn entete_du_journal(total: u64, empreinte: &str) -> String {
+    let mot = if total <= 1 { "entrée" } else { "entrées" };
+    format!("{total} {mot} · empreinte {}", empreinte_courte(empreinte))
 }
 
 /// Une ligne de la boîte, de rang `index` dans la fenêtre lue : un bouton qui ouvre le volet de
@@ -1928,7 +2735,11 @@ fn VoletDeLIdee(ecran: Ecran) -> impl IntoView {
                 <h2 id="titre-de-l-idee" tabindex="-1" node_ref=ecran.titre_de_l_idee>
                     {titre}
                 </h2>
-                <button type="button" on:click=move |_| ecran.fermer_l_idee()>
+                <button
+                    type="button"
+                    aria-keyshortcuts="Escape"
+                    on:click=move |_| ecran.fermer_l_idee()
+                >
                     "Fermer"
                 </button>
             </div>
@@ -2033,12 +2844,13 @@ fn VoletDeLIdee(ecran: Ecran) -> impl IntoView {
 
 /// Le volet des idées retirées : son titre, qui prend le focus à l'ouverture, « Fermer », qui rend
 /// le focus à « Idées retirées », et leur liste, en fenêtre comme celle de la boîte, chacune avec
-/// « Rétablir ». Monté, il lit la fenêtre que sa liste montre.
+/// « Rétablir ». Ses lignes ont la hauteur de celles de la boîte, que mesure l'étalon de la boîte.
+/// Monté, il lit la fenêtre que sa liste montre.
 #[component]
 fn VoletDesRetirees(ecran: Ecran) -> impl IntoView {
     let boite = ecran.boite;
     Effect::new(move |_| {
-        if ecran.liste_des_retirees.get().is_some() && ecran.etalon.get().is_some() {
+        if ecran.liste_des_retirees.get().is_some() && ecran.etalon(Etalon::Boite).get().is_some() {
             ecran.demander_les_retirees(true);
         }
     });
@@ -2047,15 +2859,12 @@ fn VoletDesRetirees(ecran: Ecran) -> impl IntoView {
             .retirees
             .with(|lues| lues.as_ref().map(|lues| lues.vue.total))
     };
-    let hauteur_de_la_piste = move || {
-        let lignes = total().unwrap_or(0);
-        format!("calc({lignes} * var(--ligne))")
-    };
+    let hauteur_de_la_piste = move || Etalon::Boite.hauteur(total().unwrap_or(0));
     let haut_des_lignes = move || {
         let debut = boite
             .retirees
             .with(|lues| lues.as_ref().map_or(0, |lues| lues.fenetre.debut));
-        format!("calc({debut} * var(--ligne))")
+        Etalon::Boite.hauteur(u64::from(debut))
     };
     let lignes = move || {
         boite.retirees.with(|lues| {
@@ -2076,7 +2885,8 @@ fn VoletDesRetirees(ecran: Ecran) -> impl IntoView {
                 </h2>
                 <button
                     type="button"
-                    on:click=move |_| ecran.fermer_le_volet(Cible::BoutonDesRetirees)
+                    aria-keyshortcuts="Escape"
+                    on:click=move |_| ecran.fermer_par_echap()
                 >
                     "Fermer"
                 </button>
@@ -2106,10 +2916,119 @@ fn VoletDesRetirees(ecran: Ecran) -> impl IntoView {
     }
 }
 
+/// Le volet du journal du fonds, en lecture seule : son titre, qui prend le focus à l'ouverture,
+/// « Fermer », qui rend le focus à « Journal du fonds », son en-tête (le nombre d'entrées et
+/// l'empreinte), et la liste de ses entrées, la plus récente d'abord, en fenêtre comme celle des
+/// idées retirées. Chaque ligne se date au décalage de son instant (`natif::decalage_a`) ; elle
+/// tient trois lignes de texte, où son message passe à la ligne, et ne se coupe qu'au-delà de la
+/// troisième. Sa hauteur, `--ligne-du-journal`, n'est pas celle d'une ligne de la boîte : l'étalon
+/// du journal, monté dans le volet, la mesure (`Etalon::Journal`), et la fenêtre, la piste et le
+/// haut des lignes rendues se calculent sur elle. Monté, il lit la fenêtre que sa liste montre.
+#[component]
+fn VoletDuJournal(ecran: Ecran) -> impl IntoView {
+    let boite = ecran.boite;
+    Effect::new(move |_| {
+        if ecran.liste_du_journal.get().is_some() && ecran.etalon(Etalon::Journal).get().is_some() {
+            ecran.demander_le_journal(true);
+        }
+    });
+    let total = move || boite.journal.with(|lu| lu.as_ref().map(|lu| lu.vue.total));
+    let entete = move || {
+        boite.journal.with(|lu| {
+            lu.as_ref()
+                .map(|lu| entete_du_journal(lu.vue.total, &lu.vue.empreinte))
+                .unwrap_or_default()
+        })
+    };
+    let hauteur_de_la_piste = move || Etalon::Journal.hauteur(total().unwrap_or(0));
+    let haut_des_lignes = move || {
+        let debut = boite
+            .journal
+            .with(|lu| lu.as_ref().map_or(0, |lu| lu.fenetre.debut));
+        Etalon::Journal.hauteur(u64::from(debut))
+    };
+    // Une ligne par entrée, sa clé son rang dans le journal et son texte : deux entrées peuvent
+    // porter le même message à la même heure.
+    let lignes = move || {
+        boite.journal.with(|lu| {
+            lu.as_ref()
+                .map(|lu| {
+                    let debut = u64::from(lu.fenetre.debut);
+                    lu.vue
+                        .lignes
+                        .iter()
+                        .enumerate()
+                        .map(|(rang, entree)| {
+                            let texte = ligne_du_journal(entree, natif::decalage_a(entree.heure));
+                            (debut + rang as u64, texte)
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default()
+        })
+    };
+    view! {
+        <aside
+            id="volet-du-journal"
+            class="volet volet-du-journal"
+            aria-labelledby="titre-du-journal"
+        >
+            <div class="etalon" aria-hidden="true">
+                <div node_ref=ecran.etalon_du_journal></div>
+            </div>
+            <div class="volet-haut">
+                <h2 id="titre-du-journal" tabindex="-1" node_ref=ecran.titre_du_journal>
+                    "Journal du fonds"
+                </h2>
+                <button
+                    type="button"
+                    aria-keyshortcuts="Escape"
+                    on:click=move |_| ecran.fermer_par_echap()
+                >
+                    "Fermer"
+                </button>
+            </div>
+            <p>{entete}</p>
+            <div
+                class="liste"
+                tabindex="0"
+                role="region"
+                aria-label="Entrées du journal"
+                node_ref=ecran.liste_du_journal
+                on:scroll=move |_| ecran.demander_le_journal(false)
+            >
+                <div class="piste" style:height=hauteur_de_la_piste>
+                    <div class="lignes" role="list" style:top=haut_des_lignes>
+                        <For
+                            each=lignes
+                            key=|(rang, texte)| (*rang, texte.clone())
+                            children=move |(rang, texte)| {
+                                view! {
+                                    <div
+                                        class="ligne"
+                                        role="listitem"
+                                        aria-posinset=(rang + 1).to_string()
+                                        aria-setsize=move || total().unwrap_or(0).to_string()
+                                    >
+                                        <span class="cellules journal">
+                                            <span class="cellule">{texte}</span>
+                                        </span>
+                                    </div>
+                                }
+                            }
+                        />
+                    </div>
+                </div>
+            </div>
+        </aside>
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use commandes::{Appareil, Provenance};
+    use crate::recherche::{EtatDeLaRequete, jour_du_champ};
+    use commandes::{Appareil, Bornes, Provenance};
 
     /// Une ligne inventée, captée sur l'établi, sans durée ni lien.
     fn ligne(texte: Option<&str>, etiquettes: &[&str]) -> LigneDeLaBoite {
@@ -2340,6 +3259,103 @@ mod tests {
         );
         // Sa ligne sortie de la fenêtre lue, le focus va à la liste.
         assert_eq!(cible_apres_le_volet("c", &lues), Cible::Liste);
+    }
+
+    #[test]
+    fn le_fonds_vide_se_dit_par_des_constats() {
+        // Dès qu'une idée est interrogée, il n'y a pas de page.
+        assert_eq!(page_du_fonds_vide(1, false), None);
+        assert_eq!(page_du_fonds_vide(12, true), None);
+        assert_eq!(
+            page_du_fonds_vide(0, false),
+            Some([
+                "La boîte d'idées est vide.",
+                "Une idée se note dans le champ « Noter une idée »."
+            ])
+        );
+        assert_eq!(
+            page_du_fonds_vide(0, true),
+            Some([
+                "La boîte d'idées est vide.",
+                "Le fonds est en lecture seule : le bandeau dit pourquoi."
+            ])
+        );
+        for lecture_seule in [false, true] {
+            for texte in page_du_fonds_vide(0, lecture_seule).unwrap() {
+                // Un constat, jamais un ordre : aucun texte ne commence par un verbe à
+                // l'impératif, rétablir compris.
+                for verbe in [
+                    "Notez",
+                    "Importez",
+                    "Créez",
+                    "Ajoutez",
+                    "Commencez",
+                    "Rétablissez",
+                ] {
+                    assert!(!texte.starts_with(verbe), "{texte}");
+                }
+                // Un constat vrai : retirer n'efface rien, et toutes les idées retirées, le fonds
+                // en porte encore. Aucun texte ne dit que le fonds n'a pas d'idée.
+                assert!(!texte.contains("aucune idée"), "{texte}");
+            }
+        }
+    }
+
+    #[test]
+    fn la_liste_cachee_ne_recoit_pas_le_focus() {
+        // Fonds vide : la liste est cachée, le focus va au champ « Noter une idée ».
+        assert_eq!(cible_repliee(Cible::Liste, true), Cible::ChampDeNote);
+        // Sinon, ou pour toute autre cible, rien ne change.
+        assert_eq!(cible_repliee(Cible::Liste, false), Cible::Liste);
+        assert_eq!(
+            cible_repliee(Cible::BoutonDesRetirees, true),
+            Cible::BoutonDesRetirees
+        );
+        assert_eq!(
+            cible_repliee(Cible::TitreDeLIdee, true),
+            Cible::TitreDeLIdee
+        );
+    }
+
+    #[test]
+    fn le_fonds_devenu_vide_rend_au_champ_de_note_le_focus_de_la_liste() {
+        // La dernière idée retirée, la liste a reçu le focus avant la relecture, et la page du
+        // fonds vide la cache : il va au champ « Noter une idée ».
+        assert_eq!(
+            cible_quand_le_fonds_se_vide(true, true),
+            Some(Cible::ChampDeNote)
+        );
+        // Le focus ailleurs, ou le fonds non vide : il reste où il est.
+        assert_eq!(cible_quand_le_fonds_se_vide(true, false), None);
+        assert_eq!(cible_quand_le_fonds_se_vide(false, true), None);
+        assert_eq!(cible_quand_le_fonds_se_vide(false, false), None);
+    }
+
+    #[test]
+    fn echap_ferme_le_volet_et_rend_le_focus_comme_fermer() {
+        let lues = [ligne_de("a"), ligne_de("b")];
+        // Le volet de l'idée : le focus va à la ligne qui l'a ouvert, comme « Fermer ».
+        assert_eq!(
+            cible_de_fermeture(&Volet::Idee("b".to_string()), &lues),
+            Some(cible_apres_le_volet("b", &lues))
+        );
+        // Sa ligne sortie de la fenêtre lue, à la liste.
+        assert_eq!(
+            cible_de_fermeture(&Volet::Idee("c".to_string()), &lues),
+            Some(Cible::Liste)
+        );
+        // Le volet des retirées : le focus va au bouton « Idées retirées », comme « Fermer ».
+        assert_eq!(
+            cible_de_fermeture(&Volet::Retirees, &lues),
+            Some(Cible::BoutonDesRetirees)
+        );
+        // Le volet du journal : le focus va au bouton « Journal du fonds », comme « Fermer ».
+        assert_eq!(
+            cible_de_fermeture(&Volet::Journal, &lues),
+            Some(Cible::BoutonDuJournal)
+        );
+        // Aucun volet : rien ne se ferme, le focus ne bouge pas.
+        assert_eq!(cible_de_fermeture(&Volet::Aucun, &lues), None);
     }
 
     #[test]
@@ -2630,6 +3646,94 @@ mod tests {
         );
     }
 
+    /// La valeur que déclare pour `propriete` une règle de la feuille de style `css` dont le
+    /// sélecteur, seul ou dernier d'une liste, ouvre une ligne et vaut `selecteur` : la première
+    /// règle qui la déclare ; rien si aucune ne la déclare.
+    fn declaree<'a>(css: &'a str, selecteur: &str, propriete: &str) -> Option<&'a str> {
+        let tete = format!("\n{selecteur} {{");
+        let declaration = format!("\n  {propriete}: ");
+        css.match_indices(&tete).find_map(|(debut, _)| {
+            let regle = &css[debut + tete.len()..];
+            let regle = &regle[..regle.find('}').unwrap_or(regle.len())];
+            let valeur = &regle[regle.find(&declaration)? + declaration.len()..];
+            Some(valeur[..valeur.find(';').unwrap_or(valeur.len())].trim())
+        })
+    }
+
+    /// Une longueur de la feuille de style en rem, sans son unité.
+    fn en_rem(valeur: &str) -> f64 {
+        valeur
+            .strip_suffix("rem")
+            .and_then(|nombre| nombre.parse().ok())
+            .unwrap_or_else(|| panic!("{valeur} n'est pas une longueur en rem"))
+    }
+
+    #[test]
+    fn une_ligne_du_journal_tient_trois_lignes_et_son_etalon_en_mesure_cent() {
+        // Coupé sur une ligne, un message long du journal perdait son verbe (« Requête « Une
+        // requête au nom très long… »). Chaque ligne du journal a une hauteur fixe qui tient trois
+        // lignes de texte, où le message passe à la ligne ; il ne se coupe qu'au-delà de la
+        // troisième. La hauteur et l'interligne s'écrivent en rem : ils suivent la police, à 100 %
+        // comme à 200 %.
+        let css = include_str!("../style.css");
+        let lue = |selecteur: &str, propriete: &str| {
+            declaree(css, selecteur, propriete)
+                .unwrap_or_else(|| panic!("{selecteur} ne déclare pas {propriete}"))
+        };
+        let message = ".cellules.journal .cellule";
+        assert_eq!(lue(message, "white-space"), "normal");
+        assert_eq!(lue(message, "display"), "-webkit-box");
+        assert_eq!(lue(message, "-webkit-box-orient"), "vertical");
+        let lignes_de_texte: u32 = lue(message, "-webkit-line-clamp")
+            .parse()
+            .expect("un nombre de lignes");
+        assert_eq!(lignes_de_texte, 3);
+        let interligne = en_rem(lue(message, "line-height"));
+        let hauteur = en_rem(lue(".volet-du-journal", "--ligne-du-journal"));
+        // Les trois lignes de texte et une marge d'un demi-rem au moins, le filet du bas compris,
+        // tiennent dans la ligne : rien ne déborde sur la suivante.
+        assert!(
+            hauteur >= f64::from(lignes_de_texte) * interligne + 0.5,
+            "une ligne du journal de {hauteur} rem ne tient pas trois lignes de {interligne} rem"
+        );
+        assert_eq!(
+            lue(".volet-du-journal .ligne", "height"),
+            "var(--ligne-du-journal)"
+        );
+        // Le second étalon, dans le volet du journal, mesure cent lignes du journal, comme le
+        // premier mesure cent lignes de la boîte.
+        assert_eq!(
+            lue(".volet-du-journal .etalon > div", "height"),
+            format!("calc({LIGNES_DE_L_ETALON} * var(--ligne-du-journal))")
+        );
+        // Les lignes de la boîte et des idées retirées gardent leur hauteur et leur coupe sur une
+        // ligne.
+        assert_eq!(lue(".ligne", "height"), "var(--ligne)");
+        assert_eq!(lue(".cellule", "white-space"), "nowrap");
+        assert_eq!(lue(".cellule", "text-overflow"), "ellipsis");
+    }
+
+    #[test]
+    fn chaque_liste_se_mesure_sur_la_hauteur_de_ses_lignes() {
+        // Les lignes de la boîte et des idées retirées ont la hauteur `--ligne`, que mesure
+        // l'étalon de la boîte ; celles du journal, la hauteur `--ligne-du-journal`, que mesure
+        // l'étalon de son volet. La piste et le haut des lignes rendues se posent sur la hauteur
+        // que mesure l'étalon de la fenêtre demandée : mesuré sur les lignes de la boîte, plus
+        // basses, le journal demanderait des lignes plus loin que celles qu'il montre, et des
+        // blancs paraîtraient au défilement.
+        assert_eq!(Etalon::Boite.hauteur_d_une_ligne(), "--ligne");
+        assert_eq!(Etalon::Journal.hauteur_d_une_ligne(), "--ligne-du-journal");
+        assert_eq!(Etalon::Boite.hauteur(12), "calc(12 * var(--ligne))");
+        assert_eq!(
+            Etalon::Journal.hauteur(12),
+            "calc(12 * var(--ligne-du-journal))"
+        );
+        assert_eq!(
+            Etalon::Journal.hauteur(0),
+            "calc(0 * var(--ligne-du-journal))"
+        );
+    }
+
     #[test]
     fn la_liste_et_le_volet_ne_grandissent_pas_avec_leur_contenu() {
         // `.boite-corps` passe à la ligne (`flex-wrap: wrap`) : chaque rangée y prend au moins la
@@ -2702,5 +3806,633 @@ mod tests {
         assert_eq!(idee_de_rang(&fenetre, &lignes, 12).as_deref(), Some("c"));
         assert_eq!(idee_de_rang(&fenetre, &lignes, 9), None);
         assert_eq!(idee_de_rang(&fenetre, &lignes, 13), None);
+    }
+
+    #[test]
+    fn la_commande_porte_la_requete_en_cours_et_ses_bornes() {
+        // La requête « eglise » du 25 octobre au 25 octobre 2026, jour de 25 heures à Paris : la
+        // date se borne du minuit local du 25 (22 h UTC le 24) à celui du 26 (23 h UTC le 25).
+        let jour = jour_du_champ("2026-10-25");
+        let requete = Requete {
+            texte: "eglise".to_string(),
+            du: jour.clone(),
+            au: jour,
+            contenu: Some(Contenu::Prise),
+            ..Requete::default()
+        };
+        let fenetre = Fenetre {
+            debut: 40,
+            nombre: 25,
+        };
+        assert_eq!(
+            commande_de_la_boite(Ordre::Duree, &requete, decalage_de_paris, &fenetre),
+            Boite {
+                ordre: Ordre::Duree,
+                requete: requete.clone(),
+                bornes: Bornes {
+                    des: Some(1_792_879_200),
+                    avant: Some(1_792_969_200)
+                },
+                debut: 40,
+                nombre: 25,
+            }
+        );
+        // Sans jour, rien ne borne la date.
+        assert_eq!(
+            commande_de_la_boite(
+                Ordre::Date,
+                &Requete::default(),
+                decalage_de_paris,
+                &fenetre
+            )
+            .bornes,
+            Bornes::default()
+        );
+    }
+
+    /// Une vue de la boîte écrite pour le test : deux idées trouvées parmi six interrogées, dont
+    /// deux sans texte, et aucune ligne.
+    fn vue_de_la_reponse() -> VueDeLaBoite {
+        VueDeLaBoite {
+            non_reliees: 5,
+            assiette_du_compte: Assiette {
+                considerees: 6,
+                portant: 6,
+                decidees: 6,
+                illisibles: 0,
+            },
+            retenues: 2,
+            assiette_de_la_requete: Assiette {
+                considerees: 6,
+                portant: 4,
+                decidees: 4,
+                illisibles: 0,
+            },
+            sans: commandes::Sans {
+                etiquette: None,
+                duree: None,
+                texte: Some(2),
+            },
+            etiquettes_du_fonds: vec!["pont".to_string()],
+            lignes: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn la_reponse_ne_se_dit_que_d_une_requete_posee() {
+        let vue = vue_de_la_reponse();
+        // Sans critère, la liste est toute la boîte : aucune réponse ne se dit.
+        assert_eq!(texte_de_la_requete(&vue, &Requete::default()), None);
+        // Un texte sans mot ne pose aucun critère (CAP-06).
+        let sans_mot = Requete {
+            texte: " … ".to_string(),
+            ..Requete::default()
+        };
+        assert_eq!(texte_de_la_requete(&vue, &sans_mot), None);
+        let eglise = Requete {
+            texte: "eglise".to_string(),
+            ..Requete::default()
+        };
+        assert_eq!(
+            texte_de_la_requete(&vue, &eglise).as_deref(),
+            Some("2 idées · 2 sans texte · 6 interrogées")
+        );
+        // Un critère hors du texte, seul, se répond de même.
+        let prise = Requete {
+            contenu: Some(Contenu::Prise),
+            ..Requete::default()
+        };
+        assert_eq!(
+            texte_de_la_requete(&vue, &prise).as_deref(),
+            Some("2 idées · 2 sans texte · 6 interrogées")
+        );
+    }
+
+    #[test]
+    fn chaque_frappe_demande_et_seule_la_derniere_reponse_compte() {
+        // Trois frappes de suite, chacune sa demande : aucune minuterie ne les retient (I18).
+        let demandes = Demandes::nouvelles();
+        let fenetres = [0, 1, 2].map(|debut| Fenetre { debut, nombre: 25 });
+        let rangs = fenetres.clone().map(|fenetre| demandes.demander(&fenetre));
+        assert_eq!(demandes.derniere.get_value(), Some(fenetres[2].clone()));
+        // Les deux premières répondent après la troisième : seule la dernière est retenue.
+        let mut retenue = None;
+        for (rang, reponse) in [
+            (rangs[2], "troisième"),
+            (rangs[0], "première"),
+            (rangs[1], "deuxième"),
+        ] {
+            if demandes.est_la_derniere(rang) {
+                retenue = Some(reponse);
+            }
+        }
+        assert_eq!(retenue, Some("troisième"));
+    }
+
+    /// Un écran de la boîte, ses repères jamais montés.
+    fn ecran() -> Ecran {
+        Ecran {
+            etat: Etat::nouveau(),
+            boite: EtatDeLaBoite::nouveau(),
+            focus: RwSignal::new(None),
+            champ_de_note: NodeRef::new(),
+            champ_de_nom: NodeRef::new(),
+            liste: NodeRef::new(),
+            etalon_de_la_boite: NodeRef::new(),
+            liste_des_retirees: NodeRef::new(),
+            bouton_des_retirees: NodeRef::new(),
+            liste_du_journal: NodeRef::new(),
+            etalon_du_journal: NodeRef::new(),
+            bouton_du_journal: NodeRef::new(),
+            titre_de_l_idee: NodeRef::new(),
+            titre_des_retirees: NodeRef::new(),
+            titre_du_journal: NodeRef::new(),
+        }
+    }
+
+    /// Chaque signal de la requête de l'écran, tel qu'il est, écrit.
+    fn signaux(requete: EtatDeLaRequete) -> [String; 8] {
+        [
+            requete.texte.get_untracked(),
+            requete.du.get_untracked(),
+            requete.au.get_untracked(),
+            format!("{:?}", requete.etiquette.get_untracked()),
+            requete.duree.get_untracked().to_string(),
+            requete.etat.get_untracked().to_string(),
+            requete.provenance.get_untracked().to_string(),
+            requete.contenu.get_untracked().to_string(),
+        ]
+    }
+
+    #[test]
+    fn noter_ne_touche_pas_la_requete_en_cours() {
+        // Le point de revue 1, côté écran : la note faite vide son champ, et la requête en cours
+        // reste ; la relecture qui suit la note la montre si elle la satisfait.
+        let owner = Owner::new();
+        owner.set();
+        let ecran = ecran();
+        let requete = ecran.etat.requete;
+        let jour = jour_du_champ("2026-10-25");
+        requete.poser(&Requete {
+            texte: "eglise".to_string(),
+            du: jour.clone(),
+            au: jour,
+            etiquette: Some("pont".to_string()),
+            plus_de_secondes: Some(60),
+            etat: Some(commandes::Etat::NonReliee),
+            provenance: Some(commandes::ProvenanceDeLIdee::Captee),
+            contenu: Some(Contenu::TexteDeLIdee),
+        });
+        let avant = signaux(requete);
+        ecran.boite.note.set("  Une idée d'église ".to_string());
+        ecran.conclure_la_note("Une idée d'église");
+        assert_eq!(ecran.boite.note.get_untracked(), "");
+        assert_eq!(signaux(requete), avant);
+        // Le champ réécrit depuis le départ de la note garde ce qui y est écrit.
+        ecran.boite.note.set("Une autre idée".to_string());
+        ecran.conclure_la_note("Une idée d'église");
+        assert_eq!(ecran.boite.note.get_untracked(), "Une autre idée");
+        assert_eq!(signaux(requete), avant);
+    }
+
+    #[test]
+    fn le_choix_toutes_ne_pose_aucune_etiquette() {
+        // « Toutes », de valeur vide, ne pose aucun critère : une étiquette vide ne trouverait
+        // rien.
+        assert_eq!(etiquette_du_choix(""), None);
+        assert_eq!(etiquette_du_choix("pont"), Some("pont".to_string()));
+        // Une étiquette du fonds s'écrit comme la liste l'écrit.
+        assert_eq!(etiquette_ecrite("pont"), "#pont");
+        let du_fonds = ["pont".to_string(), "refrain".to_string()];
+        assert_eq!(etiquettes_a_choisir(&du_fonds, None), du_fonds);
+        assert_eq!(etiquettes_a_choisir(&du_fonds, Some("refrain")), du_fonds);
+        // L'étiquette choisie que le fonds ne porte plus reste offerte, à son rang : le choix
+        // se voit.
+        assert_eq!(
+            etiquettes_a_choisir(&du_fonds, Some("couplet")),
+            ["couplet", "pont", "refrain"]
+        );
+    }
+
+    #[test]
+    fn pose_un_critere_dit_comme_le_noyau() {
+        // `pose_un_critere` recopie, hors mutation, la règle de `Requete::est_vide` du noyau : sur
+        // chaque paire, la requête des commandes et celle du noyau, écrites à la main aux mêmes
+        // valeurs, elle dit comme lui.
+        use noyau::donnees::boite::Contenu as ContenuDuNoyau;
+        use noyau::donnees::requete::{
+            Etat as EtatDuNoyau, Jour as JourDuNoyau, ProvenanceDeLIdee as ProvenanceDuNoyau,
+            Requete as RequeteDuNoyau,
+        };
+        let jour = commandes::Jour {
+            annee: 2026,
+            mois: 10,
+            jour: 25,
+        };
+        let jour_du_noyau = JourDuNoyau {
+            annee: 2026,
+            mois: 10,
+            jour: 25,
+        };
+        let paires = [
+            (
+                "la requête par défaut",
+                Requete::default(),
+                RequeteDuNoyau::default(),
+                false,
+            ),
+            (
+                "un texte « … »",
+                Requete {
+                    texte: " … ".to_string(),
+                    ..Requete::default()
+                },
+                RequeteDuNoyau {
+                    texte: " … ".to_string(),
+                    ..RequeteDuNoyau::default()
+                },
+                false,
+            ),
+            (
+                "un texte de blancs",
+                Requete {
+                    texte: " \t\u{a0} ".to_string(),
+                    ..Requete::default()
+                },
+                RequeteDuNoyau {
+                    texte: " \t\u{a0} ".to_string(),
+                    ..RequeteDuNoyau::default()
+                },
+                false,
+            ),
+            (
+                "un texte « eglise »",
+                Requete {
+                    texte: "eglise".to_string(),
+                    ..Requete::default()
+                },
+                RequeteDuNoyau {
+                    texte: "eglise".to_string(),
+                    ..RequeteDuNoyau::default()
+                },
+                true,
+            ),
+            (
+                "des blancs et un seuil de durée",
+                Requete {
+                    texte: "  ".to_string(),
+                    plus_de_secondes: Some(30),
+                    ..Requete::default()
+                },
+                RequeteDuNoyau {
+                    texte: "  ".to_string(),
+                    plus_de_secondes: Some(30),
+                    ..RequeteDuNoyau::default()
+                },
+                true,
+            ),
+            (
+                "du",
+                Requete {
+                    du: Some(jour.clone()),
+                    ..Requete::default()
+                },
+                RequeteDuNoyau {
+                    du: Some(jour_du_noyau),
+                    ..RequeteDuNoyau::default()
+                },
+                true,
+            ),
+            (
+                "au",
+                Requete {
+                    au: Some(jour),
+                    ..Requete::default()
+                },
+                RequeteDuNoyau {
+                    au: Some(jour_du_noyau),
+                    ..RequeteDuNoyau::default()
+                },
+                true,
+            ),
+            (
+                "etiquette",
+                Requete {
+                    etiquette: Some("pont".to_string()),
+                    ..Requete::default()
+                },
+                RequeteDuNoyau {
+                    etiquette: Some("pont".to_string()),
+                    ..RequeteDuNoyau::default()
+                },
+                true,
+            ),
+            (
+                "plus_de_secondes",
+                Requete {
+                    plus_de_secondes: Some(60),
+                    ..Requete::default()
+                },
+                RequeteDuNoyau {
+                    plus_de_secondes: Some(60),
+                    ..RequeteDuNoyau::default()
+                },
+                true,
+            ),
+            (
+                "etat",
+                Requete {
+                    etat: Some(commandes::Etat::NonReliee),
+                    ..Requete::default()
+                },
+                RequeteDuNoyau {
+                    etat: Some(EtatDuNoyau::NonReliee),
+                    ..RequeteDuNoyau::default()
+                },
+                true,
+            ),
+            (
+                "provenance",
+                Requete {
+                    provenance: Some(commandes::ProvenanceDeLIdee::Importee),
+                    ..Requete::default()
+                },
+                RequeteDuNoyau {
+                    provenance: Some(ProvenanceDuNoyau::Importee),
+                    ..RequeteDuNoyau::default()
+                },
+                true,
+            ),
+            (
+                "contenu",
+                Requete {
+                    contenu: Some(Contenu::Prise),
+                    ..Requete::default()
+                },
+                RequeteDuNoyau {
+                    contenu: Some(ContenuDuNoyau::Prise),
+                    ..RequeteDuNoyau::default()
+                },
+                true,
+            ),
+        ];
+        for (nom, des_commandes, du_noyau, pose) in paires {
+            assert_eq!(
+                pose_un_critere(&des_commandes),
+                !du_noyau.est_vide(),
+                "{nom}"
+            );
+            assert_eq!(pose_un_critere(&des_commandes), pose, "{nom}");
+        }
+    }
+
+    /// Une requête enregistrée inventée, lisible ou, sans requête, d'une version plus récente.
+    fn enregistree(nom: &str, requete: Option<Requete>) -> RequeteEnregistree {
+        RequeteEnregistree {
+            id: "requete-inventee".to_string(),
+            nom: nom.to_string(),
+            requete,
+        }
+    }
+
+    #[test]
+    fn une_requete_plus_recente_se_nomme_et_ne_se_lance_pas() {
+        let owner = Owner::new();
+        owner.set();
+        let lisible = Requete {
+            texte: "pont".into(),
+            etat: Some(commandes::Etat::NonReliee),
+            ..Requete::default()
+        };
+        // Une requête lisible se nomme, sans note, et se lance : ses réglages se posent.
+        assert_eq!(
+            ce_que_dit_la_requete(&enregistree("Les ponts", Some(lisible.clone()))),
+            ("Les ponts".to_string(), None)
+        );
+        let etat = EtatDeLaRequete::nouveau();
+        assert!(lancer(
+            etat,
+            &enregistree("Les ponts", Some(lisible.clone()))
+        ));
+        assert_eq!(etat.requete(), lisible);
+        // Une requête d'une version plus récente se nomme, avec sa note, et ne change rien.
+        let plus_recente = enregistree("Venue d'ailleurs", None);
+        assert_eq!(
+            ce_que_dit_la_requete(&plus_recente),
+            (
+                "Venue d'ailleurs".to_string(),
+                Some("Cette requête vient d'une version plus récente de Pupitre.")
+            )
+        );
+        assert!(!lancer(etat, &plus_recente));
+        assert_eq!(etat.requete(), lisible);
+    }
+
+    /// Une requête lancée inventée, ses réglages posés sur l'écran par un clic.
+    fn requete_lancee() -> Requete {
+        Requete {
+            texte: "refrain".into(),
+            du: jour_du_champ("2026-10-25"),
+            etiquette: Some("pont".into()),
+            plus_de_secondes: Some(60),
+            ..Requete::default()
+        }
+    }
+
+    #[test]
+    fn supprimer_la_requete_en_cours_laisse_ses_criteres() {
+        let owner = Owner::new();
+        owner.set();
+        let boite = EtatDeLaBoite::nouveau();
+        let etat = EtatDeLaRequete::nouveau();
+        let lancee = requete_lancee();
+        let enregistree = enregistree("Mes refrains", Some(lancee.clone()));
+        boite.requetes.set(Some(vec![enregistree.clone()]));
+        boite.choisir_et_lancer(etat, &enregistree);
+        assert_eq!(boite.requete_choisie.get(), Some(enregistree.id.clone()));
+        // Le geste « Supprimer » fait : la liste des requêtes enregistrées change, le choix
+        // s'oublie, le focus va au champ « Nom » ; la requête de l'écran, non.
+        let cible = boite.apres_un_geste_de_requete(
+            &GesteDeRequete::Supprimer {
+                requete: enregistree.id.clone(),
+            },
+            true,
+        );
+        assert_eq!(cible, Some(Cible::ChampDeNom));
+        assert_eq!(boite.requetes.get(), Some(Vec::new()));
+        assert_eq!(boite.requete_choisie.get(), None);
+        assert_eq!(boite.nom_de_la_requete.get(), "");
+        assert_eq!(etat.requete(), lancee);
+        assert_eq!(etat.texte.get(), "refrain");
+        assert_eq!(etat.du.get(), "2026-10-25");
+        assert_eq!(etat.etiquette.get(), Some("pont".to_string()));
+        assert_eq!(etat.duree.get(), 2);
+    }
+
+    #[test]
+    fn un_refus_de_supprimer_laisse_le_choix_et_le_focus() {
+        let owner = Owner::new();
+        owner.set();
+        let boite = EtatDeLaBoite::nouveau();
+        let etat = EtatDeLaRequete::nouveau();
+        let enregistree = enregistree("Mes refrains", Some(requete_lancee()));
+        boite.requetes.set(Some(vec![enregistree.clone()]));
+        boite.choisir_et_lancer(etat, &enregistree);
+        let cible = boite.apres_un_geste_de_requete(
+            &GesteDeRequete::Supprimer {
+                requete: enregistree.id.clone(),
+            },
+            false,
+        );
+        assert_eq!(cible, None);
+        assert_eq!(boite.requete_choisie.get(), Some(enregistree.id.clone()));
+        assert_eq!(boite.requetes.get(), Some(vec![enregistree]));
+        assert_eq!(boite.nom_de_la_requete.get(), "Mes refrains");
+        assert_eq!(etat.requete(), requete_lancee());
+    }
+
+    #[test]
+    fn renommer_fait_laisse_le_choix_sur_le_meme_identifiant() {
+        let owner = Owner::new();
+        owner.set();
+        let boite = EtatDeLaBoite::nouveau();
+        let etat = EtatDeLaRequete::nouveau();
+        let enregistree = enregistree("Mes refrains", Some(requete_lancee()));
+        boite.choisir_et_lancer(etat, &enregistree);
+        boite.nom_de_la_requete.set("Refrains du pont".to_string());
+        let cible = boite.apres_un_geste_de_requete(&GesteDeRequete::Renommer, true);
+        assert_eq!(cible, None);
+        assert_eq!(boite.requete_choisie.get(), Some(enregistree.id.clone()));
+        assert_eq!(boite.nom_de_la_requete.get(), "Refrains du pont");
+        assert_eq!(etat.requete(), requete_lancee());
+        // Refusé, de même.
+        let cible = boite.apres_un_geste_de_requete(&GesteDeRequete::Renommer, false);
+        assert_eq!(cible, None);
+        assert_eq!(boite.requete_choisie.get(), Some(enregistree.id));
+    }
+
+    #[test]
+    fn enregistrer_fait_vide_le_champ_qui_porte_encore_le_nom_envoye() {
+        let owner = Owner::new();
+        owner.set();
+        let boite = EtatDeLaBoite::nouveau();
+        boite.nom_de_la_requete.set("Mes refrains".to_string());
+        let geste = GesteDeRequete::Enregistrer {
+            nom: "Mes refrains".to_string(),
+        };
+        // Refusé : le champ garde le nom.
+        assert_eq!(boite.apres_un_geste_de_requete(&geste, false), None);
+        assert_eq!(boite.nom_de_la_requete.get(), "Mes refrains");
+        // Fait, le champ ayant changé entre-temps : il garde ce qui y est tapé.
+        boite.nom_de_la_requete.set("Autre nom".to_string());
+        assert_eq!(boite.apres_un_geste_de_requete(&geste, true), None);
+        assert_eq!(boite.nom_de_la_requete.get(), "Autre nom");
+        // Fait, le champ portant encore le nom envoyé : il se vide.
+        boite.nom_de_la_requete.set("Mes refrains".to_string());
+        assert_eq!(boite.apres_un_geste_de_requete(&geste, true), None);
+        assert_eq!(boite.nom_de_la_requete.get(), "");
+    }
+
+    #[test]
+    fn choisir_une_requete_lisible_pose_ses_reglages() {
+        let owner = Owner::new();
+        owner.set();
+        let boite = EtatDeLaBoite::nouveau();
+        let etat = EtatDeLaRequete::nouveau();
+        let enregistree = enregistree("Mes refrains", Some(requete_lancee()));
+        boite.choisir_et_lancer(etat, &enregistree);
+        assert_eq!(boite.requete_choisie.get(), Some(enregistree.id));
+        assert_eq!(boite.nom_de_la_requete.get(), "Mes refrains");
+        assert_eq!(etat.requete(), requete_lancee());
+    }
+
+    #[test]
+    fn choisir_une_requete_plus_recente_la_choisit_sans_rien_poser() {
+        let owner = Owner::new();
+        owner.set();
+        let boite = EtatDeLaBoite::nouveau();
+        let etat = EtatDeLaRequete::nouveau();
+        let deja = Requete {
+            texte: "pont".into(),
+            ..Requete::default()
+        };
+        etat.poser(&deja);
+        let plus_recente = enregistree("Venue d'ailleurs", None);
+        boite.choisir_et_lancer(etat, &plus_recente);
+        assert_eq!(boite.requete_choisie.get(), Some(plus_recente.id));
+        assert_eq!(etat.requete(), deja);
+    }
+
+    #[test]
+    fn une_liste_vide_de_requetes_enregistrees_le_dit() {
+        // Lue et vide : un constat, de la forme d'« Aucune idée retirée. ».
+        let aucune: [RequeteEnregistree; 0] = [];
+        assert_eq!(
+            constat_des_requetes(Some(aucune.as_slice())),
+            Some("Aucune requête enregistrée.")
+        );
+        // Pas encore lue, ou sa lecture refusée : rien, puisque rien n'en est su.
+        assert_eq!(constat_des_requetes(None), None);
+        // Une requête, même d'une version plus récente : la liste la montre, sans constat.
+        let une = [enregistree("Venue d'ailleurs", None)];
+        assert_eq!(constat_des_requetes(Some(une.as_slice())), None);
+    }
+
+    #[test]
+    fn une_requete_plus_recente_dit_qu_elle_ne_se_lance_pas() {
+        assert_eq!(
+            PRECISION_D_UNE_REQUETE_PLUS_RECENTE,
+            "Elle ne se lance pas : choisie, elle se renomme ou se supprime."
+        );
+    }
+
+    #[test]
+    fn enregistrer_ne_s_offre_qu_a_une_requete_posee() {
+        let posee = Requete {
+            texte: "refrain".into(),
+            ..Requete::default()
+        };
+        assert!(enregistrer_possible(&posee, "Mes refrains"));
+        assert!(!enregistrer_possible(&Requete::default(), "Mes refrains"));
+        assert!(!enregistrer_possible(&posee, ""));
+        assert!(!enregistrer_possible(&posee, " 	 "));
+        // Un texte sans mot ne pose aucun critère.
+        let sans_mot = Requete {
+            texte: " … ".into(),
+            ..Requete::default()
+        };
+        assert!(!enregistrer_possible(&sans_mot, "Mes refrains"));
+    }
+
+    #[test]
+    fn chaque_ligne_du_journal_dit_son_heure_et_son_message() {
+        // L'heure 0, celle de la genèse : « — ».
+        let genese = EntreeDuJournal {
+            message: "Genèse du fonds".to_string(),
+            heure: 0,
+        };
+        assert_eq!(ligne_du_journal(&genese, 0), "— · Genèse du fonds");
+        // Une heure au décalage de son instant : le jour, puis l'heure du jour sur deux chiffres.
+        let notee = EntreeDuJournal {
+            message: "Idée du 25 octobre notée".to_string(),
+            heure: 1_792_888_200,
+        };
+        assert_eq!(
+            ligne_du_journal(&notee, 120),
+            "25 oct. 2026 · 02:30 · Idée du 25 octobre notée"
+        );
+    }
+
+    #[test]
+    fn l_entete_du_journal_dit_son_nombre_et_son_empreinte() {
+        let empreinte = "570cda0f1e2d3c4b5a69788796a5b4c3d2e1f00112233445566778899aabbccd";
+        assert_eq!(
+            entete_du_journal(1, empreinte),
+            "1 entrée · empreinte 570cda"
+        );
+        assert_eq!(
+            entete_du_journal(3, empreinte),
+            "3 entrées · empreinte 570cda"
+        );
     }
 }

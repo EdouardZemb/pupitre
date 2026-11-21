@@ -70,15 +70,19 @@ jobs:
   # l'interface, puis le fonds de mesure. La chaîne vient de rust-toolchain.toml.
   verifier:
     runs-on: ubuntu-latest
-    # Deux fois le plus long passage complet mesuré à froid (« No cache found. »), le graphe de
-    # l'établi et le fonds de mesure compris : 5 min 53 s le 2026-11-15, PR #43 (exécution
-    # 43717435077) ; avant, 4 min 47 s le 2026-11-14, PR #40, sans le fonds de mesure ; depuis,
-    # 3 min 55 s le 2026-11-15, PR #44 (exécution 43733973477), le contrôle statique de
-    # l'interface compris, et 4 min 11 s le 2026-11-16, PR #45 (exécution 43775887636), la boîte,
-    # le bandeau et I29 compris (LE-29 de modele-projet). Le 2026-11-18, la PR #47, les requêtes,
-    # leur index et le journal compris, n'a passé qu'à chaud (« Cache hit ») : 1 min 49 s
-    # (exécution 44254030959) ; le double reste sous le délai, qui ne baisse pas.
-    timeout-minutes: 12
+    # Deux fois le plus long passage complet mesuré à froid (« No cache found. »), arrondi à la
+    # minute au-dessus : 6 min 19 s le 2026-11-21, PR #48 (exécution 44877135534), la vue du
+    # fonds comprise ; son double, 12 min 38 s. Avant : 5 min 53 s le 2026-11-15, PR #43
+    # (exécution 43717435077), le graphe de l'établi et le fonds de mesure compris ; 4 min 47 s
+    # le 2026-11-14, PR #40, sans le fonds de mesure ; 3 min 55 s le 2026-11-15, PR #44
+    # (exécution 43733973477), le contrôle statique de l'interface compris, et 4 min 11 s le
+    # 2026-11-16, PR #45 (exécution 43775887636), la boîte, le bandeau et I29 compris (LE-29 de
+    # modele-projet). Le 2026-11-18, la PR #47, les requêtes, leur index et le journal compris,
+    # n'a passé qu'à chaud (« Cache hit ») : 1 min 49 s (exécution 44254030959) ; la PR #48,
+    # avant son passage à froid, dix passages verts à chaud, le plus long en 2 min 45 s
+    # (exécution 44286444480). Un délai ne baisse pas, comme le § 70 · 1 le veut pour la
+    # mutation.
+    timeout-minutes: 13
     permissions:
       contents: read
     steps:
@@ -168,17 +172,21 @@ jobs:
   # l'impression.
   windows:
     runs-on: windows-latest
-    # Deux fois le plus long passage complet mesuré à froid (« No cache found. »), le stockage, la
-    # synchronisation, l'établi et le cahier compris : 29 min 42 s le 2026-11-14, PR #39, dont
-    # 17 min 36 s pour installer trunk et tauri-cli ; 28 min 11 s le 2026-11-15, PR #43 (exécution
-    # 43717435077), la sentinelle d'I30 comprise, dont 16 min 11 s ; 23 min 20 s le 2026-11-15,
-    # PR #44 (exécution 43733973477), les tests d'I31 compris, dont 13 min 32 s ; 28 min 56 s le
-    # 2026-11-16, PR #45 (exécution 43775887636), la boîte, le bandeau et I29 compris, dont
-    # 16 min 17 s (LE-29 de modele-projet). Le 2026-11-18, la PR #47, les requêtes comprises
-    # dans les tests du stockage et de l'établi, n'a passé qu'à chaud (« Cache hit ») : 5 min 44 s
-    # (exécution 44254030959), dont 2 s pour trunk et tauri-cli ; le double reste sous le délai,
-    # qui ne baisse pas.
-    timeout-minutes: 60
+    # Deux fois le plus long passage complet mesuré à froid (« No cache found. »), arrondi à la
+    # minute au-dessus : 39 min 17 s le 2026-11-21, PR #48 (exécution 44877135534), la vue du
+    # fonds comprise, dont 22 min 20 s pour installer trunk (12 min 41 s) et tauri-cli
+    # (9 min 39 s) ; son double, 78 min 34 s. Avant : 29 min 42 s le 2026-11-14, PR #39, le
+    # stockage, la synchronisation, l'établi et le cahier compris, dont 17 min 36 s pour installer
+    # trunk et tauri-cli ; 28 min 11 s le 2026-11-15, PR #43 (exécution 43717435077), la
+    # sentinelle d'I30 comprise, dont 16 min 11 s ; 23 min 20 s le 2026-11-15, PR #44 (exécution
+    # 43733973477), les tests d'I31 compris, dont 13 min 32 s ; 28 min 56 s le 2026-11-16, PR #45
+    # (exécution 43775887636), la boîte, le bandeau et I29 compris, dont 16 min 17 s (LE-29 de
+    # modele-projet). Le 2026-11-18, la PR #47, les requêtes comprises dans les tests du stockage
+    # et de l'établi, n'a passé qu'à chaud (« Cache hit ») : 5 min 44 s (exécution 44254030959),
+    # dont 2 s pour trunk et tauri-cli ; la PR #48, avant son passage à froid, dix passages verts
+    # à chaud, le plus long en 6 min 27 s (exécution 44305210149), dont 1 s pour trunk et
+    # tauri-cli. Un délai ne baisse pas, comme le § 70 · 1 le veut pour la mutation.
+    timeout-minutes: 79
     permissions:
       contents: read
     steps:
