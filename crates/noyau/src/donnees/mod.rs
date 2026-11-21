@@ -19,5 +19,6 @@ pub mod rapport;
 pub mod repli;
 pub mod requete;
 pub mod signature;
+pub mod stems;
 pub mod teneur;
 pub mod version;
