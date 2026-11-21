@@ -3595,6 +3595,73 @@ mod tests {
         );
     }
 
+    /// La valeur que déclare pour `propriete` une règle de la feuille de style `css` dont le
+    /// sélecteur, seul ou dernier d'une liste, ouvre une ligne et vaut `selecteur` : la première
+    /// règle qui la déclare ; rien si aucune ne la déclare.
+    fn declaree<'a>(css: &'a str, selecteur: &str, propriete: &str) -> Option<&'a str> {
+        let tete = format!("\n{selecteur} {{");
+        let declaration = format!("\n  {propriete}: ");
+        css.match_indices(&tete).find_map(|(debut, _)| {
+            let regle = &css[debut + tete.len()..];
+            let regle = &regle[..regle.find('}').unwrap_or(regle.len())];
+            let valeur = &regle[regle.find(&declaration)? + declaration.len()..];
+            Some(valeur[..valeur.find(';').unwrap_or(valeur.len())].trim())
+        })
+    }
+
+    /// Une longueur de la feuille de style en rem, sans son unité.
+    fn en_rem(valeur: &str) -> f64 {
+        valeur
+            .strip_suffix("rem")
+            .and_then(|nombre| nombre.parse().ok())
+            .unwrap_or_else(|| panic!("{valeur} n'est pas une longueur en rem"))
+    }
+
+    #[test]
+    fn une_ligne_du_journal_tient_trois_lignes_et_son_etalon_en_mesure_cent() {
+        // Coupé sur une ligne, un message long du journal perdait son verbe (« Requête « Une
+        // requête au nom très long… »). Chaque ligne du journal a une hauteur fixe qui tient trois
+        // lignes de texte, où le message passe à la ligne ; il ne se coupe qu'au-delà de la
+        // troisième. La hauteur et l'interligne s'écrivent en rem : ils suivent la police, à 100 %
+        // comme à 200 %.
+        let css = include_str!("../style.css");
+        let lue = |selecteur: &str, propriete: &str| {
+            declaree(css, selecteur, propriete)
+                .unwrap_or_else(|| panic!("{selecteur} ne déclare pas {propriete}"))
+        };
+        let message = ".cellules.journal .cellule";
+        assert_eq!(lue(message, "white-space"), "normal");
+        assert_eq!(lue(message, "display"), "-webkit-box");
+        assert_eq!(lue(message, "-webkit-box-orient"), "vertical");
+        let lignes_de_texte: u32 = lue(message, "-webkit-line-clamp")
+            .parse()
+            .expect("un nombre de lignes");
+        assert_eq!(lignes_de_texte, 3);
+        let interligne = en_rem(lue(message, "line-height"));
+        let hauteur = en_rem(lue(".volet-du-journal", "--ligne-du-journal"));
+        // Les trois lignes de texte et une marge d'un demi-rem au moins, le filet du bas compris,
+        // tiennent dans la ligne : rien ne déborde sur la suivante.
+        assert!(
+            hauteur >= f64::from(lignes_de_texte) * interligne + 0.5,
+            "une ligne du journal de {hauteur} rem ne tient pas trois lignes de {interligne} rem"
+        );
+        assert_eq!(
+            lue(".volet-du-journal .ligne", "height"),
+            "var(--ligne-du-journal)"
+        );
+        // Le second étalon, dans le volet du journal, mesure cent lignes du journal, comme le
+        // premier mesure cent lignes de la boîte.
+        assert_eq!(
+            lue(".volet-du-journal .etalon > div", "height"),
+            format!("calc({LIGNES_DE_L_ETALON} * var(--ligne-du-journal))")
+        );
+        // Les lignes de la boîte et des idées retirées gardent leur hauteur et leur coupe sur une
+        // ligne.
+        assert_eq!(lue(".ligne", "height"), "var(--ligne)");
+        assert_eq!(lue(".cellule", "white-space"), "nowrap");
+        assert_eq!(lue(".cellule", "text-overflow"), "ellipsis");
+    }
+
     #[test]
     fn la_liste_et_le_volet_ne_grandissent_pas_avec_leur_contenu() {
         // `.boite-corps` passe à la ligne (`flex-wrap: wrap`) : chaque rangée y prend au moins la
