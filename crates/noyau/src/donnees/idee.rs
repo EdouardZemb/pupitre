@@ -22,12 +22,15 @@ pub fn empreintes_nommees<'a>(
         .flat_map(|cle| {
             let mut segments = cle.split('/');
             let prise = segments.next();
-            let stem = (segments.next() == Some(STEM))
-                .then(|| segments.next())
-                .flatten();
-            let midi = (segments.next() == Some(MIDI))
-                .then(|| segments.next())
-                .flatten();
+            let (stem, midi) = if segments.next() == Some(STEM) {
+                let stem = segments.next();
+                let midi = (segments.next() == Some(MIDI))
+                    .then(|| segments.next())
+                    .flatten();
+                (stem, midi)
+            } else {
+                (None, None)
+            };
             [prise, stem, midi]
         });
     des_cles
