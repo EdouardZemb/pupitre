@@ -128,10 +128,18 @@ fn origine(ajout: Ajout) -> Declaration {
 
 #[test]
 fn ouvrir_ecrit_l_heure_et_les_declarations() {
-    // Le dossier versé, son origine ; `Jeu A`, jeu de stems ; `Jeu B`, jeu de stems et généré à
-    // la fois ; `Vide`, ni l'un ni l'autre, n'écrit rien.
+    // Le dossier versé, jeu de stems et de la main de Sacha à la fois ; `Démos`, son origine
+    // seule ; `Jeu A`, jeu de stems seul ; `Jeu B`, jeu de stems et généré à la fois ; `Vide`, ni
+    // l'un ni l'autre, n'écrit rien.
     let declarations = BTreeMap::from([
-        (String::new(), origine(Ajout::Main)),
+        (
+            String::new(),
+            Declaration {
+                stems: true,
+                origine: Some(Ajout::Main),
+            },
+        ),
+        ("Démos".into(), origine(Ajout::Generee("Forge".into()))),
         (
             "Jeu A".into(),
             Declaration {
@@ -157,6 +165,11 @@ fn ouvrir_ecrit_l_heure_et_les_declarations() {
             (
                 format!("imports|{I}/declaration/"),
                 Simple::Chaine("main".into())
+            ),
+            (format!("imports|{I}/jeu/"), Simple::Vrai),
+            (
+                format!("imports|{I}/declaration/Démos"),
+                Simple::Chaine("generee:Forge".into())
             ),
             (format!("imports|{I}/jeu/Jeu A"), Simple::Vrai),
             (
