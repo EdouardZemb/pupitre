@@ -9,6 +9,31 @@ use noyau::donnees::idee::{
     Assiette, assiette, bouts_du_lien, cle_du_lien, duree, empreintes_nommees, est_vide, reliee,
 };
 
+const P: &str = "1111111111111111111111111111111111111111111111111111111111111111";
+const S: &str = "2222222222222222222222222222222222222222222222222222222222222222";
+const M: &str = "3333333333333333333333333333333333333333333333333333333333333333";
+const E: &str = "4444444444444444444444444444444444444444444444444444444444444444";
+const R: &str = "5555555555555555555555555555555555555555555555555555555555555555";
+const FAUX: &str = "6666666666666666666666666666666666666666666666666666666666666666";
+const FAUX2: &str = "7777777777777777777777777777777777777777777777777777777777777777";
+
+#[test]
+fn les_empreintes_nommees_lisent_les_stems_leurs_midi_et_les_rapports() {
+    let cles = [
+        format!("{P}/idee"),
+        format!("{P}/manifeste"),
+        format!("{P}/stem/{S}/duree"),
+        format!("{P}/stem/{S}/midi/{M}"),
+        format!("{P}/stem/{S}/nom/Jeu A/voix.wav"),
+        format!("{E}/nom/stem/{FAUX}/midi/{FAUX2}"),
+        format!("{M}/division"),
+    ];
+    let nommees = empreintes_nommees(cles.iter().map(String::as_str), [R]);
+    assert_eq!(nommees, BTreeSet::from([P, S, M, E, R].map(String::from)));
+    assert!(!nommees.contains(FAUX) && !nommees.contains(FAUX2));
+    assert_eq!(empreintes_nommees(["sans-barre"], []), BTreeSet::new());
+}
+
 #[test]
 fn les_empreintes_nommees_se_coupent_au_premier_trait() {
     let cles = [

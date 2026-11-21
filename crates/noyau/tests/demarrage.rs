@@ -4,8 +4,8 @@
 use std::collections::BTreeSet;
 
 use noyau::donnees::demarrage::{
-    Partiel, Provisoire, Sort, a_ranger, fichier_du_voisin, pupitre_neuf, sort_d_un_partiel,
-    voisin_libre,
+    Partiel, Provisoire, Sort, a_ranger, copies_a_retirer, fichier_du_voisin, pupitre_neuf,
+    sort_d_un_partiel, voisin_libre,
 };
 
 fn e(n: u8) -> String {
@@ -188,4 +188,49 @@ fn un_contenu_deja_range_ne_se_range_pas_sous_un_autre_nom() {
         },
     ];
     assert!(a_ranger(&provisoires, &nommees).is_empty());
+}
+
+const I: &str = "01HF7YAT00ZZZZZZZZZZZZZZZZ";
+const AUTRE: &str = "01HF7YAT010000000000000001";
+const E1: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1";
+const E2: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa2";
+const E3: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa3";
+const E4: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa4";
+
+#[test]
+fn la_reprise_retire_les_copies_non_nommees_et_la_cloture_toutes() {
+    let copie = |nom: &str, e: &str| Provisoire {
+        nom: nom.into(),
+        empreinte: e.into(),
+        deja_rangee: false,
+    };
+    let copies = [
+        copie(&format!("import-{I}-1.7.partiel"), E1),
+        copie(&format!("import-{I}-2.7.partiel"), E2),
+        copie(&format!("import-{AUTRE}-1.7.partiel"), E3),
+        copie(&format!("{E4}.7.partiel"), E4),
+    ];
+    let nommees = BTreeSet::from([E1.to_string()]);
+    assert_eq!(
+        copies_a_retirer(&copies, I, &nommees, false),
+        [format!("import-{I}-2.7.partiel")]
+    );
+    assert_eq!(
+        copies_a_retirer(&copies, I, &nommees, true),
+        [
+            format!("import-{I}-1.7.partiel"),
+            format!("import-{I}-2.7.partiel")
+        ]
+    );
+}
+
+#[test]
+fn une_copie_de_capture_n_est_jamais_retiree() {
+    let capture = Provisoire {
+        nom: format!("{E4}.7.partiel"),
+        empreinte: E4.into(),
+        deja_rangee: false,
+    };
+    assert!(copies_a_retirer(&[capture.clone()], I, &BTreeSet::new(), true).is_empty());
+    assert!(copies_a_retirer(&[capture], I, &BTreeSet::new(), false).is_empty());
 }
