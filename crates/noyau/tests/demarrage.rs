@@ -231,6 +231,6 @@ fn une_copie_de_capture_n_est_jamais_retiree() {
         empreinte: E4.into(),
         deja_rangee: false,
     };
-    assert!(copies_a_retirer(&[capture.clone()], I, &BTreeSet::new(), true).is_empty());
+    assert!(copies_a_retirer(std::slice::from_ref(&capture), I, &BTreeSet::new(), true).is_empty());
     assert!(copies_a_retirer(&[capture], I, &BTreeSet::new(), false).is_empty());
 }
