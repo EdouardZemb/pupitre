@@ -125,6 +125,8 @@ l'établi et la boîte d'idées : les morceaux et les albums attendent INC-2 et 
 captations à envoyer le nœud du lot 3, et la santé du nœud le lot 4
 ([§ 40 · 9](40-architecture.md#9-trajectoire-de-construction)). Une ligne de la liste date son
 idée sans heure (« 3 nov. 2026 ») et ouvre l'idée entière ; elle ne marque pas le mot trouvé.
+Une ligne du journal du fonds a la hauteur fixe de trois lignes de texte, où son message passe
+à la ligne : il ne se coupe qu'au-delà de la troisième.
 
 ### 3.2 Le morceau — la frise
 

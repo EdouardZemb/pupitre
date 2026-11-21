@@ -507,6 +507,8 @@ cherche pas dans l'encre.
   alphabétique imposé.
 - La boîte d'idées affiche le nombre d'idées non reliées, sans ancienneté. Les idées
   retirées n'y comptent pas ; leur liste est à un geste, et chacune s'y rétablit.
+- Le journal du fonds est à un geste. Chacune de ses lignes a la hauteur fixe de trois lignes
+  de texte, où son message passe à la ligne : il ne se coupe qu'au-delà de la troisième.
 - L'état de synchronisation est toujours visible
   ([§ 31 · 4.3](../31-persistance-et-synchronisation.md#43-létat-visible-de-la-synchronisation)) :
   sur l'établi, l'en-tête de l'établi le porte, sur le fonds comme sur la table. Dès qu'un
