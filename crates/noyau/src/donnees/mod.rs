@@ -15,5 +15,6 @@ pub mod index;
 pub mod journal;
 pub mod repli;
 pub mod requete;
+pub mod signature;
 pub mod teneur;
 pub mod version;
