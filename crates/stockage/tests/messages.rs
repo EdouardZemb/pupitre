@@ -345,6 +345,18 @@ fn aucun_message_n_est_un_ordre() {
             Impossible::SeuilTropLong {
                 secondes: 9_007_199_254_740_992,
             },
+            Impossible::JeuSansAudio,
+            Impossible::OrigineNonRetiree,
+            Impossible::NomDeGenerateurVide,
+            Impossible::NomDeGenerateurIllisible,
+            Impossible::StemAbsent,
+            Impossible::AucunImportOuvert,
+            Impossible::ImportClos,
+            Impossible::FichierChange {
+                nom: Some("Démos/Démo 1.wav".to_string()),
+                rang: 7,
+            },
+            Impossible::FichierChange { nom: None, rang: 7 },
         ]
         .iter()
         .map(ToString::to_string),

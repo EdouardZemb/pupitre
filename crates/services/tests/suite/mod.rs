@@ -1900,10 +1900,7 @@ pub fn une_fiche_versee_deux_fois_est_refusee_et_rien_ne_change<P: Paire>(paire:
             0,
             &mut contexte,
         ),
-        Err(impossible(format!(
-            "La captation {} est déjà versée.",
-            versee.empreinte
-        )))
+        Err(impossible("Cette captation est déjà versée.".to_string()))
     );
     assert_eq!(services.journal(), Ok(journal));
     assert_eq!(services.idees(), Ok(idees));
@@ -1984,9 +1981,9 @@ pub fn regrouper_une_empreinte_qu_aucune_captation_ne_porte_est_refuse<P: Paire>
     let jamais_versee = empreinte(b"une prise jamais versee");
     assert_eq!(
         services.regrouper(&regroupement(&jamais_versee, &a), &mut contexte),
-        Err(impossible(format!(
-            "Aucune captation ne porte l'empreinte {jamais_versee}."
-        )))
+        Err(impossible(
+            "Cette captation n'est pas dans le fonds.".to_string()
+        ))
     );
     assert_eq!(services.journal(), Ok(journal));
     assert_eq!(services.idees(), Ok(idees));
