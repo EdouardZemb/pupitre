@@ -227,17 +227,20 @@ fn origine_s_il_change(
     Some(element_d_origine(empreinte, &ajout))
 }
 
-/// Le message d'un versement qui ne fait naître aucune idée : « Import du 3 novembre : nom
-/// d'origine ajouté », « … : origine déclarée », ou les deux, séparés par une virgule, le jour
-/// celui de l'ouverture de l'import ; `None` si rien ne s'ajoute.
+/// Le message d'un versement qui ne fait naître aucune idée : « Import du 3 novembre : » suivi de
+/// chaque sorte d'ajout qui a des changements, dans cet ordre, séparées par une virgule : « nom
+/// d'origine ajouté », « MIDI d'un stem ajouté », « origine déclarée » ; le jour celui de
+/// l'ouverture de l'import. `None` si rien ne s'ajoute.
 fn message_des_ajouts(
     ouvert: &ImportOuvert<'_>,
     noms: &[Changement],
+    midis: &[Changement],
     origines: &[Changement],
     decalage_minutes: i32,
 ) -> Option<String> {
     let ajouts: Vec<&str> = [
         (noms, "nom d'origine ajouté"),
+        (midis, "MIDI d'un stem ajouté"),
         (origines, "origine déclarée"),
     ]
     .into_iter()
@@ -309,6 +312,7 @@ pub fn verser_un_fichier(
         let Some(message) = message_des_ajouts(
             ouvert,
             nom.as_slice(),
+            &[],
             declaree.as_slice(),
             decalage_minutes,
         ) else {
@@ -347,8 +351,9 @@ pub struct MidiDuStem<'a> {
     pub chemin: Option<&'a str>,
 }
 
-/// Ce que le fonds porte déjà d'une prise en stems : elle (son manifeste), ses noms, et, par
-/// empreinte, ce que portent ses stems et leurs MIDI.
+/// Ce que le fonds porte déjà d'une prise en stems : elle (son manifeste), ses noms, par
+/// empreinte, ce que portent ses stems et leurs MIDI, et les liens d'un stem à son MIDI déjà posés
+/// sous la prise.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct DejaDeLaPrise {
     /// La prise, sous l'empreinte de son manifeste.
@@ -358,6 +363,8 @@ pub struct DejaDeLaPrise {
     /// Les MIDI de ses stems, par empreinte : leur entrée sous `midi_verses`, `captation` vrai
     /// s'ils l'ont déjà.
     pub midis: BTreeMap<String, DejaLu>,
+    /// Les liens déjà posés sous la prise, `prises/<p>/stem/<s>/midi/<m>` : (le stem, le MIDI).
+    pub liens_midi: BTreeSet<(String, String)>,
 }
 
 /// Verser une prise en stems (questions 19, 21), `manifeste` l'empreinte de son manifeste, `nom` le
@@ -365,13 +372,15 @@ pub struct DejaDeLaPrise {
 /// seul dont le dossier n'a pas de nom en UTF-8 : la prise n'a alors aucune clé `nom`, et ses stems
 /// gardent les leurs (R23). Neuve : son idée naît ; `prises/<p>/idee`, `<p>/manifeste` à `true`,
 /// `<p>/nom/<nom>` ; pour chaque stem, `<p>/stem/<s>/format` et `…/duree` s'ils sont présents,
-/// `…/nom/<chemin>`, `…/midi/<m>` à `true` ; pour chaque MIDI d'un stem sans entrée sous
-/// `midi_verses`, `midi_verses/<m>/format` et `…/division`, jamais `idee` ; « Idée du 3 novembre :
-/// prise en stems versée ». Neuve ou connue : chaque nom absent, de la prise, des stems et des
-/// MIDI, et l'origine, sur la prise, chaque stem et chaque MIDI ; connue, le message d'un fichier
-/// connu, « Import du 3 novembre : nom d'origine ajouté », « … : origine déclarée », ou les deux.
-/// `Ok(None)` si rien ne s'ajoute. Sans stem : `Impossible::JeuSansAudio`. L'idée naît par
-/// `gestes::naissance_de_l_idee`.
+/// `…/nom/<chemin>` ; « Idée du 3 novembre : prise en stems versée ». Neuve ou connue : pour chaque
+/// MIDI d'un stem, `<p>/stem/<s>/midi/<m>` à `true` si ce lien n'est pas déjà posé
+/// (`deja.liens_midi`), et, s'il n'a pas d'entrée sous `midi_verses`, `midi_verses/<m>/format` et
+/// `…/division`, jamais `idee` : le manifeste ne compte que les stems audio, et un MIDI ajouté au
+/// dossier d'une prise connue la rejoint (ADR-024, décision 1) ; chaque nom absent, de la prise,
+/// des stems et des MIDI, et l'origine, sur la prise, chaque stem et chaque MIDI. Connue :
+/// « Import du 3 novembre : » suivi de ce qui s'ajoute, « nom d'origine ajouté », « MIDI d'un stem
+/// ajouté », « origine déclarée », séparés par une virgule ; `Ok(None)` si rien ne s'ajoute. Sans
+/// stem : `Impossible::JeuSansAudio`. L'idée naît par `gestes::naissance_de_l_idee`.
 // Neuf arguments : chaque donnée du versement, puis ce que le fonds porte déjà de la prise.
 #[allow(clippy::too_many_arguments)]
 pub fn verser_une_prise_en_stems(
@@ -391,6 +400,7 @@ pub fn verser_une_prise_en_stems(
     let rien = DejaLu::default();
     let import = ouvert.import;
     let mut noms: Vec<Changement> = Vec::new();
+    let mut midis: Vec<Changement> = Vec::new();
     let mut origines: Vec<Changement> = Vec::new();
     noms.extend(nom_s_il_est_absent(
         PRISES,
@@ -419,21 +429,37 @@ pub fn verser_une_prise_en_stems(
             &du_stem.origines,
             origine,
         ));
-        if let Some(midi) = &stem.midi {
-            let du_midi = deja.midis.get(midi.empreinte).unwrap_or(&rien);
-            noms.extend(nom_s_il_est_absent(
-                MIDI_VERSES,
-                midi.empreinte,
-                midi.chemin,
-                &du_midi.noms,
-                import,
-            ));
-            origines.extend(origine_s_il_change(
-                midi.empreinte,
-                &du_midi.origines,
-                origine,
+        let Some(midi) = &stem.midi else {
+            continue;
+        };
+        let lien = (stem.empreinte.to_string(), midi.empreinte.to_string());
+        if !deja.liens_midi.contains(&lien) {
+            midis.push(poser(
+                &[PRISES, &format!("{base}/{MIDI}/{}", midi.empreinte)],
+                Simple::Vrai,
             ));
         }
+        let du_midi = deja.midis.get(midi.empreinte).unwrap_or(&rien);
+        if !du_midi.captation {
+            midis.extend(poser_les_faits(
+                MIDI_VERSES,
+                midi.empreinte,
+                midi.faits.format.as_ref(),
+                &[(DIVISION, midi.faits.division.map(u64::from))],
+            ));
+        }
+        noms.extend(nom_s_il_est_absent(
+            MIDI_VERSES,
+            midi.empreinte,
+            midi.chemin,
+            &du_midi.noms,
+            import,
+        ));
+        origines.extend(origine_s_il_change(
+            midi.empreinte,
+            &du_midi.origines,
+            origine,
+        ));
     }
     let neuve = !deja.prise.captation;
     let (mut changements, message) = if neuve {
@@ -447,32 +473,12 @@ pub fn verser_une_prise_en_stems(
             Simple::Vrai,
         ));
         for stem in stems {
-            let base = format!("{manifeste}/{STEM}/{}", stem.empreinte);
             changements.extend(poser_les_faits(
                 PRISES,
-                &base,
+                &format!("{manifeste}/{STEM}/{}", stem.empreinte),
                 stem.faits.format.as_ref(),
                 &[(DUREE, stem.faits.duree_ms)],
             ));
-            let Some(midi) = &stem.midi else {
-                continue;
-            };
-            changements.push(poser(
-                &[PRISES, &format!("{base}/{MIDI}/{}", midi.empreinte)],
-                Simple::Vrai,
-            ));
-            let a_son_entree = deja
-                .midis
-                .get(midi.empreinte)
-                .is_some_and(|du_midi| du_midi.captation);
-            if !a_son_entree {
-                changements.extend(poser_les_faits(
-                    MIDI_VERSES,
-                    midi.empreinte,
-                    midi.faits.format.as_ref(),
-                    &[(DIVISION, midi.faits.division.map(u64::from))],
-                ));
-            }
         }
         let message = format!(
             "Idée du {} : prise en stems versée",
@@ -480,11 +486,13 @@ pub fn verser_une_prise_en_stems(
         );
         (changements, message)
     } else {
-        let Some(message) = message_des_ajouts(ouvert, &noms, &origines, decalage_minutes) else {
+        let Some(message) = message_des_ajouts(ouvert, &noms, &midis, &origines, decalage_minutes)
+        else {
             return Ok(None);
         };
         (Vec::new(), message)
     };
+    changements.extend(midis);
     changements.extend(noms);
     changements.extend(origines);
     Ok(Some(Operation {
@@ -534,9 +542,11 @@ pub struct Cible<'a> {
 pub struct Declaree {
     /// L'opération, s'il y a un changement.
     pub operation: Option<Operation>,
-    /// Les cibles qui portaient déjà l'élément déclaré.
+    /// Les cibles qui portaient déjà l'élément déclaré, hors des générées que compte
+    /// `generees_gardees`.
     pub deja_portees: usize,
-    /// Les cibles générées, sans `main`, où « de la main de Sacha » ne change rien.
+    /// Les cibles générées où « de la main de Sacha » ne change rien, qu'elles portent déjà `main`
+    /// ou non : l'écran les montre générées (`la_plus_forte`).
     pub generees_gardees: usize,
 }
 
@@ -553,8 +563,9 @@ fn dit_l_origine(ajout: &Ajout) -> String {
 /// « « Démos/ » »). `None` (`aucune`) : `Impossible::OrigineNonRetiree`. Un nom vide, ou qui porte
 /// un caractère de contrôle : refusé. Chaque élément que `ajout_d_origine` garde s'écrit ;
 /// « Origine déclarée pour <portee> : de la main de Sacha », ou « … : générée par <nom> ». Une
-/// cible qui porte déjà l'élément compte parmi `deja_portees` ; une cible générée sans `main`, que
-/// « de la main de Sacha » ne change pas, parmi `generees_gardees`.
+/// cible générée que « de la main de Sacha » ne change pas compte parmi `generees_gardees`, même
+/// si elle porte déjà `main` (question 22 ; R16) ; une autre cible qui porte déjà l'élément, parmi
+/// `deja_portees`.
 pub fn declarer_une_origine(
     cibles: &[Cible<'_>],
     ajout: Option<&Ajout>,
@@ -571,10 +582,7 @@ pub fn declarer_une_origine(
     for cible in cibles {
         if let Some(garde) = ajout_d_origine(cible.origines, ajout) {
             changements.push(element_d_origine(cible.empreinte, &garde));
-        } else if *ajout == Ajout::Main
-            && !cible.origines.main
-            && !cible.origines.generees.is_empty()
-        {
+        } else if *ajout == Ajout::Main && !cible.origines.generees.is_empty() {
             generees_gardees += 1;
         } else {
             deja_portees += 1;
