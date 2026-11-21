@@ -485,7 +485,8 @@ fn une_prise_en_stems_sans_nom_garde_les_noms_de_ses_stems() {
 
 #[test]
 fn une_prise_en_stems_connue_ne_prend_que_ses_noms_et_ses_origines() {
-    // La prise, la voix et son MIDI déjà dans le fonds, sous leurs noms ; la basse, sans le sien.
+    // La prise, la voix et son MIDI déjà dans le fonds, sous leurs noms, le lien de la voix à son
+    // MIDI posé ; la basse, sans le sien.
     let deja = DejaDeLaPrise {
         prise: DejaLu {
             captation: true,
@@ -508,6 +509,7 @@ fn une_prise_en_stems_connue_ne_prend_que_ses_noms_et_ses_origines() {
                 origines: OriginesLues::default(),
             },
         )]),
+        liens_midi: BTreeSet::from([(S1.to_string(), M1.to_string())]),
     };
     let forge = Ajout::Generee("Forge".into());
     let op = verser_une_prise_en_stems(
@@ -640,6 +642,124 @@ fn une_prise_en_stems_connue_ne_prend_que_ses_noms_et_ses_origines() {
 }
 
 #[test]
+fn une_prise_en_stems_connue_accueille_le_midi_nouveau_d_un_stem() {
+    // Une prise déjà versée sans MIDI ; `voix.mid` ajouté à son dossier, puis le jeu réimporté :
+    // le manifeste, qui ne compte que les stems audio, la dit connue (ADR-024, décision 1).
+    let sans_midi = DejaDeLaPrise {
+        prise: DejaLu {
+            captation: true,
+            noms: BTreeSet::from(["Jeu A".to_string()]),
+            origines: OriginesLues::default(),
+        },
+        stems: BTreeMap::from([
+            (
+                S1.to_string(),
+                DejaLu {
+                    captation: true,
+                    noms: BTreeSet::from(["Jeu A/voix.wav".to_string()]),
+                    origines: OriginesLues::default(),
+                },
+            ),
+            (
+                S2.to_string(),
+                DejaLu {
+                    captation: true,
+                    noms: BTreeSet::from(["Jeu A/basse.wav".to_string()]),
+                    origines: OriginesLues::default(),
+                },
+            ),
+        ]),
+        ..DejaDeLaPrise::default()
+    };
+    let op = verser_une_prise_en_stems(
+        &ouvert(),
+        P,
+        Some("Jeu A"),
+        &stems_d_essai(),
+        None,
+        &sans_midi,
+        IDEE,
+        HEURE,
+        0,
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(
+        op.message,
+        "Import du 14 novembre : nom d'origine ajouté, MIDI d'un stem ajouté"
+    );
+    // Le lien de la voix à son MIDI, les faits du MIDI sans `idee`, et son nom : rien d'autre.
+    assert_eq!(
+        cles_posees(&op),
+        BTreeMap::from([
+            (format!("prises|{P}/stem/{S1}/midi/{M1}"), Simple::Vrai),
+            (
+                format!("midi_verses|{M1}/format"),
+                Simple::Chaine("smf1".into())
+            ),
+            (format!("midi_verses|{M1}/division"), Simple::Naturel(480)),
+            (
+                format!("midi_verses|{M1}/nom/Jeu A/voix.mid"),
+                Simple::Chaine(I.into())
+            ),
+        ])
+    );
+    // Le même versement, ce lien posé et le MIDI dans le fonds sous son nom : rien de plus.
+    let avec_midi = DejaDeLaPrise {
+        midis: BTreeMap::from([(
+            M1.to_string(),
+            DejaLu {
+                captation: true,
+                noms: BTreeSet::from(["Jeu A/voix.mid".to_string()]),
+                origines: OriginesLues::default(),
+            },
+        )]),
+        liens_midi: BTreeSet::from([(S1.to_string(), M1.to_string())]),
+        ..sans_midi.clone()
+    };
+    assert_eq!(
+        verser_une_prise_en_stems(
+            &ouvert(),
+            P,
+            Some("Jeu A"),
+            &stems_d_essai(),
+            None,
+            &avec_midi,
+            IDEE,
+            HEURE,
+            0
+        )
+        .unwrap(),
+        None
+    );
+    // Le lien posé, le MIDI pas encore dans le fonds : ses faits seuls, sans lien de plus.
+    let lien_seul = DejaDeLaPrise {
+        liens_midi: BTreeSet::from([(S1.to_string(), M1.to_string())]),
+        ..sans_midi.clone()
+    };
+    let cles = cles_posees(
+        &verser_une_prise_en_stems(
+            &ouvert(),
+            P,
+            Some("Jeu A"),
+            &stems_d_essai(),
+            None,
+            &lien_seul,
+            IDEE,
+            HEURE,
+            0,
+        )
+        .unwrap()
+        .unwrap(),
+    );
+    assert!(!cles.contains_key(&format!("prises|{P}/stem/{S1}/midi/{M1}")));
+    assert_eq!(
+        cles[&format!("midi_verses|{M1}/division")],
+        Simple::Naturel(480)
+    );
+}
+
+#[test]
 fn clore_ecrit_l_empreinte_du_rapport() {
     let op = clore(&ouvert(), R, HEURE + 3_600, 0);
     assert_eq!(op.message, "Import du 14 novembre clos");
@@ -723,6 +843,31 @@ fn declarer_une_origine_apres_l_import() {
     assert_eq!(
         (deja.operation, deja.deja_portees, deja.generees_gardees),
         (None, 1, 0)
+    );
+    // de la main de Sacha, puis générée : « de la main de Sacha » redéclarée ne change rien, et
+    // l'écran la montre générée ; elle vaut l'avertissement (question 22 ; R16)
+    let main_et_generee = OriginesLues {
+        main: true,
+        generees: BTreeSet::from(["Forge".into()]),
+    };
+    let redeclaree = declarer_une_origine(
+        &[Cible {
+            empreinte: E3,
+            origines: &main_et_generee,
+            nommee: "« c.wav »",
+        }],
+        Some(&Ajout::Main),
+        "« c.wav »",
+        HEURE,
+    )
+    .unwrap();
+    assert_eq!(
+        (
+            redeclaree.operation,
+            redeclaree.deja_portees,
+            redeclaree.generees_gardees
+        ),
+        (None, 0, 1)
     );
     let atelier = declarer_une_origine(
         &cibles[..1],
