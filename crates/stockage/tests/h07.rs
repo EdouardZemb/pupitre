@@ -143,7 +143,7 @@ fn cles(doc: &Automerge, objet: &ObjId) -> Vec<String> {
 /// `PRISES` (`empreintes_nommees`), dans l'ordre de leurs octets.
 fn empreintes_des_prises(doc: &Automerge) -> Vec<String> {
     let cles_des_prises = cles(doc, &objet(doc, &ROOT, PRISES));
-    empreintes_nommees(cles_des_prises.iter().map(String::as_str))
+    empreintes_nommees(cles_des_prises.iter().map(String::as_str), [])
         .into_iter()
         .collect()
 }

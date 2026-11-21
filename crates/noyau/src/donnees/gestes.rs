@@ -166,11 +166,13 @@ pub enum Impossible {
     LienDejaPose,
     /// Les deux idées ne sont pas reliées.
     LienAbsent,
-    /// Aucune captation ne porte l'empreinte `empreinte`.
+    /// Aucune captation ne porte l'empreinte `empreinte`. Le message ne la nomme pas : une
+    /// empreinte ne s'écrit jamais dans un message montré (question 26).
     CaptationAbsente { empreinte: String },
     /// La captation est déjà dans l'idée où on la regrouperait.
     DejaDansLIdee,
-    /// La fiche de la captation `empreinte` est déjà versée.
+    /// La fiche de la captation `empreinte` est déjà versée. Le message ne nomme pas l'empreinte
+    /// (question 26).
     CaptationDejaVersee { empreinte: String },
     /// Une durée sur une captation qui n'est pas une prise : seule une prise a une durée
     /// (§ 30 · 9.2).
@@ -191,6 +193,23 @@ pub enum Impossible {
     /// Un seuil de `secondes` secondes, au-delà d'`ENTIER_SUR` : l'interface ne le relirait pas à
     /// l'identique.
     SeuilTropLong { secondes: u64 },
+    /// Un dossier déclaré jeu de stems n'a aucun fichier audio (question 19).
+    JeuSansAudio,
+    /// Une origine déclarée ne se retire pas : `aucune` n'est pas une déclaration (question 22).
+    OrigineNonRetiree,
+    /// Le nom d'un générateur est vide, une fois ses blancs ôtés.
+    NomDeGenerateurVide,
+    /// Le nom d'un générateur porte un caractère de contrôle, un retour à la ligne compris.
+    NomDeGenerateurIllisible,
+    /// La prise ne porte pas le stem dont on choisirait le type.
+    StemAbsent,
+    /// Aucun import n'est ouvert, ou celui que nomme la commande ne l'est pas.
+    AucunImportOuvert,
+    /// L'import est clos : son rapport est écrit (question 25).
+    ImportClos,
+    /// Le fichier de rang `rang` a changé depuis l'inspection : l'import s'arrête (question 14).
+    /// Le message le nomme par `nom`, son chemin, s'il en a un en UTF-8, sinon par son rang.
+    FichierChange { nom: Option<String>, rang: u64 },
 }
 
 impl fmt::Display for Impossible {
@@ -211,12 +230,12 @@ impl fmt::Display for Impossible {
             Impossible::RelieeAElleMeme => f.write_str("Une idée ne se relie pas à elle-même."),
             Impossible::LienDejaPose => f.write_str("Ces deux idées sont déjà reliées."),
             Impossible::LienAbsent => f.write_str("Ces deux idées ne sont pas reliées."),
-            Impossible::CaptationAbsente { empreinte } => {
-                write!(f, "Aucune captation ne porte l'empreinte {empreinte}.")
+            Impossible::CaptationAbsente { .. } => {
+                f.write_str("Cette captation n'est pas dans le fonds.")
             }
             Impossible::DejaDansLIdee => f.write_str("Cette captation est déjà dans cette idée."),
-            Impossible::CaptationDejaVersee { empreinte } => {
-                write!(f, "La captation {empreinte} est déjà versée.")
+            Impossible::CaptationDejaVersee { .. } => {
+                f.write_str("Cette captation est déjà versée.")
             }
             Impossible::DureeHorsDUnePrise => f.write_str("Seule une prise a une durée."),
             Impossible::DureeTropLongue { duree_ms } => write!(
@@ -234,6 +253,27 @@ impl fmt::Display for Impossible {
                 f.write_str("Aucune requête enregistrée ne porte cet identifiant.")
             }
             Impossible::SeuilTropLong { .. } => f.write_str("Ce seuil de durée est trop long."),
+            Impossible::JeuSansAudio => {
+                f.write_str("Ce dossier n'a aucun fichier audio : il ne forme pas un jeu de stems.")
+            }
+            Impossible::OrigineNonRetiree => f.write_str("Une origine déclarée ne se retire pas."),
+            Impossible::NomDeGenerateurVide => f.write_str("Le nom du générateur est vide."),
+            Impossible::NomDeGenerateurIllisible => {
+                f.write_str("Le nom du générateur tient sur une ligne, sans caractère de contrôle.")
+            }
+            Impossible::StemAbsent => f.write_str("Ce stem n'est pas dans cette prise."),
+            Impossible::AucunImportOuvert => f.write_str("Aucun import n'est ouvert."),
+            Impossible::ImportClos => f.write_str("Cet import est clos."),
+            Impossible::FichierChange { nom: Some(nom), .. } => write!(
+                f,
+                "« {nom} » a changé depuis l'inspection : l'import s'arrête, et rechoisir le \
+                 dossier le reprend."
+            ),
+            Impossible::FichierChange { nom: None, rang } => write!(
+                f,
+                "Le fichier n° {rang} a changé depuis l'inspection : l'import s'arrête, et \
+                 rechoisir le dossier le reprend."
+            ),
         }
     }
 }
@@ -649,13 +689,46 @@ pub fn retablir(
     ))
 }
 
-/// Ce que dit le message du versement d'une captation de sorte `sorte`.
-fn versee(sorte: Sorte) -> &'static str {
+/// Ce que dit le message du versement d'une captation de sorte `sorte`, que `verser` et
+/// `import::verser_un_fichier` partagent.
+pub(crate) fn versee(sorte: Sorte) -> &'static str {
     match sorte {
         Sorte::Prise => "prise versée",
         Sorte::MidiVerseSeul => "MIDI versé",
         Sorte::TexteVerse => "texte versé",
     }
+}
+
+/// La naissance d'une idée versée : son objet et celui de ses étiquettes, `provenance` à `origine`
+/// (`captee` ou `importee`), `par`, `le` à `heure`, et `depuis` s'il est donné. `verser`,
+/// `import::verser_un_fichier` et `import::verser_une_prise_en_stems` la partagent, au lieu de la
+/// recopier (balayage P8).
+pub(crate) fn naissance_de_l_idee(
+    idee: &str,
+    origine: &str,
+    par: Appareil,
+    depuis: Option<&str>,
+    heure: i64,
+) -> Vec<Changement> {
+    let mut changements = vec![
+        Changement::Creer {
+            chemin: chemin(&[IDEES, idee]),
+            conteneurs: vec![ETIQUETTES.to_string()],
+        },
+        poser(
+            &[IDEES, idee, PROVENANCE],
+            Simple::Chaine(origine.to_string()),
+        ),
+        poser(&[IDEES, idee, PAR], Simple::Chaine(par.nom().to_string())),
+        poser(&[IDEES, idee, LE], Simple::Entier(heure)),
+    ];
+    if let Some(depuis) = depuis {
+        changements.push(poser(
+            &[IDEES, idee, DEPUIS],
+            Simple::Chaine(depuis.to_string()),
+        ));
+    }
+    changements
 }
 
 /// Verser la fiche d'une captation : l'idée `idee` naît avec elle, de provenance `provenance`.
@@ -701,24 +774,8 @@ pub fn verser(
             return Err(Impossible::DureeTropLongue { duree_ms });
         }
     }
-    let mut changements = vec![
-        Changement::Creer {
-            chemin: chemin(&[IDEES, idee]),
-            conteneurs: vec![ETIQUETTES.to_string()],
-        },
-        poser(
-            &[IDEES, idee, PROVENANCE],
-            Simple::Chaine(origine.to_string()),
-        ),
-        poser(&[IDEES, idee, PAR], Simple::Chaine(par.nom().to_string())),
-        poser(&[IDEES, idee, LE], Simple::Entier(heure)),
-    ];
-    if let Some(depuis) = depuis {
-        changements.push(poser(
-            &[IDEES, idee, DEPUIS],
-            Simple::Chaine(depuis.clone()),
-        ));
-    }
+    let mut changements =
+        naissance_de_l_idee(idee, origine, *par, depuis.map(String::as_str), heure);
     let conteneur = sorte.conteneur();
     changements.push(poser(
         &[conteneur, &format!("{empreinte}/{IDEE}")],

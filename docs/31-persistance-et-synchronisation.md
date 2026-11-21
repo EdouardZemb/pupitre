@@ -180,17 +180,20 @@ porte encore neuf conteneurs, chacun un objet à clés, que la genèse crée vid
   clés qui naît avec elle, de chaque étiquette à `true`. Une étiquette s'y range sans `#`,
   que le message et l'écran ajoutent, et se compare octet pour octet, sans normalisation.
 - `prises`, `midi_verses` et `textes_verses` : ce que le fonds sait de chaque captation
-  versée, en clés à plat, `<empreinte>/<clé>`, chacune une valeur simple (§ 2.4) : son idée,
-  une décision, et les faits lus. D'une prise, `idee`, `format`, et `duree`, en
-  millisecondes, quand elle est lue ; sa date et son appareil restent `—`, sans clé, tant
-  que rien ne les lit sur la captation
-  ([§ 30 · 9.2](30-modele-de-domaine.md#92-prises-photos-et-analyses)). D'un MIDI versé seul
-  ou d'un texte versé, `idee` et `format`. Le `format` suit le vocabulaire du § 30 · 9.2 et
-  de l'[ADR-024](adr/adr-024-import-d-un-fonds.md) : d'une prise, celui que nomment sa
+  d'une idée, et des stems d'une prise en stems, en clés à plat, `<empreinte>/<clé>`, chacune
+  une valeur simple (§ 2.4) : son idée, une décision, et les faits lus. D'une prise, `idee`,
+  `format`, et `duree`, en millisecondes, quand elle est lue ; d'un WAV lisible, aussi
+  `codage`, `canaux`, `frequence`, en hertz, et `bits`, chacun un entier non signé ; sa date
+  et son appareil restent `—`, sans clé, tant que rien ne les lit sur la captation
+  ([§ 30 · 9.2](30-modele-de-domaine.md#92-prises-photos-et-analyses)). D'un MIDI versé seul,
+  `idee`, `format` et `division`, un entier non signé, brut ; d'un texte versé, `idee` et
+  `format`. Le `format` suit le vocabulaire du § 30 · 9.2 et de
+  l'[ADR-024](adr/adr-024-import-d-un-fonds.md) : d'une prise, celui que nomment sa
   signature et son en-tête (`wav`, `flac`…) ; d'un MIDI, `smf0`, `smf1` ou `smf2` ; d'un
-  texte, `brut`, `markdown` ou `chordpro` ; jamais l'extension du fichier. Deux répliques
-  qui versent la même captation laissent deux valeurs sous chaque clé, qu'Automerge garde
-  jusqu'à la prochaine écriture de la clé, et que le lot 3 relève à la synchronisation (§ 5).
+  texte, `brut`, `markdown` ou `chordpro` ; jamais l'extension du fichier. Un fichier versé
+  illisible n'a aucun fait, pas même `format`. Deux répliques qui versent la même captation
+  laissent deux valeurs sous chaque clé, qu'Automerge garde jusqu'à la prochaine écriture de
+  la clé, et que le lot 3 relève à la synchronisation (§ 5).
 - `liens` : de la clé d'un lien, `apparente:<a>:<b>`, ses deux bouts rangés dans l'ordre de
   leurs octets ([§ 30 · 9.3](30-modele-de-domaine.md#93-regrouper-et-relier)), à `true`.
   Un lien, comme une étiquette, vaut `true`, sans date : celle du geste qui l'a posé se lit
@@ -211,18 +214,51 @@ porte encore neuf conteneurs, chacun un objet à clés, que la genèse crée vid
   plus récente : elle paraît nommée, et ne se lance pas ; un objet sans `nom` en chaîne ne se
   liste pas. Le conteneur est dans la genèse : cette forme s'y écrit sans migration ni genèse
   changée, et se gèle avec le schéma, à la `v0.3.0`.
-- `imports`, `origines_declarees` et `photos` : vides, jusqu'aux lots qui les écrivent.
+- `imports` et `origines_declarees` : ce que l'import écrit (plus bas) ; `photos` : vide,
+  jusqu'au lot qui l'écrit.
 
-Ce que l'import écrira encore ([ADR-024](adr/adr-024-import-d-un-fonds.md)) a déjà sa place
-dans ces conteneurs, sous des clés ajoutées, sans conteneur ni migration de plus :
+Ce que l'import écrit ([ADR-024](adr/adr-024-import-d-un-fonds.md)) a sa place dans ces
+conteneurs, sous des clés ajoutées, sans conteneur ni migration de plus : la genèse ne change
+pas, ni son empreinte de référence (§ 10, test 11). Ces clés se gèlent avec le schéma, à la
+`v0.3.0` :
 
-- sous `prises`, les stems d'une prise en stems, `<prise>/stem/<stem>/<fait>`, et son
-  manifeste, `<prise>/manifeste` ;
-- sous le conteneur de la sorte de leur contenu, les noms d'origine d'une captation, un
-  ensemble, `<empreinte>/nom/<nom>` à `true`, chaque nom chemin compris ;
-- sous `imports`, le rapport d'un import, `<import>/rapport` ;
-- la division d'un MIDI et les autres faits d'un en-tête, sous des clés `<empreinte>/<fait>`
-  ajoutées.
+- sous le conteneur de la sorte de son contenu, chaque nom d'origine d'un fichier versé,
+  `<empreinte>/nom/<chemin>`, son chemin relatif au dossier versé, séparé par `/`, à
+  l'identifiant de l'import qui l'a vu le premier, un ULID, en chaîne : il s'écrit s'il est
+  absent, et ne change plus. Le premier nom vu est celui du plus petit couple formé de
+  l'heure de cet ULID, ses dix premiers caractères, et des octets du chemin, sur toutes les
+  valeurs de la clé, celles de deux répliques comprises
+  ([§ 30 · 9.2](30-modele-de-domaine.md#92-prises-photos-et-analyses)). Un fichier dont le
+  nom ne s'écrit pas en UTF-8 n'a pas de clé `nom` ;
+- sous `prises`, une **prise en stems**, nommée par l'empreinte `<p>` de son manifeste :
+  `<p>/idee` ; `<p>/manifeste`, à `true` ; `<p>/nom/<chemin>`, le chemin de son dossier, ou
+  son dernier segment pour un jeu versé seul ; et l'**entrée** de chaque stem `<s>` :
+  `<p>/stem/<s>`, à `true`, écrite au versement de la prise, avant les autres clés du stem,
+  même pour un stem sans fait, sans nom ni origine, qu'elle nomme ainsi parmi les empreintes du
+  fonds ([§ 6.1](#61-adressage-par-contenu)) ; puis, sous `<p>/stem/<s>/` : `format` et
+  `duree`, quand ils sont lus, `nom/<chemin>`, et `midi/<m>`, à `true`, pour chaque MIDI `<m>`
+  qui l'accompagne, un MIDI qui rejoint une prise déjà versée compris. Son type, `type`, en
+  chaîne, s'écrit quand Sacha le garde ou le choisit, avec sa provenance
+  ([§ 30 · 8.1](30-modele-de-domaine.md#81-la-provenance)) : `type/provenance`, `importee` ou
+  `saisie` ; pour un type gardé, `type/par`, `nom`, et `type/depuis`, l'empreinte `<s>`, qu'un
+  type choisi ôte ; et `type/le`, en secondes. Une entrée n'a pas de clé `idee` ;
+- sous `midi_verses`, le **MIDI d'un stem** : `format`, `division` et ses noms, sans `idee` ;
+- sous `imports`, de l'identifiant d'un import, un ULID : `<i>/ouvert`, l'heure de son
+  ouverture, en secondes, un entier ; les déclarations du dossier `<chemin>`, faites à
+  l'ouverture, sous deux familles de clés, le chemin en dernier : `<i>/declaration/<chemin>`,
+  son origine, `main` ou `generee:<nom>`, en chaîne, et `<i>/jeu/<chemin>`, à `true`, s'il est
+  déclaré jeu de stems ; un dossier porte l'une, l'autre ou les deux, et le dossier versé
+  lui-même se déclare sous `<i>/declaration/` et `<i>/jeu/` ; et `<i>/rapport`, l'empreinte
+  de son rapport
+  ([§ 30 · 9.2](30-modele-de-domaine.md#92-prises-photos-et-analyses)), en chaîne. Un import
+  est clos dès que son rapport existe. Aucun chemin absolu ne s'y écrit ;
+- sous `origines_declarees`, l'ensemble des origines d'un contenu, par son empreinte :
+  `<e>/main`, de la main de Sacha, et `<e>/generee/<nom>`, produit par le générateur `<nom>`,
+  chacun à `true`. Le noyau en tire la plus forte, générée, avec chacun de ses noms, puis de la
+  main de Sacha, puis `—` ([§ 30 · 8.1](30-modele-de-domaine.md#81-la-provenance)) ; « de la
+  main de Sacha » ne s'écrit pas sur un contenu généré. Le nom d'un générateur se range tel
+  qu'il est reçu, sans normalisation ; vide, une fois ses blancs ôtés, ou porteur d'un
+  caractère de contrôle, retour à la ligne compris, il est refusé.
 
 Chez une captation plus ancienne, une clé ajoutée à ses faits se lit absente, et le fait vaut
 `—` ([ADR-006](adr/adr-006-le-partiel-est-normal.md)).
@@ -1045,7 +1081,7 @@ pupitre-archive-AAAA-MM-JJ/               un dossier, écrit sous un nom proviso
 | 8 | **Écriture coupée** : interrompre une écriture à chaque étape (fichier voisin écrit, synchronisé, renommé), puis rouvrir le document ; renommage perdu après la réponse : le voisin entier reste ; renommage refusé : le voisin est retiré ; une synchronisation lancée pendant l'écriture ne voit pas l'opération en cours ; rouvrir un document, ou le relire du disque après une opération refusée, puis faire une opération : son fichier d'ajout ne porte que sa modification ; à la naissance du fonds, renommage du premier fichier complet perdu après la réponse, puis relancer | Une opération dite faite manque, une opération refusée paraît, ou un fichier voisin incomplet, ou celui d'une opération refusée, est lu comme une écriture ; ou un fichier d'ajout porte plus que son opération ; ou Pupitre s'y croit neuf |
 | 9 | **Compaction** : compacter en s'interrompant à chaque étape, puis rouvrir, et revenir avant chaque opération ; un fichier d'ajout altéré, puis compacter : il reste en place, et le document s'ouvre en lecture seule ; renommage du fichier complet perdu après la réponse, les fichiers d'ajout absorbés déjà retirés, puis rouvrir ; de même quand le voisin laissé porte le numéro du processus qui rouvre | La teneur ou l'historique change, ou un fichier d'ajout non absorbé est retiré, ou une modification absorbée manque au document rouvert |
 | 10 | **Version de schéma** : ouvrir un document de version de schéma N + 1 avec une application qui ne connaît que la version de schéma N ; la copie plus récente reçoit, et ne transmet aucune modification ; une copie entière qui reçoit la version de schéma N + 1 passe en lecture seule ; une copie plus récente relue du disque le reste ; deux copies plus récentes ne s'échangent aucune modification, et leur échange finit ; migrer deux répliques chacune de son côté, puis les fusionner ; après la migration, deux répliques écrivent hors ligne, chacune de son côté, un élément différent de la donnée nouvelle d'un même objet ancien (deux clés `<objet>/<élément>`) | Une opération s'applique au document plus récent, son refus ne se nomme pas, une captation est refusée, ou une modification part du document plus récent ; ou une copie entière écrit après avoir reçu une version de schéma plus récente, ou une copie plus récente après s'être relue du disque ; ou l'échange de deux copies plus récentes ne finit pas ; ou la migration paraît deux fois ; ou l'un des deux éléments sort de la vue |
-| 11 | **Genèse et teneur figées** : comparer les octets de chaque genèse, et la teneur de deux documents témoins, l'un ordinaire, l'autre qui porte une valeur de chaque type que la teneur écrit, à leurs empreintes de référence, écrites dans le test ; le test ne lit aucune étiquette de git, que la CI ne récupère pas. Avant l'étiquette qui les publie, une PR qui change la genèse ou l'écriture de la teneur y met les nouvelles. Dès elle, ces empreintes ne changent plus : une PR qui en change une est refusée, et le plan du lot 1 dit par quelle porte. Et deux documents qui ne diffèrent que par leur lignée ont la même teneur | L'une ou l'autre a changé ; ou deux documents qui ne diffèrent que par leur lignée ont des teneurs différentes |
+| 11 | **Genèse et teneur figées** : comparer les octets de chaque genèse, la teneur de deux documents témoins, l'un ordinaire, l'autre qui porte une valeur de chaque type que la teneur écrit, et les octets du manifeste et du rapport d'import témoins ([§ 30 · 9.2](30-modele-de-domaine.md#92-prises-photos-et-analyses)), rebâtis par les règles du noyau, à leurs empreintes de référence, que `crates/stockage/tests/references.rs` est seul à écrire ; le test ne lit aucune étiquette de git, que la CI ne récupère pas. Avant l'étiquette qui les publie, une PR qui change la genèse, l'écriture de la teneur, ou la forme du manifeste ou du rapport y met les nouvelles. Dès elle, ces empreintes ne changent plus : une PR qui en change une est refusée, et le plan du lot 1 dit par quelle porte. Et deux documents qui ne diffèrent que par leur lignée ont la même teneur | L'une de ces empreintes a changé ; ou deux documents qui ne diffèrent que par leur lignée ont des teneurs différentes |
 | 12 | **Lignée** : présenter à la synchronisation une copie et le même document reconstruit depuis le miroir | Les deux fusionnent, ou la copie remplacée n'est pas gardée à part, intacte, ou le document reconstruit n'a pas la teneur de la copie qu'il remplace |
 | 13 | **Fonds de mesure** : 2 000 idées, 200 octets de texte en moyenne, chaque texte écrit trois fois, trois étiquettes et un lien par idée, cinq opérations par idée ; 6 000 prises avec toutes leurs métadonnées ([§ 30 · 9.2](30-modele-de-domaine.md#92-prises-photos-et-analyses)), dont 100 prises en stems de douze stems, chaque stem avec son MIDI versé, soit 2 400 captations de plus, sans audio, et chaque nom d'origine de 80 octets en moyenne, chemin compris ; un acteur par ouverture, 3 000 en tout ; engendrées à l'exécution | Son fichier complet passe 4,5 Mo |
 | 14 | **Archive complète** : l'exporter, la réimporter dans un Pupitre neuf ; lancer un Pupitre neuf et l'ouvrir sans aucun geste, puis y réimporter l'archive ; la réimporter dans un Pupitre qui a déjà un fonds ; abîmer un fichier d'ajout et repartir de l'archive ; repartir de l'archive alors qu'un autre processus tient ouvert un fichier de la racine abîmée ; refuser le premier geste d'un Pupitre neuf, puis y réimporter l'archive ; exporter deux fois le même jour ; exporter vers un support trop petit | Une teneur ou le journal diffère, une captation manque ou trahit son empreinte ; ou le Pupitre seulement ouvert refuse l'archive ; ou la réimportation dans un Pupitre qui a déjà un fonds écrit quoi que ce soit ; ou la racine des données abîmée n'est pas gardée à part, octet pour octet, ou la teneur reprise diffère de celle de l'archive ; ou une reprise dont le renommage échoue écrit quoi que ce soit, ou ne le dit pas ; ou, après un premier geste refusé, l'archive est refusée ; ou deux exports le même jour ne donnent pas deux archives ; ou l'export vers un support trop petit écrit quoi que ce soit, ou ne dit pas ce qui manque |

@@ -211,7 +211,7 @@ pub fn empreintes_nommees(doc: &Automerge) -> BTreeSet<String> {
         .filter_map(|conteneur| objet(doc, &ROOT, conteneur))
         .flat_map(|conteneur| {
             let cles: Vec<String> = doc.keys(&conteneur).collect();
-            idee::empreintes_nommees(cles.iter().map(String::as_str))
+            idee::empreintes_nommees(cles.iter().map(String::as_str), [])
         })
         .collect()
 }
