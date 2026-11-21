@@ -251,6 +251,43 @@ table de la tâche 1 qui porte l'exception de P3, que la question 10 impose.
 | P22. « lui-même compris », ambigu | « du sien au dossier versé (`""`) compris » | 4 |
 | P23. Le passage complet de `mutants`, le `git add` et le type du commit de la tâche 8 | `gh workflow run mutants-complet.yml` sur la branche ; une liste de chemins ; les délais dans un commit `ci:` | 8 |
 
+### Le balayage préalable de la PR (b)
+
+Avant l'exécution de la PR (b), une session neuve a balayé ses tâches 9 à 17 sur `a2f5661`, la vague de corrections
+de la revue de (a) comptée comme faite : chaque tâche contre elle-même, contre ses voisines et contre le code. Elle a
+relevé 21 défauts, 5 lourds, 7 moyens et 9 mineurs ; la session du lot les a tous retenus, tels que le balayage les
+proposait, Q19 par la doc de `stems_de`, et Q8 après lecture de la question 38, qui ne porte que sur l'inspection.
+Ils sont numérotés Q1 à Q21, comme dans le rendu du balayage : le plan les cite « balayage Q4 ». La vague de
+corrections de (a) est dans `c637462`, et chaque nom, clé et message que les tâches 9 à 17 en tirent a été relu dans
+ce code : `origine::{Declaration, Ajout::lire, sous_le_prefixe}`, `fonds::JEU`, `rapport::ManqueDePlace` et son
+`Display`, l'entrée `prises/<p>/stem/<s>` d'`import::verser_une_prise_en_stems`, la doc d'`import::DejaDeLaPrise`.
+Chaque tâche porte elle-même ce qui la concerne. La relecture de cette vague a laissé une réserve, la phrase « Un
+fichier versé illisible » du § 30 · 9.2, que la tâche 17 récrit.
+
+| Constat | Ce qui change | Tâches |
+|---|---|---|
+| Q1. Trois assertions lisent les messages des adaptateurs que la tâche 9 récrit | `crates/stockage/tests/messages.rs:165`, `:172` et `crates/services/tests/application.rs:430` attendent les messages neufs ; le corps de la PR (b) les nomme | 9, 17 |
+| Q2. La vue de V, comparée entière dans la suite, gagne ses captations vues | Le littéral de `crates/services/tests/suite/mod.rs:1774` reçoit la `CaptationVue` de V | 12 |
+| Q3. Un dossier se déclare jeu de stems et porte son origine à la fois | `origine::Declaration { stems, origine }`, `Ajout::lire`, `imports/<i>/jeu/<chemin>` lus ; `commandes::Declaration { stems, origine }` ; `un_jeu_declare_genere_porte_son_origine` | 10 à 14, 16 |
+| Q4. L'entrée `prises/<p>/stem/<s>` de chaque stem | `permis` l'admet ; `stems_de` et la durée d'une prise en stems comptent les stems par elle, un stem sans durée donnant `None` ; un stem illisible repris | 10, 14, 16 |
+| Q5. Le message de la place qui manque | cap03_13 attend « Verser 0,1 Go demande 0,1 Go de place libre, … » | 12 |
+| Q6. Aucun type de `commandes` ne refuse un entier à la relecture | `les_entiers_d_une_reponse_restent_sous_2_puissance_53` s'étend aux types de l'import ; `libre`, `a_verser` et les octets comptés, bornés aux services | 11, 12 |
+| Q7. Les constructeurs de `VueDUneIdee` et de `LigneDeLaBoite`, non nommés | Nommés, fichier par fichier ; le motif de `suite/mod.rs:2926` gagne `nom_de_fichier`, sans `..` | 11 |
+| Q8. L'erreur du flux sans variante, son texte celui du système | `Erreur::FichierAVerser`, de `Raison::Disque`, « Le fichier à verser est refusé par le système. » | 9 |
+| Q9. Le décodage d'un texte écrit aux services | `entete::decoder_le_texte`, au noyau, sous mutation | 13 |
+| Q10. Les fichiers du test 13, lus à la lettre | Un en-tête de WAV canonique ; des MIDI distincts ; les prises en stems du premier import ; la règle d'échelle de `selon` et son `Engendre` pour deux groupes | 16 |
+| Q11. Le rouge attendu de la tâche 10, ses fichiers | `cannot find function noms_poses_par in module lecture`, à « Lint » ; les deux fichiers des paires | 10 |
+| Q12. Aucun job ne compile l'établi hors de Windows | L'attente de `clippy -p etabli` dans `verifier` retirée ; la doc de `place_libre` et l'effet cherché le disent | 15 |
+| Q13. Le chemin d'un dossier déclaré, sans `/` final | Les docs des champs `chemin` et `prefixe` ; les tests écrivent `Jeu A`, `Démos` ; le préfixe `Démos/` éprouvé | 11 à 14 |
+| Q14. La doc de `lecture::deja_de_la_prise` | Elle reprend celle d'`import::DejaDeLaPrise` ; un stem déjà prise, d'origine générée, dans un jeu déclaré `main` | 10, 12 |
+| Q15. Choisir un type sans l'avoir gardé ôte deux clés absentes | Un second stem, choisi directement ; `Transaction::delete` dans « Outils et cas limites » | 13 |
+| Q16. Les homonymes de la tâche 12 | `Declaration` et `TypeDeStem` s'y ajoutent | 12 |
+| Q17. La reproposition dite deux fois dans CAP-03 | La ligne de CAP-02 ne touche que CAP-02 et le § 70 · 1 ; la phrase de l'étape 2 dit le jeu, l'origine ou les deux ; la revue cherche une forme à une seule valeur | 17 |
+| Q18. Les numéros de ligne des mécanismes de (b) | Recalés si la tâche 17 touche le plan, sinon laissés | 17 |
+| Q19. Un nom posé hors du jeu, sur le contenu d'un stem | La doc de `stems_de` dit qu'il n'y est pas ; un test le fixe | 10 |
+| Q20. La tâche 15 « crée » `source.rs`, qu'a créé la tâche 9 | « modifier » | 15 |
+| Q21. La sentinelle d'I30 pendant la fenêtre rouge d'I31 | Le rapport des tâches 11 à 14 et le corps de la PR le disent | 11, 17 |
+
 ## Les écarts au plan maître
 
 Le plan maître le veut : un plan de tranche qui le contredit le dit dans sa PR, et la maîtrise d'ouvrage relit ce
@@ -438,6 +475,23 @@ Et des limites, sans test, que les PR disent dans leur corps :
 - `crates/noyau/src/donnees/identifiants.rs:46` — `let condense = Sha256::digest(octets);` — l'empreinte en un seul appel ; `Hacheur` la calcule par tronçons, et la donne égale (tâche 2)
 - `crates/noyau/src/donnees/demarrage.rs:14` — `pub fn voisin_libre(` — `<nom>.<processus>.partiel`, puis `-2`, `-3` : la copie en flux prend pour nom `import-<ULID>-<rang>` (tâches 7, 9)
 - `crates/noyau/src/donnees/demarrage.rs:107` — `pub fn a_ranger(` — range un nom provisoire par l'empreinte de son contenu, quel que soit son nom : une copie en flux entière et nommée se range au démarrage (tâche 9)
+- `crates/stockage/tests/messages.rs:165` — `ne donne pas son empreinte.` — l'ancien message de `CaptationAlteree`, que la tâche 9 récrit avec lui (balayage Q1)
+- `crates/stockage/tests/messages.rs:172` — `Aucune captation ne porte l'empreinte {e}.` — l'ancien message de `CaptationAbsente` du stockage, que la tâche 9 récrit avec lui (balayage Q1)
+- `crates/services/tests/application.rs:430` — `Aucune captation ne porte l'empreinte {autre}.` — le refus de `CaptationsEnMemoire::relire`, que la tâche 9 récrit avec lui (balayage Q1)
+- `crates/stockage/src/lib.rs:341` — `pub(crate) fn constat_du_disque(` — le constat du disque par le genre de l'erreur, jamais son texte : celui d'`Erreur::FichierAVerser` (tâche 9 ; balayage Q8)
+- `crates/stockage/src/adaptateurs.rs:169` — `Erreur::Disque { .. } | Erreur::CaptationAlteree { .. } => Raison::Disque,` — la raison de chaque variante d'`Erreur`, où `FichierAVerser` s'ajoute (tâche 9 ; balayage Q8)
+- `crates/noyau/src/donnees/import.rs:162` — `&[IMPORTS, &format!("{import}/{JEU}/{chemin}")],` — `ouvrir` écrit `jeu/<chemin>` pour un jeu de stems, `declaration/<chemin>` pour une origine, l'un, l'autre ou les deux (tâches 10, 12 ; balayage Q3)
+- `crates/noyau/src/donnees/origine.rs:104` — `pub fn declaration_du_fichier(` — cherche chaque dossier du fichier, sans `/` final, `""` pour le dossier versé, comme clé exacte : une déclaration nomme `Jeu A`, jamais `Jeu A/` (tâches 11, 12, 14 ; balayage Q13)
+- `crates/noyau/src/donnees/origine.rs:136` — `pub fn sous_le_prefixe(` — ôte une barre `/` finale du préfixe : `Portee::Prefixe` admet `Démos/` (tâche 13 ; balayage Q13)
+- `crates/noyau/src/donnees/import.rs:493` — `changements.push(poser(&[PRISES, &entree], Simple::Vrai));` — l'entrée de chaque stem d'une prise neuve, `true`, qu'I01 admet et par laquelle les stems se comptent (tâche 10 ; balayage Q4)
+- `crates/noyau/src/donnees/rapport.rs:316` — `impl fmt::Display for ManqueDePlace {` — « Verser … demande … de place libre, deux fois le poids du fonds compris ; il y en a … : il manque …. » (tâche 12 ; balayage Q5)
+- `crates/services/tests/suite/mod.rs:1774` — `let telle_qu_elle_etait = VueDUneIdee {` — une vue entière, celle d'une prise versée, comparée : elle reçoit sa `CaptationVue` à la tâche 12 (balayage Q2)
+- `crates/services/tests/suite/mod.rs:2926` — `let LigneDeLaBoite {` — une déstructuration sans `..` : la tâche 11 y ajoute `nom_de_fichier` (balayage Q7)
+- `crates/commandes/tests/serialisation.rs:457` — `fn les_entiers_d_une_reponse_restent_sous_2_puissance_53() {` — la borne des entiers d'une réponse, vérifiée à la sérialisation, jamais refusée à la relecture (tâche 11 ; balayage Q6)
+- `crates/noyau/src/donnees/entete.rs:189` — `pub struct ControleDuTexte {` — les encodages d'un texte lisible, que `decoder_le_texte` suit (tâche 13 ; balayage Q9)
+- `crates/services/src/application.rs:125` — `tx.delete(&parent, cle)` — ôter une clé, même absente : choisir un type sans l'avoir gardé ôte `type/par` et `type/depuis` (tâche 13 ; balayage Q15)
+- `.github/workflows/ci.yml:139` — `run: cargo clippy -p noyau -p cahier -p stockage -p synchro -p commandes -p services --all-targets -- -D warnings` — `verifier` ne compile pas l'établi : seul `windows` le fait (tâche 15 ; balayage Q12)
+- `crates/services/tests/commandes_en_memoire.rs:592` — `operations: 23,` — l'`Engendre` du générateur réduit, à deux groupes, que la tâche 16 récrit (balayage Q10)
 - `crates/stockage/src/captations.rs:53` — `pub fn verser(&self, octets: &[u8])` — la voie par octets, qui passera par la voie en flux (tâche 9)
 - `crates/stockage/src/captations.rs:63` — `voisin(&self.dossier().join(&e))` — un nom provisoire formé sur l'empreinte, connue d'avance : la voie par octets le garde (tâche 9)
 - `crates/stockage/src/captations.rs:200` — `fn lire_un_nom_provisoire(&self, nom: &str)` — lu en entier par `fichier::lire` : la tâche 9 le lit en flux (vigilance 3)
@@ -532,6 +586,8 @@ Et des limites, sans test, que les PR disent dans leur corps :
 - `MetadataExt::last_write_time` sous Windows, `MetadataExt::mtime` et `mtime_nsec` ailleurs — une marque de dernière écriture que tient le système de fichiers, non une lecture de l'horloge (aucun mot d'`HORLOGE`) ; un système de fichiers qui ne la tient pas la rend 0 sous Windows, que la source lit `None`, qui ne compare rien — `un_contenu_change_a_taille_egale_arrete_l_import` (tâche 14), la marque de dernière écriture d'une source en mémoire avancée par `changer`
 - `OpenOptionsExt::share_mode(0)` sous Windows, les droits `0o000` ailleurs — un fichier tenu sans partage, ou sans droit de lecture, refuse toute autre ouverture, que l'inspection voit comme une erreur de lecture ; root lit malgré `0o000`, et la paire de fichiers, sous Linux, vérifie d'abord qu'une ouverture échoue (V14) — `un_fichier_qui_ne_se_lit_pas_arrete_l_inspection` (tâche 12), sur la paire de fichiers dans `verifier` et `windows`
 - la boîte `ftyp` d'ISO, aux octets 4 à 7 — porte aussi une photo HEIC ou AVIF, que le code de format aux octets 8 à 11 distingue d'un audio ou d'une vidéo — `chaque_signature_de_la_table_se_reconnait` (tâche 1)
+- `Transaction::delete` d'`automerge` 0.12.0 — sur une clé absente d'une map, son effet n'est pas vérifié sur le poste : rendre `Ok` sans opération, ou refuser — `garder_puis_choisir_le_type_d_un_stem`, son second stem choisi sans avoir été gardé (tâche 13 ; balayage Q15)
+- `char::decode_utf16` sur des paires d'octets — refuse une demi-paire seule, mais ne voit pas un octet impair, que le découpage en paires laisse de côté — `decoder_le_texte_suit_le_controle_du_texte`, sa longueur impaire (tâche 13 ; balayage Q9)
 
 ## Effets cherchés
 
@@ -541,7 +597,7 @@ Et des limites, sans test, que les PR disent dans leur corps :
 - La règle des empreintes nommées lit les stems, leurs MIDI et les rapports — le démarrage, sous Windows et sous Linux, et la tranche 6 (l'archive porte ce que le fonds nomme) — `un_stem_nomme_prend_son_nom_au_demarrage` (tâche 9)
 - La copie en flux sous `import-<ULID>-<rang>`, retirée à la reprise et à la clôture — le démarrage, sous Windows et sous Linux ; une capture garde sa règle — `la_cloture_retire_chaque_copie_de_l_import` (tâche 14) et `une_copie_de_capture_n_est_jamais_retiree` (tâche 7)
 - `NOMS` gagne dix noms — les droits de Windows, `generate_handler!` et chaque tranche suivante — les tests d'I31 (tâche 15)
-- La place libre et le premier `unsafe`, dans `systeme` seul, sous `#[cfg(windows)]` — le contrôle statique d'I30, et la compilation de l'établi hors de Windows (`clippy` de `verifier`) — `i30_chaque_controle_refuse_ce_qu_on_y_plante` (tâche 15)
+- La place libre et le premier `unsafe`, dans `systeme` seul, sous `#[cfg(windows)]` — le contrôle statique d'I30 ; hors de Windows, aucun job ne compile l'établi, qui n'a que Windows pour cible, et sa doc le dit (balayage Q12) — `i30_chaque_controle_refuse_ce_qu_on_y_plante` (tâche 15)
 - L'import conduit unité par unité, chaque unité une demande courte au fil — le protocole, qui passe entre deux unités ; la tranche 6, qui ferme le fil ; la tranche 7, qui chronomètre l'ouverture — `une_requete_du_protocole_passe_entre_deux_unites` (tâche 21)
 - Le protocole, chaque requête une demande au fil, qui lit une plage et rend le fichier — la tranche 6 (vigilance 5 : fermer chaque fichier tenu avant de renommer la racine) — `la_lecture_d_une_plage_ne_garde_aucun_fichier_ouvert` (tâche 21)
 - L'interface ne relit la boîte qu'à la fin de l'import — l'index de la tranche 4, rebâti une fois à la lecture qui suit — `l_import_ne_relit_la_boite_qu_a_la_fin` (tâche 22)
@@ -559,6 +615,8 @@ Et des limites, sans test, que les PR disent dans leur corps :
 - Le BOM `FF FE` n'est plus une signature MP3 : un texte UTF-16 petit-boutiste se verse en texte — l'inspection et le versement de la PR (b), le § 30 · 9.2 — `la_signature_l_emporte_sur_l_extension` (tâche 1) et `lire_un_texte_verse_le_rend_tel_quel` (tâche 13 ; balayage P3)
 - Le rapport d'import se relit au noyau, par `rapport::lire_le_rapport` — la tâche 13, et la tranche 6, dont l'archive porte les rapports — `le_rapport_se_relit` (tâche 3 ; balayage P14)
 - La naissance d'une idée, partagée par `gestes::verser` et les versements de l'import — la capture (`verser_une_fiche`, CAP-01) — les tests de `gestes::verser`, inchangés, et ceux de l'import (tâche 6 ; balayage P8)
+- La déclaration d'un dossier porte le jeu de stems et l'origine à la fois, `commandes::Declaration { stems, origine }` — l'écran de la PR (d), qui déclare les deux familles ; la tranche 6, dont l'archive porte les clés `jeu/` et `declaration/` — `les_types_de_l_import_font_l_aller_retour` (tâche 11) et `un_jeu_declare_genere_porte_son_origine` (tâche 12 ; balayage Q3)
+- Les entiers des réponses de l'import tenus sous `ENTIER_SUR` par leur source, la place libre et les octets bornés aux services — l'interface, qui relit le JSON par `JSON.parse` — `les_entiers_d_une_reponse_restent_sous_2_puissance_53` (tâche 11) et `la_place_libre_rendue_se_borne_a_entier_sur` (tâche 12 ; balayage Q6)
 
 ## Revues
 
@@ -579,7 +637,7 @@ crates/noyau/src/donnees/
   signature.rs                     (a) SIGNATURE_AU_PLUS, Nature, FormatSonore, FormatTexte, Reconnu, reconnaitre,
                                    apres_id3, extension                                                (muté)
   entete.rs                        (a) ENTETE_AU_PLUS, FaitsWav, FaitsMidi, faits_wav, faits_midi,
-                                   ControleDuTexte                                                      (muté)
+                                   ControleDuTexte ; (b) decoder_le_texte                               (muté)
   identifiants.rs                  (a) Hacheur                                                          (muté)
   rapport.rs                       (a) manifeste, Compte, Comptes, FichierDeLImport, comptes, rapport,
                                    RapportLu, lire_le_rapport, MARGE_PAR_FICHIER, place, go             (muté)
@@ -596,11 +654,14 @@ crates/noyau/src/donnees/
   protocole.rs                     (d) REPONSE_AU_PLUS, type_du_format, Plage, plage, Servie, servir    (muté)
   mod.rs                           (a) signature, entete, rapport, origine, stems, import ; (d) protocole
 crates/noyau/tests/signature.rs, entete.rs, rapport.rs, origine.rs, stems.rs, import.rs   (a)
+crates/noyau/tests/entete.rs       (b) decoder_le_texte
 crates/noyau/tests/protocole.rs    (d)
 crates/noyau/tests/identifiants.rs, idee.rs, demarrage.rs, gestes.rs   (a)
 crates/stockage/tests/references.rs (a) le manifeste et le rapport témoins
 crates/stockage/tests/h07.rs       (a) la règle des empreintes nommées, à deux arguments
-crates/stockage/tests/messages.rs  (a) les variantes de l'import dans aucun_message_n_est_un_ordre
+crates/stockage/tests/messages.rs  (a) les variantes de l'import dans aucun_message_n_est_un_ordre ; (b) les messages
+                                   neufs des adaptateurs, FichierAVerser
+crates/services/tests/application.rs (b) le message neuf de CaptationsEnMemoire::relire
 crates/services/src/contrats.rs    (b) Source, Entree, SorteDEntree, Versement ; Captations en flux et par plages
 crates/services/src/source_en_memoire.rs (b) SourceEnMemoire, hors d'`en-memoire`
 crates/services/src/en_memoire.rs  (b) CaptationsEnMemoire en flux ; DocumentsEnMemoire aux acteurs tournants
@@ -624,6 +685,7 @@ app/src-tauri/src/systeme.rs       (b) place_libre, admettre_le_dossier, Dossier
 app/src-tauri/src/commandes_de_l_etabli.rs, src/lib.rs   (b) les commandes ; (d) le protocole
 app/src-tauri/src/protocole.rs     (d) servir_une_captation
 app/src-tauri/capabilities/windows.json, tests/statique.rs, tests/i31.rs   (b), (d)
+app/ui/src/boite.rs                (b) les constructeurs de LigneDeLaBoite, nom_de_fichier à None
 app/ui/src/boite.rs → app/ui/src/boite/   (c) mod.rs, fenetre.rs, textes.rs, gestes.rs, requetes.rs, etat.rs,
                                    focus.rs, ecran.rs, vue.rs, volets.rs
 app/ui/src/import.rs               (d) l'écran de l'import, ses déclarations, son rapport
@@ -2212,7 +2274,7 @@ la tâche 8 relit la phrase entière et en corrige la langue, sans module nouvea
 ## PR (b) · l'import, ses déclarations, son rapport, le test 13
 
 **Branche :** `t5b-l-import`. **Titre :** `feat: l'import d'un fonds, ses déclarations, son rapport, la copie en flux et
-le test 13` (88). **Documents :** CAP-02, CAP-03, CAP-07 ; SYN-07 ; § 30 · 2 ; § 31 · 2.1, 2.4, 6.1 et 10 ; § 40 · 3 ;
+le test 13` (88). **Documents :** CAP-02, CAP-03, CAP-07 ; SYN-07 ; § 30 · 2 et 9.2 ; § 31 · 2.1, 2.4, 6.1 et 10 ; § 40 · 3 ;
 § 41 · 6 ; § 70 · 3, 4.1 et 8 ; le glossaire ; `docs/pistes.md` ; `scripts/verif-confidentialite.sh` ;
 `CONVENTIONS.md` ; `CLAUDE.md`. **Fin :** la tâche 17.
 
@@ -2223,7 +2285,8 @@ le test 13` (88). **Documents :** CAP-02, CAP-03, CAP-07 ; SYN-07 ; § 30 · 2 ;
 `crates/stockage/src/pannes.rs`, `crates/stockage/src/adaptateurs.rs`, `crates/stockage/src/lib.rs` ; créer
 `crates/services/src/source_en_memoire.rs`, `crates/stockage/src/source.rs`, `crates/stockage/tests/source.rs` ;
 modifier `crates/stockage/tests/captations.rs`, `crates/stockage/tests/demarrage.rs`,
-`crates/services/tests/commandes_en_memoire.rs`.
+`crates/services/tests/commandes_en_memoire.rs`, `crates/stockage/tests/messages.rs` (les messages neufs,
+`FichierAVerser`), `crates/services/tests/application.rs` (le message neuf de `relire` ; balayage Q1).
 
 **Interfaces — consomme :** `identifiants::Hacheur` (tâche 2), `import::{nom_de_la_copie, copie_de}` (tâche 6),
 `demarrage::{Provisoire, a_ranger}`.
@@ -2334,8 +2397,14 @@ pub(crate) const TRONCON: usize = 1_048_576;
   qu'`attendue`, le retrait, `rangee` faux ; déjà rangée, le retrait ; sinon le sous-dossier, `Etape::Renommage`,
   `Etape::RendreDurable`. Un refus avant la fin du renommage retire le nom provisoire (`captations.rs:67`, par
   `Etape::Retrait`) : un test qui simule une coupure du processus, après laquelle le nom provisoire reste, coupe aussi
-  `Etape::Retrait` le temps du seul versement coupé, comme `demarrage.rs:356` (R1). Une erreur du flux (le fichier à verser ne se lit plus) rend `Raison::Disque`, son message « La lecture
-  du fichier à verser a échoué : <erreur>. ». La voie par octets garde son raccourci : une captation déjà rangée n'est
+  `Etape::Retrait` le temps du seul versement coupé, comme `demarrage.rs:356` (R1). Une erreur du flux (le fichier à
+  verser ne se lit plus) est une variante neuve, `Erreur::FichierAVerser { erreur: io::Error }`, que `refus`
+  (`adaptateurs.rs`) range en `Raison::Disque`, son texte `constat_du_disque("Le fichier à verser", genre)` suivi d'un
+  point (« Le fichier à verser est refusé par le système. »), jamais celui du système, comme le veut la doc
+  d'`Erreur` : l'adaptateur enveloppe le lecteur, et marque une erreur de lecture avant qu'elle ne remonte, pour ne pas
+  la prendre pour un refus d'écrire le nom provisoire, `Erreur::Disque` sur lui. En mémoire, `CaptationsEnMemoire` rend
+  de même `Raison::Disque`, au constat neutre « Le fichier à verser, le disque l'a refusé. » (balayage Q8 ; la
+  question 38 ne porte que sur l'inspection). La voie par octets garde son raccourci : une captation déjà rangée n'est
   ni réécrite ni rouverte. Le démarrage lit chaque nom provisoire en flux (`lire_un_nom_provisoire`), sans le tenir en
   mémoire (vigilance 3). Les messages : `CaptationAbsente` « Cette captation n'est pas dans le fonds. »,
   `CaptationAlteree` « Une captation relue ne donne pas son empreinte. » (question 26).
@@ -2362,6 +2431,14 @@ pub(crate) const TRONCON: usize = 1_048_576;
   - `une_copie_en_memoire_qui_ne_donne_pas_l_empreinte_attendue_ne_range_rien` (V7) : le même cas sur
     `CaptationsEnMemoire` ; `rangee` faux, l'empreinte calculée rendue, `taille` de cette empreinte à `None`.
 
+  Les messages, à l'octet (balayage Q1, Q8) :
+  - dans `crates/stockage/tests/messages.rs`, `:165` attend « Une captation relue ne donne pas son empreinte. », et
+    `:172` « Cette captation n'est pas dans le fonds. » ; `messages()` gagne `Erreur::FichierAVerser` sur
+    `refus_du_systeme(ErrorKind::PermissionDenied, …)`, « Le fichier à verser est refusé par le système. », que
+    `aucun_message_n_est_un_ordre` relit avec les autres textes de `messages()` ;
+  - dans `crates/services/tests/application.rs:430`, le refus de `CaptationsEnMemoire::relire` attend « Cette
+    captation n'est pas dans le fonds. », de `Raison::Impossible`.
+
   Dans `crates/stockage/tests/demarrage.rs`, chaque coupure étant celle du processus : l'étape visée coupée, et
   `couper(Etape::Retrait, 1)` armé avec elle, le temps du seul versement coupé (R1) :
   - `la_copie_en_flux_coupee_entre_deux_troncons_ne_se_range_pas` : une copie `import-<I>-3` coupée à `Troncon` rang 2,
@@ -2384,8 +2461,9 @@ pub(crate) const TRONCON: usize = 1_048_576;
     seul, hors de `src/`) ; sa marque de dernière écriture, présente, égale `marque_actuelle` ; le même fichier récrit à la même taille et
     daté d'une seconde plus tard : `marque_actuelle` diffère de celle du parcours.
 - [ ] **Étape 2 : voir le rouge.** Committer (`test: la copie en flux, la source à verser et leurs coupures`),
-  pousser, ouvrir la PR en brouillon. Attendu à « Lint » de `verifier` : `no variant named Troncon` et `cannot find
-  type SourceSurFichiers`.
+  pousser, ouvrir la PR en brouillon. Attendu à « Lint » de `verifier` : `no variant named Troncon`, `cannot find
+  type SourceSurFichiers` ou `no variant named FichierAVerser` (balayage Q8), selon la cible que cargo compile
+  d'abord.
 - [ ] **Étape 3 : écrire le code.** Les quatre sites du contrat ensemble (P6) : `contrats.rs`, `adaptateurs.rs`,
   `en_memoire.rs`, `captations.rs` ; `CaptationsEnMemoire` copie le flux dans un `Vec`, calcule l'empreinte par
   `Hacheur`, rend `deja_rangee` d'une empreinte présente, et, `attendue` autre que l'empreinte calculée, ne range rien,
@@ -2393,24 +2471,27 @@ pub(crate) const TRONCON: usize = 1_048_576;
   (1 à la création, avancée par `changer`) et les entrées refusées par `refuser`, tant qu'elles le sont. Aucun mot des
   contrôles statiques des services (`File`, `fs::`, `spawn`, `time::`, `SystemTime`) dans `contrats.rs`,
   `source_en_memoire.rs` ni `en_memoire.rs` ; aucun mot d'`HORLOGE` dans `stockage/src/source.rs`.
-- [ ] **Étape 4 : voir le vert.** Attendu à « Tests » de `verifier` : `captations.rs`, `demarrage.rs` et `source.rs`
-  du stockage verts, la suite des commandes inchangée, le test neuf de `commandes_en_memoire.rs` vert, `statique.rs`
-  des services vert ; dans `windows`, les mêmes
-  fichiers du stockage verts.
+- [ ] **Étape 4 : voir le vert.** Attendu à « Tests » de `verifier` : `captations.rs`, `demarrage.rs`, `messages.rs`
+  et `source.rs` du stockage verts, `application.rs` des services vert, la suite des commandes inchangée, le test
+  neuf de `commandes_en_memoire.rs` vert, `statique.rs` des services vert ; dans `windows`, les mêmes fichiers du
+  stockage verts, `messages.rs` compris (balayage Q1).
 - [ ] **Étape 5 : committer** `git add crates/services/src/contrats.rs crates/services/src/en_memoire.rs
   crates/services/src/source_en_memoire.rs crates/services/src/lib.rs crates/stockage/src/source.rs
   crates/stockage/src/captations.rs crates/stockage/src/fichier.rs crates/stockage/src/pannes.rs
   crates/stockage/src/adaptateurs.rs crates/stockage/src/lib.rs crates/stockage/tests/captations.rs
-  crates/stockage/tests/demarrage.rs crates/stockage/tests/source.rs crates/services/tests/commandes_en_memoire.rs`
-  (`feat: la copie en flux des captations et la source à verser, sur fichiers et en mémoire`).
+  crates/stockage/tests/demarrage.rs crates/stockage/tests/source.rs crates/services/tests/commandes_en_memoire.rs
+  crates/stockage/tests/messages.rs crates/services/tests/application.rs` (`feat: la copie en flux des captations et
+  la source à verser, sur fichiers et en mémoire`).
 
 ### Tâche 10 : la lecture du fonds importé ; I01 étendu
 
 **Fichiers :** modifier `crates/services/src/lecture.rs`, `crates/services/tests/suite/mod.rs` (`permis`,
-`interdit`), `crates/stockage/tests/demarrage.rs`.
+`interdit`), `crates/services/tests/commandes_en_memoire.rs` et `crates/stockage/tests/commandes_sur_fichiers.rs`
+(le `#[test]` de chaque test neuf de la suite ; balayage Q11), `crates/stockage/tests/demarrage.rs`.
 
-**Interfaces — consomme :** `idee::empreintes_nommees` (tâche 7), `origine::{OriginesLues, Declaration,
-premier_nom_vu}`, `stems::{TypeDeStem, duree_de_la_prise_en_stems}`, `import::{DejaLu, DejaDeLaPrise}`.
+**Interfaces — consomme :** `idee::empreintes_nommees` (tâche 7), `origine::{OriginesLues, Declaration, Ajout,
+premier_nom_vu}` (`Declaration { stems, origine }` et `Ajout::lire`, de la vague de corrections de (a) ; balayage Q3),
+`stems::{TypeDeStem, duree_de_la_prise_en_stems}`, `import::{DejaLu, DejaDeLaPrise}`.
 
 **Interfaces — produit** (`services::lecture`) :
 
@@ -2438,16 +2519,25 @@ pub fn deja_lu(doc: &Automerge, sorte: Sorte, empreinte: &str, nommees: &BTreeSe
 pub fn noms_poses_par(doc: &Automerge, import: &str) -> NomsPoses;
 /// Ce que le fonds porte d'une prise en stems, de ses stems et de leurs MIDI, et les liens d'un stem
 /// à son MIDI déjà posés sous elle : chaque clé `<p>/stem/<s>/midi/<m>` de `prises`, en
-/// `DejaDeLaPrise::liens_midi` (revue de la tâche 6).
+/// `DejaDeLaPrise::liens_midi` (revue de la tâche 6). Comme la doc d'`import::DejaDeLaPrise` :
+/// `stems[s].origines` et `midis[m].origines` sont les origines du contenu, à quelque rôle que ce
+/// soit ; elles se remplissent pour chaque stem et chaque MIDI du versement, même sous une prise
+/// neuve ; `captation` n'y sert que pour les MIDI (balayage Q14). L'entrée `<p>/stem/<s>`, à
+/// `true`, n'est pas un nom (balayage Q4).
 pub fn deja_de_la_prise(doc: &Automerge, manifeste: &str, stems: &[&str], midis: &[&str]) -> DejaDeLaPrise;
-/// Les stems de la prise `prise`, dans l'ordre de leurs empreintes : leurs faits, leurs noms, leur
-/// type gardé ou choisi, avec sa provenance, et leur MIDI.
+/// Les stems de la prise `prise`, énumérés par leur entrée `<p>/stem/<s>` (balayage Q4), dans
+/// l'ordre de leurs empreintes : leurs faits, leurs noms, leur type gardé ou choisi, avec sa
+/// provenance, et leur MIDI. Les noms d'un stem sont ceux de `<p>/stem/<s>/nom/…` : les noms posés
+/// hors du jeu, sur le même contenu versé seul (`prises/<s>/nom/…`), n'y sont pas (balayage Q19).
 pub fn stems_de(doc: &Automerge, prise: &str) -> Vec<StemLu>;
 /// Les imports, chacun avec l'heure de son ouverture et, clos, l'empreinte de son rapport.
 pub fn imports(doc: &Automerge) -> Vec<ImportLu>;
-/// Les déclarations de l'import `import` ; les dernières de chaque chemin, d'après l'import le plus
-/// récent qui en a fait une (question 9).
+/// Les déclarations de l'import `import` : `imports/<i>/declaration/<chemin>`, lu par `Ajout::lire`
+/// (une valeur qui ne se lit pas ne donne pas d'origine), et `imports/<i>/jeu/<chemin>`, réunis par
+/// chemin en une `Declaration` (balayage Q3).
 pub fn declarations_de(doc: &Automerge, import: &str) -> BTreeMap<String, Declaration>;
+/// Pour chaque chemin, la `Declaration` entière de l'import le plus récent qui a écrit l'une de ses
+/// deux clés, et non famille par famille (question 9 ; balayage Q3).
 pub fn dernieres_declarations(doc: &Automerge) -> BTreeMap<String, Declaration>;
 /// Les noms de générateurs que porte le fonds, chacun une fois, dans l'ordre de leurs octets.
 pub fn generateurs(doc: &Automerge) -> BTreeSet<String>;
@@ -2455,39 +2545,51 @@ pub fn generateurs(doc: &Automerge) -> BTreeSet<String>;
 pub fn empreintes_nommees_a(doc: &Automerge, tete: &[ChangeHash]) -> BTreeSet<String>;
 // empreintes_nommees(doc) passe désormais les valeurs de `imports/<i>/rapport` à la règle du noyau.
 // faits_de_la_sorte : d'une prise en stems (`<p>/manifeste`), la durée est
-// `duree_de_la_prise_en_stems` des durées de ses stems ; une entrée de `midi_verses` sans `idee`
+// `duree_de_la_prise_en_stems` des durées de ses stems, énumérés par leur entrée `<p>/stem/<s>` :
+// un stem sans `duree` la rend `None` (balayage Q4) ; une entrée de `midi_verses` sans `idee`
 // (le MIDI d'un stem) n'est la captation d'aucune idée.
 ```
 
   `StemLu`, `ImportLu`, `NomsPoses` (`fichiers: BTreeMap<String, (String, bool)>`, chemin vers (empreinte,
   illisible) ; `jeux: BTreeSet<String>`) : des structures de `lecture`, aux champs nommés par leurs docs. `permis` (I01) admet, sous une
   captation : `idee`, `format`, `duree`, `codage`, `canaux`, `frequence`, `bits`, `division`, `manifeste`,
-  `nom/<chemin>`, `stem/<s>/format`, `stem/<s>/duree`, `stem/<s>/nom/<chemin>`, `stem/<s>/midi/<m>`, `stem/<s>/type`,
-  `stem/<s>/type/provenance`, `stem/<s>/type/par`, `stem/<s>/type/depuis`, `stem/<s>/type/le` ; sous `imports` :
-  `<i>/ouvert`, `<i>/rapport`, `<i>/declaration/<chemin>` ; sous `origines_declarees` : `<e>/main`,
-  `<e>/generee/<nom>`. `interdit` ne lit ni le chemin qui suit `nom`, ni celui qui suit `declaration`, ni le nom qui
-  suit `generee`.
+  `nom/<chemin>`, `stem/<s>` (l'entrée du stem, balayage Q4), `stem/<s>/format`, `stem/<s>/duree`,
+  `stem/<s>/nom/<chemin>`, `stem/<s>/midi/<m>`, `stem/<s>/type`, `stem/<s>/type/provenance`, `stem/<s>/type/par`,
+  `stem/<s>/type/depuis`, `stem/<s>/type/le` ; sous `imports` : `<i>/ouvert`, `<i>/rapport`,
+  `<i>/declaration/<chemin>`, `<i>/jeu/<chemin>` (balayage Q3) ; sous `origines_declarees` : `<e>/main`,
+  `<e>/generee/<nom>`. `interdit` ne lit ni le chemin qui suit `nom`, ni celui qui suit `declaration` ou `jeu`, ni le
+  nom qui suit `generee`.
 
 - [ ] **Étape 1 : écrire les tests.** Dans la suite (`crates/services/tests/suite/mod.rs`), rejoués par les deux
   paires, les noms dans `commandes_en_memoire.rs` et `commandes_sur_fichiers.rs` :
   - `i01_un_fonds_importe_ne_garde_ni_compte_ni_total` : un fonds où les opérations de la tâche 6 ont écrit un fichier
-    de chaque sorte, une prise en stems, un type gardé, une origine générée sous un nom `total`, un nom d'origine
-    `compte/a_envoyer.wav`, un rapport ; `parcourir` ne refuse rien, et une clé `prises/<e>/total` plantée est refusée ;
+    de chaque sorte, une prise en stems (l'entrée `stem/<s>` de chacun de ses stems comprise), un type gardé, une
+    origine générée sous un nom `total`, un nom d'origine `compte/a_envoyer.wav`, un dossier déclaré à la fois jeu de
+    stems et `generee:total`, un jeu nommé `compte` (`imports/<i>/jeu/compte`), un rapport ; `parcourir` ne refuse
+    rien, et une clé `prises/<e>/total` plantée est refusée (balayage Q3, Q4) ;
   - `la_duree_d_une_prise_en_stems_vient_de_ses_stems` : la vue de l'idée d'une prise en stems de deux stems (1 000 et
-    1 500 ms) porte 1 500 ms ; le MIDI d'un stem n'est pas une captation de l'idée ; une requête au contenu « MIDI
+    1 500 ms) porte 1 500 ms ; celle d'une prise en stems de deux stems dont l'un n'a pas de `duree` porte `None`
+    (balayage Q4) ; le MIDI d'un stem n'est pas une captation de l'idée ; une requête au contenu « MIDI
     versé » ne rend pas l'idée de cette prise en stems, dont un stem porte un MIDI, et rend celle d'un MIDI versé seul
     (question 21 ; R11) ;
   - `les_noms_d_un_contenu_et_son_premier_nom_vu` : deux imports, trois noms, le premier vu rendu ;
   - `les_noms_poses_par_un_import` : un import d'un WAV, d'un WAV illisible, d'un texte et d'un jeu de deux stems ;
     `noms_poses_par` rend les quatre fichiers et leurs stems, l'illisible marqué, et le jeu à part ; un second import du
-    même dossier n'en pose aucun.
+    même dossier n'en pose aucun ;
+  - `un_nom_pose_hors_du_jeu_n_est_pas_parmi_ceux_du_stem` (balayage Q19) : une prise en stems `P` nomme son stem `S`
+    `Jeu A/voix.wav` ; le même contenu, versé seul sous `Voix seule.wav` (`import::verser_un_fichier`,
+    `DejaLu.captation` vrai), reçoit `prises/<S>/nom/Voix seule.wav`, sans `idee` ; le `StemLu` de `S` que rend
+    `stems_de(P)` ne porte que `Jeu A/voix.wav`, et `noms_de(doc, PRISES, S, None)` rend `Voix seule.wav`.
   Dans `crates/stockage/tests/demarrage.rs` : `un_rapport_nomme_prend_son_nom_au_demarrage` (le cas du test 4 sur un
   rapport, coupé à `Renommage`, le retrait coupé aussi, comme `un_stem_nomme_prend_son_nom_au_demarrage` ; R1).
 - [ ] **Étape 2 : voir le rouge.** Committer (`test: la lecture d'un fonds importé, et I01 sur ses clés`), pousser.
-  Attendu à « Tests » de `verifier` : `i01_un_fonds_importe_ne_garde_ni_compte_ni_total` `panicked at`, la clé
-  `prises/<e>/codage` refusée par `permis`.
+  Attendu à « Lint » de `verifier` : `cannot find function noms_poses_par in module lecture` ; les tests de la suite
+  appellent des lectures qui n'existent pas encore, et `clippy --all-targets` compile les binaires des deux paires
+  avant « Tests » (le cas de P10 du balayage de (a) ; balayage Q11).
 - [ ] **Étape 3 : écrire le code.** Les lectures par `map_range` en un passage, comme `faits_de_la_sorte` ; les clés à
-  plat se coupent par `splitn` à leur place (le chemin d'un nom garde ses `/`).
+  plat se coupent par `splitn` à leur place (le chemin d'un nom garde ses `/`). `noms_poses_par` et
+  `deja_de_la_prise` sautent l'entrée `<p>/stem/<s>`, dont la valeur est `true`, non un ULID ; `stems_de` et la durée
+  d'une prise en stems énumèrent les stems par elle, jamais par leurs clés `stem/<s>/duree` (balayage Q4).
 - [ ] **Étape 4 : voir le vert.** Attendu à « Tests » de `verifier` : la suite des commandes, sur les deux paires,
   verte ; `demarrage.rs` vert ; dans `windows`, `commandes_sur_fichiers.rs` et `demarrage.rs` verts.
 - [ ] **Étape 5 : committer** `git add crates/services/src/lecture.rs crates/services/tests/suite/mod.rs
@@ -2496,10 +2598,17 @@ pub fn empreintes_nommees_a(doc: &Automerge, tete: &[ChangeHash]) -> BTreeSet<St
 
 ### Tâche 11 : les commandes de l'import
 
-**Fichiers :** modifier `crates/commandes/src/lib.rs`, `crates/commandes/tests/serialisation.rs`.
+**Fichiers :** modifier `crates/commandes/src/lib.rs`, `crates/commandes/tests/serialisation.rs` (ses aides `vue`
+et `ligne`, `:40` et `:73`, et ses littéraux de `:202` et `:305`) ; et chaque constructeur de `VueDUneIdee` et de
+`LigneDeLaBoite`, que le champ neuf casse (balayage Q7) : `crates/services/src/lib.rs:461` et `:749` ;
+`crates/services/tests/suite/mod.rs:1099`, `:1774`, `:3066`, `:3092`, et `:2926`, une déstructuration sans `..`
+(E0027), où `nom_de_fichier` s'ajoute au motif, et non `..`, pour que le test voie encore chaque champ ;
+`crates/stockage/tests/commandes_sur_fichiers.rs:1000` ; `app/ui/src/boite.rs:3035`, `:3180` et `:3796`. Le littéral
+de `suite/mod.rs:1804` hérite du champ par `..telle_qu_elle_etait.clone()`, et ne change pas.
 
-**Interfaces — produit** (`commandes`), chaque type `Clone, Debug, PartialEq, Eq, Serialize, Deserialize`, chaque
-entier borné par `ENTIER_SUR` comme ceux de la tranche 2 :
+**Interfaces — produit** (`commandes`), chaque type `Clone, Debug, PartialEq, Eq, Serialize, Deserialize` ; chaque
+entier d'une réponse tenu sous `ENTIER_SUR` par sa source, la doc de son champ nommant sa borne, comme ceux de la
+tranche 2 (`crates/commandes/src/lib.rs:10-13`) : aucun type ne refuse un entier à la relecture (balayage Q6) :
 
 ```rust
 pub const INSPECTER_UN_DOSSIER: &str = "inspecter_un_dossier";
@@ -2516,7 +2625,12 @@ pub const GENERATEURS: &str = "generateurs";
 
 pub enum NatureDuFichier { Audio { format: String }, Midi, Texte { format: String }, Ignore }
 pub struct FichierInspecte { pub rang: u64, pub chemin: Option<String>, pub octets: u64, pub nature: NatureDuFichier, pub connu: bool }
-pub enum Declaration { Stems, Main, Generee { nom: String } }
+/// La déclaration d'un dossier (balayage Q3) : jeu de stems (`stems`), son origine, l'un, l'autre
+/// ou les deux. À l'import, `OrigineADeclarer::Aucune` veut dire « aucune origine déclarée » ;
+/// après l'import, elle reste refusée, « Une origine déclarée ne se retire pas. ».
+pub struct Declaration { pub stems: bool, pub origine: OrigineADeclarer }
+/// `chemin` : le chemin du dossier dans le dossier versé, sans `/` final, `""` pour le dossier
+/// versé lui-même (balayage Q13).
 pub struct DossierInspecte { pub chemin: String, pub audio: u64, pub jeu_propose: bool, pub reproposee: Option<Declaration> }
 pub struct Inspection {
     pub reprise: Option<String>, pub nom_du_dossier: Option<String>, pub fichiers: Vec<FichierInspecte>,
@@ -2528,6 +2642,8 @@ pub struct Inspection {
     /// l'ouverture le clora (question 35 ; V12).
     pub ouvert_ailleurs: bool,
 }
+/// `chemin` : comme celui de `DossierInspecte`, sans `/` final, `""` pour le dossier versé ;
+/// aucune normalisation aux services (balayage Q13).
 pub struct DeclarationDUnDossier { pub chemin: String, pub declaration: Declaration }
 pub struct OuvrirLImport { pub declarations: Vec<DeclarationDUnDossier>, pub decalage_minutes: i32 }
 pub struct JeuAVerser { pub dossier: String, pub rangs: Vec<u64> }
@@ -2543,6 +2659,7 @@ pub struct RapportDImport {
     pub ignores: Compte, pub sans_nom: Compte, pub origines_changees: u64, pub fichiers_sans_nom: Vec<u64>,
 }
 pub struct ImportClos { pub rapport: RapportDImport, pub avertissement: Option<String> }
+/// `Prefixe::prefixe` : une barre `/` finale s'ôte (`origine::sous_le_prefixe` ; balayage Q13).
 pub enum Portee { Captation(Captation), Prefixe { import: String, prefixe: String } }
 pub enum OrigineADeclarer { Aucune, Main, Generee { nom: String } }
 pub struct DeclarerUneOrigine { pub portee: Portee, pub origine: OrigineADeclarer }
@@ -2567,19 +2684,28 @@ pub struct CaptationVue { pub captation: Captation, pub faits: FaitsDUneCaptatio
 - [ ] **Étape 1 : écrire les tests** (`crates/commandes/tests/serialisation.rs`) : `les_noms_sont_uniques_et_en_snake_case`
   passe à `assert_eq!(NOMS.len(), 31)`, et `NOMS[15..]` nomme `ETAT_DU_FONDS`, les quatre commandes des requêtes
   enregistrées, les dix de l'import dans l'ordre ci-dessus, puis `EXPORTER_CAHIER` ; un aller-retour JSON de chaque type
-  neuf (`les_types_de_l_import_font_l_aller_retour`), dont un chemin `None`, un nom de générateur à apostrophe et
-  `TypeVu::Propose(TypeDeStem::Choeurs)` ; les entiers au-delà d'`ENTIER_SUR` refusés à la relecture, comme les autres
-  (`un_compte_au_dela_d_entier_sur_ne_se_relit_pas`).
+  neuf (`les_types_de_l_import_font_l_aller_retour`), dont un chemin `None`, un nom de générateur à apostrophe,
+  `TypeVu::Propose(TypeDeStem::Choeurs)` et une `Declaration` qui porte le jeu et l'origine à la fois,
+  `{ stems: true, origine: Generee { nom: "Atelier inventé" } }` (balayage Q3) ;
+  `les_entiers_d_une_reponse_restent_sous_2_puissance_53` (`serialisation.rs:457`) s'étend aux types neufs qui
+  sortent vers l'interface, `Inspection`, `FichierInspecte`, `RapportDImport`, `Compte`, `FaitsDUneCaptation`,
+  `ImportOuvert` et `FichierVerse`, chacun de leurs entiers à sa borne, `ENTIER_SUR` pour un `u64`, lu par
+  `entier_sur` (balayage Q6).
 - [ ] **Étape 2 : voir le rouge.** Committer (`test: les commandes de l'import`), pousser. Attendu à « Lint » :
   `cannot find value INSPECTER_UN_DOSSIER`.
-- [ ] **Étape 3 : écrire le code.** Les types et les dix constantes ; `NOMS`. Les services, l'établi et l'interface
-  qui construisent `VueDUneIdee` et `LigneDeLaBoite` passent `captations_vues: Vec::new()` et `nom_de_fichier: None` jusqu'aux
-  tâches 12 et 24 ; les droits de Windows et `generate_handler!` suivent à la tâche 15 : `windows` reste rouge sur I31
-  entre les deux, ce que la PR dit.
-- [ ] **Étape 4 : voir le vert.** Attendu à « Tests » de `verifier` : `serialisation.rs` vert ; dans `windows`, les
-  tests d'I31 rouges (`allow-inspecter-un-dossier` manque), jusqu'à la tâche 15.
-- [ ] **Étape 5 : committer** `git add crates/commandes/src/lib.rs crates/commandes/tests/serialisation.rs` et les
-  constructeurs touchés (`feat: les types et les dix commandes de l'import`).
+- [ ] **Étape 3 : écrire le code.** Les types et les dix constantes ; `NOMS` ; la doc de chaque champ entier d'une
+  réponse nomme sa borne (balayage Q6). Les constructeurs que nomme la liste des fichiers passent
+  `captations_vues: Vec::new()` et `nom_de_fichier: None` jusqu'aux tâches 12 et 24 ; aucun n'est dans l'établi, qui
+  ne fait que relire une `VueDUneIdee` (balayage Q7). Les droits de Windows et `generate_handler!` suivent à la
+  tâche 15 : `windows` reste rouge sur I31 entre les deux, ce que la PR dit.
+- [ ] **Étape 4 : voir le vert.** Attendu à « Tests » de `verifier` : `serialisation.rs` vert, la suite des commandes
+  verte ; dans `windows`, les tests d'I31 rouges (`allow-inspecter-un-dossier` manque), jusqu'à la tâche 15. Pendant
+  cette fenêtre, « Tests de l'établi » échoue dans `windows`, et les étapes qui le suivent sautent, la sentinelle d'I30
+  et le cahier ; les tests du stockage, qui le précèdent, tournent. Le rapport de chacune des tâches 11 à 14 dit que la
+  sentinelle d'I30 ne tourne pas avant la tâche 15 (balayage Q21).
+- [ ] **Étape 5 : committer** `git add crates/commandes/src/lib.rs crates/commandes/tests/serialisation.rs
+  crates/services/src/lib.rs crates/services/tests/suite/mod.rs crates/stockage/tests/commandes_sur_fichiers.rs
+  app/ui/src/boite.rs` (`feat: les types et les dix commandes de l'import`).
 
 ### Tâche 12 : les services de l'import : inspecter, ouvrir, verser, clore
 
@@ -2590,8 +2716,10 @@ pub struct CaptationVue { pub captation: Captation, pub faits: FaitsDUneCaptatio
 Le module des services se nomme `etat_de_l_import`, non `import` : `mod import;` et `use noyau::donnees::import;` ne
 coexisteraient pas dans `crates/services/src/lib.rs` (E0255), et ce plan écrit `import::ouvrir`,
 `import::verser_un_fichier`, `import::declarer_une_origine`… pour les opérations du noyau (balayage P13). Les
-homonymes de `commandes` (`ImportOuvert`, `ChoixDuType`, `Compte`) et ceux du noyau se nomment par leur module, comme
-`gestes::Sorte` aujourd'hui.
+homonymes de `commandes` (`ImportOuvert`, `ChoixDuType`, `Compte`, `Declaration`, `TypeDeStem`) et ceux du noyau
+(`import::ImportOuvert`, `import::ChoixDuType`, `rapport::Compte`, `origine::Declaration`, `stems::TypeDeStem`) se
+nomment par leur module, comme `gestes::Sorte` aujourd'hui, dans `crates/services/src/lib.rs` comme dans
+`etat_de_l_import.rs` (balayage Q16).
 
 **Interfaces — consomme :** les règles de la PR (a) ; `Source`, `Captations::verser_en_flux` (tâche 9) ; les lectures
 de la tâche 10 ; les commandes de la tâche 11.
@@ -2620,7 +2748,12 @@ impl<D: Documents, C: Captations> Services<D, C> {
     pub fn inspecter<S: Source>(&mut self, source: &S, place_libre: u64) -> Reponse<Inspection>;
     /// Ouvre l'import inspecté (question 15) : en lecture seule, le refus ; sans inspection,
     /// « Aucun dossier n'est inspecté. » ; la place, de nouveau comparée, son manque en refus ; un
-    /// dossier déclaré `stems` sans fichier audio, `JeuSansAudio`. Un import ouvert que la source ne
+    /// dossier déclaré jeu de stems (`stems`) sans fichier audio, `JeuSansAudio`. Chaque
+    /// `DeclarationDUnDossier` se traduit en `origine::Declaration` : `stems` tel quel, `Aucune` en
+    /// `None`, `Main` en `Some(Ajout::Main)`, `Generee { nom }` en `Some(Ajout::Generee(nom))` ; une
+    /// déclaration vide (`stems` faux, `Aucune`) n'écrit rien, et s'ôte avant de comparer les
+    /// déclarations d'un import repris ; deux entrées du même chemin, la dernière l'emporte
+    /// (balayage Q3). Un import ouvert que la source ne
     /// reprend pas se clôt d'abord (question 35) : son rapport compte les fichiers nommés à son ULID
     /// (`noms_poses_par`), vus et versés, leurs octets ceux de leurs captations
     /// (`Captations::taille`), les illisibles parmi eux, dédoublonnés, ignorés et sans nom à zéro, sans
@@ -2687,7 +2820,14 @@ impl<D: Documents, C: Captations> Services<D, C> {
   conduit un import entier, unité par unité, comme l'interface (tâche 22). Chaque test de la suite a son `#[test]` dans
   `commandes_en_memoire.rs` et dans `commandes_sur_fichiers.rs`.
 
-- [ ] **Étape 1 : écrire les tests** (la suite), chacun calculant l'exemple du critère :
+- [ ] **Étape 1 : écrire les tests** (la suite), chacun calculant l'exemple du critère. Une déclaration s'écrit
+  `commandes::Declaration`, « déclaré `stems` » valant `{ stems: true, origine: Aucune }` (balayage Q3), et nomme
+  son dossier sans `/` final, `Jeu A` et non `Jeu A/`, ou reprend `inspection.dossiers[i].chemin` (balayage Q13).
+  Le littéral `telle_qu_elle_etait` de `une_idee_retiree_quitte_la_liste_et_se_retablit_telle_qu_elle_etait`
+  (`crates/services/tests/suite/mod.rs:1774`), comparé entier, reçoit la `CaptationVue` de V, versée par
+  `verser_une_prise` (`fiche_wav(30_000)`) : `captation`, celle de V ; `faits`, `format: Some("wav")`,
+  `duree_ms: Some(30_000)`, le reste à `None` ; `noms`, `[]` ; `origine`, `OrigineDeclaree::Aucune` ; `stems`, `[]`
+  (balayage Q2). Le littéral de `:1099`, une note sans captation, ne bouge pas.
   - `cap03_1_quatre_vingts_fichiers_dont_trois_doublons_donnent_soixante_dix_sept_captations` : 77 WAV de 8 000 Hz,
     mono, 8 bits, de 1 à 77 trames (rang r : r trames), puis trois copies des trois premiers dans `Copies/` ; importés,
     77 idées, chacune `Importee { depuis: <l'import> }` ; 78 captations (77 et le rapport) ; le rapport : vus 80, versés
@@ -2699,7 +2839,7 @@ impl<D: Documents, C: Captations> Services<D, C> {
     prise `m4a` ; son premier nom vu, relu, égale ce nom octet pour octet ;
   - `cap03_4_des_noms_semblables_ne_creent_ni_lien_ni_regroupement` (part sans morceaux, non inscrite) : `Pont v1.wav`,
     `Pont v2.wav`, `Pont.mid`, `Pont.txt` donnent quatre idées, une captation chacune, aucun lien ;
-  - `cap03_7_un_jeu_de_dix_wav_et_neuf_midi_donne_une_prise_en_stems` : `Jeu A/` déclaré `stems`, dix WAV de 8 000
+  - `cap03_7_un_jeu_de_dix_wav_et_neuf_midi_donne_une_prise_en_stems` : `Jeu A` déclaré `stems`, dix WAV de 8 000
     trames à 8 000 Hz aux contenus distincts, neuf MIDI aux noms de neuf d'entre eux ; une prise, une idée, dix stems
     dont neuf avec leur MIDI, chaque type `TypeVu::Propose`, aucune clé `type` ; 21 captations (dix, neuf, le
     manifeste, le rapport) ; le rapport compte 19 versés ; un second import ne verse que son rapport ;
@@ -2717,20 +2857,32 @@ impl<D: Documents, C: Captations> Services<D, C> {
     « « Démos/a.wav » ne se lit pas : » ; rien ne s'écrit ; puis `refuser_la_lecture(…, false)`, et la même inspection
     passe (V2) ;
   - `un_jeu_d_un_seul_contenu_donne_une_prise_en_stems_distincte` (question 19 ; R11) : un WAV versé en prise, puis
-    son dossier déclaré `stems` avec ce seul WAV ; deux prises, l'empreinte du manifeste distincte de celle du WAV ;
+    son dossier déclaré `stems`, `{ stems: true, origine: Aucune }`, avec ce seul WAV ; deux prises, l'empreinte du
+    manifeste distincte de celle du WAV ;
   - `cap03_10_un_contenu_sous_deux_noms_dans_deux_sous_dossiers_est_un_objet_a_deux_noms` : `A/x.wav` et `B/y.wav` du
     même contenu ; une captation, ses noms `["A/x.wav", "B/y.wav"]` ;
   - `cap03_11_une_archive_et_un_pdf_sont_ignores_sans_etre_ouverts` : un zip (`PK\x03\x04` puis 5 000 octets), un PDF
     (`%PDF-1.7` puis 2 000 octets) et un WAV ; le rapport compte deux ignorés, 5 004 + 2 008 octets ;
     `Source::octets_lus` de chacun vaut 16 au plus ;
   - `cap03_13_une_taille_a_verser_plus_grande_que_la_place_libre_ne_verse_rien` : un WAV de 8 044 octets, une place
-    libre de 4 000 ; l'inspection dit « La taille à verser, 0,1 Go, passe la place libre, 0,0 Go : il manque 0,1 Go. » ;
-    l'ouverture est refusée de ce message ; le fonds n'est pas né, et aucune captation n'est versée ;
+    libre de 4 000 ; l'inspection dit « Verser 0,1 Go demande 0,1 Go de place libre, deux fois le poids du fonds
+    compris ; il y en a 0,0 Go : il manque 0,1 Go. » (8 044 octets à verser, 12 140 demandés, 4 000 libres, 8 140 de
+    manque ; `rapport::ManqueDePlace` ; balayage Q5) ; l'ouverture est refusée de ce message ; le fonds n'est pas né,
+    et aucune captation n'est versée ;
   - `deux_copies_d_un_contenu_versees_dans_le_desordre_comptent_un_verse` (point de revue 1) : les rangs versés à
     rebours ; un versé, un dédoublonné, deux noms ;
   - `un_zip_nomme_wav_est_ignore_et_lu_de_seize_octets` (point de revue 2) ;
   - `un_stem_deja_prise_reste_la_prise_de_son_idee` (point de revue 3) : un WAV versé en prise, puis le même contenu
     stem d'un jeu déclaré ; la prise garde son idée, la prise en stems nomme le stem, le rapport le compte dédoublonné ;
+    et un stem dont le contenu, déjà prise, porte `generee/Atelier inventé`, dans un jeu déclaré
+    `{ stems: true, origine: Main }` : il garde l'origine générée, sans clé `origines_declarees/<s>/main` de plus
+    (balayage Q14) ;
+  - `un_jeu_declare_genere_porte_son_origine` (balayage Q3) : `Jeu A` déclaré
+    `{ stems: true, origine: Generee { nom: "Atelier inventé" } }` donne une prise en stems dont la `CaptationVue`
+    porte `OrigineDeclaree::Generee { noms: ["Atelier inventé"] }`, et `lecture::declarations_de` rend, pour `Jeu A`,
+    le jeu et l'origine ;
+  - `la_place_libre_rendue_se_borne_a_entier_sur` (balayage Q6) : l'inspection d'une place libre de `u64::MAX` rend
+    `libre: ENTIER_SUR`, et ne dit aucun manque ;
   - `un_texte_illisible_est_verse_et_compte_a_part` : un `.txt` en Latin-1 ; un texte versé sans format ; illisibles 1 ;
   - `un_fichier_sans_nom_est_verse_et_compte_a_part` : un WAV de chemin `None` ; versé, sans clé `nom` ; sans-nom 1,
     et la ligne `fichier-sans-nom=<rang>` dans le rapport relu ;
@@ -2744,9 +2896,12 @@ impl<D: Documents, C: Captations> Services<D, C> {
   les déclarations, l'inspection, ce que chaque rang a donné, les empreintes nommées, lues une fois puis tenues à
   jour ; R26) ; `Services` le garde dans un champ, `None` hors d'un import, et garde à part la table (chemin →
   empreinte) du dernier import clos, oubliée à l'inspection suivante (R6). `verser_une_fiche` ne change pas : la voie d'une capture, qui verse toujours ; sa doc le dit, et ne dit plus
-  « l'import la recevra ». Aucune lecture d'un fichier hors du contrat `Source`.
-- [ ] **Étape 4 : voir le vert.** Attendu à « Tests » de `verifier` : la suite verte sur les deux paires, `statique.rs`
-  des services vert ; dans `windows`, `commandes_sur_fichiers.rs` vert.
+  « l'import la recevra ». Aucune lecture d'un fichier hors du contrat `Source`. Les entiers que les services rendent
+  à l'interface et qu'aucune source ne borne, `Inspection::libre`, `Inspection::a_verser` et les octets comptés
+  (`Compte::octets`), se bornent par `min(…, ENTIER_SUR)` ; `rapport::place` compare les valeurs entières, avant la
+  borne (balayage Q6).
+- [ ] **Étape 4 : voir le vert.** Attendu à « Tests » de `verifier` : la suite verte sur les deux paires, le littéral
+  de `:1774` compris (balayage Q2), `statique.rs` des services vert ; dans `windows`, `commandes_sur_fichiers.rs` vert.
 - [ ] **Étape 5 : committer** `git add crates/services/src/etat_de_l_import.rs crates/services/src/lib.rs
   crates/services/tests/suite/mod.rs crates/services/tests/commandes_en_memoire.rs
   crates/stockage/tests/commandes_sur_fichiers.rs` (`feat: l'import, conduit unité par unité, ses comptes et son
@@ -2755,15 +2910,23 @@ impl<D: Documents, C: Captations> Services<D, C> {
 ### Tâche 13 : après l'import : déclarer une origine, choisir le type d'un stem, lire un texte et un rapport
 
 **Fichiers :** modifier `crates/services/src/lib.rs`, `crates/services/tests/suite/mod.rs`,
-`crates/services/tests/commandes_en_memoire.rs`, `crates/stockage/tests/commandes_sur_fichiers.rs`.
+`crates/services/tests/commandes_en_memoire.rs`, `crates/stockage/tests/commandes_sur_fichiers.rs`,
+`crates/noyau/src/donnees/entete.rs` et `crates/noyau/tests/entete.rs` (`decoder_le_texte` ; balayage Q9).
 
 **Interfaces — consomme :** `rapport::{lire_le_rapport, RapportLu}` (tâche 3 ; balayage P14), `import::{declarer_une_origine,
 choisir_le_type, Cible, Declaree, ChoixDuType}` (tâche 6), `stems::type_propose` (tâche 5), `origine::sous_le_prefixe`
-(tâche 4).
+(tâche 4, qui ôte une barre `/` finale du préfixe), `entete::ControleDuTexte` (tâche 2).
 
-**Interfaces — produit** (`services::Services`) :
+**Interfaces — produit** (`noyau::donnees::entete`, `services::Services`) :
 
 ```rust
+// noyau::donnees::entete (balayage Q9)
+/// Le texte d'un texte versé, décodé sur les encodages de `ControleDuTexte` (question 10) : UTF-8,
+/// son BOM `EF BB BF` ôté ; UTF-16 petit-boutiste après `FF FE`, gros-boutiste après `FE FF`, le
+/// BOM ôté. `None` dès que `ControleDuTexte` le dirait illisible : une demi-paire seule, une
+/// longueur impaire, un UTF-8 invalide. Un texte vide, ou fait de sa seule marque, rend `Some("")`.
+pub fn decoder_le_texte(octets: &[u8]) -> Option<String>;
+
 /// Déclare une origine (question 22) sur une captation, ou sur les captations dont un chemin de la
 /// table du dernier import clos (chemin → empreinte, gardée par `clore_l_import` jusqu'à
 /// l'inspection suivante ; R6) est sous `prefixe` (`sous_le_prefixe`), l'import `import` étant
@@ -2776,8 +2939,9 @@ pub fn declarer_une_origine(&mut self, commande: &DeclarerUneOrigine, contexte: 
 /// Choisit le type d'un stem (question 18) : `import::choisir_le_type`, la proposition tirée du
 /// premier nom vu du stem (`type_propose`). Ne touche pas au dernier geste de tri.
 pub fn choisir_le_type_d_un_stem(&mut self, commande: &ChoisirLeType, contexte: &mut Contexte<'_>) -> Reponse<Faite>;
-/// Le texte versé `captation`, relu contre son empreinte, décodé : UTF-8 (son BOM ôté) ou UTF-16
-/// d'après son BOM ; illisible, `None`. Une lecture : en lecture seule comme ailleurs.
+/// Le texte versé `captation`, relu contre son empreinte, décodé par la règle du noyau,
+/// `entete::decoder_le_texte`, jamais par un second décodeur dans les services (balayage Q9) ;
+/// illisible, `None`. Une lecture : en lecture seule comme ailleurs.
 pub fn lire_un_texte_verse(&self, commande: &Captation) -> Reponse<TexteLu>;
 /// Le rapport de l'import `import`, relu contre son empreinte, ses comptes lus par la règle du
 /// noyau, `rapport::lire_le_rapport` ; `None` : `Raison::Illisible`.
@@ -2787,22 +2951,27 @@ pub fn generateurs(&self) -> Reponse<Vec<String>>;
 ```
 
 - [ ] **Étape 1 : écrire les tests** (la suite, sur les deux paires, sauf mention) :
-  - `cap03_9_une_origine_generee_se_garde_et_ne_se_retire_pas` : un dossier déclaré `generee:Atelier inventé` ; chaque
+  - `cap03_9_une_origine_generee_se_garde_et_ne_se_retire_pas` : un dossier déclaré
+    `{ stems: false, origine: Generee { nom: "Atelier inventé" } }` (balayage Q3) ; chaque
     prise porte `OrigineDeclaree::Generee { noms: ["Atelier inventé"] }` ; la déclarer `Aucune` est refusé, « Une
-    origine déclarée ne se retire pas. » ; le reverser, le dossier déclaré `main`, la laisse générée ; déclarer `Main`
+    origine déclarée ne se retire pas. » ; le reverser, le dossier déclaré `{ stems: false, origine: Main }`, la laisse
+    générée ; déclarer `Main`
     sur l'une rend l'avertissement « L'origine reste générée : une origine déclarée ne se retire pas. » ; déclarer
     `Generee { nom: "Atelier inventé" }` sur elle, déjà portée, rend `Faite { avertissement: None }` et n'ajoute rien
     au journal ; une prise d'un dossier déclaré `main`, déclarée `Main` de nouveau, de même (R16) ; `Main` déclarée par
     le préfixe d'un dossier qui porte une prise générée et une prise sans origine pose `main` sur la seconde, une
     opération au journal, et rend l'avertissement (V9) ; un dossier non déclaré : `OrigineDeclaree::Aucune` ;
   - `declarer_une_origine_par_prefixe_ne_prend_que_les_segments_entiers` : `Démos/a.wav` et `Démos 2015/b.wav` ; le
-    préfixe `Démos` ne prend que `a.wav` ;
+    préfixe `Démos` ne prend que `a.wav`, et le préfixe `Démos/`, sa barre finale ôtée, de même (balayage Q13) ;
   - `declarer_par_prefixe_apres_un_import_rejoue` (R6) : un dossier `Démos/` de deux WAV importé deux fois ; depuis le
     second rapport, la déclaration `Main` par le préfixe `Démos` prend les deux captations, quand aucun nom n'est à
     l'ULID du second import ; après une nouvelle inspection, la même commande est refusée, « Ce dossier n'est plus
     inspecté. » ;
   - `garder_puis_choisir_le_type_d_un_stem` : `voix.wav` dans un jeu ; `TypeVu::Propose(Voix)`, puis
-    `Garde(Voix)`, puis, choisi, `Choisi(Choeurs)` ;
+    `Garde(Voix)`, puis, choisi, `Choisi(Choeurs)` ; et un second stem, `basse.wav`, choisi sans avoir été gardé :
+    `Propose(Basse)`, puis `Choisi(Voix)`, `choisir_le_type` ôtant `type/par` et `type/depuis`, que rien n'a posés
+    (balayage Q15). S'il rougit, `choisir_le_type` n'ôte ces clés que si elles existent, ce qui demande un paramètre au
+    noyau et son test ;
   - `lire_un_texte_verse_le_rend_tel_quel` : un ChordPro UTF-8 avec BOM, un UTF-16 petit-boutiste, dont le BOM
     `FF FE` le fait reconnaître en texte, non en prise `mp3` (balayage P3), un illisible (`None`) ; un texte qui porte
     `<script>` et `&amp;` revient octet pour octet (I31) ;
@@ -2816,16 +2985,26 @@ pub fn generateurs(&self) -> Reponse<Vec<String>>;
     seule porte la prise ; la piste « Ce que laissent deux regroupements croisés » le dit (tâche 17) ;
   - `deux_origines_nees_sur_deux_repliques_se_reunissent` : `main` d'un côté, `generee/Atelier` de l'autre ; la plus
     forte, générée.
+  Dans `crates/noyau/tests/entete.rs` (balayage Q9) :
+  - `decoder_le_texte_suit_le_controle_du_texte` : un UTF-8 dont le BOM s'ôte ; `FF FE` puis un texte petit-boutiste ;
+    `FE FF` puis le même, gros-boutiste ; une demi-paire seule, `None` ; une longueur impaire après `FF FE`, `None` ;
+    un texte vide, et `FF FE` seul, `Some("")` ; chaque cas donne `None` si et seulement si `ControleDuTexte`, nourri
+    des mêmes octets, ne le dit pas lisible.
 - [ ] **Étape 2 : voir le rouge.** Committer (`test: les déclarations après l'import ; CAP-03 · 9`), pousser. Attendu à
-  « Lint » : `no method named declarer_une_origine found`.
+  « Lint » : `no method named declarer_une_origine found`, ou `cannot find function decoder_le_texte in module
+  entete`, selon la cible que cargo compile d'abord.
 - [ ] **Étape 3 : écrire le code.** Le rapport, relu contre son empreinte, se lit par `rapport::lire_le_rapport`
   (tâche 3), jamais par un second lecteur de ses lignes dans les services (balayage P14) ; `None` (une autre version,
   une ligne manquante ou mal formée), refusé de `Raison::Illisible`, « Ce rapport vient d'une version plus récente. ».
-- [ ] **Étape 4 : voir le vert.** Attendu à « Tests » de `verifier` : la suite verte sur les deux paires ; dans
-  `windows`, `commandes_sur_fichiers.rs` vert.
-- [ ] **Étape 5 : committer** `git add crates/services/src/lib.rs crates/services/tests/suite/mod.rs
-  crates/services/tests/commandes_en_memoire.rs crates/stockage/tests/commandes_sur_fichiers.rs` (`feat: déclarer une
-  origine, choisir le type d'un stem, lire un texte versé et un rapport`).
+  `entete::decoder_le_texte` au noyau, `entete.rs` étant déjà muté (`.cargo/mutants.toml`) : aucune boucle `while` ni
+  `loop` écrite à la main, aucun mot des contrôles statiques du noyau (`io::`, `File`…) ; le job `mutants` de la PR
+  mute ses lignes, et ses tests tuent chaque mutant (balayage Q9).
+- [ ] **Étape 4 : voir le vert.** Attendu à « Tests » de `verifier` : `entete.rs` du noyau vert, la suite verte sur
+  les deux paires ; dans `windows`, `commandes_sur_fichiers.rs` vert ; `mutants` vert sur `entete.rs`.
+- [ ] **Étape 5 : committer** `git add crates/noyau/src/donnees/entete.rs crates/noyau/tests/entete.rs
+  crates/services/src/lib.rs crates/services/tests/suite/mod.rs crates/services/tests/commandes_en_memoire.rs
+  crates/stockage/tests/commandes_sur_fichiers.rs` (`feat: déclarer une origine, choisir le type d'un stem, lire un
+  texte versé et un rapport`).
 
 ### Tâche 14 : la reprise, le fichier qui change, la lecture seule, les copies
 
@@ -2840,15 +3019,21 @@ pub fn generateurs(&self) -> Reponse<Vec<String>>;
     `Paire::rouvrir` (les services perdent leur état) ; l'inspection du même dossier dit `reprise: Some(<l'import>)` ;
     l'ouverture rend `repris: true` et les seuls rangs restants ; la clôture rend les comptes d'un import fait d'une
     traite du même dossier, sur une paire neuve, illisibles et octets compris (R7) ;
-  - `un_import_coupe_apres_une_prise_en_stems_se_reprend` (R2) : un jeu `Jeu A/` déclaré `stems` et un dossier
-    `Atelier/` déclaré `generee:Atelier inventé` ; la prise en stems versée, puis `Paire::rouvrir` ; l'inspection du
-    même dossier dit la reprise, et la clôture rend les comptes d'une traite ;
+  - `un_import_coupe_apres_une_prise_en_stems_se_reprend` (R2) : le jeu `Jeu A` déclaré
+    `{ stems: true, origine: Aucune }` et le dossier `Atelier` déclaré
+    `{ stems: false, origine: Generee { nom: "Atelier inventé" } }` (balayage Q3, Q13) ; dans `Jeu A`, un stem
+    illisible (un WAV coupé à 30 octets, sans faits) et sans origine (balayage Q4) ; la prise en stems versée, puis
+    `Paire::rouvrir` ; l'inspection du même dossier dit la reprise ; la copie du stem illisible reste nommée et rangée
+    à la reprise, et la clôture rend les comptes d'une traite. Un stem sans nom en UTF-8 ne se forme pas par la
+    source : un chemin `None` n'a pas de dossier, et ne rejoint aucun jeu ; l'entrée d'un tel stem, sa seule clé, est
+    éprouvée au noyau, par la vague de corrections de (a) ;
   - `un_import_ouvert_sans_nom_ne_se_reprend_pas` (R2) : un import ouvert, rien versé, puis `Paire::rouvrir` ;
     l'inspection du même dossier ne dit aucune reprise, et `ouvert_ailleurs` ;
-  - `une_reprise_garde_les_declarations_de_l_ouverture` (R2) : un import ouvert, `Démos/` déclaré `main`, un fichier
-    versé, puis `Paire::rouvrir` ; l'inspection rend `declarations_reprises` (`Démos/`, `main`) ; une ouverture qui
-    déclare `Démos/` `stems` est refusée, « Cet import reprend ses déclarations : elles ne changent pas. » ; sans
-    déclaration ou avec les mêmes, elle passe ;
+  - `une_reprise_garde_les_declarations_de_l_ouverture` (R2) : un import ouvert, `Démos` déclaré
+    `{ stems: false, origine: Main }`, un fichier versé, puis `Paire::rouvrir` ; l'inspection rend
+    `declarations_reprises` (`Démos`, `{ stems: false, origine: Main }`) ; une ouverture qui déclare `Démos` jeu de
+    stems, son origine `main` gardée (`{ stems: true, origine: Main }`), est refusée, « Cet import reprend ses
+    déclarations : elles ne changent pas. » ; sans déclaration ou avec les mêmes, elle passe (balayage Q3, Q13) ;
   - `un_fichier_change_depuis_l_inspection_arrete_l_import` : `Paire::changer` du rang 2 après l'inspection, à une
     autre taille ; son versement est refusé, « « b.wav » a changé depuis l'inspection : l'import s'arrête, et
     rechoisir le dossier le reprend. » ; une nouvelle inspection le reprend, et le fichier changé se verse ;
@@ -2892,7 +3077,8 @@ pub fn generateurs(&self) -> Reponse<Vec<String>>;
 
 **Fichiers :** modifier `app/src-tauri/src/systeme.rs`, `app/src-tauri/src/lib.rs`,
 `app/src-tauri/src/commandes_de_l_etabli.rs`, `app/src-tauri/capabilities/windows.json`,
-`app/src-tauri/tests/statique.rs` ; créer, dans `crates/stockage/tests/source.rs`, les tests de Windows.
+`app/src-tauri/tests/statique.rs`, et `crates/stockage/tests/source.rs`, que la tâche 9 a créé, pour ses tests de
+Windows (balayage Q20).
 
 **Interfaces — produit** (`etabli`) :
 
@@ -2902,7 +3088,8 @@ pub fn generateurs(&self) -> Reponse<Vec<String>>;
 /// `GetDiskFreeSpaceExW`, déclaré dans un bloc `unsafe extern "system"`, le seul du dépôt, sur le
 /// chemin canonique de `dossier` (`fs::canonicalize`, qui rend un `\\?\`), en UTF-16 fini par un
 /// zéro, `lpFreeBytesAvailableToCaller` seul lu ; un échec rend l'erreur du système. Hors de
-/// Windows : `io::ErrorKind::Unsupported`.
+/// Windows : `io::ErrorKind::Unsupported`, une branche qu'aucun job ne compile, l'établi n'ayant
+/// que Windows pour cible (balayage Q12).
 pub fn place_libre(dossier: &Path) -> io::Result<u64>;
 /// Le dossier de l'application, que `run()` garde dans l'état de Tauri.
 pub struct DossierDeLApplication(pub PathBuf);
@@ -2950,7 +3137,8 @@ pub async fn generateurs(ouverture: tauri::State<'_, Ouverture>) -> Reponse<Vec<
   Dans `app/src-tauri/tests/statique.rs`, `i30_chaque_controle_refuse_ce_qu_on_y_plante` gagne deux plantations : un
   `GetDiskFreeSpaceExW` et un `unsafe extern "system"` dans un fichier autre que `systeme.rs`, chacun refusé ; dans
   `systeme.rs`, admis.
-  Dans `crates/stockage/tests/source.rs` (`verifier` et `windows`) :
+  Dans `crates/stockage/tests/source.rs` (`verifier` et `windows` ; ceux sans `#[cfg(windows)]` tournent aussi
+  dans `verifier`) :
   - `un_chemin_de_300_unites_utf16_se_parcourt_et_garde_son_nom` : des dossiers imbriqués, le chemin relatif du
     fichier fait plus de 300 unités UTF-16 ; parcouru, son chemin rendu égale celui du test, et sa lecture en flux rend
     ses octets ;
@@ -2973,7 +3161,9 @@ pub async fn generateurs(ouverture: tauri::State<'_, Ouverture>) -> Reponse<Vec<
   `run()` gère `DossierDeLApplication` et `DossierChoisi`.
 - [ ] **Étape 4 : voir le vert.** Attendu dans `windows` : « Lint de l'établi » vert, les tests de l'établi verts
   (`statique.rs`, `i31.rs`, les tests de `systeme`), la sentinelle d'I30 verte, `source.rs` du stockage vert ; dans
-  `verifier`, `clippy -p etabli` vert hors de Windows, `source.rs` vert.
+  `verifier`, `source.rs` vert. Aucun job ne compile l'établi hors de Windows (`verifier` ne le passe ni à `clippy` ni
+  aux tests, `ci.yml:139`) : la branche `#[cfg(not(windows))]` de `place_libre` ne s'éprouve pas, et sa doc le dit
+  (balayage Q12).
 - [ ] **Étape 5 : committer** `git add app/src-tauri/src/systeme.rs app/src-tauri/src/lib.rs
   app/src-tauri/src/commandes_de_l_etabli.rs app/src-tauri/capabilities/windows.json app/src-tauri/tests/statique.rs
   crates/stockage/tests/source.rs` (`feat: l'établi choisit le dossier, lit la place libre et sert l'import`).
@@ -2997,13 +3187,26 @@ impl AleaDuGenerateur { pub fn de(graine: u64) -> Self; }
 pub const GRAINE: u64 = 13;
 /// Le test 13 entier (question 28), par les opérations de l'import : vingt imports, chacun d'une
 /// source en mémoire de 300 idées à faire naître (100 groupes de trois prises), dont, aux groupes
-/// 1 à 100, une prise en stems de douze WAV et de douze MIDI au lieu de la première prise ; chaque
-/// WAV d'un en-tête de 44 octets et de 16 octets de données, tirés de l'aléa, chaque MIDI de son
-/// en-tête de 14 octets ; chaque chemin de 80 octets en moyenne ; les imports 1 à 10 déclarent leur
-/// dossier `generee:<nom>`, l'un de trois noms inventés, les imports 11 à 20 `main` ; après eux,
-/// cinquante captations générées déclarées sous un second nom ; puis les gestes de la tranche 2 :
-/// 4 000 regroupements, trois textes et trois étiquettes par idée visible, 1 000 liens.
+/// 1 à 100 du fonds, ceux du premier import, une prise en stems de douze WAV et de douze MIDI au
+/// lieu de la première prise ; chaque WAV d'un en-tête canonique de 44 octets (PCM, 8 000 Hz, mono,
+/// 8 bits, `data` de 16 octets) suivi de 16 octets de données tirés de l'aléa, sa durée lue de
+/// l'en-tête ; chaque MIDI de 14 octets d'en-tête valides (format 1, pistes et division tirées de
+/// l'aléa) suivis de 16 octets d'aléa ; chaque chemin de 80 octets en moyenne. Les imports 1 à 10
+/// déclarent leur dossier `{ stems: false, origine: Generee }`, l'un de trois noms inventés, les
+/// imports 11 à 20 `{ stems: false, origine: Main }` ; les 100 jeux sont déclarés
+/// `{ stems: true, origine: Aucune }`, leur origine leur venant du dossier du dessus
+/// (`declaration_du_fichier`) ; l'ouverture reste une opération. Après eux, cinquante captations
+/// générées déclarées sous un second nom ; puis les gestes de la tranche 2 : 4 000 regroupements,
+/// trois textes et trois étiquettes par idée visible, 1 000 liens (balayage Q3, Q10).
 pub fn engendrer_le_fonds_de_mesure<D: Documents, C: Captations>(services: &mut Services<D, C>, heure: i64) -> Result<Engendre, Refus>;
+/// Le même sur `groupes` groupes (balayage Q10) : les groupes répartis en imports de 100 au plus,
+/// la première moitié des imports, arrondie au-dessus, déclarée générée, les autres `main` ; les
+/// prises en stems aux 5 premiers pour cent des groupes, au moins une ; les déclarations après
+/// l'import à 2,5 % des groupes, au moins une. Pour 2 groupes : un import, une prise en stems, une
+/// déclaration, `Engendre { idees_visibles: 2, idees_retirees: 4, operations: 26 }` (l'ouverture,
+/// cinq versements de prises, la prise en stems, la clôture, la déclaration, 4 regroupements,
+/// 6 textes, 6 étiquettes, un lien ; les copies des stems et de leurs MIDI ne font aucune opération).
+pub fn engendrer_le_fonds_de_mesure_selon<D: Documents, C: Captations>(services: &mut Services<D, C>, heure: i64, groupes: usize) -> Result<Engendre, Refus>;
 
 // services::en_memoire (sous `en-memoire`)
 impl DocumentsEnMemoire {
@@ -3017,7 +3220,9 @@ impl DocumentsEnMemoire {
   4 000 regroupements, 6 000 textes, 6 000 étiquettes et 1 000 liens, soit 23 090 opérations ; les acteurs, un tous les
   sept, quelque 3 298, au moins les 3 000 du § 31 · 10 (« un acteur par ouverture, 3 000 en tout » ; R10). Un import du fonds visé fait 6 002 opérations (6 000 versements, l'ouverture et la clôture) :
   une compaction toutes les 101 opérations (`AJOUTS_AU_PLUS` = 100, au sens strict), soit 59 compactions ; le test
-  imprime la durée d'une compaction de 101 fichiers d'ajout, et ce temps multiplié par 59 (question 30).
+  imprime la durée d'une compaction de 101 fichiers d'ajout, et ce temps multiplié par 59 (question 30). Les
+  1 200 entrées `prises/<p>/stem/<s>` des 100 prises en stems pèsent dans le fonds mesuré, sans opération de plus :
+  la ligne imprimée relève ce poids (balayage Q4).
 
 - [ ] **Étape 1 : écrire les tests.** `crates/stockage/tests/mesure.rs` :
   `le_fonds_de_mesure_pese_moins_de_4_500_000_octets` attend `Engendre { idees_visibles: 2_000, idees_retirees: 4_000,
@@ -3027,15 +3232,20 @@ impl DocumentsEnMemoire {
   mesure : <poids> octets ; <acteurs> acteurs ; une compaction de 101 fichiers d'ajout : <durée> ; 59 compactions pour
   un import du fonds visé : <59 × durée> » ; il échoue s'il pèse 4 500 000 octets ou plus (`POIDS_MAX` inchangé, la
   comparaison stricte), ou si la compaction passe 2 s. `crates/services/tests/commandes_en_memoire.rs` : le test du
-  générateur réduit (`engendrer_le_fonds_de_mesure_selon`) suit les nombres neufs. Le contrôle d'I30 gagne `set_actor`
+  générateur réduit, `le_generateur_est_deterministe` (`engendrer_le_fonds_de_mesure_selon(…, 2)`), attend
+  `Engendre { idees_visibles: 2, idees_retirees: 4, operations: 26 }` au lieu de 23 (balayage Q10). Le contrôle d'I30 gagne `set_actor`
   et `ActorId::from` dans `ACTEUR`, et une plantation dans `i30_chaque_controle_refuse_ce_qu_on_y_plante`.
 - [ ] **Étape 2 : voir le rouge.** Committer (`test: le test 13 entier, ses acteurs et sa compaction mesurée`),
-  pousser. Attendu à l'étape « Le fonds de mesure » de `verifier` : `panicked at`, `operations: 23000` contre `23090`.
+  pousser. Attendu à « Lint » de `verifier` : `AleaDuGenerateur`, `GRAINE` (encore privée) ou
+  `changer_d_acteur_tous_les` introuvables, que `crates/stockage/tests/mesure.rs` appelle avant le code ; les comptes
+  neufs, `operations: 26` au générateur réduit et `23_090` au fonds de mesure, ne se lisent qu'au vert (le cas de
+  P10 du balayage de (a)).
 - [ ] **Étape 3 : écrire le code.** Le générateur conduit chaque import par les méthodes de la tâche 12, sur une
   `SourceEnMemoire`, la place libre à `u64::MAX` ; sa doc récrit le compte, et ne dit plus « Il y manque encore » ; la
   date, l'appareil et le diapason mesuré restent absents, et la doc le dit. L'étape de `ci.yml` se nomme « Le fonds de
   mesure (test 13) », son commentaire récrit d'après ce compte.
-- [ ] **Étape 4 : voir le vert.** Attendu à l'étape « Le fonds de mesure » de `verifier` : `test result: ok.`, la ligne
+- [ ] **Étape 4 : voir le vert.** Attendu à « Tests » de `verifier` : `commandes_en_memoire.rs` vert, l'`Engendre` de
+  deux groupes compris ; à l'étape « Le fonds de mesure » de `verifier` : `test result: ok.`, la ligne
   imprimée relevée (poids, acteurs, durée) ; dans `windows`, `statique.rs` de l'établi vert. Si le fonds passe 4,5 Mo ou
   la compaction 2 s, la tâche s'arrête : le schéma des tranches 2 et 5 se reprend avant la tranche 6, et la maîtrise
   d'ouvrage est consultée (ADR-024).
@@ -3046,7 +3256,7 @@ impl DocumentsEnMemoire {
 ### Tâche 17 : les documents de la PR (b), les délais, et la revue de la PR (b)
 
 **Fichiers :** `docs/20-sfd/21-capter-et-organiser.md` (CAP-02, CAP-03, CAP-07), `docs/20-sfd/29-socle-donnees-appareils.md`
-(SYN-07), `docs/30-modele-de-domaine.md` (§ 2), `docs/31-persistance-et-synchronisation.md` (§ 2.1, § 2.4, § 6.1,
+(SYN-07), `docs/30-modele-de-domaine.md` (§ 2, § 9.2), `docs/31-persistance-et-synchronisation.md` (§ 2.1, § 2.4, § 6.1,
 § 10), `docs/40-architecture.md` (§ 3), `docs/41-pile-technique.md` (§ 6), `docs/70-qualite-et-verification.md` (§ 3,
 § 4.1, § 8), `docs/80-glossaire.md`, `docs/pistes.md`, `scripts/verif-confidentialite.sh`, `CONVENTIONS.md`,
 `CLAUDE.md`, `ci.yml` (les délais).
@@ -3057,9 +3267,11 @@ impl DocumentsEnMemoire {
 - [ ] **Étape 2 : la SFD.** CAP-03 : « Lit · écrit » devient « Écrit des captations, des idées importées et ce que
   Sacha déclare ; ses propositions s'engendrent en INC-2 » (question 32) ; la règle des formats devient « Un fichier se
   reconnaît audio ou MIDI à sa signature, texte à son extension, et est versé tel quel » ; « son rôle nouveau » se
-  récrit d'après la question 9 (l. 199-202), sa lettre gardée : la déclaration reproposée suit le seul chemin relatif,
-  celle de la racine ou d'un nom courant (« Démos ») d'un import sans rapport avec le dossier choisi comprise, et elle
-  ne s'applique jamais seule (R22) ; la portée par préfixe reprend la phrase de l'ADR-024 (question 23) ; le rapport
+  récrit d'après la question 9 (l. 199-202), sa lettre gardée : l'inspection repropose, sans les appliquer, les
+  déclarations d'un import précédent ; une déclaration porte le jeu de stems, l'origine, ou les deux ; la déclaration
+  reproposée suit le seul chemin relatif, celle de la racine ou d'un nom courant (« Démos ») d'un import sans rapport
+  avec le dossier choisi comprise, et elle ne s'applique jamais seule (R22) ; c'est la seule phrase de CAP-03 sur la
+  reproposition (balayage Q17) ; la portée par préfixe reprend la phrase de l'ADR-024 (question 23) ; le rapport
   compte aussi les fichiers « sans nom » (question 13) ; le cas limite « Fichier illisible » se récrit (question 32,
   (d)) et dit qu'un fichier illisible, sans format, ne s'écoute pas (R17) ; le critère 13 se lit « Étant donné une
   taille à verser plus grande que la place libre » (question 8) ; trois règles de plus : un fonds en lecture seule
@@ -3070,11 +3282,15 @@ impl DocumentsEnMemoire {
   (question 32, (e)). CAP-02 : regrouper « rassemble » (question 33) ; et la règle « Une idée importée sans texte se
   montre « Fichier : » suivi du premier nom vu de sa première captation, écrit comme texte ; la recherche ne lit pas ce
   nom. » (question 4 ; R12). La ligne 126 de CAP-02 (« Promouvoir … y verse la matière de l'idée ») se récrit comme la
-  ligne 108 (question 33) ; CAP-03 et le § 70 · 1 disent aussi que l'inspection repropose, sans les appliquer, les
-  déclarations d'un import précédent (question 9). CAP-07 (`:533-535`) : importer, refusé en lecture seule, et la page
+  ligne 108 (question 33) ; le § 70 · 1 dit aussi que l'inspection repropose, sans les appliquer, les déclarations
+  d'un import précédent (question 9) ; CAP-03 le dit par la seule phrase de « son rôle nouveau », ci-dessus
+  (balayage Q17). CAP-07 (`:533-535`) : importer, refusé en lecture seule, et la page
   d'un fonds vide le propose.
-- [ ] **Étape 3 : le modèle, la persistance, l'architecture.** § 30 · 2 : la table gagne l'ULID d'un import. § 31 · 2.1
-  et 2.4 : « Une captation se verse toujours » est la règle d'une capture (CAP-01), non d'un import (question 15).
+- [ ] **Étape 3 : le modèle, la persistance, l'architecture.** § 30 · 2 : la table gagne l'ULID d'un import. § 30 · 9.2 :
+  la phrase « Un fichier versé illisible » se récrit, d'un seul sujet, et dit qu'un RF64 est illisible sans `ds64`
+  quand `data` y renvoie, ou dès que son `ds64` a moins de 16 octets, comme le fait `faits_wav` (une réserve de la
+  relecture des corrections de la PR (a)). § 31 · 2.1 et 2.4 : « Une captation se verse toujours » est la règle
+  d'une capture (CAP-01), non d'un import (question 15).
   § 31 · 6.1 : la copie en flux, son nom provisoire `import-<ULID>-<rang>.<processus>.partiel`, rangé au démarrage s'il
   est entier et nommé, retiré à la reprise s'il ne l'est pas, et à la clôture (question 31) ; la capture garde sa règle.
   § 31 · 10 : le test 4 rejoué sur la copie en flux et sur un stem ; le test 11 gagne le manifeste et le rapport
@@ -3107,9 +3323,16 @@ impl DocumentsEnMemoire {
 - [ ] **Étape 7 : la revue de la PR (b).** La revue de la PR entière, sur sa tête, par le modèle le plus capable : le
   tableau du § 70 · 4.1 contre les critères de la tranche (CAP-03 · 4, 8 et 12 non inscrits), le job de chaque test nommé
   (la suite sur les deux paires dans `verifier`, sur fichiers dans `windows`), la recherche de LE-2, chaque mécanisme
-  annoncé que la PR touche relu, les textes de la question 32 recopiés. Puis les corrections, leur relecture sur la tête
-  qui part. Le corps dit : les tests réécrits (`le_protocole…` reste jusqu'à la PR (d) ; le générateur ; les messages) ;
-  que `windows` a été rouge sur I31 entre les tâches 11 et 15 ; la règle de reprise (les seuls noms de fichiers à
+  annoncé que la PR touche relu, les textes de la question 32 recopiés ; et, dans `docs/`, toute forme de la
+  déclaration à une seule valeur (« `stems`, `main` ou `generee` »), que la PR (a) n'aurait pas corrigée : une
+  déclaration porte le jeu, l'origine, ou les deux (balayage Q17). Si la revue ou ses corrections touchent le plan,
+  elles recalent les numéros de ligne des mécanismes de (b) que le code a décalés (`ci.yml`, `idee.rs`,
+  `demarrage.rs`, `lecture.rs`, `.cargo/mutants.toml`) ; sinon, rien (balayage Q18). Puis les corrections, leur
+  relecture sur la tête qui part. Le corps dit : les tests réécrits (`le_protocole…` reste jusqu'à la PR (d) ; le
+  générateur ; les messages, dont les assertions de `crates/stockage/tests/messages.rs:165`, `:172` et
+  `crates/services/tests/application.rs:430`, réécrites avec les messages de la question 26 ; balayage Q1) ;
+  que `windows` a été rouge sur I31 entre les tâches 11 et 15, la sentinelle d'I30 et le cahier sautés pendant ce
+  temps (balayage Q21) ; la règle de reprise (les seuls noms de fichiers à
   l'ULID de l'import, une prise en stems par le préfixe de son dossier ; sans nom, aucune reprise ; les déclarations
   de l'ouverture gardées ; R2) ; qu'un import resté ouvert, que le dossier choisi ne reprend pas, se clôt à
   l'ouverture du suivant
@@ -3458,6 +3681,9 @@ impl Conduite {
 /// Le choix de l'écran pour un dossier inspecté.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum ChoixDuDossier { Aucune, Stems, Main, Generee(String) }
+// Depuis la tâche 11, `commandes::Declaration` porte le jeu et l'origine à la fois
+// (`{ stems, origine }` ; balayage Q3) : ce choix, `declarations_choisies` et les tests qui nomment
+// `Stems` s'accordent au balayage de la PR (d), où l'écran déclare les deux familles.
 
 /// Les déclarations à envoyer : chaque choix autre qu'`Aucune` ; un nom de générateur vide refuse
 /// avant l'envoi, « Le nom du générateur est vide. », comme le noyau.
