@@ -4,6 +4,8 @@
 
 use std::collections::BTreeSet;
 
+use super::import::copie_de;
+
 /// `<nom>.<processus>.partiel`, ou `-2`, `-3`… : le premier que `pris` (les noms du dossier) n'a pas.
 ///
 /// Une recherche bornée : les rangs 1 à `pris.len() + 1`, dont l'un est forcément libre, le rang 1
@@ -99,6 +101,24 @@ pub struct Provisoire {
     pub nom: String,
     pub empreinte: String,
     pub deja_rangee: bool,
+}
+
+/// Les copies de l'import `import` à retirer (question 31) : de `copies`, les noms provisoires de
+/// `captations/` que `import::copie_de` dit de cet import ; à la reprise (`a_la_cloture` faux),
+/// ceux dont l'empreinte n'est pas dans `nommees` ; à la clôture, tous. Le nom provisoire d'une
+/// capture n'y est jamais.
+pub fn copies_a_retirer(
+    copies: &[Provisoire],
+    import: &str,
+    nommees: &BTreeSet<String>,
+    a_la_cloture: bool,
+) -> Vec<String> {
+    copies
+        .iter()
+        .filter(|copie| copie_de(&copie.nom).is_some_and(|(de, _)| de == import))
+        .filter(|copie| a_la_cloture || !nommees.contains(&copie.empreinte))
+        .map(|copie| copie.nom.clone())
+        .collect()
 }
 
 /// (nom provisoire, empreinte) de chaque nom provisoire dont l'empreinte est nommée et non rangée ;

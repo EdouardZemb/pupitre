@@ -2,6 +2,7 @@
 //! deux documents témoins, engendrés à l'exécution, à leurs empreintes de référence : l'un
 //! ordinaire, né par les opérations, l'autre qui porte une valeur de chaque type que la teneur
 //! écrit ; et deux documents qui ne diffèrent que par leur lignée ont la même teneur (§ 31 · 2.6).
+//! Le manifeste et le rapport d'import témoins y ont aussi leurs empreintes de référence.
 //!
 //! Ce fichier est le seul des empreintes de référence. Le test ne lit aucune étiquette de git,
 //! que la CI ne récupère pas. Il inclut la suite des commandes, où les gestes du témoin sont
@@ -17,7 +18,9 @@ use automerge::{Automerge, ObjType, ROOT, ReadDoc, ScalarValue, Value};
 use commun::{HEURE, dossier_jetable, ecrire, faite, ouvrir};
 use noyau::donnees::fonds::{GENESE, LIGNEE, LIGNEES_REMPLACEES};
 use noyau::donnees::gestes;
+use noyau::donnees::rapport::{self, FichierDeLImport, OrigineChangee};
 use services::{Alea, Contexte, Services};
+use std::collections::BTreeSet;
 use stockage::{Captations, FondsSurFichiers, RacineDesDonnees, empreinte, teneur};
 use suite::AleaDeTest;
 
@@ -26,6 +29,8 @@ use suite::AleaDeTest;
 const GENESE_DU_FONDS: &str = "a02890acd15f12619da7f1f5abea9a8056db7188f909a467896ea50d4b5a6fc1";
 const TENEUR_DU_TEMOIN: &str = "291a0df280e2274fe96fc10d24a232a57213a0e938fa0a7b844be8f056657dbc";
 const TENEUR_DES_TYPES: &str = "35d51798213927730a9c636b9d6b72760400f3be0f674b9566b7d012ae7f5d30";
+const MANIFESTE_TEMOIN: &str = "340999f94394a8aaa1b93777c67d6939b70fe427a221ff7478ab78dd3f5d0caa";
+const RAPPORT_TEMOIN: &str = "6d161268e13683005ded38007cf7d27412723752529170cf929390406038ff76";
 
 /// Les services de l'établi sur la paire de fichiers d'une racine des données.
 type ServicesSurFichiers<'r> = Services<FondsSurFichiers<'r>, Captations<'r>>;
@@ -270,4 +275,51 @@ fn la_lignee_ne_change_pas_la_teneur() {
         teneur(fonds(&b)).unwrap(),
         "deux documents qui ne diffèrent que par leur lignée ont des teneurs différentes"
     );
+}
+
+// Le manifeste d'une prise en stems et le rapport d'import du témoin (§ 30 · 9 ; questions 19 et 25)
+#[test]
+fn le_manifeste_et_le_rapport_temoins_gardent_leurs_empreintes() {
+    // Le manifeste de [VOIX, BATTERIE, BASSE, VOIX], et le rapport des fichiers et de l'origine de
+    // `le_rapport_temoin` du noyau, rebâtis par `noyau::donnees::rapport`, ont ces empreintes ;
+    // les trois empreintes des stems sont celles de leur texte, recalculées ici.
+    let voix = empreinte("stem inventé : voix".as_bytes());
+    let batterie = empreinte("stem invente : batterie".as_bytes());
+    let basse = empreinte("stem invente : basse".as_bytes());
+    let manifeste = rapport::manifeste(&[&voix, &batterie, &basse, &voix]);
+    assert_eq!(manifeste.len(), 195);
+    assert_eq!(empreinte(&manifeste), MANIFESTE_TEMOIN);
+
+    let e = |n: u64| format!("{n:064x}");
+    let lu = |rang: u64, octets: u64, contenu: u64, illisible: bool, sans_nom: bool| {
+        FichierDeLImport::Lu {
+            rang,
+            octets,
+            empreinte: e(contenu),
+            illisible,
+            sans_nom,
+        }
+    };
+    let fichiers = [
+        lu(1, 650, 1, false, false),
+        FichierDeLImport::Ignore {
+            rang: 2,
+            octets: 300,
+        },
+        lu(3, 50, 3, true, false),
+        lu(4, 200, 4, false, true),
+        lu(5, 100, 5, false, false),
+    ];
+    let origines = [OrigineChangee {
+        empreinte: empreinte("une prise de test".as_bytes()),
+        element: "generee:Atelier inventé".to_string(),
+    }];
+    let rapport = rapport::rapport(
+        "01HF7YAT00ZZZZZZZZZZZZZZZZ",
+        &fichiers,
+        &BTreeSet::from([e(5)]),
+        &origines,
+    );
+    assert_eq!(rapport.len(), 259);
+    assert_eq!(empreinte(&rapport), RAPPORT_TEMOIN);
 }

@@ -40,13 +40,39 @@ pub fn uuid_v4(mut octets: [u8; 16]) -> String {
     texte
 }
 
+/// L'empreinte calculée par tronçons : `Hacheur::nouveau()`, `ajouter` autant qu'il faut, puis
+/// `finir`, qui rend ce que rendrait `empreinte` de leur suite.
+pub struct Hacheur(Sha256);
+
+impl Default for Hacheur {
+    fn default() -> Self {
+        Self::nouveau()
+    }
+}
+
+impl Hacheur {
+    pub fn nouveau() -> Self {
+        Self(Sha256::new())
+    }
+
+    pub fn ajouter(&mut self, octets: &[u8]) {
+        self.0.update(octets);
+    }
+
+    pub fn finir(self) -> String {
+        let condense = self.0.finalize();
+        let mut e = String::with_capacity(64);
+        for octet in condense.iter() {
+            let _ = write!(e, "{octet:02x}");
+        }
+        e
+    }
+}
+
 /// Le SHA-256 de `octets`, en 64 caractères hexadécimaux minuscules : l'empreinte d'une captation,
 /// d'un fichier d'ajout ou de la teneur d'un document.
 pub fn empreinte(octets: &[u8]) -> String {
-    let condense = Sha256::digest(octets);
-    let mut e = String::with_capacity(64);
-    for octet in condense.iter() {
-        let _ = write!(e, "{octet:02x}");
-    }
-    e
+    let mut h = Hacheur::nouveau();
+    h.ajouter(octets);
+    h.finir()
 }

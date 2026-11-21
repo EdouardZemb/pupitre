@@ -77,7 +77,9 @@ pub const RETIREE: &str = "retiree";
 pub const CAPTEE: &str = "captee";
 /// La valeur de `provenance` d'une idée née d'un fichier versé.
 pub const IMPORTEE: &str = "importee";
-/// D'une requête enregistrée, sous `requetes_enregistrees/<ULID>` : son nom, une chaîne.
+/// D'une requête enregistrée, sous `requetes_enregistrees/<ULID>` : son nom, une chaîne. D'une
+/// captation, sous `<empreinte>/nom/<chemin>` : l'ULID de l'import qui a vu ce chemin, écrit s'il
+/// est absent, une chaîne (question 20).
 pub const NOM: &str = "nom";
 /// D'une requête enregistrée : le premier jour de sa période, « AAAA-MM-JJ », une chaîne.
 pub const DU: &str = "du";
@@ -103,6 +105,59 @@ pub const DUREE: &str = "duree";
 /// D'un lien : le type « apparenté à », en tête de sa clé, `apparente:<a>:<b>`, les deux
 /// identifiants rangés dans l'ordre de leurs octets (§ 30 · 9.3).
 pub const APPARENTE: &str = "apparente";
+
+// Les clés de l'import (§ 31 · 2), toutes sous des conteneurs de la genèse : aucune migration.
+
+/// D'un import, sous `imports/<ULID>/ouvert` : l'heure de son ouverture, en secondes, un entier
+/// (question 25).
+pub const OUVERT: &str = "ouvert";
+/// D'un import, sous `imports/<ULID>/rapport` : l'empreinte de son rapport, une chaîne ; l'import
+/// est clos dès qu'elle existe (question 25).
+pub const RAPPORT: &str = "rapport";
+/// D'un import, sous `imports/<ULID>/declaration/<chemin>` : l'origine déclarée du dossier
+/// `chemin`, `main` ou `generee:<nom>`, une chaîne (question 22).
+pub const DECLARATION: &str = "declaration";
+/// D'un import, sous `imports/<ULID>/jeu/<chemin>` : `true`, le dossier `chemin` déclaré jeu de
+/// stems (question 22).
+pub const JEU: &str = "jeu";
+/// D'une prise en stems, sous `prises/<empreinte>/manifeste` : `true` (question 21).
+pub const MANIFESTE: &str = "manifeste";
+/// D'une prise en stems, sous `prises/<p>/stem/<s>` : `true`, l'entrée de son stem `<s>`, qui
+/// s'écrit toujours ; sous `prises/<p>/stem/<s>/…`, son format, sa durée, son type, ses MIDI et
+/// ses noms (question 21).
+pub const STEM: &str = "stem";
+/// D'un stem, sous `prises/<p>/stem/<s>/midi/<m>` : `true`, le MIDI `<m>` qui l'accompagne.
+pub const MIDI: &str = "midi";
+/// D'un stem, sous `prises/<p>/stem/<s>/type` : son type gardé ou choisi, une chaîne
+/// (question 18) ; sa provenance sous `…/type/provenance`, `…/type/par`, `…/type/depuis` et
+/// `…/type/le`.
+pub const TYPE: &str = "type";
+/// D'une prise d'un WAV lisible, sous `<empreinte>/codage` : le codage de son en-tête, un entier
+/// non signé.
+pub const CODAGE: &str = "codage";
+/// D'une prise d'un WAV lisible, sous `<empreinte>/canaux` : ses canaux, un entier non signé.
+pub const CANAUX: &str = "canaux";
+/// D'une prise d'un WAV lisible, sous `<empreinte>/frequence` : sa fréquence, en hertz, un entier
+/// non signé.
+pub const FREQUENCE: &str = "frequence";
+/// D'une prise d'un WAV lisible, sous `<empreinte>/bits` : les bits d'un échantillon, un entier non
+/// signé.
+pub const BITS: &str = "bits";
+/// D'un MIDI lisible, sous `<empreinte>/division` : la division de son en-tête, brute, un entier
+/// non signé.
+pub const DIVISION: &str = "division";
+/// D'une origine déclarée, sous `origines_declarees/<empreinte>/main` : `true`, de la main de Sacha
+/// (question 22).
+pub const MAIN: &str = "main";
+/// D'une origine déclarée, sous `origines_declarees/<empreinte>/generee/<nom>` : `true`, générée
+/// par le générateur `<nom>` (question 22).
+pub const GENEREE: &str = "generee";
+/// La valeur de `…/type/provenance` d'un type de stem que Sacha a choisi : `saisie`, qui n'a ni
+/// `par` ni `depuis` (§ 30 · 8.1).
+pub const SAISIE: &str = "saisie";
+/// La valeur de `…/type/par` d'un type de stem gardé : proposé d'après le nom du stem
+/// (question 18).
+pub const PAR_LE_NOM: &str = "nom";
 
 /// Le message de la genèse.
 pub const MESSAGE_DE_LA_GENESE: &str = "Genèse du fonds";

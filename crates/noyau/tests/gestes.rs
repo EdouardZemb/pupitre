@@ -1,7 +1,7 @@
 //! Les gestes du noyau (§ 31 · 3) : la date d'un message, au décalage local reçu, la naissance,
 //! noter, les gestes de tri et verser une fiche, que le noyau rend en changements sans rien
 //! écrire, avec l'inverse de chaque geste de tri, son annulation et ses refus ; l'appareil,
-//! retrouvé de son nom, et chaque sorte, une fois.
+//! retrouvé de son nom, et chaque sorte, une fois ; les refus de l'import, dits à l'octet.
 
 use std::collections::BTreeSet;
 
@@ -835,13 +835,13 @@ fn regrouper_une_captation_dans_son_idee_est_refuse() {
 }
 
 #[test]
-fn une_captation_absente_se_dit_par_son_empreinte() {
+fn une_captation_absente_ne_nomme_pas_son_empreinte() {
     assert_eq!(
         Impossible::CaptationAbsente {
             empreinte: P.into()
         }
         .to_string(),
-        format!("Aucune captation ne porte l'empreinte {P}.")
+        "Cette captation n'est pas dans le fonds."
     );
 }
 
@@ -1061,7 +1061,7 @@ fn verser_une_fiche_deja_versee_est_refuse() {
     );
     assert_eq!(
         refus.unwrap_err().to_string(),
-        format!("La captation {P} est déjà versée.")
+        "Cette captation est déjà versée."
     );
 }
 
@@ -1104,4 +1104,56 @@ fn verser_une_duree_au_dela_d_entier_sur_est_refusee() {
         "Une durée de 9007199254740992 ms passe le plus grand entier que l'interface relit à \
          l'identique."
     );
+}
+
+#[test]
+fn les_refus_de_l_import_se_disent_a_l_octet() {
+    let e = "e100000000000000000000000000000000000000000000000000000000000001".to_string();
+    for (refus, attendu) in [
+        (
+            Impossible::JeuSansAudio,
+            "Ce dossier n'a aucun fichier audio : il ne forme pas un jeu de stems.",
+        ),
+        (
+            Impossible::OrigineNonRetiree,
+            "Une origine déclarée ne se retire pas.",
+        ),
+        (
+            Impossible::NomDeGenerateurVide,
+            "Le nom du générateur est vide.",
+        ),
+        (
+            Impossible::NomDeGenerateurIllisible,
+            "Le nom du générateur tient sur une ligne, sans caractère de contrôle.",
+        ),
+        (
+            Impossible::StemAbsent,
+            "Ce stem n'est pas dans cette prise.",
+        ),
+        (Impossible::AucunImportOuvert, "Aucun import n'est ouvert."),
+        (Impossible::ImportClos, "Cet import est clos."),
+        (
+            Impossible::FichierChange {
+                nom: Some("Démo 1.wav".into()),
+                rang: 7,
+            },
+            "« Démo 1.wav » a changé depuis l'inspection : l'import s'arrête, et rechoisir le dossier le reprend.",
+        ),
+        (
+            Impossible::FichierChange { nom: None, rang: 7 },
+            "Le fichier n° 7 a changé depuis l'inspection : l'import s'arrête, et rechoisir le dossier le reprend.",
+        ),
+        (
+            Impossible::CaptationAbsente {
+                empreinte: e.clone(),
+            },
+            "Cette captation n'est pas dans le fonds.",
+        ),
+        (
+            Impossible::CaptationDejaVersee { empreinte: e },
+            "Cette captation est déjà versée.",
+        ),
+    ] {
+        assert_eq!(refus.to_string(), attendu);
+    }
 }

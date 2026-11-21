@@ -2,7 +2,8 @@
 //! version 4 de seize octets, et l'empreinte d'une captation, que le noyau forme de ce qu'il
 //! reçoit.
 
-use noyau::donnees::identifiants::{empreinte, ulid, uuid_v4};
+use noyau::donnees::identifiants::{Hacheur, empreinte, ulid, uuid_v4};
+use proptest::prelude::*;
 
 #[test]
 fn l_ulid_porte_l_heure_en_millisecondes_puis_l_alea() {
@@ -56,5 +57,37 @@ fn l_empreinte_est_le_sha256_en_hexadecimal() {
     assert_eq!(
         empreinte(b"abc"),
         "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    );
+}
+
+/// Les octets coupés aux positions `coupes`, rangées et bornées, puis hachés tronçon par tronçon.
+fn par_troncons(octets: &[u8], coupes: &[usize]) -> String {
+    let mut bornes: Vec<usize> = coupes.iter().map(|c| (*c).min(octets.len())).collect();
+    bornes.sort_unstable();
+    let mut hacheur = Hacheur::nouveau();
+    let mut debut = 0;
+    for fin in bornes {
+        hacheur.ajouter(&octets[debut..fin]);
+        debut = fin;
+    }
+    hacheur.ajouter(&octets[debut..]);
+    hacheur.finir()
+}
+
+proptest! {
+    #[test]
+    fn le_hacheur_par_troncons_egale_l_empreinte(
+        octets in proptest::collection::vec(any::<u8>(), 0..4_096),
+        coupes in proptest::collection::vec(0usize..4_096, 0..8),
+    ) {
+        prop_assert_eq!(par_troncons(&octets, &coupes), empreinte(&octets));
+    }
+}
+
+#[test]
+fn le_hacheur_du_vide() {
+    assert_eq!(
+        Hacheur::nouveau().finir(),
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     );
 }
