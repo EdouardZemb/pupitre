@@ -6,7 +6,8 @@
 //! fichier étranger reste tel quel, et rien ne se touche sans le verrou. Le fonds ouvert, chaque
 //! nom provisoire de `captations/` dont le contenu entier donne une empreinte que le fonds nomme,
 //! tel qu'il se lit, prend ce nom (§ 31 · 6.1) ; un nom provisoire qui ne le peut pas reste, avec
-//! un avertissement.
+//! un avertissement. Une copie en flux coupée, dont le nom provisoire reste, s'y range de même,
+//! entière et nommée, un stem compris (question 31).
 //!
 //! Le fonds naît d'une idée au texte long, qui ne sert qu'à la naissance : les écritures des
 //! tests sont courtes, et leurs fichiers d'ajout pèsent bien moins que le fichier complet.
@@ -24,11 +25,24 @@ use commun::{
     relire_le_dossier_du_fonds, texte_long,
 };
 use noyau::donnees::fonds::{IDEE, MIDI_VERSES, TEXTES_VERSES};
+use noyau::donnees::gestes::{self, Appareil};
+use noyau::donnees::import::{
+    self, DejaDeLaPrise, Faits, ImportOuvert, StemAVerser, nom_de_la_copie,
+};
 use stockage::pannes::{Etape, couper};
 use stockage::{Avertissement, Document, Erreur, LectureSeule, RacineDesDonnees, empreinte};
 
 /// Le format des prises des tests du rangement, dont les captations sont des octets engendrés.
 const FORMAT_DES_PRISES: &str = "wav";
+
+/// L'import des copies en flux des tests : un ULID écrit, jamais tiré.
+const IMPORT: &str = "01HF7YAT000000000000000004";
+
+/// L'idée de la prise en stems d'un test : un ULID écrit, jamais tiré.
+const IDEE_DE_LA_PRISE: &str = "01HF7YAT000000000000000005";
+
+/// Les octets d'un tronçon d'une copie en flux.
+const TRONCON: usize = 1_048_576;
 
 /// Les idées que notent les trois écritures des tests du voisin du fichier complet, avec leur
 /// texte.
@@ -173,6 +187,173 @@ fn nommer_sous(
         _ => return Err(AutomergeError::NotAnObject),
     };
     tx.put(&objet, format!("{e}/{IDEE}"), idee)
+}
+
+/// La copie en flux de `contenu` dans `racine`, sous le nom de la copie de rang `rang` de
+/// `IMPORT`, coupée à son `coupure`-ième passage par `etape`, et son retrait coupé aussi, le temps
+/// de ce seul versement, comme une coupure du processus (R1) : refusée, elle laisse son nom
+/// provisoire, seul nouveau dans `captations/`. Rend son chemin.
+fn une_copie_coupee(
+    racine: &RacineDesDonnees,
+    contenu: &[u8],
+    rang: u64,
+    etape: Etape,
+    coupure: usize,
+) -> PathBuf {
+    let dossier = racine.chemin().join("captations");
+    let avant = entrees(&dossier);
+    let mut flux = contenu;
+    let rendu = {
+        let _coupure = couper(etape, coupure);
+        let _retrait = couper(Etape::Retrait, 1);
+        racine
+            .captations()
+            .verser_en_flux(&nom_de_la_copie(IMPORT, rang), &mut flux, None)
+    };
+    assert!(
+        matches!(rendu, Err(Erreur::Disque { .. })),
+        "la copie coupée à {etape:?} : rendu {rendu:?}"
+    );
+    let nouveaux = commun::nouveaux(&avant, &entrees(&dossier));
+    assert_eq!(
+        nouveaux,
+        [format!(
+            "{}.{}.partiel",
+            nom_de_la_copie(IMPORT, rang),
+            std::process::id()
+        )],
+        "la copie coupée ne laisse pas son seul nom provisoire"
+    );
+    dossier.join(&nouveaux[0])
+}
+
+// Question 31 : une copie en flux coupée entre deux tronçons n'est pas entière, et ne se range pas
+#[test]
+fn la_copie_en_flux_coupee_entre_deux_troncons_ne_se_range_pas() {
+    let chemin =
+        commun::dossier_jetable("demarrage-copie-coupee-entre-deux-troncons").join("donnees");
+    let racine = ouvrir(&chemin);
+    let contenu = octets(10, 2_621_440);
+    let e = empreinte(&contenu);
+    drop(naitre_avec_les_prises(&racine, &[&e]));
+    let provisoire = une_copie_coupee(&racine, &contenu, 3, Etape::Troncon, 2);
+    assert_eq!(
+        fs::read(&provisoire).expect("lire le nom provisoire laissé"),
+        contenu[..TRONCON],
+        "le nom provisoire ne porte pas le seul premier tronçon"
+    );
+
+    let fonds = ouvrir_le_fonds(&racine);
+
+    assert_eq!(
+        fs::read(&provisoire).expect("relire le nom provisoire laissé"),
+        contenu[..TRONCON],
+        "le nom provisoire de la copie coupée n'est plus là, octet pour octet"
+    );
+    pas_rangee(&racine, &e, "la copie coupée entre deux tronçons");
+    drop(fonds);
+}
+
+// § 31 · 10, test 4 : renommage perdu après la réponse, sur une copie en flux (question 31)
+#[test]
+fn une_copie_en_flux_entiere_et_nommee_se_range_au_demarrage() {
+    let chemin = commun::dossier_jetable("demarrage-copie-entiere-rangee").join("donnees");
+    let racine = ouvrir(&chemin);
+    let contenu = octets(10, 2_621_440);
+    let e = empreinte(&contenu);
+    drop(naitre_avec_les_prises(&racine, &[&e]));
+    let provisoire = une_copie_coupee(&racine, &contenu, 1, Etape::Renommage, 1);
+    assert_eq!(
+        commun::poids(&provisoire),
+        2_621_440,
+        "le nom provisoire laissé n'est pas entier"
+    );
+    pas_rangee(&racine, &e, "avant le démarrage, la copie entière");
+
+    let fonds = ouvrir_le_fonds(&racine);
+
+    assert_eq!(
+        racine
+            .captations()
+            .relire(&e)
+            .expect("relire la copie rangée"),
+        contenu,
+        "la copie entière et nommée n'a pas pris son nom"
+    );
+    assert!(
+        !provisoire.exists(),
+        "le nom provisoire de la copie rangée reste"
+    );
+    assert_eq!(
+        racine
+            .captations()
+            .verifier()
+            .expect("vérifier les captations"),
+        Vec::<PathBuf>::new(),
+        "une captation rangée trahit son nom"
+    );
+    drop(fonds);
+}
+
+// § 31 · 10, test 4 : renommage perdu après la réponse, sur un stem (P1)
+#[test]
+fn un_stem_nomme_prend_son_nom_au_demarrage() {
+    let chemin = commun::dossier_jetable("demarrage-stem-range").join("donnees");
+    let racine = ouvrir(&chemin);
+    let stem = octets(11, 4000);
+    let s = empreinte(&stem);
+    let manifeste = empreinte(format!("{s}\n").as_bytes());
+    let faits = Faits::default();
+    let ouvert = ImportOuvert {
+        import: IMPORT,
+        ouvert_le: HEURE,
+        par: Appareil::Etabli,
+    };
+    let stems = [StemAVerser {
+        empreinte: &s,
+        faits: &faits,
+        chemin: Some("Jeu A/voix.wav"),
+        midi: None,
+    }];
+    let prise_en_stems = import::verser_une_prise_en_stems(
+        &ouvert,
+        &manifeste,
+        Some("Jeu A"),
+        &stems,
+        None,
+        &DejaDeLaPrise::default(),
+        IDEE_DE_LA_PRISE,
+        HEURE,
+        0,
+    )
+    .expect("verser la prise en stems")
+    .expect("une prise neuve s'écrit");
+    let naissance = gestes::naissance(
+        NAISSANCE.identifiant,
+        NAISSANCE.lignee,
+        NAISSANCE.proprietaire,
+        HEURE,
+    );
+    drop(
+        racine
+            .faire_naitre(&naissance, &prise_en_stems)
+            .expect("faire naître le fonds de la prise en stems"),
+    );
+    let provisoire = une_copie_coupee(&racine, &stem, 1, Etape::Renommage, 1);
+    pas_rangee(&racine, &s, "avant le démarrage, le stem");
+
+    let fonds = ouvrir_le_fonds(&racine);
+
+    assert_eq!(
+        racine
+            .captations()
+            .relire(&s)
+            .expect("relire le stem rangé"),
+        stem,
+        "le stem nommé n'a pas pris son nom"
+    );
+    assert!(!provisoire.exists(), "le nom provisoire du stem reste");
+    drop(fonds);
 }
 
 // § 31 · 10, test 8 : renommage perdu après la réponse : le voisin entier reste

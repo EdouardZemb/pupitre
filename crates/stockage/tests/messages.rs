@@ -157,19 +157,32 @@ fn messages() -> Vec<(String, String)> {
             disque(&complet, ErrorKind::Other, "read failed").to_string(),
             "documents/fonds/complet.automerge, le disque l'a refusé.".to_string(),
         ),
+        // Une captation ne se nomme pas par son empreinte dans un message (question 26).
         (
             Erreur::CaptationAlteree {
                 empreinte: e.clone(),
             }
             .to_string(),
-            format!("Le contenu relu de la captation {e} ne donne pas son empreinte."),
+            "Une captation relue ne donne pas son empreinte.".to_string(),
         ),
         (
             Erreur::CaptationAbsente {
                 empreinte: e.clone(),
             }
             .to_string(),
-            format!("Aucune captation ne porte l'empreinte {e}."),
+            "Cette captation n'est pas dans le fonds.".to_string(),
+        ),
+        // Le fichier à verser ne se lit plus : le constat de son genre, jamais le texte du
+        // système.
+        (
+            Erreur::FichierAVerser {
+                erreur: refus_du_systeme(
+                    ErrorKind::PermissionDenied,
+                    "Access is denied. (os error 5)",
+                ),
+            }
+            .to_string(),
+            "Le fichier à verser est refusé par le système.".to_string(),
         ),
         (
             Erreur::FondsDejaOuvert.to_string(),

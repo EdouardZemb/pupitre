@@ -427,7 +427,7 @@ fn une_captation_versee_deux_fois_rend_la_meme_empreinte() {
         captations.relire(&autre),
         Err(Refus {
             raison: Raison::Impossible,
-            message: format!("Aucune captation ne porte l'empreinte {autre}."),
+            message: "Cette captation n'est pas dans le fonds.".to_string(),
         })
     );
 }

@@ -1,14 +1,27 @@
-//! Les captations, rangées par empreinte (§ 31 · 6.1).
+//! Les captations, rangées par empreinte (§ 31 · 6.1) : la voie par octets, la copie en flux,
+//! leurs coupures, et la relecture d'une plage.
 
 mod commun;
 
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
 use commun::entrees;
+use noyau::donnees::import::nom_de_la_copie;
+use services::Versement;
 use stockage::fichier::voisin;
 use stockage::pannes::{self, Etape};
 use stockage::{Erreur, RacineDesDonnees, empreinte};
+
+/// L'import des copies en flux des tests : un ULID écrit, jamais tiré.
+const IMPORT: &str = "01HF7YAT000000000000000004";
+
+/// Un contenu de trois tronçons d'une copie en flux, deux entiers de 1 048 576 octets, puis un
+/// demi : 2 621 440 octets engendrés par le test.
+fn trois_troncons() -> Vec<u8> {
+    commun::octets(11, 2_621_440)
+}
 
 #[test]
 fn l_empreinte_est_le_sha_256_en_hexadecimal() {
@@ -283,6 +296,272 @@ fn verser_coupe_a_chaque_etape_ne_laisse_aucune_captation_alteree() {
     assert!(
         fichiers_a_meme(&dossier).is_empty(),
         "un nom provisoire reste dans captations/"
+    );
+}
+
+// La voie par octets passe par la copie en flux : un tronçon coupé la refuse.
+#[test]
+fn verser_par_octets_passe_par_le_flux() {
+    let d = commun::dossier_jetable("verser-par-le-flux");
+    let racine =
+        RacineDesDonnees::ouvrir(&d.join("donnees")).expect("ouvrir la racine des données");
+    let captations = racine.captations();
+    let dossier = racine.chemin().join("captations");
+    let octets = commun::octets(13, 900);
+    let e = empreinte(&octets);
+
+    let rendu = {
+        let _panne = pannes::couper(Etape::Troncon, 1);
+        captations.verser(&octets)
+    };
+
+    assert!(
+        matches!(rendu, Err(Erreur::Disque { .. })),
+        "le premier tronçon coupé : rendu {rendu:?}"
+    );
+    assert!(
+        matches!(captations.relire(&e), Err(Erreur::CaptationAbsente { .. })),
+        "la captation est rangée"
+    );
+    assert_eq!(
+        entrees(&dossier),
+        Vec::<String>::new(),
+        "captations/ porte une captation ou un nom provisoire"
+    );
+}
+
+// § 31 · 10, test 4 : couper l'écriture à chaque étape, sur la copie en flux (I14)
+#[test]
+fn i14_la_copie_en_flux_coupee_a_chaque_etape_ne_laisse_aucune_captation_alteree() {
+    let contenu = trois_troncons();
+    let e = empreinte(&contenu);
+    let deja = commun::octets(12, 700);
+    let coupures = [
+        (Etape::VoisinEcrit, 1),
+        (Etape::Troncon, 1),
+        (Etape::Troncon, 2),
+        (Etape::Troncon, 3),
+        (Etape::SyncAll, 1),
+        (Etape::Relecture, 1),
+        (Etape::Renommage, 1),
+        (Etape::RendreDurable, 1),
+    ];
+
+    for (i, (etape, rang)) in coupures.into_iter().enumerate() {
+        let d = commun::dossier_jetable(&format!("copie-coupee-{i}"));
+        let racine =
+            RacineDesDonnees::ouvrir(&d.join("donnees")).expect("ouvrir la racine des données");
+        let captations = racine.captations();
+        let dossier = racine.chemin().join("captations");
+        // Une captation déjà rangée, que la copie coupée ne réécrit pas.
+        let e_deja = captations
+            .verser(&deja)
+            .expect("verser la captation déjà rangée");
+        let avant = commun::empreintes(&dossier);
+
+        let rendu = {
+            let _panne = pannes::couper(etape, rang);
+            captations.verser_en_flux(&nom_de_la_copie(IMPORT, 1), &mut contenu.as_slice(), None)
+        };
+
+        // Avant la fin du renommage, la copie est refusée ; après, le refus de rendre le
+        // renommage durable se rend, mais la captation est rangée, entière.
+        assert!(
+            matches!(rendu, Err(Erreur::Disque { .. })),
+            "{etape:?} au rang {rang} : rendu {rendu:?}"
+        );
+        let trahies = captations.verifier().expect("vérifier les captations");
+        assert!(trahies.is_empty(), "{etape:?} au rang {rang} : {trahies:?}");
+        let apres = commun::empreintes(&dossier);
+        for (chemin, empreinte_d_avant) in &avant {
+            assert_eq!(
+                apres.get(chemin),
+                Some(empreinte_d_avant),
+                "{etape:?} au rang {rang} : {} a changé",
+                chemin.display()
+            );
+        }
+        assert!(
+            fichiers_a_meme(&dossier).is_empty(),
+            "{etape:?} au rang {rang} : un nom provisoire reste dans captations/"
+        );
+        if etape == Etape::RendreDurable {
+            assert_eq!(
+                captations.relire(&e).expect("relire la captation rangée"),
+                contenu,
+                "RendreDurable : la captation n'est pas rangée, entière"
+            );
+        } else {
+            assert!(
+                matches!(captations.relire(&e), Err(Erreur::CaptationAbsente { .. })),
+                "{etape:?} au rang {rang} : la captation est rangée"
+            );
+        }
+        assert_eq!(
+            captations
+                .relire(&e_deja)
+                .expect("relire la captation déjà rangée"),
+            deja,
+            "{etape:?} au rang {rang}"
+        );
+    }
+}
+
+#[test]
+fn une_copie_en_flux_alteree_a_la_relecture_est_refusee() {
+    let d = commun::dossier_jetable("copie-alteree");
+    let racine =
+        RacineDesDonnees::ouvrir(&d.join("donnees")).expect("ouvrir la racine des données");
+    let captations = racine.captations();
+    let dossier = racine.chemin().join("captations");
+    let contenu = trois_troncons();
+    let e = empreinte(&contenu);
+
+    let rendu = {
+        let _panne = pannes::alterer_la_relecture(1);
+        captations.verser_en_flux(&nom_de_la_copie(IMPORT, 2), &mut contenu.as_slice(), None)
+    };
+
+    match rendu {
+        Err(Erreur::CaptationAlteree { empreinte: nommee }) => assert_eq!(nommee, e),
+        autre => panic!("attendu CaptationAlteree, rendu {autre:?}"),
+    }
+    assert!(
+        fichiers_a_meme(&dossier).is_empty(),
+        "un nom provisoire reste dans captations/"
+    );
+    assert!(
+        matches!(captations.relire(&e), Err(Erreur::CaptationAbsente { .. })),
+        "la copie altérée est rangée"
+    );
+}
+
+#[test]
+fn une_copie_deja_rangee_retire_son_nom_provisoire() {
+    let d = commun::dossier_jetable("copie-deja-rangee");
+    let racine =
+        RacineDesDonnees::ouvrir(&d.join("donnees")).expect("ouvrir la racine des données");
+    let captations = racine.captations();
+    let dossier = racine.chemin().join("captations");
+    let contenu = commun::octets(14, 3000);
+    let e = empreinte(&contenu);
+
+    let premiere = captations
+        .verser_en_flux(&nom_de_la_copie(IMPORT, 1), &mut contenu.as_slice(), None)
+        .expect("la première copie");
+    assert_eq!(
+        premiere,
+        Versement {
+            empreinte: e.clone(),
+            octets: 3000,
+            deja_rangee: false,
+            rangee: true,
+        }
+    );
+    let rangee_avant = commun::empreintes(&dossier);
+
+    let seconde = captations
+        .verser_en_flux(&nom_de_la_copie(IMPORT, 2), &mut contenu.as_slice(), None)
+        .expect("la seconde copie");
+
+    assert_eq!(
+        seconde,
+        Versement {
+            empreinte: e,
+            octets: 3000,
+            deja_rangee: true,
+            rangee: true,
+        }
+    );
+    assert!(
+        fichiers_a_meme(&dossier).is_empty(),
+        "un .partiel reste dans captations/"
+    );
+    assert_eq!(
+        commun::empreintes(&dossier),
+        rangee_avant,
+        "la seconde copie a changé captations/"
+    );
+}
+
+// R20 : un fichier changé depuis l'inspection ne range rien
+#[test]
+fn une_copie_qui_ne_donne_pas_l_empreinte_attendue_ne_range_rien() {
+    let d = commun::dossier_jetable("copie-autre-empreinte");
+    let racine =
+        RacineDesDonnees::ouvrir(&d.join("donnees")).expect("ouvrir la racine des données");
+    let captations = racine.captations();
+    let dossier = racine.chemin().join("captations");
+    let contenu = commun::octets(15, 2000);
+    let e = empreinte(&contenu);
+    let autre = empreinte(&commun::octets(16, 2000));
+
+    let versement = captations
+        .verser_en_flux(
+            &nom_de_la_copie(IMPORT, 1),
+            &mut contenu.as_slice(),
+            Some(&autre),
+        )
+        .expect("la copie se fait, sans rien ranger");
+
+    assert_eq!(
+        versement,
+        Versement {
+            empreinte: e.clone(),
+            octets: 2000,
+            deja_rangee: false,
+            rangee: false,
+        }
+    );
+    assert!(
+        matches!(captations.relire(&e), Err(Erreur::CaptationAbsente { .. })),
+        "une captation porte l'empreinte calculée"
+    );
+    assert_eq!(captations.taille(&e).expect("lire la taille"), None);
+    assert_eq!(
+        entrees(&dossier),
+        Vec::<String>::new(),
+        "captations/ porte une captation ou un .partiel"
+    );
+}
+
+#[test]
+fn relire_une_plage_rend_ses_octets() {
+    let d = commun::dossier_jetable("captation-plage");
+    let racine =
+        RacineDesDonnees::ouvrir(&d.join("donnees")).expect("ouvrir la racine des données");
+    let captations = racine.captations();
+    let contenu: Vec<u8> = (0..=255u8).cycle().take(1000).collect();
+    let e = captations.verser(&contenu).expect("verser la captation");
+
+    assert_eq!(
+        captations
+            .relire_une_plage(&e, 10, 5)
+            .expect("relire la plage (10, 5)"),
+        [10, 11, 12, 13, 14]
+    );
+    assert_eq!(
+        captations
+            .relire_une_plage(&e, 998, 10)
+            .expect("relire la plage (998, 10)"),
+        [230, 231]
+    );
+    assert_eq!(
+        captations
+            .relire_une_plage(&e, 1000, 4)
+            .expect("relire la plage (1 000, 4)"),
+        Vec::<u8>::new()
+    );
+    assert_eq!(captations.taille(&e).expect("lire la taille"), Some(1000));
+    assert_eq!(
+        captations
+            .taille(&empreinte(b"une captation jamais versee"))
+            .expect("lire la taille d'une captation absente"),
+        None
+    );
+    assert_eq!(
+        captations.tailles().expect("lire les tailles"),
+        BTreeSet::from([1000])
     );
 }
 

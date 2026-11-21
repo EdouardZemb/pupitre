@@ -2,7 +2,8 @@
 //! rejoué sur `DocumentsEnMemoire` et `CaptationsEnMemoire` ; puis, sur cette paire seule, les
 //! services du carnet, un renommage d'une requête enregistrée concurrent de sa suppression, sur
 //! deux répliques, les requêtes enregistrées d'une version plus récente, une idée illisible dans
-//! l'assiette de la boîte, la requête des photos et le générateur du fonds de mesure.
+//! l'assiette de la boîte, la requête des photos, le générateur du fonds de mesure, et une copie en
+//! flux qui ne donne pas l'empreinte attendue.
 
 mod suite;
 
@@ -10,13 +11,15 @@ use automerge::{ROOT, ReadDoc};
 use commandes::Assiette;
 use noyau::donnees::fonds::REQUETES_ENREGISTREES;
 use noyau::donnees::gestes;
+use noyau::donnees::identifiants::empreinte;
+use noyau::donnees::import::nom_de_la_copie;
 use noyau::donnees::requete::{
     Requete as RequeteDuNoyau, RequeteEnregistreeLue, renommer_une_requete, supprimer_une_requete,
 };
 use noyau::donnees::version::Migration;
 use services::en_memoire::{CaptationsEnMemoire, DocumentsEnMemoire};
 use services::mesure::{Engendre, engendrer_le_fonds_de_mesure_selon};
-use services::{Documents, Services, application, lecture};
+use services::{Captations, Documents, Services, Versement, application, lecture};
 use suite::{AleaDeTest, HEURE, IDEE, Paire, SECONDE_IDEE, contexte_de_test, une_note};
 
 /// La paire en mémoire : sans fonds à sa naissance, sur l'établi ; rouverte des octets de son
@@ -608,4 +611,34 @@ fn le_generateur_est_deterministe() {
             texte.len()
         );
     }
+}
+
+/// V7, R20 : une copie en flux dont l'empreinte n'est pas celle qu'attend l'import (un fichier
+/// changé depuis l'inspection) ne range rien en mémoire non plus ; l'empreinte calculée est rendue.
+#[test]
+fn une_copie_en_memoire_qui_ne_donne_pas_l_empreinte_attendue_ne_range_rien() {
+    let captations = CaptationsEnMemoire::default();
+    let contenu = "une prise versée en flux".as_bytes();
+    let e = empreinte(contenu);
+    let autre = empreinte("une autre prise".as_bytes());
+    let mut flux = contenu;
+
+    let versement = captations
+        .verser_en_flux(
+            &nom_de_la_copie("01HF7YAT000000000000000004", 1),
+            &mut flux,
+            Some(&autre),
+        )
+        .expect("la copie se fait, sans rien ranger");
+
+    assert_eq!(
+        versement,
+        Versement {
+            empreinte: e.clone(),
+            octets: contenu.len() as u64,
+            deja_rangee: false,
+            rangee: false,
+        }
+    );
+    assert_eq!(captations.taille(&e), Ok(None));
 }
