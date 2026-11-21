@@ -3663,6 +3663,27 @@ mod tests {
     }
 
     #[test]
+    fn chaque_liste_se_mesure_sur_la_hauteur_de_ses_lignes() {
+        // Les lignes de la boîte et des idées retirées ont la hauteur `--ligne`, que mesure
+        // l'étalon de la boîte ; celles du journal, la hauteur `--ligne-du-journal`, que mesure
+        // l'étalon de son volet. La piste et le haut des lignes rendues se posent sur la hauteur
+        // que mesure l'étalon de la fenêtre demandée : mesuré sur les lignes de la boîte, plus
+        // basses, le journal demanderait des lignes plus loin que celles qu'il montre, et des
+        // blancs paraîtraient au défilement.
+        assert_eq!(Etalon::Boite.hauteur_d_une_ligne(), "--ligne");
+        assert_eq!(Etalon::Journal.hauteur_d_une_ligne(), "--ligne-du-journal");
+        assert_eq!(Etalon::Boite.hauteur(12), "calc(12 * var(--ligne))");
+        assert_eq!(
+            Etalon::Journal.hauteur(12),
+            "calc(12 * var(--ligne-du-journal))"
+        );
+        assert_eq!(
+            Etalon::Journal.hauteur(0),
+            "calc(0 * var(--ligne-du-journal))"
+        );
+    }
+
+    #[test]
     fn la_liste_et_le_volet_ne_grandissent_pas_avec_leur_contenu() {
         // `.boite-corps` passe à la ligne (`flex-wrap: wrap`) : chaque rangée y prend au moins la
         // hauteur de son contenu. Sans `contain: size`, la liste grandit avec sa piste, la page
