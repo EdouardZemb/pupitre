@@ -297,8 +297,9 @@ button[aria-disabled="true"] {
    ou la page d'un fonds vide, et à sa droite le volet. Plus haute que la place sous l'en-tête
    (un petit écran, 200 %), la boîte défile en elle-même : l'en-tête, et l'état de
    synchronisation qu'il porte, restent vus au lieu de partir avec la page. La liste et le volet
-   gardent chacun leur défilement. `--ligne` est la hauteur fixe d'une ligne de la liste ;
-   l'étalon, hors du flux et sans place, en mesure cent. */
+   gardent chacun leur défilement. `--ligne` est la hauteur fixe d'une ligne de la liste, et
+   d'une idée retirée ; l'étalon de la boîte, hors du flux et sans place, en mesure cent. Une
+   ligne du journal a sa propre hauteur, et son propre étalon (`.volet-du-journal`). */
 .boite {
   --ligne: 2.5rem;
   position: relative;
@@ -593,6 +594,33 @@ input[type="checkbox"] {
 .volet-du-journal .liste {
   min-height: 8rem;
   border-top: 1px solid #000;
+}
+
+/* Une ligne du journal tient trois lignes de texte, où son message passe à la ligne : il ne se
+   coupe qu'au-delà de la troisième, par une ellipse. `--ligne-du-journal` est sa hauteur fixe ;
+   elle s'écrit en rem, comme l'interligne, et suit la police : trois lignes de 1.25rem et leur
+   marge, le filet du bas compris, y tiennent, à 100 % comme à 200 %. L'étalon du journal, monté
+   dans le volet, en mesure cent, comme celui de la boîte en mesure cent de la liste : chaque liste
+   se mesure sur la hauteur de ses lignes. */
+.volet-du-journal {
+  --ligne-du-journal: 4.5rem;
+}
+
+.volet-du-journal .etalon > div {
+  height: calc(100 * var(--ligne-du-journal));
+}
+
+.volet-du-journal .ligne {
+  height: var(--ligne-du-journal);
+}
+
+.cellules.journal .cellule {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-height: 1.25rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .volet-haut {

@@ -45,9 +45,38 @@ use crate::recherche::{
 /// La marge de la fenêtre, en lignes, de chaque côté de ce qui se voit.
 pub(crate) const MARGE: u32 = 5;
 
-/// Les lignes que mesure l'étalon de la feuille de style, `calc(100 * var(--ligne))` : sa hauteur,
-/// en pixels entiers, donne celle d'une ligne à un centième de pixel près.
+/// Les lignes que mesure chaque étalon de la feuille de style (`Etalon`),
+/// `calc(100 * var(--ligne))` ou `calc(100 * var(--ligne-du-journal))` : sa hauteur, en pixels
+/// entiers, donne celle d'une ligne à un centième de pixel près.
 const LIGNES_DE_L_ETALON: f64 = 100.0;
+
+/// Un étalon de la feuille de style, hors du flux et sans place : il mesure cent lignes d'une
+/// liste en fenêtre (`LIGNES_DE_L_ETALON`). Celui de la boîte mesure les lignes de la boîte d'idées
+/// et des idées retirées, de hauteur `--ligne` ; celui du journal, dans son volet, les lignes du
+/// journal du fonds, de hauteur `--ligne-du-journal`, qui tiennent trois lignes de texte. Chaque
+/// liste se mesure ainsi sur la hauteur de ses lignes, et sa piste se pose sur la même.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Etalon {
+    Boite,
+    Journal,
+}
+
+impl Etalon {
+    /// La propriété de la feuille de style qui porte la hauteur fixe d'une ligne que l'étalon
+    /// mesure.
+    fn hauteur_d_une_ligne(self) -> &'static str {
+        match self {
+            Etalon::Boite => "--ligne",
+            Etalon::Journal => "--ligne-du-journal",
+        }
+    }
+
+    /// La hauteur de `lignes` lignes que l'étalon mesure, en CSS : celle de la piste d'une liste,
+    /// ou le haut de ses lignes rendues.
+    fn hauteur(self, lignes: u64) -> String {
+        format!("calc({lignes} * var({}))", self.hauteur_d_une_ligne())
+    }
+}
 
 /// Ce qu'écrit une case vide (question 25).
 const CASE_VIDE: &str = "—";
@@ -573,7 +602,8 @@ pub(crate) fn dans_un_champ_de_texte(ev: &leptos::ev::KeyboardEvent) -> bool {
 }
 
 /// Le défilement de la liste montée `liste`, sa hauteur vue, et la hauteur d'une ligne, que donne
-/// l'étalon monté `etalon`, en pixels ; rien si l'une ou l'autre n'est pas montée.
+/// l'étalon monté `etalon`, celui qui mesure les lignes de cette liste, en pixels ; rien si l'une
+/// ou l'autre n'est pas montée.
 fn mesures(liste: NodeRef<html::Div>, etalon: NodeRef<html::Div>) -> Option<(f64, f64, f64)> {
     let liste = liste.get_untracked()?;
     let etalon = etalon.get_untracked()?;
@@ -1287,10 +1317,11 @@ struct Ecran {
     champ_de_note: NodeRef<html::Input>,
     champ_de_nom: NodeRef<html::Input>,
     liste: NodeRef<html::Div>,
-    etalon: NodeRef<html::Div>,
+    etalon_de_la_boite: NodeRef<html::Div>,
     liste_des_retirees: NodeRef<html::Div>,
     bouton_des_retirees: NodeRef<html::Button>,
     liste_du_journal: NodeRef<html::Div>,
+    etalon_du_journal: NodeRef<html::Div>,
     bouton_du_journal: NodeRef<html::Button>,
     titre_de_l_idee: NodeRef<html::H2>,
     titre_des_retirees: NodeRef<html::H2>,
@@ -1298,6 +1329,14 @@ struct Ecran {
 }
 
 impl Ecran {
+    /// L'étalon `etalon`, monté ou non (`Etalon`).
+    fn etalon(self, etalon: Etalon) -> NodeRef<html::Div> {
+        match etalon {
+            Etalon::Boite => self.etalon_de_la_boite,
+            Etalon::Journal => self.etalon_du_journal,
+        }
+    }
+
     /// Aucune idée n'est interrogée : la page du fonds vide se montre (`fonds_vide_dans`).
     fn fonds_vide(self) -> bool {
         self.boite
@@ -1316,16 +1355,18 @@ impl Ecran {
             .is_some_and(|actif| actif.is_same_node(Some(liste)))
     }
 
-    /// La fenêtre que demande la liste montée `liste` (`fenetre_a_demander`), d'après la dernière
-    /// demandée (`demandes`) et le total lu ; rien sans mesure. Le défilement mesuré s'y note.
+    /// La fenêtre que demande la liste montée `liste` (`fenetre_a_demander`), ses lignes mesurées
+    /// par l'étalon `etalon`, d'après la dernière demandée (`demandes`) et le total lu ; rien sans
+    /// mesure. Le défilement mesuré s'y note.
     fn a_demander(
         self,
         liste: NodeRef<html::Div>,
+        etalon: Etalon,
         demandes: Demandes,
         total: Option<u64>,
         forcer: bool,
     ) -> Option<Fenetre> {
-        let (haut, vue, ligne) = mesures(liste, self.etalon)?;
+        let (haut, vue, ligne) = mesures(liste, self.etalon(etalon))?;
         demandes.defilement.set_value(haut);
         demandes.derniere.with_value(|derniere| {
             fenetre_a_demander(derniere.as_ref(), haut, vue, ligne, total, forcer)
@@ -1339,7 +1380,8 @@ impl Ecran {
             .boite
             .lue
             .with_untracked(|lue| lue.as_ref().map(|lue| lue.vue.retenues));
-        if let Some(fenetre) = self.a_demander(self.liste, self.boite.demandes, total, forcer) {
+        let demandes = self.boite.demandes;
+        if let Some(fenetre) = self.a_demander(self.liste, Etalon::Boite, demandes, total, forcer) {
             let requete = requete_en_cours(self.etat);
             leptos::task::spawn_local(lire_la_boite(
                 self.etat, self.boite, self.focus, fenetre, requete,
@@ -1354,21 +1396,24 @@ impl Ecran {
             .retirees
             .with_untracked(|lues| lues.as_ref().map(|lues| lues.vue.total));
         let demandes = self.boite.demandes_des_retirees;
-        if let Some(fenetre) = self.a_demander(self.liste_des_retirees, demandes, total, forcer) {
+        let liste = self.liste_des_retirees;
+        if let Some(fenetre) = self.a_demander(liste, Etalon::Boite, demandes, total, forcer) {
             leptos::task::spawn_local(lire_les_retirees(
                 self.etat, self.boite, self.focus, fenetre,
             ));
         }
     }
 
-    /// Lit la fenêtre du journal que demande son défilement (`a_demander`).
+    /// Lit la fenêtre du journal que demande son défilement (`a_demander`), ses lignes mesurées par
+    /// l'étalon du journal, jamais par celui de la boîte.
     fn demander_le_journal(self, forcer: bool) {
         let total = self
             .boite
             .journal
             .with_untracked(|lu| lu.as_ref().map(|lu| lu.vue.total));
         let demandes = self.boite.demandes_du_journal;
-        if let Some(fenetre) = self.a_demander(self.liste_du_journal, demandes, total, forcer) {
+        let liste = self.liste_du_journal;
+        if let Some(fenetre) = self.a_demander(liste, Etalon::Journal, demandes, total, forcer) {
             leptos::task::spawn_local(lire_le_journal(self.etat, self.boite, fenetre));
         }
     }
@@ -1387,13 +1432,20 @@ impl Ecran {
         {
             return;
         }
-        let (conteneur, demandes) = match liste {
-            Liste::Boite => (self.liste, self.boite.demandes),
-            Liste::Retirees => (self.liste_des_retirees, self.boite.demandes_des_retirees),
+        // Les lignes de la boîte et celles des idées retirées ont la même hauteur, que mesure
+        // l'étalon de la boîte.
+        let (conteneur, etalon, demandes) = match liste {
+            Liste::Boite => (self.liste, Etalon::Boite, self.boite.demandes),
+            Liste::Retirees => (
+                self.liste_des_retirees,
+                Etalon::Boite,
+                self.boite.demandes_des_retirees,
+            ),
         };
-        let (Some(conteneur), Some(etalon)) =
-            (conteneur.get_untracked(), self.etalon.get_untracked())
-        else {
+        let (Some(conteneur), Some(etalon)) = (
+            conteneur.get_untracked(),
+            self.etalon(etalon).get_untracked(),
+        ) else {
             return;
         };
         let region: &Node = conteneur.as_ref();
@@ -1885,11 +1937,11 @@ fn champ_de_date(libelle: &'static str, valeur: RwSignal<String>) -> impl IntoVi
 /// cours ; un autre ordre, ou un réglage de la requête changé, son texte dans l'en-tête ou un
 /// critère, la ramène au début. La liste suit son défilement et la taille de la fenêtre de
 /// l'application, jamais une minuterie (I18) : chaque ligne a la hauteur fixe `--ligne`, que
-/// l'étalon mesure ; la piste a la hauteur de toutes les lignes, et seules celles de la fenêtre lue
-/// s'y posent, à leur rang. Chaque contrôle est un bouton, une case ou un champ, nommé ; le focus
-/// suit les volets (`Cible`), entre dans une liste sur une ligne entièrement vue
-/// (`entrer_dans_la_liste`), et revient à la ligne qui l'a perdu quand la fenêtre se pose
-/// (`rendre_le_focus_perdu`).
+/// l'étalon de la boîte mesure (`Etalon::Boite`) ; la piste a la hauteur de toutes les lignes, et
+/// seules celles de la fenêtre lue s'y posent, à leur rang. Chaque contrôle est un bouton, une case
+/// ou un champ, nommé ; le focus suit les volets (`Cible`), entre dans une liste sur une ligne
+/// entièrement vue (`entrer_dans_la_liste`), et revient à la ligne qui l'a perdu quand la fenêtre
+/// se pose (`rendre_le_focus_perdu`).
 #[component]
 pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
     let ecran = Ecran {
@@ -1899,21 +1951,22 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
         champ_de_note: NodeRef::new(),
         champ_de_nom: NodeRef::new(),
         liste: NodeRef::new(),
-        etalon: NodeRef::new(),
+        etalon_de_la_boite: NodeRef::new(),
         liste_des_retirees: NodeRef::new(),
         bouton_des_retirees: NodeRef::new(),
         liste_du_journal: NodeRef::new(),
+        etalon_du_journal: NodeRef::new(),
         bouton_du_journal: NodeRef::new(),
         titre_de_l_idee: NodeRef::new(),
         titre_des_retirees: NodeRef::new(),
         titre_du_journal: NodeRef::new(),
     };
-    // Montés, la liste et l'étalon donnent la fenêtre à lire. Chaque changement de la requête en
-    // cours, son texte dans l'en-tête ou un critère, ramène la liste au début et la relit
-    // (`au_debut`) : une demande par frappe, dont seule la dernière réponse compte.
+    // Montés, la liste et l'étalon de la boîte donnent la fenêtre à lire. Chaque changement de la
+    // requête en cours, son texte dans l'en-tête ou un critère, ramène la liste au début et la
+    // relit (`au_debut`) : une demande par frappe, dont seule la dernière réponse compte.
     Effect::new(move |_| {
         let _suivie = etat.requete.requete();
-        if ecran.liste.get().is_some() && ecran.etalon.get().is_some() {
+        if ecran.liste.get().is_some() && ecran.etalon(Etalon::Boite).get().is_some() {
             ecran.au_debut();
         }
     });
@@ -2105,15 +2158,12 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
             .lue
             .with(|lue| lue.as_ref().map_or(0, |lue| lue.vue.retenues))
     };
-    let hauteur_de_la_piste = move || {
-        let lignes = total();
-        format!("calc({lignes} * var(--ligne))")
-    };
+    let hauteur_de_la_piste = move || Etalon::Boite.hauteur(total());
     let haut_des_lignes = move || {
         let debut = boite
             .lue
             .with(|lue| lue.as_ref().map_or(0, |lue| lue.fenetre.debut));
-        format!("calc({debut} * var(--ligne))")
+        Etalon::Boite.hauteur(u64::from(debut))
     };
     let lignes = move || {
         boite.lue.with(|lue| {
@@ -2125,7 +2175,7 @@ pub fn BoiteDIdees(etat: Etat, boite: EtatDeLaBoite) -> impl IntoView {
     view! {
         <main class="boite" aria-label="Boîte d'idées" on:focusin=hors_des_lignes>
             <div class="etalon" aria-hidden="true">
-                <div node_ref=ecran.etalon></div>
+                <div node_ref=ecran.etalon_de_la_boite></div>
             </div>
             <div class="boite-haut">
                 <label class="champ noter">
@@ -2794,12 +2844,13 @@ fn VoletDeLIdee(ecran: Ecran) -> impl IntoView {
 
 /// Le volet des idées retirées : son titre, qui prend le focus à l'ouverture, « Fermer », qui rend
 /// le focus à « Idées retirées », et leur liste, en fenêtre comme celle de la boîte, chacune avec
-/// « Rétablir ». Monté, il lit la fenêtre que sa liste montre.
+/// « Rétablir ». Ses lignes ont la hauteur de celles de la boîte, que mesure l'étalon de la boîte.
+/// Monté, il lit la fenêtre que sa liste montre.
 #[component]
 fn VoletDesRetirees(ecran: Ecran) -> impl IntoView {
     let boite = ecran.boite;
     Effect::new(move |_| {
-        if ecran.liste_des_retirees.get().is_some() && ecran.etalon.get().is_some() {
+        if ecran.liste_des_retirees.get().is_some() && ecran.etalon(Etalon::Boite).get().is_some() {
             ecran.demander_les_retirees(true);
         }
     });
@@ -2808,15 +2859,12 @@ fn VoletDesRetirees(ecran: Ecran) -> impl IntoView {
             .retirees
             .with(|lues| lues.as_ref().map(|lues| lues.vue.total))
     };
-    let hauteur_de_la_piste = move || {
-        let lignes = total().unwrap_or(0);
-        format!("calc({lignes} * var(--ligne))")
-    };
+    let hauteur_de_la_piste = move || Etalon::Boite.hauteur(total().unwrap_or(0));
     let haut_des_lignes = move || {
         let debut = boite
             .retirees
             .with(|lues| lues.as_ref().map_or(0, |lues| lues.fenetre.debut));
-        format!("calc({debut} * var(--ligne))")
+        Etalon::Boite.hauteur(u64::from(debut))
     };
     let lignes = move || {
         boite.retirees.with(|lues| {
@@ -2871,13 +2919,16 @@ fn VoletDesRetirees(ecran: Ecran) -> impl IntoView {
 /// Le volet du journal du fonds, en lecture seule : son titre, qui prend le focus à l'ouverture,
 /// « Fermer », qui rend le focus à « Journal du fonds », son en-tête (le nombre d'entrées et
 /// l'empreinte), et la liste de ses entrées, la plus récente d'abord, en fenêtre comme celle des
-/// idées retirées. Chaque ligne se date au décalage de son instant (`natif::decalage_a`). Monté,
-/// il lit la fenêtre que sa liste montre.
+/// idées retirées. Chaque ligne se date au décalage de son instant (`natif::decalage_a`) ; elle
+/// tient trois lignes de texte, où son message passe à la ligne, et ne se coupe qu'au-delà de la
+/// troisième. Sa hauteur, `--ligne-du-journal`, n'est pas celle d'une ligne de la boîte : l'étalon
+/// du journal, monté dans le volet, la mesure (`Etalon::Journal`), et la fenêtre, la piste et le
+/// haut des lignes rendues se calculent sur elle. Monté, il lit la fenêtre que sa liste montre.
 #[component]
 fn VoletDuJournal(ecran: Ecran) -> impl IntoView {
     let boite = ecran.boite;
     Effect::new(move |_| {
-        if ecran.liste_du_journal.get().is_some() && ecran.etalon.get().is_some() {
+        if ecran.liste_du_journal.get().is_some() && ecran.etalon(Etalon::Journal).get().is_some() {
             ecran.demander_le_journal(true);
         }
     });
@@ -2889,15 +2940,12 @@ fn VoletDuJournal(ecran: Ecran) -> impl IntoView {
                 .unwrap_or_default()
         })
     };
-    let hauteur_de_la_piste = move || {
-        let lignes = total().unwrap_or(0);
-        format!("calc({lignes} * var(--ligne))")
-    };
+    let hauteur_de_la_piste = move || Etalon::Journal.hauteur(total().unwrap_or(0));
     let haut_des_lignes = move || {
         let debut = boite
             .journal
             .with(|lu| lu.as_ref().map_or(0, |lu| lu.fenetre.debut));
-        format!("calc({debut} * var(--ligne))")
+        Etalon::Journal.hauteur(u64::from(debut))
     };
     // Une ligne par entrée, sa clé son rang dans le journal et son texte : deux entrées peuvent
     // porter le même message à la même heure.
@@ -2925,6 +2973,9 @@ fn VoletDuJournal(ecran: Ecran) -> impl IntoView {
             class="volet volet-du-journal"
             aria-labelledby="titre-du-journal"
         >
+            <div class="etalon" aria-hidden="true">
+                <div node_ref=ecran.etalon_du_journal></div>
+            </div>
             <div class="volet-haut">
                 <h2 id="titre-du-journal" tabindex="-1" node_ref=ecran.titre_du_journal>
                     "Journal du fonds"
@@ -3887,10 +3938,11 @@ mod tests {
             champ_de_note: NodeRef::new(),
             champ_de_nom: NodeRef::new(),
             liste: NodeRef::new(),
-            etalon: NodeRef::new(),
+            etalon_de_la_boite: NodeRef::new(),
             liste_des_retirees: NodeRef::new(),
             bouton_des_retirees: NodeRef::new(),
             liste_du_journal: NodeRef::new(),
+            etalon_du_journal: NodeRef::new(),
             bouton_du_journal: NodeRef::new(),
             titre_de_l_idee: NodeRef::new(),
             titre_des_retirees: NodeRef::new(),
