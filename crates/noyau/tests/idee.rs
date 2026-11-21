@@ -35,6 +35,16 @@ fn les_empreintes_nommees_lisent_les_stems_leurs_midi_et_les_rapports() {
 }
 
 #[test]
+fn les_empreintes_nommees_ne_lisent_les_rangs_suivants_que_sous_un_stem() {
+    let cles = [
+        format!("{E}/nom/midi/{FAUX}"),
+        format!("{P}/foo/midi/{FAUX2}"),
+    ];
+    let nommees = empreintes_nommees(cles.iter().map(String::as_str), []);
+    assert_eq!(nommees, BTreeSet::from([E, P].map(String::from)));
+}
+
+#[test]
 fn les_empreintes_nommees_se_coupent_au_premier_trait() {
     let cles = [
         "e1/idee",
