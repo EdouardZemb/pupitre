@@ -113,7 +113,7 @@ pub fn reconnaitre(debut: &[u8], extension: Option<&str>) -> Reconnu {
     if debut.len() >= 10 && a(0, 3, b"ID3") {
         let taille = debut[6..10]
             .iter()
-            .fold(0u64, |reste, octet| (reste << 7) | u64::from(octet & 0x7F));
+            .fold(0u64, |reste, octet| reste * 128 + u64::from(octet & 0x7F));
         let pied = if debut[5] & 0x10 != 0 { 10 } else { 0 };
         return Reconnu::Id3 {
             suite: 10 + taille + pied,
