@@ -164,8 +164,8 @@ Une session neuve a relu le plan sur `fe918aa` : chaque mécanisme annoncé cont
 0.12.0, de `tauri` 2.12.5, de `tauri-plugin-dialog` 2.8.4 et de `web-sys` 0.3.107 sur docs.rs, et chaque valeur témoin
 recalculée. Elle a relevé 27 constats, 3 bloquants, 9 importants et 15 mineurs. La session du lot les a tous retenus,
 R22 et R25 autrement que la relecture ne le proposait, et R8 tenu sans écart à la question 14. Quatre questions en
-sont nées, posées à la maîtrise d'ouvrage ; le plan s'écrit selon leur défaut, recopié en 35 à 38 des questions
-tranchées, et un défaut refusé se reprendra. Une autre session neuve a ensuite vérifié les corrections, contre le
+sont nées ; la maîtrise d'ouvrage les a tranchées le 2026-11-21, chacune selon son défaut, recopié en 35 à 38 des
+questions tranchées. Une autre session neuve a ensuite vérifié les corrections, contre le
 plan, le code et la documentation de la bibliothèque standard : des 27 constats et des quatre questions, 27 étaient
 faits et 4 incomplets (R4, R9, C et D, que V1 et V2 complètent) ; elle a relevé 15 défauts nouveaux, V1 à V15,
 2 importants et 13 mineurs, tous corrigés, V12 en soumettant à la maîtrise d'ouvrage, avec la question 35, le texte de
@@ -324,22 +324,22 @@ des passages.
 33. **« Verser »** [C27] : réservé à l'import ; regrouper « rassemble ».
 34. **Le découpage** : les quatre PR de ce plan.
 
-Nées de la relecture, posées à la maîtrise d'ouvrage, et écrites ici selon leur défaut :
+Nées de la relecture, et tranchées par la maîtrise d'ouvrage le 2026-11-21, chacune selon son défaut :
 
-35. **Un import resté ouvert que son dossier ne reprend plus** [R2] (défaut, à confirmer par la maîtrise d'ouvrage) :
+35. **Un import resté ouvert que son dossier ne reprend plus** [R2] :
     quand l'inspection ne propose pas de reprise et qu'un import est ouvert, le volet le dit (« Un import est resté
     ouvert, que ce dossier ne reprend pas : verser celui-ci le clôt, avec ce qu'il a versé. »), le même dossier
     rechoisi compris, quand l'import ouvert n'a posé aucun nom (V12), et l'ouverture du nouvel import
     clôt d'abord l'ancien ; son rapport compte ce que le fonds sait de lui (les fichiers nommés à son ULID, leurs
     octets ; dédoublonnés et ignorés à zéro), au format de la question 25 ; son message est « Import du … clos ».
     Aucune commande de plus.
-36. **Les photos prises pour du M4A** (défaut, à confirmer par la maîtrise d'ouvrage) : les codes de format d'image
+36. **Les photos prises pour du M4A** : les codes de format d'image
     (`heic`, `heix`, `hevc`, `mif1`, `msf1`, `avif`, aux octets 8 à 11 d'un `ftyp`) sont ignorés ; les autres codes
     restent `m4a`, une vidéo comprise.
-37. **La « même durée » sans empreinte** [R4] (défaut, à confirmer par la maîtrise d'ouvrage) : pour proposer un jeu,
+37. **La « même durée » sans empreinte** [R4] : pour proposer un jeu,
     deux WAV sont distincts si leurs tailles ou les octets déjà lus de leur en-tête diffèrent ; l'inspection ne calcule
     aucune empreinte pour la proposition.
-38. **Un fichier qui ne se lit pas à l'inspection** [R9] (défaut, à confirmer par la maîtrise d'ouvrage) :
+38. **Un fichier qui ne se lit pas à l'inspection** [R9] :
     l'inspection s'arrête et le nomme (« « x.wav » ne se lit pas : <erreur>. », sans nom « Le fichier n° <rang> ne se
     lit pas : … »), en `Raison::Disque` ; rechoisir le dossier relance. Un fichier seulement en ligne (OneDrive) est une
     limite dite.
