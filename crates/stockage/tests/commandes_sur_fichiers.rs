@@ -684,11 +684,11 @@ fn la_lecture_seule_d_un_ajout_altere_le_nomme_par_son_chemin_relatif() {
     );
 }
 
-/// Une prise versée, coupée avant le renommage de sa captation : le refus du disque nomme la
-/// captation par son chemin relatif à la racine des données (`Captations`), sans le chemin de la
-/// racine des données, et le fonds ne naît pas.
+/// Une prise versée, coupée avant le renommage de sa captation : le refus du disque dit « Une
+/// captation », sans son chemin sous `captations/`, qui nommerait son empreinte, ni le chemin de
+/// la racine des données, et le fonds ne naît pas.
 #[test]
-fn une_captation_coupee_avant_le_renommage_est_refusee_par_son_chemin_relatif() {
+fn une_captation_coupee_avant_le_renommage_est_refusee_sans_nommer_son_empreinte() {
     let racine = racine_jetable("commandes-captation-coupee");
     let mut paire = PaireSurFichiers { racine: &racine };
     let mut services = paire.neufs();
@@ -713,10 +713,9 @@ fn une_captation_coupee_avant_le_renommage_est_refusee_par_son_chemin_relatif() 
         autre => panic!("attendu le refus du disque ; rendu {autre:?}"),
     };
     let e = stockage::empreinte(suite::PRISE_DE_TEST);
-    assert_eq!(
-        message,
-        format!("captations/{}/{e}, le disque l'a refusé.", &e[..2])
-    );
+    // Le chemin de la captation rangée nommerait son empreinte : « Une captation » le remplace.
+    assert_eq!(message, "Une captation, le disque l'a refusée.");
+    assert!(!message.contains(&e), "{message}");
     assert!(
         !message.contains(&*racine.chemin().to_string_lossy()),
         "{message}"

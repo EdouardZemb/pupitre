@@ -2,10 +2,14 @@
 //! rejoué sur `DocumentsEnMemoire` et `CaptationsEnMemoire` ; puis, sur cette paire seule, les
 //! services du carnet, un renommage d'une requête enregistrée concurrent de sa suppression, sur
 //! deux répliques, les requêtes enregistrées d'une version plus récente, une idée illisible dans
-//! l'assiette de la boîte, la requête des photos, le générateur du fonds de mesure, et une copie en
-//! flux qui ne donne pas l'empreinte attendue.
+//! l'assiette de la boîte, la requête des photos, le générateur du fonds de mesure, une copie en
+//! flux qui ne donne pas l'empreinte attendue ou dont le flux est refusé, et la source à verser en
+//! mémoire.
 
 mod suite;
+
+use std::collections::BTreeSet;
+use std::io::{self, Read};
 
 use automerge::{ROOT, ReadDoc};
 use commandes::Assiette;
@@ -19,7 +23,10 @@ use noyau::donnees::requete::{
 use noyau::donnees::version::Migration;
 use services::en_memoire::{CaptationsEnMemoire, DocumentsEnMemoire};
 use services::mesure::{Engendre, engendrer_le_fonds_de_mesure_selon};
-use services::{Captations, Documents, Services, Versement, application, lecture};
+use services::source_en_memoire::SourceEnMemoire;
+use services::{
+    Captations, Documents, Raison, Refus, Services, Source, Versement, application, lecture,
+};
 use suite::{AleaDeTest, HEURE, IDEE, Paire, SECONDE_IDEE, contexte_de_test, une_note};
 
 /// La paire en mémoire : sans fonds à sa naissance, sur l'établi ; rouverte des octets de son
@@ -641,4 +648,97 @@ fn une_copie_en_memoire_qui_ne_donne_pas_l_empreinte_attendue_ne_range_rien() {
         }
     );
     assert_eq!(captations.taille(&e), Ok(None));
+}
+
+/// Un flux à verser qui rend `reste`, puis refuse toute lecture (`PermissionDenied`), comme un
+/// fichier que le système refuse en chemin.
+struct FluxRefuse<'a> {
+    reste: &'a [u8],
+}
+
+impl Read for FluxRefuse<'_> {
+    fn read(&mut self, tampon: &mut [u8]) -> io::Result<usize> {
+        if self.reste.is_empty() {
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "Access is denied. (os error 5)",
+            ));
+        }
+        let lus = tampon.len().min(self.reste.len());
+        tampon[..lus].copy_from_slice(&self.reste[..lus]);
+        self.reste = &self.reste[lus..];
+        Ok(lus)
+    }
+}
+
+// Balayage Q8 : en mémoire aussi, un flux refusé en chemin est un refus du disque, au constat
+// neutre, et rien ne se range
+#[test]
+fn une_copie_en_memoire_dont_le_flux_est_refuse_ne_range_rien() {
+    let captations = CaptationsEnMemoire::default();
+    let contenu = "une prise refusée en chemin".as_bytes();
+
+    let rendu = captations.verser_en_flux(
+        &nom_de_la_copie("01HF7YAT000000000000000004", 1),
+        &mut FluxRefuse { reste: contenu },
+        None,
+    );
+
+    assert_eq!(
+        rendu,
+        Err(Refus {
+            raison: Raison::Disque,
+            message: "Le fichier à verser, le disque l'a refusé.".to_string(),
+        })
+    );
+    assert_eq!(captations.taille(&empreinte(contenu)), Ok(None));
+    assert_eq!(captations.tailles(), Ok(BTreeSet::new()));
+}
+
+// La source à verser en mémoire : un rang sans entrée et un lien ne se lisent pas, une plage se
+// borne au contenu, une entrée refusée l'est tant qu'elle l'est
+#[test]
+fn la_source_en_memoire_refuse_un_rang_sans_entree_un_lien_et_une_entree_refusee() {
+    let contenu: Vec<u8> = (0..=255u8).collect();
+    let mut source = SourceEnMemoire::new(
+        Some("Démos"),
+        vec![(Some("a/prise.wav".to_string()), contenu.clone())],
+        vec!["lien".to_string()],
+    );
+    let sans_entree = |rang: u64| Refus {
+        raison: Raison::Impossible,
+        message: format!("Le dossier versé n'a pas d'entrée n° {rang}."),
+    };
+
+    assert_eq!(source.lire(1, 250, 10), Ok(contenu[250..].to_vec()));
+    assert_eq!(source.lire(1, 300, 4), Ok(Vec::new()));
+    assert_eq!(source.octets_lus(1), 6);
+    assert_eq!(source.lire(3, 0, 1), Err(sans_entree(3)));
+    assert_eq!(source.lire(0, 0, 1), Err(sans_entree(0)));
+    assert_eq!(source.octets_actuels(3), Err(sans_entree(3)));
+    assert_eq!(source.marque_actuelle(3), Err(sans_entree(3)));
+    assert_eq!(source.octets_lus(3), 0);
+    match source.lire_en_flux(2) {
+        Err(refus) => assert_eq!(
+            refus,
+            Refus {
+                raison: Raison::Impossible,
+                message:
+                    "L'entrée n° 2 du dossier versé n'est pas un fichier : elle ne se lit pas."
+                        .to_string(),
+            }
+        ),
+        Ok(_) => panic!("le lien se lit en flux"),
+    }
+
+    source.refuser(1, true);
+    assert_eq!(
+        source.lire(1, 0, 4),
+        Err(Refus {
+            raison: Raison::Disque,
+            message: "Le fichier à verser, le disque l'a refusé.".to_string(),
+        })
+    );
+    source.refuser(1, false);
+    assert_eq!(source.lire(1, 0, 4), Ok(contenu[..4].to_vec()));
 }

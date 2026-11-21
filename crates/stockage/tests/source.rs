@@ -1,6 +1,7 @@
 //! La source à verser sur fichiers (§ 40 · 3, le troisième contrat) : un dossier parcouru une
 //! fois, sans suivre un lien, ses entrées rangées par leurs segments, les octets lus de chacune
-//! comptés, et la marque de dernière écriture que tient le système de fichiers.
+//! comptés, et la marque de dernière écriture que tient le système de fichiers ; un rang sans
+//! entrée, un lien et un fichier retiré ne se lisent pas.
 
 mod commun;
 
@@ -9,7 +10,7 @@ use std::io::Read;
 use std::path::Path;
 use std::time::{Duration, SystemTime};
 
-use services::{SorteDEntree, Source};
+use services::{Raison, Refus, SorteDEntree, Source};
 use stockage::Erreur;
 use stockage::source::SourceSurFichiers;
 
@@ -123,10 +124,59 @@ fn un_lien_symbolique_compte_sans_etre_suivi() {
         ],
         "le lien n'est pas une entrée, ou ce qu'il vise en est une"
     );
-    assert!(
-        source.lire(1, 0, 16).is_err(),
+    assert_eq!(
+        source.lire(1, 0, 16),
+        Err(Refus {
+            raison: Raison::Impossible,
+            message: "L'entrée n° 1 du dossier versé n'est pas un fichier : elle ne se lit pas."
+                .to_string(),
+        }),
         "le lien se lit comme un fichier"
     );
+}
+
+#[test]
+fn un_rang_sans_entree_ne_se_lit_pas() {
+    let dossier = commun::dossier_jetable("source-rang-absent").join("verse");
+    fs::create_dir_all(&dossier).expect("créer le dossier à verser");
+    fs::write(dossier.join("seul.txt"), commun::octets(8, 60)).expect("écrire seul.txt");
+    let sans_entree = |rang: u64| Refus {
+        raison: Raison::Impossible,
+        message: format!("Le dossier versé n'a pas d'entrée n° {rang}."),
+    };
+
+    let source = SourceSurFichiers::parcourir(&dossier).expect("parcourir le dossier");
+
+    assert_eq!(source.lire(2, 0, 1), Err(sans_entree(2)));
+    assert_eq!(source.lire(0, 0, 1), Err(sans_entree(0)));
+    match source.lire_en_flux(2) {
+        Err(refus) => assert_eq!(refus, sans_entree(2)),
+        Ok(_) => panic!("un rang sans entrée se lit en flux"),
+    }
+    assert_eq!(source.octets_actuels(2), Err(sans_entree(2)));
+    assert_eq!(source.marque_actuelle(2), Err(sans_entree(2)));
+    assert_eq!(source.octets_lus(2), 0);
+}
+
+// Balayage Q8 : un fichier retiré après le parcours ne se lit plus, au constat du fichier à verser
+#[test]
+fn un_fichier_retire_apres_le_parcours_est_absent() {
+    let dossier = commun::dossier_jetable("source-fichier-retire").join("verse");
+    fs::create_dir_all(&dossier).expect("créer le dossier à verser");
+    let chemin = dossier.join("prise.wav");
+    fs::write(&chemin, commun::octets(9, 500)).expect("écrire prise.wav");
+    let source = SourceSurFichiers::parcourir(&dossier).expect("parcourir le dossier");
+
+    fs::remove_file(&chemin).expect("retirer prise.wav");
+
+    let absent = Refus {
+        raison: Raison::Disque,
+        message: "Le fichier à verser est absent.".to_string(),
+    };
+    assert_eq!(source.lire(1, 0, 16), Err(absent.clone()));
+    assert_eq!(source.octets_actuels(1), Err(absent.clone()));
+    assert_eq!(source.marque_actuelle(1), Err(absent));
+    assert_eq!(source.octets_lus(1), 0);
 }
 
 // R8 : un contenu changé à taille égale se voit à sa marque de dernière écriture

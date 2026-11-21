@@ -1,15 +1,16 @@
 //! Les captations, rangées par empreinte (§ 31 · 6.1) : la voie par octets, la copie en flux,
-//! leurs coupures, et la relecture d'une plage.
+//! leurs coupures, un flux à verser refusé en chemin, et la relecture d'une plage.
 
 mod commun;
 
 use std::collections::BTreeSet;
 use std::fs;
+use std::io::{self, Read};
 use std::path::Path;
 
 use commun::entrees;
 use noyau::donnees::import::nom_de_la_copie;
-use services::Versement;
+use services::{Raison, Refus, Versement};
 use stockage::fichier::voisin;
 use stockage::pannes::{self, Etape};
 use stockage::{Erreur, RacineDesDonnees, empreinte};
@@ -21,6 +22,27 @@ const IMPORT: &str = "01HF7YAT000000000000000004";
 /// demi : 2 621 440 octets engendrés par le test.
 fn trois_troncons() -> Vec<u8> {
     commun::octets(11, 2_621_440)
+}
+
+/// Un flux à verser qui rend `reste`, puis refuse toute lecture (`PermissionDenied`), comme un
+/// fichier que le système refuse en chemin.
+struct FluxRefuse<'a> {
+    reste: &'a [u8],
+}
+
+impl Read for FluxRefuse<'_> {
+    fn read(&mut self, tampon: &mut [u8]) -> io::Result<usize> {
+        if self.reste.is_empty() {
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "Access is denied. (os error 5)",
+            ));
+        }
+        let lus = tampon.len().min(self.reste.len());
+        tampon[..lus].copy_from_slice(&self.reste[..lus]);
+        self.reste = &self.reste[lus..];
+        Ok(lus)
+    }
 }
 
 #[test]
@@ -522,6 +544,63 @@ fn une_copie_qui_ne_donne_pas_l_empreinte_attendue_ne_range_rien() {
         entrees(&dossier),
         Vec::<String>::new(),
         "captations/ porte une captation ou un .partiel"
+    );
+}
+
+// Balayage Q8 : un fichier à verser que le système refuse en chemin n'est pas un refus du disque
+// de la racine des données
+#[test]
+fn un_flux_refuse_en_chemin_rend_le_fichier_a_verser_et_ne_range_rien() {
+    let d = commun::dossier_jetable("copie-flux-refuse");
+    let racine =
+        RacineDesDonnees::ouvrir(&d.join("donnees")).expect("ouvrir la racine des données");
+    let captations = racine.captations();
+    let dossier = racine.chemin().join("captations");
+    // Un tronçon entier s'écrit sous le nom provisoire avant que le flux refuse la suite.
+    let troncon = commun::octets(17, 1_048_576);
+
+    let rendu = captations.verser_en_flux(
+        &nom_de_la_copie(IMPORT, 1),
+        &mut FluxRefuse { reste: &troncon },
+        None,
+    );
+
+    match rendu {
+        Err(Erreur::FichierAVerser { erreur }) => {
+            assert_eq!(erreur.kind(), io::ErrorKind::PermissionDenied)
+        }
+        autre => panic!("attendu le refus du fichier à verser, rendu {autre:?}"),
+    }
+    assert_eq!(
+        entrees(&dossier),
+        Vec::<String>::new(),
+        "captations/ porte une captation ou un .partiel"
+    );
+    assert_eq!(
+        captations.tailles().expect("lire les tailles"),
+        BTreeSet::new(),
+        "une captation est rangée"
+    );
+
+    // Par l'adaptateur : un refus du disque, au constat du fichier à verser, sans le texte du
+    // système.
+    let refus = services::Captations::verser_en_flux(
+        &captations,
+        &nom_de_la_copie(IMPORT, 2),
+        &mut FluxRefuse { reste: &troncon },
+        None,
+    );
+    assert_eq!(
+        refus,
+        Err(Refus {
+            raison: Raison::Disque,
+            message: "Le fichier à verser est refusé par le système.".to_string(),
+        })
+    );
+    assert_eq!(
+        entrees(&dossier),
+        Vec::<String>::new(),
+        "par l'adaptateur, captations/ porte une captation ou un .partiel"
     );
 }
 

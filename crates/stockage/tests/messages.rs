@@ -39,6 +39,8 @@ fn messages() -> Vec<(String, String)> {
     let ajout = dans_les_ajouts(&format!("{e}.automerge"));
     let voisin = dans_les_ajouts(&format!("{e}.automerge.4242.partiel"));
     let provisoire = Path::new("captations").join(format!("{e}.4242.partiel"));
+    let copie = Path::new("captations").join("import-01HF7YAT000000000000000004-3.4242.partiel");
+    let rangee = Path::new("captations").join(&e[..2]).join(&e);
     let c_ajout = format!("documents/fonds/ajouts/{e}.automerge");
     let c_voisin = format!("documents/fonds/ajouts/{e}.automerge.4242.partiel");
     let c_provisoire = format!("captations/{e}.4242.partiel");
@@ -156,6 +158,52 @@ fn messages() -> Vec<(String, String)> {
         (
             disque(&complet, ErrorKind::Other, "read failed").to_string(),
             "documents/fonds/complet.automerge, le disque l'a refusé.".to_string(),
+        ),
+        // Un chemin sous `captations/`, nom provisoire d'un import, sous-dossier ou captation
+        // rangée, ne nomme ni l'import ni l'empreinte : « Une captation », au féminin ;
+        // `captations/` même garde son nom.
+        (
+            disque(&copie, ErrorKind::StorageFull, "No space left on device").to_string(),
+            "Une captation ne tient plus sur le disque.".to_string(),
+        ),
+        (
+            disque(&copie, ErrorKind::Other, "write failed").to_string(),
+            "Une captation, le disque l'a refusée.".to_string(),
+        ),
+        (
+            disque(&rangee, ErrorKind::NotFound, "No such file or directory").to_string(),
+            "Une captation est absente.".to_string(),
+        ),
+        (
+            disque(
+                &rangee,
+                ErrorKind::PermissionDenied,
+                "Access is denied. (os error 5)",
+            )
+            .to_string(),
+            "Une captation est refusée par le système.".to_string(),
+        ),
+        (
+            disque(
+                &rangee,
+                ErrorKind::InvalidData,
+                "stream did not contain valid data",
+            )
+            .to_string(),
+            "Une captation ne se relit pas telle qu'elle a été écrite.".to_string(),
+        ),
+        (
+            disque(
+                &Path::new("captations").join(&e[..2]),
+                ErrorKind::Other,
+                "create failed",
+            )
+            .to_string(),
+            "Une captation, le disque l'a refusée.".to_string(),
+        ),
+        (
+            disque(Path::new("captations"), ErrorKind::Other, "read failed").to_string(),
+            "captations, le disque l'a refusé.".to_string(),
         ),
         // Une captation ne se nomme pas par son empreinte dans un message (question 26).
         (
