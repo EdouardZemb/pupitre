@@ -5,7 +5,9 @@
 //! `Documents`, et rend la réponse aux types de `commandes`. `application` applique les
 //! changements que le noyau calcule ; `lecture` tire du document le fonds lu, et l'arbre de sa
 //! teneur, que le noyau reçoit ; `mesure` engendre le fonds de mesure (§ 31 · 10, test 13) par
-//! les seules opérations de `Services`.
+//! les seules opérations de `Services`. Le troisième contrat, la source à verser (`Source`), a
+//! sa réalisation en mémoire dans `source_en_memoire`, hors de la fonction `en-memoire` : le
+//! générateur du fonds de mesure l'emploie.
 //!
 //! La fonction `en-memoire`, que seuls les tests demandent, compile le module `en_memoire`, la
 //! paire d'adaptateurs en mémoire.
@@ -16,9 +18,12 @@ mod contrats;
 pub mod en_memoire;
 pub mod lecture;
 pub mod mesure;
+pub mod source_en_memoire;
 
 pub use commandes::{Raison, Refus};
-pub use contrats::{Alea, Captations, Documents, Ecriture, FONDS_NON_NE};
+pub use contrats::{
+    Alea, Captations, Documents, Ecriture, Entree, FONDS_NON_NE, SorteDEntree, Source, Versement,
+};
 
 use std::cell::RefCell;
 use std::collections::BTreeSet;

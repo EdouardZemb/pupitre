@@ -4,16 +4,23 @@
 //! mêmes règles de la version de schéma (§ 31 · 2.4).
 
 use std::cell::RefCell;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
+use std::io;
 
 use automerge::{Automerge, AutomergeError};
 use noyau::donnees::changement::Operation;
-use noyau::donnees::identifiants::empreinte;
+use noyau::donnees::demarrage::Provisoire;
+use noyau::donnees::identifiants::Hacheur;
 use noyau::donnees::version::{self, Lecture, Migration};
 
 use crate::application::{self, Inapplicable};
 use crate::lecture;
-use crate::{Captations, Documents, Ecriture, FONDS_NON_NE, Raison, Refus};
+use crate::source_en_memoire::FICHIER_A_VERSER_REFUSE;
+use crate::{Captations, Documents, Ecriture, FONDS_NON_NE, Raison, Refus, Versement};
+
+/// Le message d'une captation qu'aucune ne porte, sans son empreinte (question 26), comme sur
+/// fichiers.
+const CAPTATION_ABSENTE: &str = "Cette captation n'est pas dans le fonds.";
 
 /// Le message d'un fonds de version de schéma plus récente que celle que connaît l'application.
 const VERSION_PLUS_RECENTE: &str =
@@ -125,34 +132,106 @@ impl Documents for DocumentsEnMemoire {
     }
 }
 
-/// Les captations en mémoire, chacune sous son empreinte.
+/// Les captations en mémoire, chacune sous son empreinte. Aucune copie n'y passe par un nom
+/// provisoire.
 #[derive(Default)]
 pub struct CaptationsEnMemoire {
     objets: RefCell<BTreeMap<String, Vec<u8>>>,
 }
 
 impl Captations for CaptationsEnMemoire {
-    /// L'empreinte de `octets` (`noyau::donnees::identifiants::empreinte`) ; une captation déjà
-    /// versée ne se range pas une seconde fois.
-    fn verser(&self, octets: &[u8]) -> Result<String, Refus> {
-        let e = empreinte(octets);
-        self.objets
-            .borrow_mut()
-            .entry(e.clone())
-            .or_insert_with(|| octets.to_vec());
-        Ok(e)
+    /// Copie `flux` dans un `Vec`, et calcule son empreinte par `Hacheur` ; `base` ne sert pas.
+    /// `deja_rangee`, d'une empreinte présente ; `attendue` autre que l'empreinte calculée, rien
+    /// ne se range, `rangee` faux (V7) ; sinon la captation se range, si elle ne l'est pas déjà.
+    /// Un flux qui ne se lit plus : `Raison::Disque`, au constat neutre.
+    fn verser_en_flux(
+        &self,
+        _base: &str,
+        flux: &mut dyn io::Read,
+        attendue: Option<&str>,
+    ) -> Result<Versement, Refus> {
+        let mut octets = Vec::new();
+        io::Read::read_to_end(flux, &mut octets).map_err(|_| Refus {
+            raison: Raison::Disque,
+            message: FICHIER_A_VERSER_REFUSE.to_string(),
+        })?;
+        let mut hacheur = Hacheur::nouveau();
+        hacheur.ajouter(&octets);
+        let e = hacheur.finir();
+        let deja_rangee = self.objets.borrow().contains_key(&e);
+        let rangee = attendue.is_none_or(|attendue| attendue == e);
+        let compte = octets.len() as u64;
+        if rangee && !deja_rangee {
+            self.objets.borrow_mut().insert(e.clone(), octets);
+        }
+        Ok(Versement {
+            empreinte: e,
+            octets: compte,
+            deja_rangee,
+            rangee,
+        })
     }
 
-    /// Une empreinte qu'aucune captation ne porte : `Raison::Impossible`.
+    /// Une empreinte qu'aucune captation ne porte : `Raison::Impossible`, « Cette captation n'est
+    /// pas dans le fonds. ».
     fn relire(&self, empreinte: &str) -> Result<Vec<u8>, Refus> {
         self.objets
             .borrow()
             .get(empreinte)
             .cloned()
-            .ok_or_else(|| Refus {
-                raison: Raison::Impossible,
-                message: format!("Aucune captation ne porte l'empreinte {empreinte}."),
-            })
+            .ok_or_else(captation_absente)
+    }
+
+    /// La plage bornée au contenu ; une empreinte qu'aucune captation ne porte, comme `relire`.
+    fn relire_une_plage(
+        &self,
+        empreinte: &str,
+        debut: u64,
+        longueur: u64,
+    ) -> Result<Vec<u8>, Refus> {
+        let objets = self.objets.borrow();
+        let octets = objets.get(empreinte).ok_or_else(captation_absente)?;
+        let de = usize::try_from(debut)
+            .unwrap_or(usize::MAX)
+            .min(octets.len());
+        let longueur = usize::try_from(longueur).unwrap_or(usize::MAX);
+        let a = de.saturating_add(longueur).min(octets.len());
+        Ok(octets[de..a].to_vec())
+    }
+
+    fn taille(&self, empreinte: &str) -> Result<Option<u64>, Refus> {
+        Ok(self
+            .objets
+            .borrow()
+            .get(empreinte)
+            .map(|octets| octets.len() as u64))
+    }
+
+    fn tailles(&self) -> Result<BTreeSet<u64>, Refus> {
+        Ok(self
+            .objets
+            .borrow()
+            .values()
+            .map(|octets| octets.len() as u64)
+            .collect())
+    }
+
+    /// Aucune : en mémoire, aucune copie ne passe par un nom provisoire.
+    fn copies_de_l_import(&self, _import: &str) -> Result<Vec<Provisoire>, Refus> {
+        Ok(Vec::new())
+    }
+
+    /// Rien à retirer : en mémoire, aucune copie ne passe par un nom provisoire.
+    fn retirer_une_copie(&self, _nom: &str) -> Result<(), Refus> {
+        Ok(())
+    }
+}
+
+/// Le refus d'une empreinte qu'aucune captation ne porte : `Raison::Impossible`.
+fn captation_absente() -> Refus {
+    Refus {
+        raison: Raison::Impossible,
+        message: CAPTATION_ABSENTE.to_string(),
     }
 }
 

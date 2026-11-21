@@ -1,7 +1,9 @@
 //! Le stockage de pupitre, côté natif seulement (§ 40 · 3) : la racine des données et son
 //! verrou, puis les adaptateurs `Documents` et `Captations` sur fichiers, au format de
 //! l'ADR-023 (§ 31 · 2.1), qui réalisent les contrats des services (`FondsSurFichiers` et
-//! `Captations`). Il ne devine aucun chemin : il reçoit celui de la racine des données (I30).
+//! `Captations`), et la source à verser sur fichiers (`source::SourceSurFichiers`), le troisième
+//! contrat. Il ne devine aucun chemin : il reçoit celui de la racine des données, et celui du
+//! dossier à verser (I30).
 //!
 //! La fonction `pannes`, que seuls ses tests demandent, coupe une écriture à l'étape voulue : elle
 //! rend public le module `pannes`, qui injecte une panne à chaque étape d'une écriture ; sans
@@ -20,6 +22,7 @@ pub mod pannes;
 #[cfg(not(feature = "pannes"))]
 mod pannes;
 mod racine_des_donnees;
+pub mod source;
 
 use std::fmt;
 use std::io;
@@ -51,10 +54,15 @@ pub enum Erreur {
         chemin: PathBuf,
         erreur: std::io::Error,
     },
-    /// Le contenu relu de la captation `empreinte` ne donne pas son empreinte.
+    /// Le contenu relu de la captation `empreinte` ne donne pas son empreinte. Le message ne la
+    /// nomme pas (question 26).
     CaptationAlteree { empreinte: String },
-    /// Aucune captation ne porte le nom `empreinte`.
+    /// Aucune captation ne porte le nom `empreinte`. Le message ne la nomme pas (question 26).
     CaptationAbsente { empreinte: String },
+    /// Le fichier à verser ne se lit plus : la lecture de son flux a rendu `erreur`, pendant une
+    /// copie en flux, ou la source à verser sur fichiers ne le lit pas. Ce n'est pas un refus du
+    /// disque de la racine des données.
+    FichierAVerser { erreur: std::io::Error },
     /// Un `Document` du fonds vit déjà dans ce processus : un seul à la fois (AM-4 (1)).
     FondsDejaOuvert,
     /// Le fonds est déjà né : il ne naît qu'une fois (§ 31 · 2.3).
@@ -225,13 +233,17 @@ impl Erreur {
                 let sujet = chemin_dit(chemin, racine);
                 write!(f, "{}.", constat_du_disque(&sujet, erreur.kind()))
             }
-            Erreur::CaptationAlteree { empreinte } => write!(
-                f,
-                "Le contenu relu de la captation {empreinte} ne donne pas son empreinte."
-            ),
-            Erreur::CaptationAbsente { empreinte } => {
-                write!(f, "Aucune captation ne porte l'empreinte {empreinte}.")
+            Erreur::CaptationAlteree { .. } => {
+                f.write_str("Une captation relue ne donne pas son empreinte.")
             }
+            Erreur::CaptationAbsente { .. } => {
+                f.write_str("Cette captation n'est pas dans le fonds.")
+            }
+            Erreur::FichierAVerser { erreur } => write!(
+                f,
+                "{}.",
+                constat_du_disque("Le fichier à verser", erreur.kind())
+            ),
             Erreur::FondsDejaOuvert => f.write_str("Le fonds est déjà ouvert dans ce processus."),
             Erreur::FondsDejaNe => f.write_str("Le fonds est déjà né : il ne naît qu'une fois."),
             Erreur::Automerge(_) => {
@@ -334,8 +346,9 @@ impl Avertissement {
     }
 }
 
-/// Le constat du disque sur `sujet`, un chemin ou « Le fichier écrit à côté », selon le genre de
-/// son erreur ; le texte de l'erreur, celui du système, n'est jamais recopié. Le constat d'un
+/// Le constat du disque sur `sujet`, un chemin, « Le fichier écrit à côté » ou « Le fichier à
+/// verser », selon le genre de son erreur ; le texte de l'erreur, celui du système, n'est jamais
+/// recopié. Le constat d'un
 /// autre genre est neutre quant au geste : le disque a pu refuser une lecture, une écriture, une
 /// création, un renommage, un retrait, ou le renommage rendu durable.
 pub(crate) fn constat_du_disque(sujet: &str, genre: io::ErrorKind) -> String {
