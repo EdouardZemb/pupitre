@@ -249,13 +249,14 @@ impl ControleDuTexte {
         let gros = self.encodage == Encodage::Utf16Gros;
         let (paires, impair) = octets.split_at(octets.len() / 2 * 2);
         let mut unites: Vec<u16> = paires
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|p| {
-                let paire = [p[0], p[1]];
                 if gros {
-                    u16::from_be_bytes(paire)
+                    u16::from_be_bytes(*p)
                 } else {
-                    u16::from_le_bytes(paire)
+                    u16::from_le_bytes(*p)
                 }
             })
             .collect();
