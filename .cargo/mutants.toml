@@ -1,13 +1,14 @@
 # Le test de mutation du noyau (famille 3 des garde-fous de la méthode).
 # Vingt-sept modules sont examinés : la théorie (hauteurs, tonalités, accords, table), la
-# palette, le clavier et la guitare, et les règles des données (la compaction, l'accès d'un
-# document, le démarrage, la version de schéma, la teneur, la comparaison des copies et des
-# lignées, les identifiants, les gestes, les règles d'une idée, la boîte, le repli des textes, les
-# jours et les bornes d'une période, les critères d'une requête, l'index et sa réponse, le journal
-# rangé et son empreinte, les signatures et les extensions, les en-têtes d'un WAV et d'un MIDI, le
-# texte lisible, le manifeste, le rapport d'import et la place libre, l'origine déclarée, le
-# premier nom vu et la portée, les stems (le type proposé, le MIDI d'un stem, le jeu proposé et
-# la durée), les opérations nommées de l'import).
+# palette, le clavier et la guitare, et les règles des données. Celles du fonds : la compaction,
+# l'accès d'un document, le démarrage, la version de schéma, la teneur, la comparaison des copies
+# et des lignées, les identifiants, les gestes, les règles d'une idée, la boîte, le repli des
+# textes, les jours et les bornes d'une période, les critères d'une requête, l'index et sa
+# réponse, le journal rangé et son empreinte. Celles de l'import : les signatures et les
+# extensions ; les en-têtes d'un WAV et d'un MIDI, et le texte lisible ; le manifeste, le rapport
+# d'import et la place libre ; l'origine déclarée, le premier nom vu et la portée ; les stems (le
+# type proposé, le MIDI d'un stem, le jeu proposé et la durée) ; et les opérations nommées de
+# l'import.
 # Le rendu (`rendu/`) n'est pas examiné.
 examine_globs = [
     "crates/noyau/src/hauteur.rs",

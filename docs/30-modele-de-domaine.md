@@ -502,6 +502,21 @@ provenance, et la garde à vie.
 S'y ajoutent `le` (date de l'acceptation ou de la saisie) et, pour une détection, la
 `confiance` au moment de l'acceptation.
 
+**La provenance du type d'un stem.** Le type d'un stem ([§ 9.2](#92-prises-photos-et-analyses))
+est une décision, et porte une provenance, comme un élément de contenu. L'import le propose
+d'après le nom du stem, sans l'écrire ; Sacha garde ce type proposé, ou en choisit un autre,
+d'un geste :
+
+| Origine | Signifie | Champ `par` | Champ `depuis` |
+|---|---|---|---|
+| `importee` | Le type proposé, gardé | `nom` : proposé d'après le nom du stem | L'empreinte du stem |
+| `saisie` | Un type que Sacha a choisi | — | — |
+
+Gardé, le type prend pour `par` la valeur `nom`, et non le format que la table donne à un
+élément importé : il ne se lit pas dans le contenu du fichier, il se propose d'après son nom.
+Choisi après avoir été gardé, il perd son `par` et son `depuis`, qu'une saisie n'a pas. Son
+`le` est la date du geste.
+
 **La provenance d'une idée.** Une idée porte aussi une provenance, posée à sa naissance et
 gardée à vie : elle dit comment l'idée est entrée dans le fonds ([§ 9.1](#91-lidée)).
 
@@ -589,9 +604,9 @@ stateDiagram-v2
 
 | Objet | Contenu | Nature |
 |---|---|---|
-| **Prise** | Empreinte, idée, noms d'origine tels quels, format, durée (engendrée, et non stockée, pour une prise en stems), date, appareil, origine déclarée, diapason mesuré ; pour une prise en stems, l'entrée de chacun de ses stems | Captation, ou manifeste d'un jeu de stems ; ses métadonnées sont des décisions, des faits et une mesure (ci-dessous) |
-| **Stem** | Empreinte, noms d'origine, type, format, durée, origine déclarée, MIDI qui l'accompagnent ; une entrée sous chaque prise dont il est stem | Captation ; son type est une décision, le reste des faits |
-| **MIDI versé** | Empreinte, noms d'origine, format SMF, division, origine déclarée ; seul, son idée. Celui qui accompagne un stem se range dans l'entrée de ce stem, et un même MIDI peut en accompagner plusieurs | Captation ; ses métadonnées sont des décisions et des faits |
+| **Prise** | Empreinte, idée, noms d'origine tels quels, format, durée (engendrée, et non stockée, pour une prise en stems), date, appareil, origine déclarée, diapason mesuré ; d'un WAV, le codage, les canaux, la fréquence et les bits de son en-tête ; pour une prise en stems, l'entrée de chacun de ses stems | Captation, ou manifeste d'un jeu de stems ; ses métadonnées sont des décisions, des faits et une mesure (ci-dessous) |
+| **Stem** | Empreinte, noms d'origine, type, format, durée, origine déclarée, MIDI qui l'accompagnent ; une entrée sous chaque prise dont il est stem | Captation d'aucune idée : seule sa prise en a une ; son type est une décision, le reste des faits |
+| **MIDI versé** | Empreinte, noms d'origine, format SMF, division, origine déclarée ; seul, son idée. Celui qui accompagne un stem, le **MIDI d'un stem**, n'a pas d'idée : l'entrée du stem le nomme, et un même MIDI peut en accompagner plusieurs | Captation, d'une idée s'il est versé seul ; ses métadonnées sont des décisions et des faits |
 | **Texte versé** | Empreinte, idée, noms d'origine, format (brut, Markdown, ChordPro), origine déclarée | Captation ; ses métadonnées sont des décisions et des faits |
 | **Photo** | Empreinte, idée, format, date, appareil | Captation ; ses métadonnées sont une décision et des faits (ci-dessous) |
 | **Rattachement** | Morceau, rôle (`référence`, `version`, `travail`, `maquette`, `maquette générée`), carte de temps | Décision, dans le document du morceau |
@@ -614,7 +629,171 @@ qui l'accompagnent : deux stems identiques, chacun avec son MIDI, donnent une en
 MIDI. Regrouper déplace la prise entière, jamais un stem seul : les prises d'une idée sont
 ses versions, les stems d'une prise sont ses parties. Un MIDI versé qui porte le nom d'un
 stem l'accompagne ; un autre appartient à une idée
-([ADR-024](adr/adr-024-import-d-un-fonds.md)).
+([ADR-024](adr/adr-024-import-d-un-fonds.md)). Un stem et un MIDI d'un stem ne sont la
+captation d'aucune idée : seule leur prise appartient à une idée. Un même contenu versé aussi
+en prise, ou en MIDI versé seul, reste la captation de son idée à ce titre.
+
+- **Le jeu.** Seuls les fichiers du dossier déclaré jeu de stems forment le jeu, jamais ceux
+  de ses sous-dossiers ; chaque fichier audio en est un stem. Un jeu versé seul, quand le
+  dossier versé lui-même est déclaré, prend pour nom le dernier segment de ce dossier, et
+  aucun si ce segment ne s'écrit pas en UTF-8 : ses stems gardent alors leurs noms. Un dossier
+  déclaré jeu de stems sans fichier audio est refusé (« Ce dossier n'a aucun fichier audio :
+  il ne forme pas un jeu de stems. »).
+- **Le MIDI d'un stem** est, dans le dossier du jeu, le MIDI dont le dernier segment, sans
+  son extension, égale celui d'un stem, octet pour octet : `basse.mid` accompagne
+  `basse.wav`. Le manifeste ne compte que les stems audio : un MIDI ajouté au dossier d'une
+  prise en stems déjà versée la rejoint, sans changer son empreinte. L'import pose alors le
+  lien du stem à ce MIDI, et les faits du MIDI s'il n'en a pas encore, et son message le dit
+  (« Import du 3 novembre : MIDI d'un stem ajouté »).
+- **Le jeu proposé.** L'import propose de déclarer jeu de stems un dossier dont, parmi ses
+  propres fichiers, au moins deux WAV distincts ont le même nombre de trames à la même
+  fréquence, donc la même durée. Deux WAV sont distincts si leurs tailles, ou les octets lus
+  de leur en-tête, diffèrent : la proposition ne calcule aucune empreinte. Il ne l'applique
+  jamais d'office.
+- **Le manifeste, à l'octet.** Les empreintes distinctes des stems, chacune en 64 caractères
+  hexadécimaux minuscules, rangées dans l'ordre de leurs octets, chacune suivie d'un saut de
+  ligne (LF, `0x0A`), la dernière comprise, et rien d'autre : ni nom, ni MIDI, ni en-tête.
+  Deux stems identiques n'y écrivent qu'une ligne. Un jeu d'un seul contenu donne une prise
+  en stems distincte de la prise que ce contenu forme seul : son manifeste, d'une ligne, n'a
+  pas l'empreinte de ce contenu. Le témoin : trois stems, dont les contenus sont les textes UTF-8 « stem inventé :
+  voix », « stem invente : batterie » et « stem invente : basse », la voix donnée deux fois,
+  font un manifeste de trois lignes et 195 octets, dont l'empreinte de référence,
+  `340999f9…`, est écrite au test 11 du
+  [§ 31 · 10](31-persistance-et-synchronisation.md#10-les-tests-qui-verrouillent-ce-document).
+
+**Ce que l'import reconnaît.** Un fichier se reconnaît à ses premiers octets, sa
+**signature**, puis à son extension, sans égard à la casse ; la signature l'emporte. Un
+fichier ignoré n'est jamais lu au-delà de ses 16 premiers octets. L'extension est ce qui
+suit le dernier point du nom, et un nom dont le seul point est le premier n'en a pas. La
+table est fermée, et se lit dans cet ordre :
+
+| Début du fichier | Ce qu'il est | Son `format` |
+|---|---|---|
+| `RIFF` ou `RF64` aux octets 0 à 3, `WAVE` aux octets 8 à 11 | Audio | `wav` |
+| `RIFF` aux octets 0 à 3, `RMID` aux octets 8 à 11 | Ignoré | — |
+| `fLaC` aux octets 0 à 3 | Audio | `flac` |
+| `ID3` aux octets 0 à 2, dix octets au moins : une étiquette, de 10 octets plus la taille *syncsafe* des octets 6 à 9 (7 bits de chacun), plus 10 si l'octet 5 porte le drapeau `0x10` | Audio | `flac` si les quatre octets qui suivent l'étiquette valent `fLaC`, `mp3` sinon |
+| `0xFF` à l'octet 0, et l'octet 1 de `0xE0` à `0xFF`, sauf `0xFE` | Audio | `mp3` |
+| `ftyp` aux octets 4 à 7, et un code de format d'image aux octets 8 à 11 : `heic`, `heix`, `hevc`, `mif1`, `msf1` ou `avif` | Ignoré : une photo | — |
+| `ftyp` aux octets 4 à 7, et tout autre code de format, une vidéo comprise | Audio | `m4a` |
+| `OggS` aux octets 0 à 3 | Audio | `ogg` |
+| `FORM` aux octets 0 à 3, `AIFF` ou `AIFC` aux octets 8 à 11 | Audio | `aiff` |
+| `caff` aux octets 0 à 3 | Audio | `caf` |
+| les seize octets `30 26 B2 75 8E 66 CF 11 A6 D9 00 AA 00 62 CE 6C` | Audio | `wma` |
+| `MThd 00 00 00 06` aux octets 0 à 7 | MIDI | `smf0`, `smf1` ou `smf2`, lu de son en-tête |
+| sinon, l'extension `txt` | Texte | `brut` |
+| sinon, `md` ou `markdown` | Texte | `markdown` |
+| sinon, `cho`, `crd`, `chopro`, `chord`, `chordpro` ou `pro` | Texte | `chordpro` |
+| sinon | Ignoré | — |
+
+La ligne MP3 excepte l'octet 1 `0xFE` : `FF FE` est la marque d'ordre des octets d'un texte
+en UTF-16 petit-boutiste, celle qu'écrit un éditeur de Windows quand il enregistre en
+« Unicode », et l'import admet ce texte ; sans l'exception, la signature, qui l'emporte sur
+l'extension, en ferait une prise `mp3`. Un audio dont l'établi ne décode pas le format, FLAC,
+MP3, M4A, Ogg, AIFF, CAF ou WMA, n'a que son format pour fait : il n'est pas illisible.
+
+**Ce que l'établi lit d'un en-tête.** Sans nœud qui décode, l'établi lit l'en-tête d'un WAV
+et celui d'un MIDI, et contrôle un texte ([ADR-024](adr/adr-024-import-d-un-fonds.md)) :
+
+- **d'un WAV**, après `RIFF` ou `RF64` puis `WAVE`, ses morceaux depuis l'octet 12, chacun
+  un identifiant, sa taille et ses octets, complété à un nombre pair, cherchés dans ses
+  65 536 premiers octets. `fmt `, de 16 octets au moins, donne son **codage**, ses
+  **canaux**, sa **fréquence**, en hertz, et ses **bits** par échantillon, avec l'alignement
+  d'un bloc ; `data` donne ses trames : sa taille, bornée à ce que le fichier porte après
+  l'en-tête de `data`, divisée par l'alignement. Celle d'un RF64 vient de `ds64` quand `data`
+  dit `0xFFFFFFFF`. Sa **durée**, en millisecondes, vaut ⌊trames × 1 000 / fréquence⌋,
+  calculée sans débordement : deux WAV qui ont le même nombre de trames à la même fréquence
+  ont la même durée ;
+- **d'un MIDI**, ses 14 premiers octets : `MThd 00 00 00 06`, puis son format, ses pistes et
+  sa division, gros-boutistes. Il en garde son **format**, `smf0`, `smf1` ou `smf2`, et sa
+  **division**, brute, telle qu'écrite, en ticks par noire ou en SMPTE ; ses pistes ne se
+  gardent pas ;
+- **d'un texte**, qu'il est lisible : en UTF-8, la marque `EF BB BF` admise en tête, ou en
+  UTF-16 dont les deux premiers octets sont `FF FE` (petit-boutiste) ou `FE FF`
+  (gros-boutiste), de longueur paire, chaque demi-paire de substitution appariée. Il garde
+  son format, `brut`, `markdown` ou `chordpro`, d'après son extension.
+
+**Un fichier versé illisible.** Un fichier versé est **illisible** quand l'établi ne lit pas
+ce qu'il doit lire : un WAV dont les 65 536 premiers octets ne portent pas `fmt `, de
+16 octets au moins, puis l'en-tête de `data`, dont la fréquence ou l'alignement vaut 0, dont
+la taille de `data` renvoie à un `ds64` absent, ou dont la durée passe 2⁵³ − 1
+millisecondes ; un MIDI de moins de 14 octets, d'un format au-delà de 2, ou de format 0 qui
+n'a pas une seule piste ; un texte ni en UTF-8, ni en UTF-16 avec sa marque. Il est versé
+quand même, en captation, mais sans aucun fait, son format compris : ses faits valent `—`, et
+le rapport d'import le compte à part parmi les versés, une fois par contenu. Sans format, il
+ne s'écoute pas : le protocole des captations ne le sert pas
+([§ 40 · 7.5](40-architecture.md#75-linterface-la-csp-et-les-commandes)), même un WAV que
+l'appareil saurait jouer, dont l'en-tête passe ses 65 536 premiers octets. Une idée
+illisible, et un fichier illisible d'un document, qui le met en lecture seule, sont d'autres
+choses ([glossaire](80-glossaire.md)).
+
+**Le type d'un stem.** Une liste fermée, que l'écran écrit en toutes lettres et que le
+document du fonds range sans accent :
+
+| Valeur rangée | Libellé | Mots qui le proposent |
+|---|---|---|
+| `voix` | voix | chant, vocal, vocals, voice, voix, vox |
+| `choeurs` | chœurs | backing, choeur, choeurs, choir |
+| `batterie` | batterie | batterie, drum, drums |
+| `percussions` | percussions | perc, percussion, percussions |
+| `basse` | basse | bass, basse |
+| `guitare` | guitare | guitar, guitare, guitares, guitars |
+| `clavier` | clavier | clavier, claviers, keyboard, keys, organ, orgue, piano |
+| `cordes` | cordes | cello, cordes, strings, violin, violon |
+| `cuivres` | cuivres | brass, cuivres, trompette, trumpet |
+| `synthe` | synthé | pad, synth, synthe, synths |
+| `effets` | effets | effects, effet, effets, fx |
+| `autre` | autre | — |
+
+L'import propose le type d'un stem d'après son premier nom vu : le dernier segment du
+chemin, sans son extension, replié comme un texte cherché (**table de repli** du
+[glossaire](80-glossaire.md)), se coupe à chaque caractère qui n'est ni lettre ni chiffre, et
+le premier mot entier que la table porte donne le type ; `autre` vaut sans nom, ou sans mot
+qui réponde. `Chœurs_02.wav` propose ainsi `choeurs`, et `Pad doux.wav`, `synthe`. Le type
+proposé ne s'écrit pas : il s'affiche, en italique avec `~` ; gardé ou choisi, il devient une
+décision, avec sa provenance (§ 8.1).
+
+**Le rapport d'import, à l'octet.** Le rapport d'un import se fige en captation à sa
+clôture ([CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)) : un
+texte UTF-8, chaque ligne finie par LF, dans cet ordre :
+
+1. `pupitre-rapport-d-import 1`, qui dit sa forme et sa version ;
+2. l'identifiant de l'import, un ULID ;
+3. ses six comptes, `vus=`, `verses=`, `dedoublonnes=`, `illisibles=`, `ignores=` et
+   `sans-nom=`, chacun suivi d'un nombre de fichiers, d'une espace et de leurs octets, en
+   chiffres décimaux ;
+4. `origine=<empreinte> <élément>` pour chaque origine que l'import change, l'élément
+   `main` ou `generee:<nom>`, dans l'ordre (empreinte, élément) ;
+5. `fichier-sans-nom=<rang>` pour chaque fichier lu dont le nom ne s'écrit pas en UTF-8,
+   versé ou dédoublonné, dans l'ordre des rangs ; le premier fichier du parcours a le rang 1.
+
+Les comptes : vus = versés + dédoublonnés + ignorés ; les illisibles et les sans nom sont des
+parts des versés. Un fichier lu est versé si son contenu n'était pas une captation du fonds à
+l'ouverture de l'import, et qu'aucun fichier lu de rang plus petit n'a le même contenu ; il
+est dédoublonné sinon. Un import repris compte ainsi comme un import fait d'une traite. Un
+fichier ignoré, un lien compris, compte parmi les ignorés, avec ses octets.
+Le rapport n'est pas un message montré : il nomme l'identifiant de l'import et des
+empreintes, que l'écran ne montre pas. Un rapport d'une autre version, ou dont une ligne
+manque ou est mal formée, ne se relit pas. Le témoin, l'import
+`01HF7YAT00ZZZZZZZZZZZZZZZZ`, voit cinq fichiers : un versé de 650 octets, un ignoré de 300,
+un illisible de 50, un sans nom de 200, au rang 4, et un de 100 dont le contenu était connu ;
+il change une origine, `generee:Atelier inventé`, celle du contenu dont le texte UTF-8 est
+« une prise de test ». Son rapport fait 259 octets, dont l'empreinte de référence,
+`6d161268…`, est écrite au test 11 du
+[§ 31 · 10](31-persistance-et-synchronisation.md#10-les-tests-qui-verrouillent-ce-document) :
+
+```text
+pupitre-rapport-d-import 1
+01HF7YAT00ZZZZZZZZZZZZZZZZ
+vus=5 1300
+verses=3 900
+dedoublonnes=1 100
+illisibles=1 50
+ignores=1 300
+sans-nom=1 200
+origine=3ab628c95bde7c17cc00f4931000a16a5425d8deb0e5e91fbc055731ac76cd3b generee:Atelier inventé
+fichier-sans-nom=4
+```
 
 **Ce que portent une prise et une photo.** Trois natures s'y côtoient, comme dans un stem,
 un MIDI versé ou un texte versé :
@@ -623,13 +802,15 @@ un MIDI versé ou un texte versé :
   l'**origine déclarée** d'un fichier versé, et le **type** d'un stem, sont aussi des
   décisions, prises à l'import ou plus tard ; une origine déclarée générée ne se retire
   jamais ;
-- son **format**, sa **date**, l'**appareil** qui l'a faite, la **durée** d'une prise et les
-  **noms d'origine** d'un fichier versé, chacun avec son chemin dans le dossier versé, sont
+- son **format**, sa **date**, l'**appareil** qui l'a faite, la **durée** d'une prise, les
+  faits de l'en-tête d'un WAV (codage, canaux, fréquence, bits) ou d'un MIDI (division), et
+  les **noms d'origine** d'un fichier versé, chacun avec son chemin dans le dossier versé, sont
   des **faits de la captation**. Lus une fois, sur la captation ou à sa création, ils ne
   changent jamais, puisqu'elle est immuable ; l'ensemble des noms d'origine ne fait que
-  croître, puisque verser le même contenu sous un autre nom y ajoute ce nom. Le premier vu,
-  par date d'import, puis dans l'ordre de ses octets, s'affiche ; celui d'une prise en stems
-  est le nom de son dossier. Ils sont
+  croître, puisque verser le même contenu sous un autre nom y ajoute ce nom. Le premier vu
+  s'affiche : celui de l'import le plus ancien, à l'heure de son identifiant, puis, à la même
+  heure, dans l'ordre des octets du chemin ; celui d'une prise en stems est le nom de son
+  dossier. Ils sont
   écrits dans le document du fonds, à côté de l'empreinte, pour les montrer et les ranger
   sans la captation, qu'un appareil n'a pas toujours
   ([§ 31 · 6.2](31-persistance-et-synchronisation.md#62-ce-quun-appareil-garde)). Une
