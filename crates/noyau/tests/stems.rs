@@ -180,6 +180,25 @@ fn trois_wav_de_meme_duree_proposent_un_jeu() {
 }
 
 #[test]
+fn des_trames_autres_a_la_meme_frequence_ne_proposent_pas_de_jeu() {
+    let (a, b): (&[u8], &[u8]) = (&[1; 44], &[2; 44]);
+    assert!(!jeu_propose(&[
+        WavInspecte {
+            taille: 8_044,
+            debut: a,
+            trames: 8_000,
+            frequence: 8_000
+        },
+        WavInspecte {
+            taille: 8_045,
+            debut: b,
+            trames: 8_001,
+            frequence: 8_000
+        }
+    ]));
+}
+
+#[test]
 fn la_duree_d_une_prise_en_stems() {
     assert_eq!(
         duree_de_la_prise_en_stems(&[Some(1_000), Some(1_500)]),

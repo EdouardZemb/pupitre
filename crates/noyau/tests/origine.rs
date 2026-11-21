@@ -66,27 +66,40 @@ fn main_sur_une_generee_ne_change_rien() {
 }
 
 #[test]
-fn les_declarations_se_lisent_et_s_ecrivent() {
-    for valeur in ["stems", "main", "generee:Atelier inventé", "generee:a:b"] {
+fn les_valeurs_d_origine_se_lisent_et_s_ecrivent() {
+    for valeur in ["main", "generee:Atelier inventé", "generee:a:b"] {
         assert_eq!(
-            Declaration::lire(valeur).map(|d| d.valeur()),
+            Ajout::lire(valeur).map(|a| a.element()),
             Some(valeur.to_string())
         );
     }
-    for valeur in ["generee:", "aucune", "Main", "", "stems "] {
-        assert_eq!(Declaration::lire(valeur), None, "{valeur}");
+    for valeur in ["generee:", "stems", "aucune", "Main", "", "main ", "stems "] {
+        assert_eq!(Ajout::lire(valeur), None, "{valeur}");
+    }
+}
+
+/// La déclaration d'un dossier qui ne porte que son origine.
+fn origine(ajout: Ajout) -> Declaration {
+    Declaration {
+        stems: false,
+        origine: Some(ajout),
+    }
+}
+
+/// La déclaration d'un dossier qui ne se déclare que jeu de stems.
+fn stems() -> Declaration {
+    Declaration {
+        stems: true,
+        origine: None,
     }
 }
 
 #[test]
 fn la_declaration_d_un_fichier_vient_de_son_plus_proche_dossier_declare() {
     let declarations = BTreeMap::from([
-        (
-            String::new(),
-            Declaration::Origine(Ajout::Generee("Atelier".into())),
-        ),
-        ("Démos".to_string(), Declaration::Origine(Ajout::Main)),
-        ("Démos/Jeu A".to_string(), Declaration::Stems),
+        (String::new(), origine(Ajout::Generee("Atelier".into()))),
+        ("Démos".to_string(), origine(Ajout::Main)),
+        ("Démos/Jeu A".to_string(), stems()),
     ]);
     assert_eq!(
         declaration_du_fichier("Démos/Jeu A/voix.wav", &declarations),
@@ -116,7 +129,7 @@ fn la_declaration_d_un_fichier_vient_de_son_plus_proche_dossier_declare() {
             jeu: None
         }
     );
-    let jeu_seul = BTreeMap::from([(String::new(), Declaration::Stems)]);
+    let jeu_seul = BTreeMap::from([(String::new(), stems())]);
     assert_eq!(
         declaration_du_fichier("voix.wav", &jeu_seul).jeu,
         Some(String::new())
@@ -127,8 +140,8 @@ fn la_declaration_d_un_fichier_vient_de_son_plus_proche_dossier_declare() {
 fn seuls_des_dossiers_se_declarent() {
     // Le chemin du fichier lui-même n'est jamais une clé lue (balayage P22).
     let declarations = BTreeMap::from([
-        ("Démos/a.wav".to_string(), Declaration::Origine(Ajout::Main)),
-        ("a.wav".to_string(), Declaration::Stems),
+        ("Démos/a.wav".to_string(), origine(Ajout::Main)),
+        ("a.wav".to_string(), stems()),
     ]);
     let rien = DeclarationDuFichier {
         origine: None,
@@ -141,12 +154,9 @@ fn seuls_des_dossiers_se_declarent() {
 #[test]
 fn une_declaration_stems_n_arrete_pas_l_origine_d_un_dossier_plus_haut() {
     let declarations = BTreeMap::from([
-        (
-            "Haut".to_string(),
-            Declaration::Origine(Ajout::Generee("Forge".into())),
-        ),
-        ("Haut/Bas".to_string(), Declaration::Stems),
-        ("Haut/Bas/Fond".to_string(), Declaration::Stems),
+        ("Haut".to_string(), origine(Ajout::Generee("Forge".into()))),
+        ("Haut/Bas".to_string(), stems()),
+        ("Haut/Bas/Fond".to_string(), stems()),
     ]);
     assert_eq!(
         declaration_du_fichier("Haut/Bas/Fond/x.wav", &declarations),
@@ -160,6 +170,33 @@ fn une_declaration_stems_n_arrete_pas_l_origine_d_un_dossier_plus_haut() {
         DeclarationDuFichier {
             origine: Some(Ajout::Generee("Forge".into())),
             jeu: Some("Haut/Bas".into())
+        }
+    );
+}
+
+#[test]
+fn un_dossier_se_declare_jeu_de_stems_et_porte_son_origine() {
+    // Un jeu de stems tiré d'un générateur, le cas type de l'ADR-024 (CAP-03).
+    let atelier = Ajout::Generee("Atelier".into());
+    let les_deux = Declaration {
+        stems: true,
+        origine: Some(atelier.clone()),
+    };
+    let declarations = BTreeMap::from([("Démos/Jeu A".to_string(), les_deux.clone())]);
+    assert_eq!(
+        declaration_du_fichier("Démos/Jeu A/voix.wav", &declarations),
+        DeclarationDuFichier {
+            origine: Some(atelier.clone()),
+            jeu: Some("Démos/Jeu A".into())
+        }
+    );
+    // Le dossier versé lui-même, déclaré jeu de stems et origine à la fois.
+    let racine = BTreeMap::from([(String::new(), les_deux)]);
+    assert_eq!(
+        declaration_du_fichier("voix.wav", &racine),
+        DeclarationDuFichier {
+            origine: Some(atelier),
+            jeu: Some(String::new())
         }
     );
 }
@@ -210,4 +247,13 @@ fn la_portee_par_segments_entiers() {
         "un préfixe plus long que le chemin"
     );
     assert!(!sous_le_prefixe("Autre/Démos", "Démos"));
+}
+
+#[test]
+fn une_barre_finale_du_prefixe_s_ote() {
+    // L'écran montre « Démos/ » : une seule barre finale s'ôte avant la comparaison.
+    assert!(sous_le_prefixe("Démos/a.wav", "Démos/"));
+    assert!(sous_le_prefixe("Démos", "Démos/"));
+    assert!(!sous_le_prefixe("Démos 2/a.wav", "Démos/"));
+    assert!(sous_le_prefixe("x.wav", "/"), "« / » vaut le préfixe vide");
 }

@@ -22,6 +22,17 @@ fn le_manifeste_temoin() {
     assert_eq!(manifeste(&[VOIX]), format!("{VOIX}\n").into_bytes());
 }
 
+#[test]
+fn le_manifeste_ne_depend_pas_de_l_ordre_des_stems() {
+    // Le témoin, dont l'empreinte de référence, `340999f9…`, est au test 11 (stockage).
+    let octets = manifeste(&[BASSE, VOIX, BATTERIE, VOIX]);
+    assert_eq!(octets.len(), 195);
+    assert_eq!(
+        octets,
+        format!("{VOIX}\n{BATTERIE}\n{BASSE}\n").into_bytes()
+    );
+}
+
 fn e(n: u64) -> String {
     format!("{n:064x}")
 }
@@ -175,6 +186,43 @@ fn le_rapport_temoin() {
 }
 
 #[test]
+fn le_rapport_range_ses_origines_et_ses_fichiers_sans_nom() {
+    let sans_nom = |rang| FichierDeLImport::Lu {
+        rang,
+        octets: 10,
+        empreinte: e(rang),
+        illisible: false,
+        sans_nom: true,
+    };
+    let origine = |contenu, element: &str| OrigineChangee {
+        empreinte: e(contenu),
+        element: element.into(),
+    };
+    let ranges = rapport(
+        IMPORT_TEMOIN,
+        &[sans_nom(2), sans_nom(5)],
+        &BTreeSet::new(),
+        &[origine(1, "main"), origine(2, "generee:Forge")],
+    );
+    let desordre = rapport(
+        IMPORT_TEMOIN,
+        &[sans_nom(5), sans_nom(2)],
+        &BTreeSet::new(),
+        &[
+            origine(2, "generee:Forge"),
+            origine(1, "main"),
+            origine(2, "generee:Forge"),
+        ],
+    );
+    assert_eq!(desordre, ranges);
+    assert!(String::from_utf8(ranges).unwrap().ends_with(&format!(
+        "origine={} main\norigine={} generee:Forge\nfichier-sans-nom=2\nfichier-sans-nom=5\n",
+        e(1),
+        e(2)
+    )));
+}
+
+#[test]
 fn le_rapport_se_relit() {
     // L'inverse de `rapport`, sur le rapport témoin (balayage P14).
     let connues = BTreeSet::from([e(5)]);
@@ -221,20 +269,40 @@ fn la_place_manque_se_dit_en_go_decimaux() {
         manque,
         ManqueDePlace {
             a_verser: 4_000_000_000,
+            besoin: 4_000_008_192,
             libre: 1_000_000_000,
             manque: 3_000_008_192
         }
     );
     assert_eq!(
         manque.to_string(),
-        "La taille à verser, 4,0 Go, passe la place libre, 1,0 Go : il manque 3,1 Go."
+        "Verser 4,0 Go demande 4,1 Go de place libre, deux fois le poids du fonds compris ; il y \
+         en a 1,0 Go : il manque 3,1 Go."
+    );
+    // Le poids du fonds fait le manque : la taille à verser tient dans la place libre, le besoin
+    // non.
+    let par_le_fonds = place(1_000_000_000, 1, 1_500_000_000, 3_500_000_000).unwrap_err();
+    assert_eq!(
+        par_le_fonds,
+        ManqueDePlace {
+            a_verser: 1_000_000_000,
+            besoin: 4_000_004_096,
+            libre: 3_500_000_000,
+            manque: 500_004_096
+        }
+    );
+    assert_eq!(
+        par_le_fonds.to_string(),
+        "Verser 1,0 Go demande 4,1 Go de place libre, deux fois le poids du fonds compris ; il y \
+         en a 3,5 Go : il manque 0,6 Go."
     );
     assert_eq!(place(1_000, 1, 10, 1_000 + 20 + 4_096), Ok(()));
     assert_eq!(
         place(1_000, 1, 10, 1_000 + 20 + 4_095).unwrap_err().manque,
         1
     );
-    assert_eq!(place(u64::MAX, 1, 0, u64::MAX).unwrap_err().manque, 4_096);
+    let borne = place(u64::MAX, 1, 0, u64::MAX).unwrap_err();
+    assert_eq!((borne.besoin, borne.manque), (u64::MAX, 4_096));
 }
 
 #[test]

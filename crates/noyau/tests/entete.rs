@@ -140,6 +140,37 @@ fn un_rf64_prend_sa_taille_dans_ds64() {
 }
 
 #[test]
+fn un_riff_dont_data_vaut_ffffffff_se_borne_au_fichier() {
+    // Un WAV écrit en flux, ou un enregistrement interrompu : dans un RIFF, `0xFFFF_FFFF` ne
+    // renvoie à aucun `ds64`, et se borne au fichier comme toute taille (question 16).
+    let octets = wav(8_000, 1, 8, 8_000, Some(0xFFFF_FFFF), &[]);
+    assert_eq!(octets.len(), 8_044);
+    assert_eq!(
+        faits_wav(&octets, 8_044).map(|f| (f.trames, f.duree_ms())),
+        Some((8_000, 1_000))
+    );
+}
+
+#[test]
+fn un_rf64_dont_data_vaut_ffffffff_sans_ds64_est_illisible() {
+    let mut octets = wav(8_000, 1, 8, 800, Some(0xFFFF_FFFF), &[]);
+    octets[0..4].copy_from_slice(b"RF64");
+    assert!(faits_wav(&octets, octets.len() as u64).is_none());
+}
+
+#[test]
+fn un_riff_qui_porte_un_ds64_court_se_lit() {
+    // Dans un RIFF, `ds64` est un morceau inconnu, sauté comme les autres : ses 8 octets ne le
+    // rendent pas illisible.
+    let ds64 = [b"ds64".as_slice(), &8u32.to_le_bytes(), &[0; 8]].concat();
+    let octets = wav(8_000, 1, 8, 800, None, &ds64);
+    assert_eq!(
+        faits_wav(&octets, octets.len() as u64).map(|f| f.trames),
+        Some(800)
+    );
+}
+
+#[test]
 fn la_duree_se_calcule_sans_debordement() {
     let faits = FaitsWav {
         codage: 1,

@@ -7,6 +7,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use noyau::donnees::changement::{Changement, Operation, Simple};
 use noyau::donnees::entete::{FaitsMidi, FaitsWav};
 use noyau::donnees::gestes::{Appareil, Impossible, Sorte};
+use noyau::donnees::idee::empreintes_nommees;
 use noyau::donnees::import::{
     ChoixDuType, Cible, DejaDeLaPrise, DejaLu, Faits, ImportOuvert, MidiDuStem, StemAVerser,
     choisir_le_type, clore, copie_de, declarer_une_origine, nom_de_la_copie, ouvrir,
@@ -98,27 +99,79 @@ fn cles_posees(op: &Operation) -> BTreeMap<String, Simple> {
         .collect()
 }
 
+/// L'heure de naissance de l'idée `IDEE`, si l'opération la fait naître : son objet, avec celui
+/// de ses étiquettes, `provenance` à `importee`, `par` à `etabli`, `depuis` à l'import, et `le`.
+fn idee_nee(op: &Operation) -> Option<i64> {
+    let cree = op.changements.iter().any(|c| {
+        matches!(c, Changement::Creer { chemin, conteneurs }
+            if chemin.join("|") == format!("idees|{IDEE}") && conteneurs == &["etiquettes"])
+    });
+    let cles = cles_posees(op);
+    let sous_l_idee = |cle: &str| cles.get(&format!("idees|{IDEE}|{cle}")).cloned();
+    let nee = cree
+        && sous_l_idee("provenance") == Some(Simple::Chaine("importee".into()))
+        && sous_l_idee("par") == Some(Simple::Chaine("etabli".into()))
+        && sous_l_idee("depuis") == Some(Simple::Chaine(I.into()));
+    match sous_l_idee("le") {
+        Some(Simple::Entier(le)) if nee => Some(le),
+        _ => None,
+    }
+}
+
+/// La déclaration d'un dossier qui ne porte que son origine.
+fn origine(ajout: Ajout) -> Declaration {
+    Declaration {
+        stems: false,
+        origine: Some(ajout),
+    }
+}
+
 #[test]
 fn ouvrir_ecrit_l_heure_et_les_declarations() {
+    // Le dossier versé, son origine ; `Jeu A`, jeu de stems ; `Jeu B`, jeu de stems et généré à
+    // la fois ; `Vide`, ni l'un ni l'autre, n'écrit rien.
     let declarations = BTreeMap::from([
-        (String::new(), Declaration::Origine(Ajout::Main)),
-        ("Jeu A".into(), Declaration::Stems),
+        (String::new(), origine(Ajout::Main)),
+        (
+            "Jeu A".into(),
+            Declaration {
+                stems: true,
+                origine: None,
+            },
+        ),
+        (
+            "Jeu B".into(),
+            Declaration {
+                stems: true,
+                origine: Some(Ajout::Generee("Atelier".into())),
+            },
+        ),
+        ("Vide".into(), Declaration::default()),
     ]);
     let op = ouvrir(I, &declarations, HEURE, 0).unwrap();
     assert_eq!(op.message, "Import du 14 novembre ouvert");
-    let cles = cles_posees(&op);
-    assert_eq!(cles[&format!("imports|{I}/ouvert")], Simple::Entier(HEURE));
     assert_eq!(
-        cles[&format!("imports|{I}/declaration/")],
-        Simple::Chaine("main".into())
-    );
-    assert_eq!(
-        cles[&format!("imports|{I}/declaration/Jeu A")],
-        Simple::Chaine("stems".into())
+        cles_posees(&op),
+        BTreeMap::from([
+            (format!("imports|{I}/ouvert"), Simple::Entier(HEURE)),
+            (
+                format!("imports|{I}/declaration/"),
+                Simple::Chaine("main".into())
+            ),
+            (format!("imports|{I}/jeu/Jeu A"), Simple::Vrai),
+            (
+                format!("imports|{I}/declaration/Jeu B"),
+                Simple::Chaine("generee:Atelier".into())
+            ),
+            (format!("imports|{I}/jeu/Jeu B"), Simple::Vrai),
+        ])
     );
     let mauvais = BTreeMap::from([(
         String::new(),
-        Declaration::Origine(Ajout::Generee("a\nb".into())),
+        Declaration {
+            stems: true,
+            origine: Some(Ajout::Generee("a\nb".into())),
+        },
     )]);
     assert_eq!(
         ouvrir(I, &mauvais, HEURE, 0).unwrap_err(),
@@ -152,13 +205,10 @@ fn verser_un_wav_neuf_fait_naitre_son_idee_et_ecrit_ses_faits() {
     assert_eq!(op.message, "Idée du 14 novembre : prise versée");
     let cles = cles_posees(&op);
     assert_eq!(
-        cles[&format!("idees|{IDEE}|provenance")],
-        Simple::Chaine("importee".into())
+        cles[&format!("prises|{E1}/idee")],
+        Simple::Chaine(IDEE.into())
     );
-    assert_eq!(
-        cles[&format!("idees|{IDEE}|depuis")],
-        Simple::Chaine(I.into())
-    );
+    assert_eq!(idee_nee(&op), Some(HEURE + 5));
     assert_eq!(
         cles[&format!("prises|{E1}/format")],
         Simple::Chaine("wav".into())
@@ -407,7 +457,26 @@ fn verser_une_prise_en_stems_ecrit_son_manifeste_ses_stems_et_leurs_midi() {
     .unwrap();
     assert_eq!(op.message, "Idée du 14 novembre : prise en stems versée");
     let cles = cles_posees(&op);
+    assert_eq!(
+        cles[&format!("prises|{P}/idee")],
+        Simple::Chaine(IDEE.into())
+    );
+    assert_eq!(idee_nee(&op), Some(HEURE));
     assert_eq!(cles[&format!("prises|{P}/manifeste")], Simple::Vrai);
+    // L'entrée de chaque stem, avant ses autres clés.
+    let rang = |voulu: &dyn Fn(&str) -> bool| {
+        op.changements.iter().position(|c| {
+            matches!(c, Changement::Poser { chemin, .. }
+                if chemin[0] == "prises" && voulu(chemin[1].as_str()))
+        })
+    };
+    for stem in [S1, S2] {
+        let entree = format!("{P}/stem/{stem}");
+        assert_eq!(cles[&format!("prises|{entree}")], Simple::Vrai);
+        let avant = rang(&|cle: &str| cle == entree);
+        let apres = rang(&|cle: &str| cle.starts_with(&format!("{entree}/")));
+        assert!(avant.is_some() && avant < apres, "{stem}");
+    }
     assert_eq!(
         cles[&format!("prises|{P}/nom/Jeu A")],
         Simple::Chaine(I.into())
@@ -452,6 +521,36 @@ fn verser_une_prise_en_stems_ecrit_son_manifeste_ses_stems_et_leurs_midi() {
         .unwrap_err(),
         Impossible::JeuSansAudio
     );
+}
+
+#[test]
+fn l_entree_d_un_stem_sans_fait_ni_nom_ni_origine_s_ecrit() {
+    // Un stem illisible, au nom qui n'est pas en UTF-8, sans origine : son entrée le nomme
+    // parmi les empreintes du fonds, et sa copie ne se retire pas.
+    let rien = Faits::default();
+    let muet = [StemAVerser {
+        empreinte: S2,
+        faits: &rien,
+        chemin: None,
+        midi: None,
+    }];
+    let op = verser_une_prise_en_stems(
+        &ouvert(),
+        P,
+        Some("Jeu A"),
+        &muet,
+        None,
+        &DejaDeLaPrise::default(),
+        IDEE,
+        HEURE,
+        0,
+    )
+    .unwrap()
+    .unwrap();
+    let cles = cles_posees(&op);
+    assert_eq!(cles[&format!("prises|{P}/stem/{S2}")], Simple::Vrai);
+    let sous_la_prise = cles.keys().filter_map(|c| c.strip_prefix("prises|"));
+    assert!(empreintes_nommees(sous_la_prise, []).contains(S2));
 }
 
 #[test]
@@ -760,6 +859,49 @@ fn une_prise_en_stems_connue_accueille_le_midi_nouveau_d_un_stem() {
 }
 
 #[test]
+fn l_idee_se_date_a_sa_naissance_et_l_import_a_son_ouverture() {
+    // Ouvert à `HEURE`, le 14 novembre 2023 à 22:13:20 UTC ; versé deux heures plus tard, le 15 à
+    // 00:13:20, au décalage 0.
+    let neuf = verser_un_fichier(
+        &ouvert(),
+        Sorte::Prise,
+        E1,
+        &FAITS_D_UN_STEM,
+        Some("a.wav"),
+        None,
+        &DejaLu::default(),
+        IDEE,
+        HEURE + 7_200,
+        0,
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(neuf.message, "Idée du 15 novembre : prise versée");
+    let connu = DejaLu {
+        captation: true,
+        ..DejaLu::default()
+    };
+    let ajout = verser_un_fichier(
+        &ouvert(),
+        Sorte::Prise,
+        E1,
+        &FAITS_D_UN_STEM,
+        Some("a.wav"),
+        None,
+        &connu,
+        IDEE,
+        HEURE + 7_200,
+        0,
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(
+        ajout.message,
+        "Import du 14 novembre : nom d'origine ajouté"
+    );
+}
+
+#[test]
 fn clore_ecrit_l_empreinte_du_rapport() {
     let op = clore(&ouvert(), R, HEURE + 3_600, 0);
     assert_eq!(op.message, "Import du 14 novembre clos");
@@ -890,7 +1032,7 @@ fn declarer_une_origine_apres_l_import() {
 fn un_nom_de_generateur_fait_de_blancs_est_vide() {
     // Vide une fois ses blancs ôtés, l'espace insécable comprise, comme le nom d'une requête.
     let blancs = Ajout::Generee(" \u{a0}\t".into());
-    let declarations = BTreeMap::from([(String::new(), Declaration::Origine(blancs.clone()))]);
+    let declarations = BTreeMap::from([(String::new(), origine(blancs.clone()))]);
     assert_eq!(
         ouvrir(I, &declarations, HEURE, 0).unwrap_err(),
         Impossible::NomDeGenerateurVide
