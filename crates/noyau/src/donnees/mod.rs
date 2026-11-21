@@ -7,6 +7,7 @@ pub mod changement;
 pub mod compaction;
 pub mod copie;
 pub mod demarrage;
+pub mod entete;
 pub mod fonds;
 pub mod gestes;
 pub mod idee;
