@@ -61,8 +61,8 @@ tâche les suppose.
 - Les heures sont des secondes, partout où le code les reçoit ; seul `systeme` lit l'horloge, l'aléa et la place libre ; l'interface ne lit le décalage local que par `natif::decalage_du_geste` et `natif::decalage_a`.
 - Un numéro de ligne qu'une tâche cite vaut sur `main` à `fe918aa` : une tâche antérieure du plan peut le décaler, et l'élément nommé (la fonction, la constante, la doc) fait foi ; l'implémenteur le cherche par son nom. Les numéros périmés du plan maître (`documents.rs:944-947` et `:931-932`, `captations.rs:47`) se citent ici à jour : le `fork()` de la compaction est à `crates/stockage/src/documents.rs:951`, dans `charger_contre` (`:950`) ; le versement d'une captation, à `crates/stockage/src/captations.rs:53` (C28).
 - Les identifiants d'Automerge, d'ULID et de propriétaire, et les empreintes, ne s'écrivent jamais dans un message montré : un message nomme une captation par son premier nom vu, ou par « cette prise » (question 26) ; le rapport d'import, qui n'est pas un message, nomme une empreinte et un ULID.
-- Les contrôles statiques cherchent en sous-chaîne, commentaires compris, sauf ceux d'I29 et d'I30, qui sautent une ligne `//` : le noyau refuse `SystemTime`, `Instant`, `time::`, `random`, `getrandom`, `rand::`, `fs::`, `File`, `std::io`, `io::`, `env::`, `thread::`, `net::`, `process::`, `HashMap`, `HashSet`, `RandomState` (`crates/noyau/tests/statique.rs:22`) ; les services, `std::fs`, `fs::`, `File`, `thread::`, `spawn`, `net::`, `SystemTime`, `Instant`, `time::`, `env::`, `process::`, `HashMap`, `HashSet` (`crates/services/tests/statique.rs:25`), `io::` y restant permis ; l'interface, `animation`, `transition`, `set_timeout`, `set_interval`, `request_animation_frame` ; l'établi (I29), `notification`, `.message(`, `MessageDialog`. Les noms et les docs de la tranche évitent ces mots : « Instantané », « Filet », « Profile », « transition d'un import », « tirage aléatoire » ; aucune méthode de l'établi ne se nomme `message` (P11, C25).
-- Les compteurs écrits en dur changent dans la PR qui ajoute ce qu'ils comptent : `NOMS.len()` et `NOMS[15..]` (`crates/commandes/tests/serialisation.rs:388`, `:413`), `Engendre` (`crates/stockage/tests/mesure.rs:44`), le compte des modules de `.cargo/mutants.toml` (`:2`, `:27`), `AU_MOINS_DES_CRATES` du contrôle d'I30 s'il le faut (P13).
+- Les contrôles statiques cherchent en sous-chaîne, commentaires compris, sauf ceux d'I29 et d'I30, qui sautent une ligne `//` : le noyau refuse `SystemTime`, `Instant`, `time::`, `random`, `getrandom`, `rand::`, `fs::`, `File`, `std::io`, `io::`, `env::`, `thread::`, `net::`, `process::`, `HashMap`, `HashSet`, `RandomState` (`crates/noyau/tests/statique.rs:22`) ; les services, `std::fs`, `fs::`, `File`, `thread::`, `spawn`, `net::`, `SystemTime`, `Instant`, `time::`, `env::`, `process::`, `HashMap`, `HashSet` (`crates/services/tests/statique.rs:25`), `io::` y restant permis ; l'interface, `animation`, `transition`, `set_timeout`, `set_interval`, `request_animation_frame` ; l'établi (I29), `notification`, `.message(`, `MessageDialog`. Les noms et les docs de la tranche évitent ces mots : « Instantané », « Filet », « Profile », « transition d'un import », « tirage aléatoire », et, au noyau, un type dont le nom finit par `io` suivi de `::` (`FormatAudio::Wav` contient `io::` : le type des formats audio se nomme donc `FormatSonore` ; P4 du balayage préalable) ; aucune méthode de l'établi ne se nomme `message` (P11, C25).
+- Les compteurs écrits en dur changent dans la PR qui ajoute ce qu'ils comptent : `NOMS.len()` et `NOMS[15..]` (`crates/commandes/tests/serialisation.rs:388`, `:413`), `Engendre` (`crates/stockage/tests/mesure.rs:44`), le compte des modules de `.cargo/mutants.toml` (`:2`, et `:33`, « ces … modules », une ligne plus bas à chaque glob ajouté), `AU_MOINS_DES_CRATES` du contrôle d'I30 s'il le faut (P13).
 
 ---
 
@@ -215,6 +215,41 @@ son défaut.
 | V13. La part de CAP-03 · 8 à l'écran | Le test renommé `cap03_8_un_dossier_dit_son_jeu_propose_en_attente`, cité à la revue de (d) | 22, 25 |
 | V14. `0o000` sous root | Dit dans « Outils et cas limites » ; la paire vérifie qu'une ouverture échoue, sinon panique | 12 |
 | V15. `source_en_memoire.rs` hors de la carte | Une ligne à la carte des fichiers | — |
+
+### Le balayage préalable de la PR (a)
+
+Avant l'exécution de la PR (a), une session neuve a balayé ses tâches 1 à 8 sur `8b5e809` : chaque tâche contre
+elle-même, contre ses voisines, contre les contraintes générales et contre le code. Elle a relevé 23 défauts, 4 lourds,
+10 moyens et 9 mineurs ; la session du lot les a tous retenus, tels que le balayage les proposait. Ils sont numérotés
+P1 à P23, comme dans le rendu du balayage, sans rapport avec les pièges P1 à P15 de la carte du code : le plan les cite
+« balayage P4 ». Chaque tâche porte désormais elle-même ce qui la concerne. La question 11 garde sa lettre : c'est la
+table de la tâche 1 qui porte l'exception de P3, que la question 10 impose.
+
+| Constat | Ce qui change | Tâches |
+|---|---|---|
+| P1. La suite des commandes lit les anciens messages de `CaptationAbsente` et de `CaptationDejaVersee` | Ses deux tests (`crates/services/tests/suite/mod.rs:1904`, `:1988`) attendent les messages de la question 26 ; le corps de la PR (a) les nomme | 6, 8 |
+| P2. `h07.rs` appelle la règle des empreintes nommées à un argument | `crates/stockage/tests/h07.rs:146` prend `[]` pour les rapports | 7 |
+| P3. Le BOM `FF FE` d'un UTF-16 petit-boutiste passait pour un MP3 | La ligne MP3 de la table excepte `0xFE` ; le § 30 · 9.2 et le corps de la PR (a) le disent ; le texte UTF-16 de la tâche 13 se verse en texte | 1, 8, 13 |
+| P4. `FormatAudio::` contient `io::`, refusé au noyau | Le type se nomme `FormatSonore` ; la contrainte des contrôles statiques le dit | 1, 6 |
+| P5. La borne `ENTIER_SUR` de `faits_wav` sans test | `une_duree_au_dela_d_entier_sur_est_illisible`, sur un RF64 sans données ; `entete.rs` à 13 tests | 2 |
+| P6. La taille *syncsafe* éprouvée sur ses deux derniers octets | Un cas ID3 aux quatre octets non nuls (`suite` 2 130 318) ; les entiers de largeur fixe lus par `from_le_bytes` et `from_be_bytes` | 1, 2 |
+| P7. Les messages de l'import, dictés à l'octet, sans test | `les_refus_de_l_import_se_disent_a_l_octet` ; les huit variantes dans `aucun_message_n_est_un_ordre` | 6 |
+| P8. La naissance d'une idée recopiée trois fois | `gestes::naissance_de_l_idee`, que `gestes::verser` et les deux versements de l'import appellent ; le mécanisme de `gestes.rs:674` récrit | 6 |
+| P9. Neuf et dix arguments sous `clippy -D warnings` | `#[allow(clippy::too_many_arguments)]` et sa raison, comme `gestes::verser` | 6 |
+| P10. Le rouge attendu de la tâche 7, inversé | `this function takes 1 argument but 2 arguments were supplied`, et `copies_a_retirer` introuvable | 7 |
+| P11. Le préambule de la PR (a) hors du texte des tâches ; `:27` au lieu de `:33` | Chaque tâche dit son glob, son `--test`, son compte (`:2` et `:33`), son thème et l'interdit de `while` et de `loop` ; la tâche 7, aucun module nouveau | 1 à 8 |
+| P12. Un cas « même durée » aux durées autres | Deux WAV de 500 ms | 5 |
+| P13. Deux modules `import` dans les services | Celui des services se nomme `etat_de_l_import` | 12, 14 |
+| P14. Le rapport écrit au noyau, relu aux services | `rapport::lire_le_rapport` et `RapportLu` ; `rapport.rs` à 8 tests ; la tâche 13 l'appelle | 3, 13 |
+| P15. Des aides de test qui ne compilent pas telles que dites | Les empreintes et `IDEE` en constantes écrites en dur ; les `Faits` de `stems_d_essai` par `LazyLock` ; `Declaree` dérive `Debug` | 6 |
+| P16. Les constantes et l'appel de la tâche 7 | `I`, `AUTRE` (un ULID valide) et les empreintes dits ; `[]` partout | 7 |
+| P17. Les empreintes témoins écrites deux fois | Au seul `references.rs`, dont l'en-tête nomme le manifeste et le rapport ; le test 11 du § 31 · 10 aussi | 3, 8 |
+| P18. Trois écarts de la tâche 2 | Deux tests de plus dans `identifiants.rs` ; `repeat` au lieu d'un `while` ; le BOM coupé entre deux tronçons | 2 |
+| P19. `Some(b"ftyp")`, d'un autre type que `get(4..8)` | `Some(b"ftyp".as_slice())` | 1 |
+| P20. Deux tests faibles, un nom de test qui devient faux | Des assertions positives pour l'illisible ; `I` refusé par `copie_de` ; `une_captation_absente_ne_nomme_pas_son_empreinte` | 6 |
+| P21. La table des mots recopiée sans sa raison | La raison dite dans la tâche | 5 |
+| P22. « lui-même compris », ambigu | « du sien au dossier versé (`""`) compris » | 4 |
+| P23. Le passage complet de `mutants`, le `git add` et le type du commit de la tâche 8 | `gh workflow run mutants-complet.yml` sur la branche ; une liste de chemins ; les délais dans un commit `ci:` | 8 |
 
 ## Les écarts au plan maître
 
@@ -383,7 +418,16 @@ Et des limites, sans test, que les PR disent dans leur corps :
 - `crates/noyau/src/donnees/fonds.rs:30` — `ORIGINES_DECLAREES` — conteneur de la genèse, vide : l'ensemble des origines s'y écrit sans migration (tâche 6)
 - `crates/noyau/src/donnees/fonds.rs:123` — `pub const MIGRATIONS: &[Migration<'static>] = &[];` — aucune migration : la genèse ne change pas, ni son empreinte de référence (tâches 6, 8)
 - `crates/stockage/tests/references.rs:26` — `const GENESE_DU_FONDS` — l'empreinte de la genèse, inchangée ; le manifeste et le rapport témoins s'y ajoutent (tâche 3)
-- `crates/noyau/src/donnees/gestes.rs:674` — `pub fn verser(` — refuse une captation déjà versée (`existante`) : l'import ne la demande que pour un contenu neuf, et un contenu connu n'y passe pas (tâche 6)
+- `crates/noyau/src/donnees/gestes.rs:674` — `pub fn verser(` — refuse une captation déjà versée (`existante`) et écrit toujours `format` : l'import ne l'appelle pas, et partage avec elle la naissance de l'idée, que la tâche 6 en extrait (balayage P8)
+- `crates/noyau/src/donnees/gestes.rs:704` — `let mut changements = vec![` — le bloc de la naissance d'une idée (son objet, `provenance`, `par`, `le`, `depuis`), que la tâche 6 extrait en `naissance_de_l_idee` (balayage P8)
+- `crates/noyau/src/donnees/gestes.rs:673` — `#[allow(clippy::too_many_arguments)]` — le précédent, avec sa raison en commentaire, des deux versements de l'import (tâche 6 ; balayage P9)
+- `crates/noyau/tests/gestes.rs:838` — `fn une_captation_absente_se_dit_par_son_empreinte() {` — lit l'ancien message, que la tâche 6 récrit, et se renomme (balayage P20)
+- `crates/services/tests/suite/mod.rs:1904` — `"La captation {} est déjà versée.",` — le message de `CaptationDejaVersee` que la suite attend, sur les deux paires : la tâche 6 le récrit (balayage P1)
+- `crates/services/tests/suite/mod.rs:1988` — `"Aucune captation ne porte l'empreinte {jamais_versee}."` — le message de `CaptationAbsente` que la suite attend : la tâche 6 le récrit (balayage P1)
+- `crates/stockage/tests/messages.rs:301` — `fn aucun_message_n_est_un_ordre() {` — énumère chaque variante d'`Impossible` : la tâche 6 y ajoute les siennes (balayage P7)
+- `crates/stockage/tests/h07.rs:146` — `empreintes_nommees(cles_des_prises.iter().map(String::as_str))` — un appelant de la règle du noyau, à un argument : la tâche 7 lui donne `[]` (balayage P2)
+- `crates/stockage/tests/references.rs:6` — `Ce fichier est le seul des empreintes de référence` — le manifeste et le rapport témoins n'ont leurs empreintes qu'ici (tâche 3 ; balayage P17)
+- `crates/noyau/tests/statique.rs:35` — `"io::",` — cherché en sous-chaîne dans `crates/noyau/src` : `FormatAudio::` le contiendrait, d'où `FormatSonore` (tâches 1, 6 ; balayage P4)
 - `crates/noyau/src/donnees/gestes.rs:693` — `if sorte != Sorte::Prise && depuis.is_none() {` — un MIDI versé ou un texte versé n'entre que par l'import (tâche 6)
 - `crates/noyau/src/donnees/gestes.rs:215` — `Aucune captation ne porte l'empreinte {empreinte}.` — un message montré qui nomme une empreinte : la tâche 6 le récrit (question 26)
 - `crates/noyau/src/donnees/gestes.rs:219` — `La captation {empreinte} est déjà versée.` — de même (tâche 6)
@@ -445,6 +489,10 @@ Et des limites, sans test, que les PR disent dans leur corps :
 - `.github/workflows/ci.yml:164` — `run: cargo test -p stockage --release --test mesure -- --ignored --nocapture` — l'étape du test 13, en `--release` (tâche 16)
 - `.github/workflows/ci.yml:207` — `run: cargo test -p stockage -p synchro` — `windows` ne passe que le stockage, la synchronisation et l'établi (tâches 9, 12, 15)
 - `.cargo/mutants.toml:2` — `Vingt et un modules` — le compte des modules mutés, qui monte avec la tranche (tâches 1 à 6, 20)
+- `.cargo/mutants.toml:33` — `ces vingt et un modules` — la seconde phrase du compte, une ligne plus bas à chaque glob ajouté (tâches 1 à 6 ; balayage P11)
+- `.github/workflows/ci.yml:268` — `Deux fois le plus long passage complet mesuré` — le délai de `mutants` se mesure sur un passage complet, que le job d'une PR ne fait pas : la tâche 8 le lance par `mutants-complet.yml` (balayage P23)
+- `crates/services/src/lecture.rs:214` — `idee::empreintes_nommees(cles.iter().map(String::as_str))` — l'appel de la règle du noyau, qui prend `[]` pour les rapports à la tâche 7 (balayage P10)
+- `crates/noyau/tests/idee.rs:23` — `empreintes_nommees(cles),` — l'ancien test de la règle, qui prend `[]` à la tâche 7 (balayage P10)
 - `scripts/verif-confidentialite.sh:47` — `mp3|m4a|wav|aif|aiff|flac|ogg|mid|midi|musicxml|mxl` — les extensions refusées, sans `caf`, `wma`, ni ChordPro (tâche 17, P12)
 - `scripts/verif-faits.mjs:676` — `export function fonctionsNommeesCritere(` — reconnaît un test nommé `cap03_12_…` (tâches 17, 25)
 - `crates/stockage/src/captations.rs:67` — `let _ = retirer(&provisoire);` — sur tout refus du rangement, le nom provisoire se retire : un test qui veut le garder, comme une coupure du processus, coupe aussi `Etape::Retrait` (tâches 9, 10, 14 ; R1)
@@ -466,6 +514,11 @@ Et des limites, sans test, que les PR disent dans leur corps :
 - la taille de `data` d'un WAV, un `u32` — vaut `0xFFFFFFFF` dans un RF64, qui renvoie à `ds64`, et peut passer le fichier — `un_rf64_prend_sa_taille_dans_ds64` et `la_taille_de_data_se_borne_au_fichier` (tâche 2)
 - le produit `trames × 1 000` — déborde un `u64` au-delà de 1,8 × 10¹⁶ trames — `la_duree_se_calcule_sans_debordement` (tâche 2)
 - `cargo-mutants` 27.1.0 — ne mute pas une constante : la table des signatures et celle des mots des types ne se gardent que par leurs tests exhaustifs — `chaque_signature_de_la_table_se_reconnait` (tâche 1) et `la_table_des_mots_est_rangee_et_chaque_mot_donne_son_type` (tâche 5)
+- `cargo-mutants` 27.1.0, sur un décalage — change `<<` en `>>`, et un octet nul décalé rend la même valeur : le mutant survit si les octets de poids fort valent 0 — `chaque_signature_de_la_table_se_reconnait`, son cas ID3 aux quatre octets de taille non nuls (tâche 1)
+- `cargo-mutants` 27.1.0, sur une comparaison — change `>` en `==` et en `>=` : une borne qu'aucun test n'atteint garde ces mutants vivants — `une_duree_au_dela_d_entier_sur_est_illisible` (tâche 2), à `ENTIER_SUR` et à `ENTIER_SUR + 1`
+- la synchronisation d'une trame MPEG, `FF` puis `E0` à `FF` — couvre aussi le BOM `FF FE` d'un UTF-16 petit-boutiste, qui n'est pas un MP3 — `la_signature_l_emporte_sur_l_extension` (tâche 1)
+- `Read::read` — peut rendre un tronçon plus court que demandé, d'un seul octet : le BOM d'un UTF-16 arrive alors coupé — `un_texte_utf16_avec_bom_est_lisible` (tâche 2), le BOM `FF` puis `FE`
+- `clippy::too_many_arguments` — refuse sous `-D warnings` une fonction de plus de sept arguments — aucun test : « Lint » de `verifier`, après l'`allow` raisonné des deux versements de l'import (tâche 6)
 - une boucle sans borne sur les morceaux d'un WAV — un mutant y tourne sans fin, et `mutants` sort en échec sur un TIMEOUT — `un_wav_aux_morceaux_sans_fin_est_illisible` (tâche 2), le parcours borné par `take`
 - `Automerge::get_all` — rend chaque valeur concurrente d'une clé posée sur deux répliques, quand `get` n'en rend qu'une — `le_premier_nom_vu_de_deux_repliques_est_le_plus_petit` (tâche 13)
 - `Automerge::hash_for_opid` et les lectures `*_at` — lisent le fonds à la tête de l'ouverture de l'import, que le rapport compare à sa fin — `une_reprise_rend_le_rapport_d_une_traite` (tâche 14)
@@ -502,6 +555,10 @@ Et des limites, sans test, que les PR disent dans leur corps :
 - Le type d'un stem gardé ou choisi s'écrit avec sa provenance — INC-2, où le stem entre dans un morceau — `garder_puis_choisir_le_type_d_un_stem` (tâche 13)
 - Un import resté ouvert, que le dossier choisi ne reprend pas, se clôt à l'ouverture du suivant (question 35) — la tranche 6, dont une archive réimportée porte un import ouvert sans son dossier — `un_import_ouvert_ailleurs_se_clot_a_l_ouverture_du_suivant` (tâche 14)
 - Les noms provisoires `import-<ULID>-<rang>.<processus>.partiel` de `captations/` — la tranche 6, dont l'archive ne copie que les captations rangées (R27) — le test d'export de la tranche 6
+- Les messages de `CaptationAbsente` et de `CaptationDejaVersee` ne nomment plus l'empreinte — la suite des commandes, sur les deux paires, dans `verifier` et `windows` — ses deux tests réécrits (tâche 6 ; balayage P1)
+- Le BOM `FF FE` n'est plus une signature MP3 : un texte UTF-16 petit-boutiste se verse en texte — l'inspection et le versement de la PR (b), le § 30 · 9.2 — `la_signature_l_emporte_sur_l_extension` (tâche 1) et `lire_un_texte_verse_le_rend_tel_quel` (tâche 13 ; balayage P3)
+- Le rapport d'import se relit au noyau, par `rapport::lire_le_rapport` — la tâche 13, et la tranche 6, dont l'archive porte les rapports — `le_rapport_se_relit` (tâche 3 ; balayage P14)
+- La naissance d'une idée, partagée par `gestes::verser` et les versements de l'import — la capture (`verser_une_fiche`, CAP-01) — les tests de `gestes::verser`, inchangés, et ceux de l'import (tâche 6 ; balayage P8)
 
 ## Revues
 
@@ -519,13 +576,13 @@ Et des limites, sans test, que les PR disent dans leur corps :
 
 ```text
 crates/noyau/src/donnees/
-  signature.rs                     (a) SIGNATURE_AU_PLUS, Nature, FormatAudio, FormatTexte, Reconnu, reconnaitre,
+  signature.rs                     (a) SIGNATURE_AU_PLUS, Nature, FormatSonore, FormatTexte, Reconnu, reconnaitre,
                                    apres_id3, extension                                                (muté)
   entete.rs                        (a) ENTETE_AU_PLUS, FaitsWav, FaitsMidi, faits_wav, faits_midi,
                                    ControleDuTexte                                                      (muté)
   identifiants.rs                  (a) Hacheur                                                          (muté)
   rapport.rs                       (a) manifeste, Compte, Comptes, FichierDeLImport, comptes, rapport,
-                                   MARGE_PAR_FICHIER, place, go                                         (muté)
+                                   RapportLu, lire_le_rapport, MARGE_PAR_FICHIER, place, go             (muté)
   origine.rs                       (a) Origine, OriginesLues, la_plus_forte, ajout_d_origine, premier_nom_vu,
                                    sous_le_prefixe, Declaration, declaration_du_fichier                 (muté)
   stems.rs                         (a) TypeDeStem, MOTS_DES_TYPES, mots_du_nom, type_propose, stem_du_midi,
@@ -533,7 +590,8 @@ crates/noyau/src/donnees/
   import.rs                        (a) les opérations nommées de l'import, nom_de_la_copie, copie_de    (muté)
   idee.rs                          (a) empreintes_nommees étendue                                       (muté)
   demarrage.rs                     (a) copies_a_retirer                                                 (muté)
-  gestes.rs                        (a) Impossible : les variantes de l'import, les messages sans empreinte (muté)
+  gestes.rs                        (a) Impossible : les variantes de l'import, les messages sans empreinte ;
+                                   naissance_de_l_idee, partagée avec l'import                          (muté)
   fonds.rs                         (a) les clés de l'import, de l'origine, d'un stem et d'un en-tête
   protocole.rs                     (d) REPONSE_AU_PLUS, type_du_format, Plage, plage, Servie, servir    (muté)
   mod.rs                           (a) signature, entete, rapport, origine, stems, import ; (d) protocole
@@ -541,6 +599,8 @@ crates/noyau/tests/signature.rs, entete.rs, rapport.rs, origine.rs, stems.rs, im
 crates/noyau/tests/protocole.rs    (d)
 crates/noyau/tests/identifiants.rs, idee.rs, demarrage.rs, gestes.rs   (a)
 crates/stockage/tests/references.rs (a) le manifeste et le rapport témoins
+crates/stockage/tests/h07.rs       (a) la règle des empreintes nommées, à deux arguments
+crates/stockage/tests/messages.rs  (a) les variantes de l'import dans aucun_message_n_est_un_ordre
 crates/services/src/contrats.rs    (b) Source, Entree, SorteDEntree, Versement ; Captations en flux et par plages
 crates/services/src/source_en_memoire.rs (b) SourceEnMemoire, hors d'`en-memoire`
 crates/services/src/en_memoire.rs  (b) CaptationsEnMemoire en flux ; DocumentsEnMemoire aux acteurs tournants
@@ -548,10 +608,11 @@ crates/services/src/lib.rs         (b) l'état de l'import, inspecter, ouvrir_l_
                                    verser_une_prise_en_stems, clore_l_import, declarer_une_origine,
                                    choisir_le_type_d_un_stem, lire_un_texte_verse, lire_un_rapport, generateurs ;
                                    (d) captation_a_servir
-crates/services/src/import.rs      (b) l'état de l'import et ses conversions (module des services)
+crates/services/src/etat_de_l_import.rs (b) l'état de l'import et ses conversions (module des services)
 crates/services/src/lecture.rs     (b) noms, origines, stems, manifeste, rapports, imports ouverts
 crates/services/src/mesure.rs      (b) le générateur du test 13 entier
-crates/services/tests/suite/mod.rs (b) Paire::source, les fichiers inventés, cap03_*, i01, les répliques
+crates/services/tests/suite/mod.rs (a) deux messages ; (b) Paire::source, les fichiers inventés, cap03_*, i01,
+                                   les répliques
 crates/services/tests/commandes_en_memoire.rs, crates/stockage/tests/commandes_sur_fichiers.rs   (b)
 crates/stockage/src/source.rs      (b) SourceSurFichiers
 crates/stockage/src/captations.rs, fichier.rs, pannes.rs, adaptateurs.rs, lib.rs   (b)
@@ -578,19 +639,31 @@ CONVENTIONS.md, CLAUDE.md          (a), (b), (c), (d)
 ## PR (a) · les règles de l'import, au noyau
 
 **Branche :** `t5a-les-regles-de-l-import`. **Titre :** `feat: les règles de l'import au noyau : signatures, en-têtes,
-manifeste, rapport, origines` (90). **Documents :** § 30 · 8.1 et 9.2 ; § 31 · 2 ; § 70 · 1 ; le glossaire ;
-`.cargo/mutants.toml` ; `CONVENTIONS.md` ; `CLAUDE.md`. **Fin :** la tâche 8.
+manifeste, rapport, origines` (90). **Documents :** § 30 · 8.1 et 9.2 ; § 31 · 2 et 10 (test 11) ; § 70 · 1 ; le
+glossaire ; `.cargo/mutants.toml` ; `CONVENTIONS.md` ; `CLAUDE.md`. **Fin :** la tâche 8.
 
-Chaque tâche de cette PR ajoute un module du noyau à `.cargo/mutants.toml` (son chemin dans `examine_globs`, son
-fichier de tests dans `additional_cargo_test_args`, le compte des modules à `:2` et à `:27`), et le déclare dans
-`crates/noyau/src/donnees/mod.rs`. Aucune boucle `while` ni `loop` écrite à la main : un parcours se borne par un
-itérateur fini (`take`, une plage), sinon un mutant tourne sans fin et `mutants` échoue (`voisin_libre`,
-`crates/noyau/src/donnees/demarrage.rs:14`, le dit).
+Chacune des tâches 1 à 6 de cette PR ajoute un module du noyau à `.cargo/mutants.toml` (son chemin dans
+`examine_globs`, son fichier de tests dans `additional_cargo_test_args`, le compte des modules à `:2` et dans « ces …
+modules », à `:33` sur `fe918aa`, et son thème à l'énumération des lignes 2 à 7), et le déclare dans
+`crates/noyau/src/donnees/mod.rs` ; la tâche 7 n'en ajoute aucun. Aucune boucle `while` ni `loop` écrite à la main
+dans `src/` : un parcours se borne par un itérateur fini (`take`, une plage), sinon un mutant tourne sans fin et
+`mutants` échoue (`voisin_libre`, `crates/noyau/src/donnees/demarrage.rs:14`, le dit). Chaque tâche le redit dans son
+texte, que son agent lit seul (balayage P11).
 
 ### Tâche 1 : les signatures et les extensions, au noyau
 
 **Fichiers :** créer `crates/noyau/src/donnees/signature.rs`, `crates/noyau/tests/signature.rs` ; modifier
-`crates/noyau/src/donnees/mod.rs`, `.cargo/mutants.toml`.
+`crates/noyau/src/donnees/mod.rs` (`pub mod signature;`), `.cargo/mutants.toml`.
+
+**`.cargo/mutants.toml`** (balayage P11) : `"crates/noyau/src/donnees/signature.rs"` dans `examine_globs`,
+`"--test", "signature"` dans `additional_cargo_test_args` ; le compte devient « Vingt-deux modules » à `:2` et « ces
+vingt-deux modules » à la phrase qui suit la liste (`:33` sur `fe918aa`, une ligne plus bas après le glob ajouté) ;
+l'énumération des lignes 2 à 7 gagne « les signatures et les extensions ». Aucune boucle `while` ni `loop` dans `src/` :
+un parcours se borne par un itérateur fini.
+
+**Le nom des formats audio** (balayage P4) : `FormatSonore`, jamais `FormatAudio`. Le contrôle statique du noyau
+cherche `io::` en sous-chaîne dans `crates/noyau/src`, commentaires compris (`crates/noyau/tests/statique.rs:35`), et
+le chemin d'une variante d'un type nommé ainsi le contiendrait. Les tests, qu'il ne lit pas, nomment le type librement.
 
 **Interfaces — produit** (`noyau::donnees::signature`) :
 
@@ -601,9 +674,9 @@ pub const SIGNATURE_AU_PLUS: usize = 16;
 
 /// Les formats audio que l'import reconnaît à leur signature (§ 30 · 9.2).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum FormatAudio { Wav, Flac, Mp3, M4a, Ogg, Aiff, Caf, Wma }
-impl FormatAudio {
-    pub const TOUS: [FormatAudio; 8];
+pub enum FormatSonore { Wav, Flac, Mp3, M4a, Ogg, Aiff, Caf, Wma }
+impl FormatSonore {
+    pub const TOUS: [FormatSonore; 8];
     /// `wav`, `flac`, `mp3`, `m4a`, `ogg`, `aiff`, `caf`, `wma` : la valeur de `<e>/format`.
     pub fn nom(self) -> &'static str;
 }
@@ -618,7 +691,7 @@ impl FormatTexte {
 
 /// Ce qu'est un fichier, d'après sa signature ou son extension.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Nature { Audio(FormatAudio), Midi, Texte(FormatTexte), Ignore }
+pub enum Nature { Audio(FormatSonore), Midi, Texte(FormatTexte), Ignore }
 
 /// Ce que dit le début d'un fichier : sa nature, ou une étiquette ID3, dont la suite, à l'octet
 /// `suite`, dit FLAC ou MP3.
@@ -630,14 +703,17 @@ pub enum Reconnu { Nature(Nature), Id3 { suite: u64 } }
 pub fn reconnaitre(debut: &[u8], extension: Option<&str>) -> Reconnu;
 
 /// FLAC si `quatre`, les quatre octets qui suivent une étiquette ID3, valent `fLaC` ; MP3 sinon.
-pub fn apres_id3(quatre: &[u8]) -> FormatAudio;
+pub fn apres_id3(quatre: &[u8]) -> FormatSonore;
 
 /// L'extension d'un segment de chemin, comme `Path::extension` : ce qui suit son dernier point,
 /// `None` sans point ou quand le seul point le commence.
 pub fn extension(segment: &str) -> Option<&str>;
 ```
 
-La table, fermée (question 11), dans cet ordre de lecture :
+La table, fermée (question 11), dans cet ordre de lecture. La ligne MP3 excepte l'octet 1 `0xFE` : `FF FE` est le BOM
+d'un UTF-16 petit-boutiste, qu'admet la question 10 ; sans l'exception, un `.txt` enregistré « Unicode » sous Windows
+serait versé en prise `mp3`, la signature l'emportant sur l'extension (balayage P3). La question 11 garde sa lettre :
+c'est cette table qui porte l'exception, que la tâche 8 recopie au § 30 · 9.2.
 
 | Début du fichier | Nature |
 |---|---|
@@ -645,7 +721,7 @@ La table, fermée (question 11), dans cet ordre de lecture :
 | `RIFF` aux octets 0 à 3, `RMID` aux octets 8 à 11 | `Ignore` |
 | `fLaC` aux octets 0 à 3 | `Audio(Flac)` |
 | `ID3` aux octets 0 à 2 (dix octets au moins) | `Id3 { suite }`, `suite` = 10 + la taille *syncsafe* des octets 6 à 9 (7 bits de chacun), + 10 si l'octet 5 porte le drapeau `0x10` |
-| `0xFF` à l'octet 0, et l'octet 1 de `0xE0` à `0xFF` | `Audio(Mp3)` |
+| `0xFF` à l'octet 0, et l'octet 1 de `0xE0` à `0xFF`, sauf `0xFE` (le BOM d'un UTF-16 petit-boutiste, question 10) | `Audio(Mp3)` |
 | `ftyp` aux octets 4 à 7, et un code de format d'image aux octets 8 à 11 : `heic`, `heix`, `hevc`, `mif1`, `msf1` ou `avif` (question 36) | `Ignore` |
 | `ftyp` aux octets 4 à 7, tout autre code de format, une vidéo comprise | `Audio(M4a)` |
 | `OggS` aux octets 0 à 3 | `Audio(Ogg)` |
@@ -667,7 +743,7 @@ fn debut(octets: &[u8]) -> Vec<u8> { let mut v = octets.to_vec(); v.resize(16, 0
 
 #[test]
 fn chaque_signature_de_la_table_se_reconnait() {
-    use FormatAudio::*;
+    use FormatSonore::*;
     let cas: Vec<(Vec<u8>, Reconnu)> = vec![
         (debut(b"RIFF\0\0\0\0WAVE"), Reconnu::Nature(Nature::Audio(Wav))),
         (debut(b"RF64\0\0\0\0WAVE"), Reconnu::Nature(Nature::Audio(Wav))),
@@ -692,6 +768,8 @@ fn chaque_signature_de_la_table_se_reconnait() {
         (debut(b"MThd\0\0\0\x06\0\x01\0\x03\x01\xE0"), Reconnu::Nature(Nature::Midi)),
         (debut(b"ID3\x04\0\0\0\0\x01\x48"), Reconnu::Id3 { suite: 210 }),
         (debut(b"ID3\x04\0\x10\0\0\x01\x48"), Reconnu::Id3 { suite: 220 }),
+        // Les quatre octets de taille non nuls : (1 << 21) + (2 << 14) + (3 << 7) + 4 + 10 (balayage P6).
+        (debut(b"ID3\x04\0\0\x01\x02\x03\x04"), Reconnu::Id3 { suite: 2_130_318 }),
     ];
     for (octets, attendu) in cas {
         assert_eq!(reconnaitre(&octets, None), attendu, "{octets:02x?}");
@@ -703,17 +781,20 @@ fn chaque_signature_de_la_table_se_reconnait() {
 
 #[test]
 fn apres_une_etiquette_id3_flac_ou_mp3() {
-    assert_eq!(apres_id3(b"fLaC"), FormatAudio::Flac);
-    assert_eq!(apres_id3(&[0xFF, 0xFB, 0x90, 0x00]), FormatAudio::Mp3);
-    assert_eq!(apres_id3(b"fLa"), FormatAudio::Mp3);
+    assert_eq!(apres_id3(b"fLaC"), FormatSonore::Flac);
+    assert_eq!(apres_id3(&[0xFF, 0xFB, 0x90, 0x00]), FormatSonore::Mp3);
+    assert_eq!(apres_id3(b"fLa"), FormatSonore::Mp3);
 }
 
 #[test]
 fn la_signature_l_emporte_sur_l_extension() {
-    assert_eq!(reconnaitre(&debut(b"RIFF\0\0\0\0WAVE"), Some("txt")), Reconnu::Nature(Nature::Audio(FormatAudio::Wav)));
+    assert_eq!(reconnaitre(&debut(b"RIFF\0\0\0\0WAVE"), Some("txt")), Reconnu::Nature(Nature::Audio(FormatSonore::Wav)));
     assert_eq!(reconnaitre(&debut(b"PK\x03\x04"), Some("wav")), Reconnu::Nature(Nature::Ignore));
     assert_eq!(reconnaitre(&debut(b"PK\x03\x04"), Some("txt")), Reconnu::Nature(Nature::Texte(FormatTexte::Brut)));
     assert_eq!(reconnaitre(&debut(b"%PDF-1.7"), Some("pdf")), Reconnu::Nature(Nature::Ignore));
+    // Le BOM d'un UTF-16 petit-boutiste n'est pas une trame MP3 (question 10 ; balayage P3).
+    assert_eq!(reconnaitre(&debut(&[0xFF, 0xFE, 0x50, 0x00]), Some("txt")), Reconnu::Nature(Nature::Texte(FormatTexte::Brut)));
+    assert_eq!(reconnaitre(&debut(&[0xFF, 0xFE, 0x50, 0x00]), None), Reconnu::Nature(Nature::Ignore));
 }
 
 #[test]
@@ -748,7 +829,7 @@ fn l_extension_suit_path_extension() {
 
 #[test]
 fn les_noms_des_formats() {
-    let noms: Vec<&str> = FormatAudio::TOUS.iter().map(|f| f.nom()).collect();
+    let noms: Vec<&str> = FormatSonore::TOUS.iter().map(|f| f.nom()).collect();
     assert_eq!(noms, ["wav", "flac", "mp3", "m4a", "ogg", "aiff", "caf", "wma"]);
     assert_eq!([FormatTexte::Brut.nom(), FormatTexte::Markdown.nom(), FormatTexte::Chordpro.nom()], ["brut", "markdown", "chordpro"]);
 }
@@ -756,19 +837,29 @@ fn les_noms_des_formats() {
 
 - [ ] **Étape 2 : voir le rouge.** Committer (`test: les signatures et les extensions de l'import, au noyau`),
   pousser, ouvrir la PR en brouillon. Attendu à « Lint » de `verifier` : `unresolved import noyau::donnees::signature`.
-- [ ] **Étape 3 : écrire le code.** La table en comparaisons de tranches (`starts_with`, `get(4..8) == Some(b"ftyp")`),
-  dans l'ordre de la table ; l'extension comparée par `eq_ignore_ascii_case` ; `TOUS` dans l'ordre de la
-  déclaration. La doc de `reconnaitre` dit qu'un fichier qu'elle dit ignoré n'est jamais lu au-delà de `debut`.
+- [ ] **Étape 3 : écrire le code.** La table en comparaisons de tranches (`starts_with`,
+  `debut.get(4..8) == Some(b"ftyp".as_slice())` : `Some(b"ftyp")` serait un `Option<&[u8; 4]>`, d'un autre type que
+  `get(4..8)` ; balayage P19), dans l'ordre de la table, la ligne MP3 avec son exception `0xFE` ; l'extension comparée
+  par `eq_ignore_ascii_case` ; `TOUS` dans l'ordre de la déclaration. Aucune boucle `while` ni `loop`, et jamais
+  `FormatAudio` (balayage P4). La doc de `reconnaitre` dit qu'un fichier qu'elle dit ignoré n'est jamais lu au-delà de
+  `debut`.
 - [ ] **Étape 4 : voir le vert.** Attendu à « Tests » de `verifier` : `signature.rs` `ok. 7 passed`, `statique.rs` du
-  noyau vert ; `mutants` sans survivant sur le diff.
+  noyau vert ; `mutants` sans survivant sur le diff (le cas ID3 aux quatre octets non nuls tue les mutants des
+  décalages de la taille *syncsafe* ; balayage P6).
 - [ ] **Étape 5 : committer** `git add crates/noyau/src/donnees/signature.rs crates/noyau/src/donnees/mod.rs
   crates/noyau/tests/signature.rs .cargo/mutants.toml` (`feat: la table des signatures et des extensions, au noyau`).
 
 ### Tâche 2 : les en-têtes d'un WAV et d'un MIDI, le texte lisible et l'empreinte par tronçons
 
 **Fichiers :** créer `crates/noyau/src/donnees/entete.rs`, `crates/noyau/tests/entete.rs` ; modifier
-`crates/noyau/src/donnees/identifiants.rs`, `crates/noyau/tests/identifiants.rs`, `crates/noyau/src/donnees/mod.rs`,
-`.cargo/mutants.toml`.
+`crates/noyau/src/donnees/identifiants.rs`, `crates/noyau/tests/identifiants.rs`, `crates/noyau/src/donnees/mod.rs`
+(`pub mod entete;`), `.cargo/mutants.toml`.
+
+**`.cargo/mutants.toml`** (balayage P11) : `"crates/noyau/src/donnees/entete.rs"` dans `examine_globs`,
+`"--test", "entete"` dans `additional_cargo_test_args` (`identifiants` y est déjà) ; le compte devient « Vingt-trois
+modules » à `:2` et « ces vingt-trois modules » à la phrase qui suit la liste (`:33` sur `fe918aa`, plus bas des globs
+ajoutés) ; l'énumération des lignes 2 à 7 gagne « les en-têtes d'un WAV et d'un MIDI, le texte lisible ». Aucune
+boucle `while` ni `loop` dans `src/` : un parcours se borne par un itérateur fini.
 
 **Interfaces — produit** (`noyau::donnees::entete`, `noyau::donnees::identifiants`) :
 
@@ -810,8 +901,9 @@ pub fn faits_midi(debut: &[u8]) -> Option<FaitsMidi>;
 
 /// Le contrôle d'un texte versé, tronçon par tronçon (question 10) : UTF-8, `EF BB BF` admis en
 /// tête ; ou UTF-16 dont les deux premiers octets sont `FF FE` (petit-boutiste) ou `FE FF`
-/// (gros-boutiste), de longueur paire, chaque demi-paire de substitution appariée. Un caractère
-/// coupé entre deux tronçons se reporte au suivant ; au plus trois octets se reportent.
+/// (gros-boutiste), même coupés entre deux tronçons, de longueur paire, chaque demi-paire de
+/// substitution appariée. Un caractère coupé entre deux tronçons se reporte au suivant ; au plus
+/// trois octets se reportent.
 pub struct ControleDuTexte { /* l'encodage lu, le report */ }
 impl ControleDuTexte {
     pub fn nouveau() -> Self;
@@ -831,8 +923,9 @@ impl Hacheur {
 }
 ```
 
-- [ ] **Étape 1 : écrire les tests** (`crates/noyau/tests/entete.rs`, et un test de plus dans
-  `crates/noyau/tests/identifiants.rs`). L'aide `wav` écrit un WAV, chaque entier petit-boutiste : `RIFF`, la
+- [ ] **Étape 1 : écrire les tests** (`crates/noyau/tests/entete.rs`, et deux tests de plus dans
+  `crates/noyau/tests/identifiants.rs`, `le_hacheur_par_troncons_egale_l_empreinte` et `le_hacheur_du_vide`, le
+  fichier important `proptest::prelude::*` ; balayage P18). L'aide `wav` écrit un WAV, chaque entier petit-boutiste : `RIFF`, la
   taille du reste (4 + 24 + les morceaux + 8 + les données), `WAVE` ; `fmt ` et 16, puis le codage (1), les canaux,
   la fréquence, les octets par seconde (fréquence × alignement), l'alignement (canaux × bits / 8) et les bits ;
   d'éventuels morceaux (`avant_data`) ; puis `data`, sa taille (`data_declaree`, sinon celle des données) et ses
@@ -841,6 +934,11 @@ impl Hacheur {
 ```rust
 fn wav(frequence: u32, canaux: u16, bits: u16, trames: usize, data_declaree: Option<u32>, avant_data: &[u8]) -> Vec<u8>;
 fn midi(format: u16, pistes: u16, division: u16) -> Vec<u8>; // MThd, 00 00 00 06, puis les trois, gros-boutistes
+// `RF64`, `WAVE`, `ds64` (riff u64, data u64 = `trames`, compte u64), `fmt ` mono 8 bits, `data` de taille
+// 0xFFFF_FFFF, puis ses `trames` octets à zéro.
+fn rf64(frequence: u32, trames: usize) -> Vec<u8>;
+// Le même en-tête, la taille de `data` dans `ds64` valant `data`, sans aucune donnée après lui (balayage P5).
+fn rf64_sans_donnees(frequence: u32, data: u64) -> Vec<u8>;
 
 #[test]
 fn un_wav_donne_ses_faits_et_sa_duree() {
@@ -883,6 +981,16 @@ fn la_duree_se_calcule_sans_debordement() {
 }
 
 #[test]
+fn une_duree_au_dela_d_entier_sur_est_illisible() {
+    // 1 000 Hz, mono, 8 bits : une trame vaut une milliseconde ; la taille du fichier, `u64::MAX`, ne borne rien.
+    // `ENTIER_SUR` vient de `noyau::donnees::gestes` (balayage P5).
+    let au_plus = rf64_sans_donnees(1_000, ENTIER_SUR);
+    assert_eq!(faits_wav(&au_plus, u64::MAX).map(|f| f.duree_ms()), Some(ENTIER_SUR));
+    let au_dela = rf64_sans_donnees(1_000, ENTIER_SUR + 1);
+    assert_eq!(faits_wav(&au_dela, u64::MAX), None);
+}
+
+#[test]
 fn un_en_tete_incoherent_est_illisible() {
     let bon = wav(8_000, 1, 8, 80, None, &[]);
     assert!(faits_wav(&bon[..36], 124).is_none()); // sans l'en-tête de `data`
@@ -900,8 +1008,10 @@ fn un_en_tete_incoherent_est_illisible() {
 #[test]
 fn un_wav_aux_morceaux_sans_fin_est_illisible() {
     // Des morceaux de taille nulle jusqu'au bout des 65 536 octets, sans `data` : le parcours finit.
+    // 12 + 8 191 × 8 = 65 540 octets, sans boucle écrite à la main (balayage P18).
     let mut octets = b"RIFF\0\0\0\0WAVE".to_vec();
-    while octets.len() < ENTETE_AU_PLUS { octets.extend_from_slice(b"JUNK\0\0\0\0"); }
+    octets.extend(b"JUNK\0\0\0\0".repeat(8_191));
+    assert_eq!(octets.len(), 65_540);
     assert!(faits_wav(&octets, octets.len() as u64).is_none());
 }
 
@@ -935,6 +1045,8 @@ fn un_texte_utf16_avec_bom_est_lisible() {
     assert!(lisible(&[&[0xFF, 0xFE, 0x6C, 0x00, 0x61, 0x00]]));
     assert!(lisible(&[&[0xFE, 0xFF, 0x00, 0x6C, 0x00, 0x61]]));
     assert!(lisible(&[&[0xFF, 0xFE, 0x3D, 0xD8], &[0x00, 0xDE]])); // U+1F600, coupé entre deux tronçons
+    assert!(lisible(&[&[0xFF], &[0xFE, 0x6C, 0x00]]));             // le BOM coupé : un `Read` rend un octet (balayage P18)
+    assert!(lisible(&[&[0xFE], &[0xFF, 0x00, 0x6C]]));
 }
 
 #[test]
@@ -970,10 +1082,15 @@ fn le_hacheur_du_vide() {
 - [ ] **Étape 2 : voir le rouge.** Committer (`test: les en-têtes d'un WAV et d'un MIDI, le texte lisible, au
   noyau`), pousser. Attendu à « Lint » : `unresolved import noyau::donnees::entete`.
 - [ ] **Étape 3 : écrire le code.** `empreinte` passe par `Hacheur` ; `faits_wav` borne son parcours à
-  `debut.len() / 8 + 1` morceaux ; `ControleDuTexte` s'appuie sur `str::from_utf8` et `Utf8Error::error_len` pour
-  l'UTF-8, et sur `char::decode_utf16` pour l'UTF-16 ; aucun mot des contrôles statiques (`io::`, `File`) dans les docs.
-- [ ] **Étape 4 : voir le vert.** Attendu à « Tests » de `verifier` : `entete.rs` `ok. 12 passed`, `identifiants.rs`
-  vert ; `mutants` sans survivant sur le diff.
+  `debut.len() / 8 + 1` morceaux, et compare la durée à `ENTIER_SUR` ; les entiers de largeur fixe se lisent par
+  `u16::from_le_bytes` et `u32::from_le_bytes` pour le WAV (`u64::from_le_bytes` pour `ds64`), par `u16::from_be_bytes`
+  pour le MIDI, jamais par décalages, dont les mutants survivraient sur des octets de poids fort nuls (balayage P6) ;
+  `ControleDuTexte` s'appuie sur `str::from_utf8` et `Utf8Error::error_len` pour l'UTF-8, et sur `char::decode_utf16`
+  pour l'UTF-16, et garde un premier octet `FF` ou `FE` en report jusqu'au second (balayage P18) ; aucune boucle
+  `while` ni `loop` ; aucun mot des contrôles statiques (`io::`, `File`) dans les docs.
+- [ ] **Étape 4 : voir le vert.** Attendu à « Tests » de `verifier` : `entete.rs` `ok. 13 passed`, `identifiants.rs`
+  vert ; `mutants` sans survivant sur le diff (la borne `ENTIER_SUR` gardée par
+  `une_duree_au_dela_d_entier_sur_est_illisible` ; balayage P5).
 - [ ] **Étape 5 : committer** `git add crates/noyau/src/donnees/entete.rs crates/noyau/src/donnees/identifiants.rs
   crates/noyau/src/donnees/mod.rs crates/noyau/tests/entete.rs crates/noyau/tests/identifiants.rs .cargo/mutants.toml`
   (`feat: les en-têtes, le texte lisible et l'empreinte par tronçons, au noyau`).
@@ -981,7 +1098,13 @@ fn le_hacheur_du_vide() {
 ### Tâche 3 : le manifeste, le rapport d'import, ses comptes et la place libre
 
 **Fichiers :** créer `crates/noyau/src/donnees/rapport.rs`, `crates/noyau/tests/rapport.rs` ; modifier
-`crates/stockage/tests/references.rs`, `crates/noyau/src/donnees/mod.rs`, `.cargo/mutants.toml`.
+`crates/stockage/tests/references.rs`, `crates/noyau/src/donnees/mod.rs` (`pub mod rapport;`), `.cargo/mutants.toml`.
+
+**`.cargo/mutants.toml`** (balayage P11) : `"crates/noyau/src/donnees/rapport.rs"` dans `examine_globs`,
+`"--test", "rapport"` dans `additional_cargo_test_args` ; le compte devient « Vingt-quatre modules » à `:2` et « ces
+vingt-quatre modules » à la phrase qui suit la liste (`:33` sur `fe918aa`, plus bas des globs ajoutés) ; l'énumération
+des lignes 2 à 7 gagne « le manifeste, le rapport d'import et la place libre ». Aucune boucle `while` ni `loop` dans
+`src/` : un parcours se borne par un itérateur fini.
 
 **Interfaces — produit** (`noyau::donnees::rapport`) :
 
@@ -1030,6 +1153,16 @@ pub struct OrigineChangee { pub empreinte: String, pub element: String }
 /// dédoublonné, dans l'ordre des rangs.
 pub fn rapport(import: &str, fichiers: &[FichierDeLImport], connues: &BTreeSet<String>, origines: &[OrigineChangee]) -> Vec<u8>;
 
+/// Un rapport d'import relu : son import, ses comptes, le nombre de ses lignes `origine=` et les
+/// rangs de ses lignes `fichier-sans-nom=`, dans leur ordre.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RapportLu { pub import: String, pub comptes: Comptes, pub origines_changees: u64, pub fichiers_sans_nom: Vec<u64> }
+
+/// L'inverse de `rapport` (balayage P14) : `None` si la première ligne n'est pas
+/// `pupitre-rapport-d-import 1` (une autre version), si une ligne manque ou si une ligne est mal
+/// formée. Les services n'en relisent pas le format : ils appellent cette règle (tâche 13).
+pub fn lire_le_rapport(octets: &[u8]) -> Option<RapportLu>;
+
 /// Les octets laissés pour chaque fichier à verser, en plus de ses octets (question 8).
 pub const MARGE_PAR_FICHIER: u64 = 4_096;
 
@@ -1050,7 +1183,9 @@ pub fn go(octets: u64, vers_le_haut: bool) -> String;
 
 - [ ] **Étape 1 : écrire les tests** (`crates/noyau/tests/rapport.rs`, et les témoins dans
   `crates/stockage/tests/references.rs`). Les valeurs viennent du passage de LE-6, recalculées par la relecture ;
-  chaque empreinte est celle du texte UTF-8 de son commentaire :
+  chaque empreinte est celle du texte UTF-8 de son commentaire. Les tests du noyau fixent les octets et leur longueur ;
+  les empreintes du manifeste et du rapport témoins ne s'écrivent que dans `references.rs`, « le seul des empreintes
+  de référence » (`crates/stockage/tests/references.rs:6` ; balayage P17) :
 
 ```rust
 const VOIX: &str = "1c0f0638f51a94205014847b526474bdd04c8c00ad2a02ac4dbeba88d5a3d425";      // « stem inventé : voix »
@@ -1062,7 +1197,6 @@ fn le_manifeste_temoin() {
     let octets = manifeste(&[VOIX, BATTERIE, BASSE, VOIX]);
     assert_eq!(octets.len(), 195);
     assert_eq!(octets, format!("{VOIX}\n{BATTERIE}\n{BASSE}\n").into_bytes());
-    assert_eq!(empreinte(&octets), "340999f94394a8aaa1b93777c67d6939b70fe427a221ff7478ab78dd3f5d0caa");
     assert_eq!(manifeste(&[VOIX]), format!("{VOIX}\n").into_bytes());
 }
 
@@ -1100,26 +1234,55 @@ fn un_illisible_en_deux_copies_compte_une_fois() {
     assert_eq!(c.dedoublonnes, Compte { fichiers: 1, octets: 50 });
 }
 
-#[test]
-fn le_rapport_temoin() {
-    let fichiers = vec![
+const IMPORT_TEMOIN: &str = "01HF7YAT00ZZZZZZZZZZZZZZZZ";
+
+/// Les fichiers du rapport témoin, partagés par `le_rapport_temoin` et `le_rapport_se_relit`.
+fn fichiers_du_temoin() -> Vec<FichierDeLImport> {
+    vec![
         lu(1, 650, 1),
         FichierDeLImport::Ignore { rang: 2, octets: 300 },
         FichierDeLImport::Lu { rang: 3, octets: 50, empreinte: e(3), illisible: true, sans_nom: false },
         FichierDeLImport::Lu { rang: 4, octets: 200, empreinte: e(4), illisible: false, sans_nom: true },
         lu(5, 100, 5),
-    ];
-    let origines = [OrigineChangee {
+    ]
+}
+
+/// L'origine changée du rapport témoin.
+fn origines_du_temoin() -> [OrigineChangee; 1] {
+    [OrigineChangee {
         empreinte: "3ab628c95bde7c17cc00f4931000a16a5425d8deb0e5e91fbc055731ac76cd3b".into(), // « une prise de test »
         element: "generee:Atelier invent\u{e9}".into(),
-    }];
-    let octets = rapport("01HF7YAT00ZZZZZZZZZZZZZZZZ", &fichiers, &BTreeSet::from([e(5)]), &origines);
+    }]
+}
+
+#[test]
+fn le_rapport_temoin() {
+    let octets = rapport(IMPORT_TEMOIN, &fichiers_du_temoin(), &BTreeSet::from([e(5)]), &origines_du_temoin());
     assert_eq!(String::from_utf8(octets.clone()).unwrap(), "pupitre-rapport-d-import 1\n01HF7YAT00ZZZZZZZZZZZZZZZZ\n\
         vus=5 1300\nverses=3 900\ndedoublonnes=1 100\nillisibles=1 50\nignores=1 300\nsans-nom=1 200\n\
         origine=3ab628c95bde7c17cc00f4931000a16a5425d8deb0e5e91fbc055731ac76cd3b generee:Atelier invent\u{e9}\n\
         fichier-sans-nom=4\n");
     assert_eq!(octets.len(), 259);
-    assert_eq!(empreinte(&octets), "6d161268e13683005ded38007cf7d27412723752529170cf929390406038ff76");
+}
+
+#[test]
+fn le_rapport_se_relit() {
+    // L'inverse de `rapport`, sur le rapport témoin (balayage P14).
+    let connues = BTreeSet::from([e(5)]);
+    let octets = rapport(IMPORT_TEMOIN, &fichiers_du_temoin(), &connues, &origines_du_temoin());
+    let relu = lire_le_rapport(&octets).expect("le rapport témoin se relit");
+    assert_eq!(relu, RapportLu {
+        import: IMPORT_TEMOIN.to_string(),
+        comptes: comptes(&fichiers_du_temoin(), &connues),
+        origines_changees: 1,
+        fichiers_sans_nom: vec![4],
+    });
+    let texte = String::from_utf8(octets).unwrap();
+    let autre = texte.replacen("pupitre-rapport-d-import 1", "pupitre-rapport-d-import 2", 1);
+    assert_eq!(lire_le_rapport(autre.as_bytes()), None, "une autre version");
+    assert_eq!(lire_le_rapport(b"pupitre-rapport-d-import 1\n"), None, "des lignes manquent");
+    let mal_formee = texte.replacen("vus=5 1300", "vus=cinq 1300", 1);
+    assert_eq!(lire_le_rapport(mal_formee.as_bytes()), None, "une ligne mal formée");
 }
 
 #[test]
@@ -1141,19 +1304,26 @@ fn les_go_decimaux_a_une_decimale() {
     }
 }
 
-// crates/stockage/tests/references.rs
+// crates/stockage/tests/references.rs : son en-tête (`//!`) nomme aussi le manifeste et le rapport témoins.
 const MANIFESTE_TEMOIN: &str = "340999f94394a8aaa1b93777c67d6939b70fe427a221ff7478ab78dd3f5d0caa";
 const RAPPORT_TEMOIN: &str = "6d161268e13683005ded38007cf7d27412723752529170cf929390406038ff76";
 #[test]
-fn le_manifeste_et_le_rapport_temoins_gardent_leurs_empreintes() { /* les deux témoins ci-dessus, rejoués */ }
+fn le_manifeste_et_le_rapport_temoins_gardent_leurs_empreintes() {
+    // Le manifeste de [VOIX, BATTERIE, BASSE, VOIX], et le rapport des fichiers et de l'origine de `le_rapport_temoin`,
+    // rebâtis par `noyau::donnees::rapport` (les trois empreintes des stems recalculées ici par `empreinte` de leur
+    // texte), ont ces empreintes.
+}
 ```
 
 - [ ] **Étape 2 : voir le rouge.** Committer (`test: le manifeste, le rapport d'import et la place libre, au noyau`),
   pousser. Attendu à « Lint » : `unresolved import noyau::donnees::rapport`.
 - [ ] **Étape 3 : écrire le code.** `comptes` range les fichiers lus par (empreinte, rang) dans un `BTreeMap` ;
-  `rapport` appelle `comptes` ; `place` et `go` calculent en `u128`. La doc du module dit que le rapport n'est pas un
-  message montré : il nomme l'ULID et des empreintes, que l'écran ne montre pas (tâche 22).
-- [ ] **Étape 4 : voir le vert.** Attendu à « Tests » de `verifier` : `rapport.rs` `ok. 7 passed`, `references.rs`
+  `rapport` appelle `comptes` ; `lire_le_rapport` lit les lignes dans l'ordre que `rapport` écrit, par `split_once('=')`
+  et `parse`, sans boucle `while` ni `loop` ; `place` et `go` calculent en `u128`. La doc du module dit que le rapport
+  n'est pas un message montré : il nomme l'ULID et des empreintes, que l'écran ne montre pas (tâche 22). L'en-tête
+  (`//!`) de `crates/stockage/tests/references.rs` nomme le manifeste et le rapport témoins à côté de la genèse et de
+  la teneur (balayage P17).
+- [ ] **Étape 4 : voir le vert.** Attendu à « Tests » de `verifier` : `rapport.rs` `ok. 8 passed`, `references.rs`
   vert ; dans `windows`, `references.rs` vert ; `mutants` sans survivant sur le diff.
 - [ ] **Étape 5 : committer** `git add crates/noyau/src/donnees/rapport.rs crates/noyau/src/donnees/mod.rs
   crates/noyau/tests/rapport.rs crates/stockage/tests/references.rs .cargo/mutants.toml` (`feat: le manifeste, le
@@ -1162,7 +1332,13 @@ fn le_manifeste_et_le_rapport_temoins_gardent_leurs_empreintes() { /* les deux t
 ### Tâche 4 : l'origine déclarée, le premier nom vu et la portée d'une déclaration
 
 **Fichiers :** créer `crates/noyau/src/donnees/origine.rs`, `crates/noyau/tests/origine.rs` ; modifier
-`crates/noyau/src/donnees/mod.rs`, `.cargo/mutants.toml`.
+`crates/noyau/src/donnees/mod.rs` (`pub mod origine;`), `.cargo/mutants.toml`.
+
+**`.cargo/mutants.toml`** (balayage P11) : `"crates/noyau/src/donnees/origine.rs"` dans `examine_globs`,
+`"--test", "origine"` dans `additional_cargo_test_args` ; le compte devient « Vingt-cinq modules » à `:2` et « ces
+vingt-cinq modules » à la phrase qui suit la liste (`:33` sur `fe918aa`, plus bas des globs ajoutés) ; l'énumération des
+lignes 2 à 7 gagne « l'origine déclarée, le premier nom vu et la portée ». Aucune boucle `while` ni `loop` dans
+`src/` : un parcours se borne par un itérateur fini.
 
 **Interfaces — produit** (`noyau::donnees::origine`) :
 
@@ -1200,9 +1376,10 @@ impl Declaration {
 }
 
 /// Ce que les déclarations de l'import donnent au fichier `chemin` : l'origine du plus proche de
-/// ses dossiers, lui-même compris jusqu'au dossier versé (`""`), qui déclare une origine ; et le
+/// ses dossiers déclarés, du sien au dossier versé (`""`) compris, qui déclare une origine ; et le
 /// jeu de stems, son propre dossier s'il est déclaré `stems` (question 17), jamais un dossier plus
-/// haut. Une déclaration `stems` n'arrête pas l'origine d'un dossier plus haut.
+/// haut. Une déclaration `stems` n'arrête pas l'origine d'un dossier plus haut. Seuls des dossiers
+/// se déclarent : le chemin du fichier lui-même n'est jamais une clé lue (balayage P22).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DeclarationDuFichier { pub origine: Option<Ajout>, pub jeu: Option<String> }
 pub fn declaration_du_fichier(chemin: &str, declarations: &BTreeMap<String, Declaration>) -> DeclarationDuFichier;
@@ -1297,7 +1474,8 @@ fn la_portee_par_segments_entiers() {
 - [ ] **Étape 2 : voir le rouge.** Committer (`test: l'origine déclarée, le premier nom vu et la portée, au noyau`),
   pousser. Attendu à « Lint » : `unresolved import noyau::donnees::origine`.
 - [ ] **Étape 3 : écrire le code.** Les ancêtres d'un chemin par `rsplit_once('/')` répété sur une plage bornée au
-  nombre de ses `/` plus un ; `premier_nom_vu` par `min_by` sur `(ulid.get(..10).unwrap_or(ulid), chemin.as_bytes())`.
+  nombre de ses `/` plus un, jamais par une boucle `while` ni `loop` ; `premier_nom_vu` par `min_by_key` sur
+  `(ulid.get(..10).unwrap_or(ulid), chemin.as_bytes())`.
 - [ ] **Étape 4 : voir le vert.** Attendu à « Tests » de `verifier` : `origine.rs` `ok. 6 passed` ; `mutants` sans
   survivant sur le diff.
 - [ ] **Étape 5 : committer** `git add crates/noyau/src/donnees/origine.rs crates/noyau/src/donnees/mod.rs
@@ -1307,7 +1485,13 @@ fn la_portee_par_segments_entiers() {
 ### Tâche 5 : les stems : le type proposé, le MIDI d'un stem, le jeu proposé et la durée
 
 **Fichiers :** créer `crates/noyau/src/donnees/stems.rs`, `crates/noyau/tests/stems.rs` ; modifier
-`crates/noyau/src/donnees/mod.rs`, `.cargo/mutants.toml`.
+`crates/noyau/src/donnees/mod.rs` (`pub mod stems;`), `.cargo/mutants.toml`.
+
+**`.cargo/mutants.toml`** (balayage P11) : `"crates/noyau/src/donnees/stems.rs"` dans `examine_globs`,
+`"--test", "stems"` dans `additional_cargo_test_args` ; le compte devient « Vingt-six modules » à `:2` et « ces
+vingt-six modules » à la phrase qui suit la liste (`:33` sur `fe918aa`, plus bas des globs ajoutés) ; l'énumération des
+lignes 2 à 7 gagne « les stems : le type proposé, le MIDI d'un stem, le jeu proposé et la durée ». Aucune boucle
+`while` ni `loop` dans `src/` : un parcours se borne par un itérateur fini.
 
 **Interfaces — produit** (`noyau::donnees::stems`) :
 
@@ -1360,7 +1544,8 @@ pub fn duree_de_la_prise_en_stems(stems: &[Option<u64>]) -> Option<u64>;
 ```
 
 - [ ] **Étape 1 : écrire les tests** (`crates/noyau/tests/stems.rs`). `ATTENDUS` est la table, recopiée, rangée dans
-  l'ordre des octets :
+  l'ordre des octets. La copie est voulue : `cargo-mutants` ne mute pas une constante, et seule cette copie, comparée
+  en entier à `MOTS_DES_TYPES`, garde la table (« Outils et cas limites » ; balayage P21) :
 
 ```rust
 use TypeDeStem::*;
@@ -1432,7 +1617,8 @@ fn trois_wav_de_meme_duree_proposent_un_jeu() {
     assert!(!jeu_propose(&[w(8_044, a, 8_000, 8_000), w(8_044, a, 8_000, 8_000)]), "même taille, même début : rien ne les distingue");
     assert!(jeu_propose(&[w(8_044, a, 8_000, 8_000), w(8_052, a, 8_000, 8_000)]), "des tailles distinctes suffisent");
     assert!(!jeu_propose(&[w(8_044, a, 8_000, 8_000), w(8_044, b, 8_000, 44_100)]));
-    assert!(!jeu_propose(&[w(4_044, a, 4_000, 8_000), w(16_044, b, 16_000, 16_000)]), "même durée, trames et fréquence autres");
+    // 4 000 trames à 8 000 Hz et 8 000 trames à 16 000 Hz : 500 ms chacun (balayage P12).
+    assert!(!jeu_propose(&[w(4_044, a, 4_000, 8_000), w(8_044, b, 8_000, 16_000)]), "même durée, trames et fréquence autres");
     assert!(!jeu_propose(&[w(8_044, a, 8_000, 8_000)]));
 }
 
@@ -1447,7 +1633,8 @@ fn la_duree_d_une_prise_en_stems() {
 - [ ] **Étape 2 : voir le rouge.** Committer (`test: le type proposé, le MIDI d'un stem et le jeu proposé, au
   noyau`), pousser. Attendu à « Lint » : `unresolved import noyau::donnees::stems`.
 - [ ] **Étape 3 : écrire le code.** `MOTS_DES_TYPES` en constante, cherchée par `binary_search_by_key` ; `jeu_propose`
-  range les WAV dans un `BTreeMap<(u64, u32), BTreeSet<(u64, &[u8])>>`, (trames, fréquence) vers (taille, début).
+  range les WAV dans un `BTreeMap<(u64, u32), BTreeSet<(u64, &[u8])>>`, (trames, fréquence) vers (taille, début) ;
+  aucune boucle `while` ni `loop`.
 - [ ] **Étape 4 : voir le vert.** Attendu à « Tests » de `verifier` : `stems.rs` `ok. 7 passed` ; `mutants` sans
   survivant sur le diff.
 - [ ] **Étape 5 : committer** `git add crates/noyau/src/donnees/stems.rs crates/noyau/src/donnees/mod.rs
@@ -1456,13 +1643,22 @@ fn la_duree_d_une_prise_en_stems() {
 ### Tâche 6 : les opérations nommées de l'import, au noyau
 
 **Fichiers :** créer `crates/noyau/src/donnees/import.rs`, `crates/noyau/tests/import.rs` ; modifier
-`crates/noyau/src/donnees/fonds.rs` (les clés), `crates/noyau/src/donnees/gestes.rs` (`Impossible`, ses messages),
-`crates/noyau/tests/gestes.rs`, `crates/noyau/src/donnees/mod.rs`, `.cargo/mutants.toml`.
+`crates/noyau/src/donnees/fonds.rs` (les clés), `crates/noyau/src/donnees/gestes.rs` (`Impossible`, ses messages, la
+naissance d'une idée partagée), `crates/noyau/tests/gestes.rs`, `crates/noyau/src/donnees/mod.rs` (`pub mod import;`),
+`.cargo/mutants.toml`, `crates/services/tests/suite/mod.rs` (deux messages ; balayage P1),
+`crates/stockage/tests/messages.rs` (les variantes de l'import ; balayage P7).
+
+**`.cargo/mutants.toml`** (balayage P11) : `"crates/noyau/src/donnees/import.rs"` dans `examine_globs`,
+`"--test", "import"` dans `additional_cargo_test_args` (`gestes` y est déjà) ; le compte devient « Vingt-sept modules »
+à `:2` et « ces vingt-sept modules » à la phrase qui suit la liste (`:33` sur `fe918aa`, plus bas des globs ajoutés) ;
+l'énumération des lignes 2 à 7 gagne « les opérations nommées de l'import ». Aucune boucle `while` ni `loop` dans
+`src/` : un parcours se borne par un itérateur fini. Jamais `FormatAudio` : le type se nomme `FormatSonore`, et
+`Faits::du_wav` écrit le format par `FormatSonore::Wav.nom()` (balayage P4).
 
 **Interfaces — consomme :** `gestes::{Sorte, Appareil, Impossible, date_du_message, ENTIER_SUR}`, `fonds::{IMPORTS,
 ORIGINES_DECLAREES, PRISES, MIDI_VERSES, IDEES, ETIQUETTES, PROVENANCE, PAR, LE, DEPUIS, IDEE, FORMAT, DUREE, NOM,
 IMPORTEE}`, `origine::{Ajout, OriginesLues, Declaration, ajout_d_origine}`, `stems::TypeDeStem`,
-`changement::{Changement, Operation, Simple}`.
+`signature::{FormatSonore, FormatTexte}`, `entete::{FaitsWav, FaitsMidi}`, `changement::{Changement, Operation, Simple}`.
 
 **Interfaces — produit** (`noyau::donnees::fonds`, `noyau::donnees::import`, `noyau::donnees::gestes`) :
 
@@ -1492,7 +1688,7 @@ pub struct Faits {
 impl Faits {
     pub fn du_wav(faits: &FaitsWav) -> Faits;         // format `wav`, la durée et les quatre faits d'en-tête
     pub fn du_midi(faits: &FaitsMidi) -> Faits;       // `smf0` à `smf2`, la division
-    pub fn d_un_audio(format: FormatAudio) -> Faits;  // le format seul : FLAC, MP3… (ADR-024, décision 6)
+    pub fn d_un_audio(format: FormatSonore) -> Faits; // le format seul : FLAC, MP3… (ADR-024, décision 6)
     pub fn d_un_texte(format: FormatTexte) -> Faits;  // le format seul
 }
 
@@ -1516,7 +1712,8 @@ pub fn ouvrir(import: &str, declarations: &BTreeMap<String, Declaration>, heure:
 /// `gestes::verser`). Puis, neuf ou connu : `<e>/nom/<chemin>` à l'ULID de l'import s'il est absent
 /// (question 20) ; l'élément d'origine que `ajout_d_origine` garde, sous `origines_declarees`. Un
 /// contenu connu à qui rien ne s'ajoute : `Ok(None)` ; sinon « Import du 3 novembre : nom d'origine
-/// ajouté », « … : origine déclarée », ou les deux, séparés par une virgule.
+/// ajouté », « … : origine déclarée », ou les deux, séparés par une virgule. L'idée naît par
+/// `gestes::naissance_de_l_idee`, la même que celle de `gestes::verser`.
 pub fn verser_un_fichier(ouvert: &ImportOuvert<'_>, sorte: Sorte, empreinte: &str, faits: &Faits, chemin: Option<&str>,
     origine: Option<&Ajout>, deja: &DejaLu, idee: &str, heure: i64, decalage_minutes: i32) -> Result<Option<Operation>, Impossible>;
 
@@ -1538,7 +1735,8 @@ pub struct DejaDeLaPrise { pub prise: DejaLu, pub stems: BTreeMap<String, DejaLu
 /// pour chaque MIDI d'un stem sans entrée sous `midi_verses`, `midi_verses/<m>/format` et
 /// `…/division`, jamais `idee` ; « Idée du 3 novembre : prise en stems versée ». Neuve ou connue :
 /// chaque nom absent, de la prise, des stems et des MIDI, et l'origine, sur la prise, chaque stem et
-/// chaque MIDI. `Ok(None)` si rien ne s'ajoute. Sans stem : `Impossible::JeuSansAudio`.
+/// chaque MIDI. `Ok(None)` si rien ne s'ajoute. Sans stem : `Impossible::JeuSansAudio`. L'idée naît
+/// par `gestes::naissance_de_l_idee`.
 pub fn verser_une_prise_en_stems(ouvert: &ImportOuvert<'_>, manifeste: &str, nom: Option<&str>, stems: &[StemAVerser<'_>],
     origine: Option<&Ajout>, deja: &DejaDeLaPrise, idee: &str, heure: i64, decalage_minutes: i32) -> Result<Option<Operation>, Impossible>;
 
@@ -1552,6 +1750,7 @@ pub struct Cible<'a> { pub empreinte: &'a str, pub origines: &'a OriginesLues, p
 /// Ce que rend une déclaration d'origine : l'opération, s'il y a un changement ; les cibles qui
 /// portaient déjà l'élément déclaré ; et celles, générées, où « de la main de Sacha » ne change rien
 /// (question 22), seules à valoir un avertissement (R16).
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Declaree { pub operation: Option<Operation>, pub deja_portees: usize, pub generees_gardees: usize }
 
 /// Déclarer une origine après l'import (question 22), sur une captation ou sur les captations d'un
@@ -1585,7 +1784,18 @@ pub fn copie_de(nom: &str) -> Option<(&str, u64)>;
 // gestes.rs : Impossible gagne JeuSansAudio, OrigineNonRetiree, NomDeGenerateurVide,
 // NomDeGenerateurIllisible, StemAbsent, AucunImportOuvert, ImportClos, FichierChange { nom: Option<String>, rang: u64 } ;
 // CaptationAbsente et CaptationDejaVersee gardent leur champ, que leur message ne nomme plus.
+
+// gestes.rs : la naissance d'une idée, extraite de `gestes::verser` (gestes.rs:704-721), que `gestes::verser`,
+// `import::verser_un_fichier` et `import::verser_une_prise_en_stems` appellent (balayage P8) : l'objet de l'idée et
+// celui de ses étiquettes, `provenance` à `origine` (`captee` ou `importee`), `par`, `le` à `heure`, et `depuis` s'il
+// est donné.
+pub(crate) fn naissance_de_l_idee(idee: &str, origine: &str, par: Appareil, depuis: Option<&str>, heure: i64) -> Vec<Changement>;
 ```
+
+  `verser_un_fichier` (10 arguments) et `verser_une_prise_en_stems` (9) passent le seuil de `clippy::too_many_arguments`
+  (7), que `-D warnings` refuse : chacune porte `#[allow(clippy::too_many_arguments)]`, précédé d'une ligne `//` qui
+  dit pourquoi (chaque donnée du versement, puis ce que le fonds porte déjà), comme `gestes::verser`
+  (`crates/noyau/src/donnees/gestes.rs:671-673` ; balayage P9).
 
   Les messages, à l'octet : `JeuSansAudio` « Ce dossier n'a aucun fichier audio : il ne forme pas un jeu de stems. » ;
   `OrigineNonRetiree` « Une origine déclarée ne se retire pas. » ; `NomDeGenerateurVide` « Le nom du générateur est
@@ -1597,13 +1807,27 @@ pub fn copie_de(nom: &str) -> Option<(&str, u64)>;
   déjà versée. » (question 26).
 
 - [ ] **Étape 1 : écrire les tests** (`crates/noyau/tests/import.rs`, et la mise à jour des messages dans
-  `crates/noyau/tests/gestes.rs`). Chaque test lit les changements de l'opération par une aide `cles_posees(&Operation)
+  `crates/noyau/tests/gestes.rs`, `crates/services/tests/suite/mod.rs` et `crates/stockage/tests/messages.rs`, plus
+  bas). Chaque test lit les changements de l'opération par une aide `cles_posees(&Operation)
   -> BTreeMap<String, Simple>`, qui joint le chemin de chaque `Changement::Poser` par `|` :
 
 ```rust
 const I: &str = "01HF7YAT00ZZZZZZZZZZZZZZZZ";
 const HEURE: i64 = 1_700_000_000; // le 14 novembre 2023
+// L'idée qui naît, un ULID de test ; les empreintes, des chaînes de 64 caractères hexadécimaux écrites en dur,
+// distinctes : le noyau ne vérifie pas qu'une empreinte est celle d'un contenu, et `empreinte(b"…")` n'est pas une
+// constante (balayage P15).
+const IDEE: &str = "01HF7YAT000000000000000002";
+const E1: &str = "e100000000000000000000000000000000000000000000000000000000000001";
+// E2, E3 (des fichiers), P (le manifeste), S1, S2 (les stems voix et basse), M1 (le MIDI de la voix), R (le
+// rapport) : de même, chacune distincte des autres.
 fn ouvert() -> ImportOuvert<'static> { ImportOuvert { import: I, ouvert_le: HEURE, par: Appareil::Etabli } }
+// Les faits des stems d'essai, en `static` : `stems_d_essai()` rend des `StemAVerser<'static>`, qui empruntent
+// leurs `Faits` (balayage P15).
+static FAITS_D_UN_STEM: std::sync::LazyLock<Faits> =
+    std::sync::LazyLock::new(|| Faits::du_wav(&FaitsWav { codage: 1, canaux: 1, frequence: 8_000, bits: 8, trames: 8_000 }));
+static FAITS_DU_MIDI: std::sync::LazyLock<Faits> =
+    std::sync::LazyLock::new(|| Faits::du_midi(&FaitsMidi { format: 1, pistes: 3, division: 480 }));
 
 #[test]
 fn ouvrir_ecrit_l_heure_et_les_declarations() {
@@ -1641,6 +1865,9 @@ fn un_illisible_n_a_aucun_fait() {
     let op = verser_un_fichier(&ouvert(), Sorte::Prise, E1, &Faits::default(), Some("a.wav"), None,
                                &DejaLu::default(), IDEE, HEURE, 0).unwrap().unwrap();
     let cles = cles_posees(&op);
+    // Sa captation et son nom sont écrits, et rien d'autre sous elle (balayage P20).
+    assert_eq!(cles[&format!("prises|{E1}/idee")], Simple::Chaine(IDEE.into()));
+    assert_eq!(cles[&format!("prises|{E1}/nom/a.wav")], Simple::Chaine(I.into()));
     assert!(!cles.keys().any(|c| c.starts_with(&format!("prises|{E1}/")) && !c.ends_with("/idee") && !c.contains("/nom/")), "{cles:?}");
 }
 
@@ -1750,34 +1977,86 @@ fn le_nom_d_une_copie_se_forme_et_se_relit() {
     assert_eq!(copie_de("import-01HF7YAT00ZZZZZZZZZZZZZZZZ-12.4242.partiel"), Some((I, 12)));
     assert_eq!(copie_de("import-01HF7YAT00ZZZZZZZZZZZZZZZZ-12.4242-2.partiel"), Some((I, 12)));
     for nom in [&format!("{E1}.4242.partiel"), "import-court-1.1.partiel", "import-01HF7YAT00ZZZZZZZZZZZZZZZZ-x.1.partiel",
-                "import-01HF7YAT00ZZZZZZZZZZZZZZZZ-12", "import-01HF7YAT00ZZZZZZZZZZZZZZZu-1.1.partiel"] {
+                "import-01HF7YAT00ZZZZZZZZZZZZZZZZ-12", "import-01HF7YAT00ZZZZZZZZZZZZZZZu-1.1.partiel",
+                "import-01HF7YAT00ZZZZZZZZZZZZZZZI-1.1.partiel"] {
         assert_eq!(copie_de(nom), None, "{nom}");
+    }
+}
+
+// crates/noyau/tests/gestes.rs : un test de plus (balayage P7)
+#[test]
+fn les_refus_de_l_import_se_disent_a_l_octet() {
+    let e = "e100000000000000000000000000000000000000000000000000000000000001".to_string();
+    for (refus, attendu) in [
+        (Impossible::JeuSansAudio, "Ce dossier n'a aucun fichier audio : il ne forme pas un jeu de stems."),
+        (Impossible::OrigineNonRetiree, "Une origine déclarée ne se retire pas."),
+        (Impossible::NomDeGenerateurVide, "Le nom du générateur est vide."),
+        (Impossible::NomDeGenerateurIllisible, "Le nom du générateur tient sur une ligne, sans caractère de contrôle."),
+        (Impossible::StemAbsent, "Ce stem n'est pas dans cette prise."),
+        (Impossible::AucunImportOuvert, "Aucun import n'est ouvert."),
+        (Impossible::ImportClos, "Cet import est clos."),
+        (Impossible::FichierChange { nom: Some("Démo 1.wav".into()), rang: 7 },
+         "« Démo 1.wav » a changé depuis l'inspection : l'import s'arrête, et rechoisir le dossier le reprend."),
+        (Impossible::FichierChange { nom: None, rang: 7 },
+         "Le fichier n° 7 a changé depuis l'inspection : l'import s'arrête, et rechoisir le dossier le reprend."),
+        (Impossible::CaptationAbsente { empreinte: e.clone() }, "Cette captation n'est pas dans le fonds."),
+        (Impossible::CaptationDejaVersee { empreinte: e }, "Cette captation est déjà versée."),
+    ] {
+        assert_eq!(refus.to_string(), attendu);
     }
 }
 ```
 
-  `E1`, `E2`, `E3`, `P`, `S1`, `M1`, `R` sont des empreintes du test, `empreinte(b"…")` d'octets inventés ;
-  `stems_d_essai()` rend deux `StemAVerser` (`Jeu A/voix.wav`, 1 000 ms, avec `Jeu A/voix.mid`, `smf1`, 480 ; puis
-  `Jeu A/basse.wav`, 1 000 ms, sans MIDI). `ULID` de Crockford : `copie_de` refuse une minuscule et les lettres `I`,
-  `L`, `O`, `U`.
+  `stems_d_essai()` rend deux `StemAVerser<'static>` : `Jeu A/voix.wav` (`S1`, `&FAITS_D_UN_STEM`, 1 000 ms), avec
+  `Jeu A/voix.mid` (`M1`, `&FAITS_DU_MIDI`, `smf1`, 480) ; puis `Jeu A/basse.wav` (`S2`, `&FAITS_D_UN_STEM`), sans MIDI.
+  `ULID` de Crockford : `copie_de` refuse une minuscule et les lettres `I`, `L`, `O`, `U`.
+
+  Dans `crates/noyau/tests/gestes.rs`, `une_captation_absente_se_dit_par_son_empreinte` (`:838`) devient
+  `une_captation_absente_ne_nomme_pas_son_empreinte`, et attend « Cette captation n'est pas dans le fonds. » ;
+  `verser_une_fiche_deja_versee_est_refuse` (`:1039`) attend « Cette captation est déjà versée. » à `:1064` (balayage
+  P20). Dans
+  `crates/services/tests/suite/mod.rs`, `une_fiche_versee_deux_fois_est_refusee_et_rien_ne_change` attend
+  `impossible("Cette captation est déjà versée.".to_string())` (`:1903-1906`), et
+  `regrouper_une_empreinte_qu_aucune_captation_ne_porte_est_refuse`,
+  `impossible("Cette captation n'est pas dans le fonds.".to_string())` (`:1986-1990`) : leurs messages viennent de
+  `Display` d'`Impossible`, par `refus_impossible` (`crates/services/src/lib.rs:939`), sur les deux paires (balayage
+  P1). `crates/services/tests/application.rs:430` et `crates/stockage/tests/messages.rs:172` ne bougent pas : ils
+  lisent les messages des adaptateurs, que la tâche 9 récrit. Dans `crates/stockage/tests/messages.rs`, la liste
+  d'`aucun_message_n_est_un_ordre` (`:301`) gagne les huit variantes nouvelles, `FichierChange` avec et sans nom
+  (balayage P7).
 - [ ] **Étape 2 : voir le rouge.** Committer (`test: les opérations nommées de l'import, au noyau`), pousser. Attendu à
   « Lint » : `unresolved import noyau::donnees::import`.
-- [ ] **Étape 3 : écrire le code.** Chaque opération pose ses changements par `poser` et `chemin` (`gestes.rs`), les
-  clés à plat `format!("{e}/{NOM}/{chemin}")` ; un nom de générateur se contrôle par `char::is_control`. La doc de
-  `verser_un_fichier` dit qu'il ne passe pas par `gestes::verser`, qui refuse un contenu connu, et pourquoi ; celle de
-  `copie_de`, qu'il ne reconnaît que les noms que `nom_de_la_copie` et `voisin` forment. Les tests de `gestes.rs` qui
-  lisaient l'ancien message de `CaptationAbsente` ou de `CaptationDejaVersee` se récrivent ; la PR le dit.
-- [ ] **Étape 4 : voir le vert.** Attendu à « Tests » de `verifier` : `import.rs` `ok. 11 passed`, `gestes.rs` vert ;
-  `mutants` sans survivant sur le diff.
+- [ ] **Étape 3 : écrire le code.** Chaque opération pose ses changements par `poser`, `oter` et `chemin`
+  (`gestes.rs`), les clés à plat `format!("{e}/{NOM}/{chemin}")` ; un nom de générateur se contrôle par
+  `char::is_control`. Le bloc de la naissance d'une idée (`crates/noyau/src/donnees/gestes.rs:704-721`) devient
+  `naissance_de_l_idee`, que `gestes::verser` appelle sans changer ce qu'il écrit, et que les deux versements de
+  l'import appellent au lieu de le recopier (balayage P8). La doc de `verser_un_fichier` dit qu'il ne passe pas par
+  `gestes::verser`, qui refuse un contenu connu et écrit toujours `format`, et qu'il partage avec lui la naissance de
+  l'idée ; celle de `copie_de`, qu'il ne reconnaît que les noms que `nom_de_la_copie` et `voisin` forment. Les deux
+  versements portent leur `#[allow(clippy::too_many_arguments)]` raisonné (balayage P9). Aucune boucle `while` ni
+  `loop`. Les tests réécrits (les deux de `crates/noyau/tests/gestes.rs`, les deux de la suite) sont dits dans la PR.
+- [ ] **Étape 4 : voir le vert.** Attendu à « Tests » de `verifier` : `import.rs` `ok. 11 passed`, `gestes.rs` du
+  noyau vert, avec un test de plus (`les_refus_de_l_import_se_disent_a_l_octet`), `commandes_en_memoire.rs`,
+  `commandes_sur_fichiers.rs` et `messages.rs` verts ; dans `windows`, `commandes_sur_fichiers.rs` et `messages.rs`
+  verts ; `mutants` sans survivant sur le diff.
 - [ ] **Étape 5 : committer** `git add crates/noyau/src/donnees/import.rs crates/noyau/src/donnees/fonds.rs
   crates/noyau/src/donnees/gestes.rs crates/noyau/src/donnees/mod.rs crates/noyau/tests/import.rs
-  crates/noyau/tests/gestes.rs .cargo/mutants.toml` (`feat: les opérations nommées de l'import, au noyau`).
+  crates/noyau/tests/gestes.rs crates/services/tests/suite/mod.rs crates/stockage/tests/messages.rs .cargo/mutants.toml`
+  (`feat: les opérations nommées de l'import, au noyau`).
 
 ### Tâche 7 : les empreintes que nomme le fonds, étendues ; les copies de l'import à retirer
 
 **Fichiers :** modifier `crates/noyau/src/donnees/idee.rs`, `crates/noyau/src/donnees/demarrage.rs`,
 `crates/noyau/tests/idee.rs`, `crates/noyau/tests/demarrage.rs`, `crates/services/src/lecture.rs` (l'appel seul, les
-rapports à vide jusqu'à la tâche 10).
+rapports à vide jusqu'à la tâche 10), `crates/stockage/tests/h07.rs` (l'appel seul ; balayage P2).
+
+**`.cargo/mutants.toml`** (balayage P11) : aucun module nouveau, `idee.rs` et `demarrage.rs` y sont déjà, avec leurs
+tests ; le compte reste à vingt-sept, et le fichier ne change pas. Aucune boucle `while` ni `loop` dans `src/` : un
+parcours se borne par un itérateur fini.
+
+Les appelants d'`idee::empreintes_nommees`, qui prennent tous `[]` pour les rapports à l'étape 3 :
+`crates/services/src/lecture.rs:214`, `crates/stockage/tests/h07.rs:146` et l'ancien test
+`les_empreintes_nommees_se_coupent_au_premier_trait` (`crates/noyau/tests/idee.rs:23`).
 
 **Interfaces — produit** :
 
@@ -1798,7 +2077,12 @@ pub fn empreintes_nommees<'a>(cles: impl IntoIterator<Item = &'a str>, rapports:
 pub fn copies_a_retirer(copies: &[Provisoire], import: &str, nommees: &BTreeSet<String>, a_la_cloture: bool) -> Vec<String>;
 ```
 
-- [ ] **Étape 1 : écrire les tests.** Dans `crates/noyau/tests/idee.rs` :
+- [ ] **Étape 1 : écrire les tests.** Les constantes sont des `&str` écrites en dur (balayage P16) : dans
+  `crates/noyau/tests/idee.rs`, `P`, `S`, `M`, `E`, `R`, `FAUX` et `FAUX2`, sept chaînes distinctes de 64 caractères
+  hexadécimaux ; dans `crates/noyau/tests/demarrage.rs`, `I = "01HF7YAT00ZZZZZZZZZZZZZZZZ"`, `AUTRE =
+  "01HF7YAT010000000000000001"`, un ULID de Crockford valide, pour que `copie_de` reconnaisse la copie d'un autre import
+  et que le test l'écarte par l'import, non par sa forme, et `E1` à `E4`, quatre chaînes distinctes de 64 caractères
+  hexadécimaux. Dans `crates/noyau/tests/idee.rs` :
 
 ```rust
 #[test]
@@ -1835,29 +2119,38 @@ fn une_copie_de_capture_n_est_jamais_retiree() {
 ```
 
 - [ ] **Étape 2 : voir le rouge.** Committer (`test: les stems, leurs MIDI et le rapport parmi les empreintes
-  nommées`), pousser. Attendu à « Lint » : `this function takes 2 arguments but 1 argument was supplied` (l'appel de
-  `crates/services/src/lecture.rs:208`, et les tests d'avant) ; l'appel prend `[]` pour les rapports dans le même commit
-  que le code, à l'étape 3.
-- [ ] **Étape 3 : écrire le code.** Les segments par `split('/')`, lus par leur rang (`nth`) ; `copies_a_retirer`
-  filtre par `import::copie_de`. `lecture::empreintes_nommees` passe `std::iter::empty()` ; la tâche 10 y met les
-  rapports.
+  nommées`), pousser. Le commit ne porte que les tests, qui appellent à deux arguments une fonction qui n'en prend
+  encore qu'un. Attendu à « Lint » : `this function takes 1 argument but 2 arguments were supplied`
+  (`crates/noyau/tests/idee.rs`), et `unresolved import` de `copies_a_retirer` (`crates/noyau/tests/demarrage.rs`)
+  (balayage P10).
+- [ ] **Étape 3 : écrire le code.** Les segments par `split('/')`, lus par leur rang (`nth`), sans boucle `while` ni
+  `loop` ; `copies_a_retirer` filtre par `import::copie_de`. Dans le même commit, `crates/services/src/lecture.rs:214`,
+  `crates/stockage/tests/h07.rs:146` et `les_empreintes_nommees_se_coupent_au_premier_trait` passent `[]` pour les
+  rapports, `[]` partout et non `std::iter::empty()` (balayage P16) ; la tâche 10 met les rapports dans l'appel de
+  `lecture`.
 - [ ] **Étape 4 : voir le vert.** Attendu à « Tests » de `verifier` : `idee.rs` et `demarrage.rs` verts, la suite des
-  commandes inchangée ; `mutants` sans survivant sur le diff.
+  commandes inchangée depuis la tâche 6 ; dans `windows`, `h07.rs` vert ; `mutants` sans survivant sur le diff.
 - [ ] **Étape 5 : committer** `git add crates/noyau/src/donnees/idee.rs crates/noyau/src/donnees/demarrage.rs
-  crates/noyau/tests/idee.rs crates/noyau/tests/demarrage.rs crates/services/src/lecture.rs` (`feat: les empreintes
-  nommées lisent les stems et le rapport ; les copies de l'import à retirer`).
+  crates/noyau/tests/idee.rs crates/noyau/tests/demarrage.rs crates/services/src/lecture.rs crates/stockage/tests/h07.rs`
+  (`feat: les empreintes nommées lisent les stems et le rapport ; les copies de l'import à retirer`).
 
 ### Tâche 8 : les documents de la PR (a), la mutation, les délais, et la revue de la PR (a)
 
-**Fichiers :** `docs/30-modele-de-domaine.md` (§ 8.1, § 9.2), `docs/31-persistance-et-synchronisation.md` (§ 2),
-`docs/70-qualite-et-verification.md` (§ 1), `docs/80-glossaire.md`, `.cargo/mutants.toml` (sa phrase de tête),
-`CONVENTIONS.md`, `CLAUDE.md`, `ci.yml` et `mutants-complet.yml` (le délai de `mutants`).
+**Fichiers :** `docs/30-modele-de-domaine.md` (§ 8.1, § 9.2), `docs/31-persistance-et-synchronisation.md` (§ 2 ; § 10,
+le test 11), `docs/70-qualite-et-verification.md` (§ 1), `docs/80-glossaire.md`, `.cargo/mutants.toml` (sa phrase de
+tête, relue), `CONVENTIONS.md`, `CLAUDE.md`, `.github/workflows/ci.yml` et `.github/workflows/mutants-complet.yml`
+(les délais).
+
+**`.cargo/mutants.toml`** (balayage P11) : les tâches 1 à 6 y ont mis les six modules, leurs tests, le compte
+« Vingt-sept » à `:2` et dans « ces vingt-sept modules », et chacune son thème dans l'énumération des lignes 2 à 7 ;
+la tâche 8 relit la phrase entière et en corrige la langue, sans module nouveau.
 
 - [ ] **Étape 1 : la recherche de LE-2**, citée dans la description de la PR : `illisible`, `illisibles`, `verser`,
   `versé`, `versée`, `rassembler`, `manifeste`, `rapport`, `signature`, `en-tête`, `proposition`, `origine`, chacun
   aussi sans accent et sur la majuscule accentuée ; chaque emploi antérieur se requalifie (question 33 : regrouper
   « rassemble »).
-- [ ] **Étape 2 : le modèle.** § 30 · 9.2 : la table des signatures et des extensions (tâche 1) ; les faits d'un WAV
+- [ ] **Étape 2 : le modèle.** § 30 · 9.2 : la table des signatures et des extensions (tâche 1), sa ligne MP3 avec
+  l'exception de l'octet 1 `0xFE`, le BOM d'un UTF-16 petit-boutiste, qu'admet la question 10 (balayage P3) ; les faits d'un WAV
   (format, durée, codage, canaux, fréquence, bits) et d'un MIDI (format, division brute) ; « illisible » ; les types de
   stem, la liste fermée et leurs libellés ; le manifeste à l'octet, avec son témoin ; le rapport d'import à l'octet,
   avec son témoin ; « stem » et « MIDI d'un stem » ne sont la captation d'aucune idée ; un fichier illisible n'a aucun
@@ -1869,7 +2162,8 @@ fn une_copie_de_capture_n_est_jamais_retiree() {
   sous `prises`, les faits d'en-tête, `<p>/manifeste`, `<e>/nom/<chemin>` à l'ULID de l'import qui l'a vu le premier
   (question 20, au lieu de `true`), l'entrée d'un stem et son type avec sa provenance ; sous `midi_verses`, la division,
   et le MIDI d'un stem sans `idee` ; aucune migration, la genèse inchangée, son empreinte de référence aussi ; le texte
-  dit que ces clés se gèlent avec la `v0.3.0`.
+  dit que ces clés se gèlent avec la `v0.3.0`. § 31 · 10 : la ligne du test 11 nomme aussi le manifeste et le rapport
+  témoins, à leurs empreintes de référence, que `crates/stockage/tests/references.rs` est seul à écrire (balayage P17).
 - [ ] **Étape 4 : la qualité, le glossaire.** § 70 · 1 : « Les faits d'un fichier versé » récrit (la table fermée, les
   en-têtes, le texte lisible, illisible) ; « Un import rejoué ne crée aucun doublon » récrit d'après la question 9 ;
   une ligne de plus, « L'import d'un fonds », pour la place libre, l'origine la plus forte, le premier nom vu, la portée,
@@ -1877,17 +2171,33 @@ fn une_copie_de_capture_n_est_jamais_retiree() {
   « Illisible (fichier versé) », distinct de ses deux autres sens (question 10) ; « Verser » réservé à l'import, et
   « Rassembler » pour regrouper (question 33) ; « Manifeste (d'une prise en stems) » et « Rapport d'import » à
   l'octet ; « Proposition » nomme l'import comme troisième source au lot 1 (question 18).
-- [ ] **Étape 5 : les portes.** `.cargo/mutants.toml` : « Vingt-sept modules », la phrase qui les énumère ;
+- [ ] **Étape 5 : les portes.** `.cargo/mutants.toml` : la phrase des lignes 2 à 7, relue (« Vingt-sept modules ») ;
   `CONVENTIONS.md` : `mutants` (les six modules) ; `CLAUDE.md` : « Les crates » (le noyau : les signatures, les
-  en-têtes, le rapport, l'origine, les stems, l'import). Le délai de `mutants` (et de `mutants-complet.yml`), remesuré
-  sur l'exécution de la tête, au double de la mesure, son commentaire daté ; ceux de `verifier` et de `windows` aussi.
-- [ ] **Étape 6 : committer** les documents (`docs: les règles de l'import au modèle, au schéma, aux règles du noyau et
-  au glossaire`).
+  en-têtes, le rapport, l'origine, les stems, l'import). Le délai de `mutants` (et de `mutants-complet.yml`) vaut deux
+  fois le plus long passage complet (`.github/workflows/ci.yml:268`), que le job d'une PR, qui ne mute que le diff, ne
+  fait pas : lancer `gh workflow run mutants-complet.yml --ref t5a-les-regles-de-l-import`, lire sa durée
+  (`gh run list --workflow mutants-complet.yml --branch t5a-les-regles-de-l-import --limit 1`, puis `gh run view`),
+  et dater le commentaire de cette exécution (balayage P23) ; ceux de `verifier` et de `windows`, remesurés sur
+  l'exécution de la tête.
+- [ ] **Étape 6 : committer**, en deux commits, par chemins explicites (balayage P23). Les documents : `git add
+  docs/30-modele-de-domaine.md docs/31-persistance-et-synchronisation.md docs/70-qualite-et-verification.md
+  docs/80-glossaire.md .cargo/mutants.toml CONVENTIONS.md CLAUDE.md` (`docs: les règles de l'import au modèle, au
+  schéma, aux règles du noyau et au glossaire`). Les délais : `git add .github/workflows/ci.yml
+  .github/workflows/mutants-complet.yml` (`ci: les délais de mutants, de verifier et de windows remesurés`).
 - [ ] **Étape 7 : la revue de la PR (a).** La revue de la PR entière, sur sa tête, par le modèle le plus capable : chaque
-  valeur témoin recalculée (le manifeste `340999f9…`, le rapport `6d161268…`, les Go, les durées), chaque règle de LE-6
+  valeur témoin recalculée (le manifeste `340999f9…`, le rapport `6d161268…`, les Go, les durées, la taille *syncsafe*
+  2 130 318), chaque règle de LE-6
   recopiée, chaque mécanisme annoncé que la PR touche relu, la recherche de LE-2. Puis les corrections, leur relecture
-  sur la tête qui part. Le corps dit : les tests réécrits (les messages de `CaptationAbsente` et de
-  `CaptationDejaVersee`) ; qu'aucune règle n'est encore appelée par les services (PR (b)) ; que le WAV dont l'en-tête
+  sur la tête qui part. Le corps dit : les tests réécrits, et pourquoi (les messages de `CaptationAbsente` et de
+  `CaptationDejaVersee`, qui ne nomment plus l'empreinte : `une_captation_absente_ne_nomme_pas_son_empreinte` et
+  `verser_une_fiche_deja_versee_est_refuse` au noyau, `une_fiche_versee_deux_fois_est_refusee_et_rien_ne_change` et
+  `regrouper_une_empreinte_qu_aucune_captation_ne_porte_est_refuse` dans la suite des commandes ; la naissance d'une
+  idée extraite de `gestes::verser`, ses tests inchangés ; l'appel de `h07.rs` à deux arguments) ; que la table fermée
+  de la question 11 est accordée à la question 10 : la ligne MP3 excepte l'octet 1 `0xFE`, car `FF FE` est le BOM d'un
+  UTF-16 petit-boutiste, texte que la question 10 admet et qu'un « Unicode » de Windows écrit, et que la signature,
+  l'emportant sur l'extension, aurait versé en prise `mp3` ; la question 11 garde sa lettre, la table de la tâche 1 et
+  le § 30 · 9.2 portent l'exception (balayage P3) ; qu'aucune règle n'est encore appelée par les services (PR (b)) ;
+  que le WAV dont l'en-tête
   passe 65 536 octets est illisible, limite dite, et qu'un fichier illisible, sans format, ne s'écoute pas : le
   protocole lui rendra 404, même à un WAV que l'appareil saurait jouer (R17) ; qu'une photo HEIC ou AVIF est ignorée,
   par le code de format aux octets 8 à 11 de son `ftyp`, une vidéo versée en prise `m4a` (question 36) ; que le nom d'un générateur tient sur une ligne ; « Écarts à la spec :
@@ -2265,9 +2575,15 @@ pub struct CaptationVue { pub captation: Captation, pub faits: FaitsDUneCaptatio
 
 ### Tâche 12 : les services de l'import : inspecter, ouvrir, verser, clore
 
-**Fichiers :** créer `crates/services/src/import.rs` (l'état de l'import et ses conversions) ; modifier
+**Fichiers :** créer `crates/services/src/etat_de_l_import.rs` (l'état de l'import et ses conversions) ; modifier
 `crates/services/src/lib.rs`, `crates/services/tests/suite/mod.rs`, `crates/services/tests/commandes_en_memoire.rs`,
 `crates/stockage/tests/commandes_sur_fichiers.rs`.
+
+Le module des services se nomme `etat_de_l_import`, non `import` : `mod import;` et `use noyau::donnees::import;` ne
+coexisteraient pas dans `crates/services/src/lib.rs` (E0255), et ce plan écrit `import::ouvrir`,
+`import::verser_un_fichier`, `import::declarer_une_origine`… pour les opérations du noyau (balayage P13). Les
+homonymes de `commandes` (`ImportOuvert`, `ChoixDuType`, `Compte`) et ceux du noyau se nomment par leur module, comme
+`gestes::Sorte` aujourd'hui.
 
 **Interfaces — consomme :** les règles de la PR (a) ; `Source`, `Captations::verser_en_flux` (tâche 9) ; les lectures
 de la tâche 10 ; les commandes de la tâche 11.
@@ -2413,14 +2729,14 @@ impl<D: Documents, C: Captations> Services<D, C> {
     naissance, « Import du 14 novembre ouvert », les versements, « Import du 14 novembre clos ».
 - [ ] **Étape 2 : voir le rouge.** Committer (`test: l'import, CAP-03 · 1 à 3, 4 et 8 en part, 7, 10, 11 et 13`),
   pousser. Attendu à « Lint » : `no method named inspecter found`.
-- [ ] **Étape 3 : écrire le code.** `services::import` tient `EtatDeLImport` (l'ULID, l'heure de l'ouverture, la tête,
+- [ ] **Étape 3 : écrire le code.** `services::etat_de_l_import` tient `EtatDeLImport` (l'ULID, l'heure de l'ouverture, la tête,
   les déclarations, l'inspection, ce que chaque rang a donné, les empreintes nommées, lues une fois puis tenues à
   jour ; R26) ; `Services` le garde dans un champ, `None` hors d'un import, et garde à part la table (chemin →
   empreinte) du dernier import clos, oubliée à l'inspection suivante (R6). `verser_une_fiche` ne change pas : la voie d'une capture, qui verse toujours ; sa doc le dit, et ne dit plus
   « l'import la recevra ». Aucune lecture d'un fichier hors du contrat `Source`.
 - [ ] **Étape 4 : voir le vert.** Attendu à « Tests » de `verifier` : la suite verte sur les deux paires, `statique.rs`
   des services vert ; dans `windows`, `commandes_sur_fichiers.rs` vert.
-- [ ] **Étape 5 : committer** `git add crates/services/src/import.rs crates/services/src/lib.rs
+- [ ] **Étape 5 : committer** `git add crates/services/src/etat_de_l_import.rs crates/services/src/lib.rs
   crates/services/tests/suite/mod.rs crates/services/tests/commandes_en_memoire.rs
   crates/stockage/tests/commandes_sur_fichiers.rs` (`feat: l'import, conduit unité par unité, ses comptes et son
   rapport`).
@@ -2429,6 +2745,10 @@ impl<D: Documents, C: Captations> Services<D, C> {
 
 **Fichiers :** modifier `crates/services/src/lib.rs`, `crates/services/tests/suite/mod.rs`,
 `crates/services/tests/commandes_en_memoire.rs`, `crates/stockage/tests/commandes_sur_fichiers.rs`.
+
+**Interfaces — consomme :** `rapport::{lire_le_rapport, RapportLu}` (tâche 3 ; balayage P14), `import::{declarer_une_origine,
+choisir_le_type, Cible, Declaree, ChoixDuType}` (tâche 6), `stems::type_propose` (tâche 5), `origine::sous_le_prefixe`
+(tâche 4).
 
 **Interfaces — produit** (`services::Services`) :
 
@@ -2448,7 +2768,8 @@ pub fn choisir_le_type_d_un_stem(&mut self, commande: &ChoisirLeType, contexte: 
 /// Le texte versé `captation`, relu contre son empreinte, décodé : UTF-8 (son BOM ôté) ou UTF-16
 /// d'après son BOM ; illisible, `None`. Une lecture : en lecture seule comme ailleurs.
 pub fn lire_un_texte_verse(&self, commande: &Captation) -> Reponse<TexteLu>;
-/// Le rapport de l'import `import`, relu contre son empreinte, ses comptes lus de ses lignes.
+/// Le rapport de l'import `import`, relu contre son empreinte, ses comptes lus par la règle du
+/// noyau, `rapport::lire_le_rapport` ; `None` : `Raison::Illisible`.
 pub fn lire_un_rapport(&self, commande: &LireUnRapport) -> Reponse<RapportDImport>;
 /// Les noms de générateurs du fonds (question 22 : l'écran les offre, sans normaliser).
 pub fn generateurs(&self) -> Reponse<Vec<String>>;
@@ -2471,8 +2792,9 @@ pub fn generateurs(&self) -> Reponse<Vec<String>>;
     inspecté. » ;
   - `garder_puis_choisir_le_type_d_un_stem` : `voix.wav` dans un jeu ; `TypeVu::Propose(Voix)`, puis
     `Garde(Voix)`, puis, choisi, `Choisi(Choeurs)` ;
-  - `lire_un_texte_verse_le_rend_tel_quel` : un ChordPro UTF-8 avec BOM, un UTF-16 petit-boutiste, un illisible
-    (`None`) ; un texte qui porte `<script>` et `&amp;` revient octet pour octet (I31) ;
+  - `lire_un_texte_verse_le_rend_tel_quel` : un ChordPro UTF-8 avec BOM, un UTF-16 petit-boutiste, dont le BOM
+    `FF FE` le fait reconnaître en texte, non en prise `mp3` (balayage P3), un illisible (`None`) ; un texte qui porte
+    `<script>` et `&amp;` revient octet pour octet (I31) ;
   - `lire_un_rapport_rend_ses_comptes` : ceux que `clore_l_import` a rendus ;
   - `les_generateurs_du_fonds_chacun_une_fois`.
   Sur la seule paire en mémoire (`commandes_en_memoire.rs`), à deux répliques (vigilance 1) :
@@ -2485,9 +2807,9 @@ pub fn generateurs(&self) -> Reponse<Vec<String>>;
     forte, générée.
 - [ ] **Étape 2 : voir le rouge.** Committer (`test: les déclarations après l'import ; CAP-03 · 9`), pousser. Attendu à
   « Lint » : `no method named declarer_une_origine found`.
-- [ ] **Étape 3 : écrire le code.** Le rapport se relit par ses lignes `clé=…`, la première vérifiée
-  (`pupitre-rapport-d-import 1`) ; une autre version, refusée de `Raison::Illisible`, « Ce rapport vient d'une version
-  plus récente. ».
+- [ ] **Étape 3 : écrire le code.** Le rapport, relu contre son empreinte, se lit par `rapport::lire_le_rapport`
+  (tâche 3), jamais par un second lecteur de ses lignes dans les services (balayage P14) ; `None` (une autre version,
+  une ligne manquante ou mal formée), refusé de `Raison::Illisible`, « Ce rapport vient d'une version plus récente. ».
 - [ ] **Étape 4 : voir le vert.** Attendu à « Tests » de `verifier` : la suite verte sur les deux paires ; dans
   `windows`, `commandes_sur_fichiers.rs` vert.
 - [ ] **Étape 5 : committer** `git add crates/services/src/lib.rs crates/services/tests/suite/mod.rs
@@ -2496,7 +2818,7 @@ pub fn generateurs(&self) -> Reponse<Vec<String>>;
 
 ### Tâche 14 : la reprise, le fichier qui change, la lecture seule, les copies
 
-**Fichiers :** modifier `crates/services/src/lib.rs`, `crates/services/src/import.rs`,
+**Fichiers :** modifier `crates/services/src/lib.rs`, `crates/services/src/etat_de_l_import.rs`,
 `crates/services/tests/suite/mod.rs`, `crates/services/tests/commandes_en_memoire.rs`,
 `crates/stockage/tests/commandes_sur_fichiers.rs`.
 
@@ -2550,7 +2872,7 @@ pub fn generateurs(&self) -> Reponse<Vec<String>>;
   les docs de la tâche 12 le disent.
 - [ ] **Étape 4 : voir le vert.** Attendu à « Tests » de `verifier` : la suite verte sur les deux paires,
   `commandes_sur_fichiers.rs` vert ; dans `windows`, de même.
-- [ ] **Étape 5 : committer** `git add crates/services/src/lib.rs crates/services/src/import.rs
+- [ ] **Étape 5 : committer** `git add crates/services/src/lib.rs crates/services/src/etat_de_l_import.rs
   crates/services/tests/suite/mod.rs crates/services/tests/commandes_en_memoire.rs
   crates/stockage/tests/commandes_sur_fichiers.rs` (`feat: la reprise d'un import, le fichier changé, le retrait des
   copies`).
@@ -3476,7 +3798,8 @@ pub(crate) fn commandes_de_regroupement(choisies: &[(Captation, i64)], cible: &s
   (21) ; I01 (10) ; le test 13 (16) ; `mutants` (1 à 6, 20 ; R14) ;
   les délais (8, 17, 25) ; le chemin long et les deux formes d'un nom dans `windows` (15).
 - **Les types.** `Reconnu`, `FaitsWav`, `FaitsMidi`, `ControleDuTexte`, `Hacheur` (1, 2) servent aux tâches 9 et 12 ;
-  `FichierDeLImport`, `Comptes`, `rapport`, `place`, `go` (3) à la tâche 12 ; `OriginesLues`, `Ajout`, `Declaration`
+  `FichierDeLImport`, `Comptes`, `rapport`, `place`, `go` (3) à la tâche 12, et `lire_le_rapport`, `RapportLu` (3) à
+  la tâche 13 ; `OriginesLues`, `Ajout`, `Declaration`
   (4) aux tâches 6, 10, 12 et 13 ; `TypeDeStem`, `stem_du_midi`, `jeu_propose` (5) aux tâches 12, 13 et 23 ; les
   opérations et `Faits` (6) aux tâches 12 à 14 et 16 ; `copies_a_retirer` (7) aux tâches 12 et 14 ; `Source`,
   `Versement` (9) aux tâches 12, 15 et 16 ; les commandes (11) aux tâches 12 à 15 et 22 à 24 ; `Plage`, `servir` (20)
@@ -3488,7 +3811,9 @@ pub(crate) fn commandes_de_regroupement(choisies: &[(Captation, i64)], cible: &s
   octets, `340999f9…`), le rapport témoin (259 octets, `6d161268…`), les empreintes des trois stems inventés ; les
   durées (8 000 trames à 8 000 Hz, 1 000 ms ; 1 000 trames à 44 100 Hz, 22 ms ; 2 × 10¹⁶ trames à 48 000 Hz,
   416 666 666 666 666 ms) ; les tailles des WAV (8 044 et 4 044 octets) ; les comptes de `cap03_1` (83 009, 80 003,
-  3 006 octets) ; le manque de place (3 000 008 192 octets, « 3,1 Go ») ; les syncsafe d'ID3 (210, 220) ; la plage
+  3 006 octets) ; le manque de place (3 000 008 192 octets, « 3,1 Go ») ; les syncsafe d'ID3 (210, 220, et
+  2 130 318, ses quatre octets non nuls) ; la borne d'`ENTIER_SUR` d'une durée (`ENTIER_SUR` ms lisible, un de plus
+  illisible) ; la plage
   suffixe bornée (1 951 424) ; les 23 090 opérations, les quelque 3 298 acteurs (un tous les sept ; R10) et les 59
   compactions du test 13.
 - **Ce que la rédaction n'avait pas pu vérifier**, faute de lancer cargo, la relecture l'a vérifié sur docs.rs :
