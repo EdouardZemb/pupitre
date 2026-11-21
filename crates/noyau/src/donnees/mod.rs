@@ -14,6 +14,8 @@ pub mod idee;
 pub mod identifiants;
 pub mod index;
 pub mod journal;
+pub mod origine;
+pub mod origine;
 pub mod rapport;
 pub mod repli;
 pub mod requete;
