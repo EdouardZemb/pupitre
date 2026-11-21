@@ -1721,22 +1721,28 @@ pub fn verser_un_fichier(ouvert: &ImportOuvert<'_>, sorte: Sorte, empreinte: &st
 pub struct StemAVerser<'a> { pub empreinte: &'a str, pub faits: &'a Faits, pub chemin: Option<&'a str>, pub midi: Option<MidiDuStem<'a>> }
 pub struct MidiDuStem<'a> { pub empreinte: &'a str, pub faits: &'a Faits, pub chemin: Option<&'a str> }
 
-/// Ce que le fonds porte déjà d'une prise en stems : elle (son manifeste), ses noms, et, par
-/// empreinte, ce que portent ses stems et leurs MIDI.
+/// Ce que le fonds porte déjà d'une prise en stems : elle (son manifeste), ses noms, par empreinte,
+/// ce que portent ses stems et leurs MIDI, et les liens d'un stem à son MIDI déjà posés sous la
+/// prise, `prises/<p>/stem/<s>/midi/<m>` : (le stem, le MIDI) (revue de la tâche 6).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct DejaDeLaPrise { pub prise: DejaLu, pub stems: BTreeMap<String, DejaLu>, pub midis: BTreeMap<String, DejaLu> }
+pub struct DejaDeLaPrise { pub prise: DejaLu, pub stems: BTreeMap<String, DejaLu>, pub midis: BTreeMap<String, DejaLu>,
+    pub liens_midi: BTreeSet<(String, String)> }
 
 /// Verser une prise en stems (questions 19, 21), `manifeste` l'empreinte de son manifeste, `nom` le
 /// chemin de son dossier, ou son dernier segment pour un jeu versé seul ; `None` pour un jeu versé
 /// seul dont le dossier n'a pas de nom en UTF-8 : la prise n'a alors aucune clé `nom`, et ses stems
 /// gardent les leurs (R23). Neuve : son idée naît ;
 /// `prises/<p>/idee`, `<p>/manifeste` à `true`, `<p>/nom/<nom>` ; pour chaque stem,
-/// `<p>/stem/<s>/format` et `…/duree` s'ils sont présents, `…/nom/<chemin>`, `…/midi/<m>` à `true` ;
-/// pour chaque MIDI d'un stem sans entrée sous `midi_verses`, `midi_verses/<m>/format` et
-/// `…/division`, jamais `idee` ; « Idée du 3 novembre : prise en stems versée ». Neuve ou connue :
-/// chaque nom absent, de la prise, des stems et des MIDI, et l'origine, sur la prise, chaque stem et
-/// chaque MIDI. `Ok(None)` si rien ne s'ajoute. Sans stem : `Impossible::JeuSansAudio`. L'idée naît
-/// par `gestes::naissance_de_l_idee`.
+/// `<p>/stem/<s>/format` et `…/duree` s'ils sont présents, `…/nom/<chemin>` ; « Idée du 3 novembre :
+/// prise en stems versée ». Neuve ou connue : pour chaque MIDI d'un stem, `<p>/stem/<s>/midi/<m>` à
+/// `true` si ce lien n'est pas dans `deja.liens_midi`, et, s'il n'a pas d'entrée sous `midi_verses`,
+/// `midi_verses/<m>/format` et `…/division`, jamais `idee` : le manifeste ne compte que les stems
+/// audio (ADR-024, décision 1), et un MIDI ajouté au dossier d'une prise connue la rejoint ; chaque
+/// nom absent, de la prise, des stems et des MIDI, et l'origine, sur la prise, chaque stem et chaque
+/// MIDI. Connue : « Import du 3 novembre : » suivi de ce qui s'ajoute, dans cet ordre, « nom
+/// d'origine ajouté », « MIDI d'un stem ajouté », « origine déclarée », séparés par une virgule ;
+/// `Ok(None)` si rien ne s'ajoute, un lien déjà posé ne s'écrivant pas. Sans stem :
+/// `Impossible::JeuSansAudio`. L'idée naît par `gestes::naissance_de_l_idee`.
 pub fn verser_une_prise_en_stems(ouvert: &ImportOuvert<'_>, manifeste: &str, nom: Option<&str>, stems: &[StemAVerser<'_>],
     origine: Option<&Ajout>, deja: &DejaDeLaPrise, idee: &str, heure: i64, decalage_minutes: i32) -> Result<Option<Operation>, Impossible>;
 
@@ -2430,7 +2436,9 @@ pub fn deja_lu(doc: &Automerge, sorte: Sorte, empreinte: &str, nommees: &BTreeSe
 /// (R2). Chaque nom de fichier va avec son empreinte, et si sa captation n'a pas de `format` (un
 /// illisible, R7).
 pub fn noms_poses_par(doc: &Automerge, import: &str) -> NomsPoses;
-/// Ce que le fonds porte d'une prise en stems, de ses stems et de leurs MIDI.
+/// Ce que le fonds porte d'une prise en stems, de ses stems et de leurs MIDI, et les liens d'un stem
+/// à son MIDI déjà posés sous elle : chaque clé `<p>/stem/<s>/midi/<m>` de `prises`, en
+/// `DejaDeLaPrise::liens_midi` (revue de la tâche 6).
 pub fn deja_de_la_prise(doc: &Automerge, manifeste: &str, stems: &[&str], midis: &[&str]) -> DejaDeLaPrise;
 /// Les stems de la prise `prise`, dans l'ordre de leurs empreintes : leurs faits, leurs noms, leur
 /// type gardé ou choisi, avec sa provenance, et leur MIDI.
@@ -2644,7 +2652,10 @@ impl<D: Documents, C: Captations> Services<D, C> {
     /// ce jeu ne sont pas tous versés. ») : le manifeste (`rapport::manifeste`) par
     /// `Captations::verser`, puis `import::verser_une_prise_en_stems`, son nom le chemin du dossier,
     /// ou `Source::nom_du_dossier` pour le dossier versé ; sans nom en UTF-8, aucun, et aucune ligne
-    /// `fichier-sans-nom` au rapport, qui ne nomme que le rang d'un fichier (R23).
+    /// `fichier-sans-nom` au rapport, qui ne nomme que le rang d'un fichier (R23). Ce que le fonds
+    /// porte déjà de la prise se lit par `lecture::deja_de_la_prise`, les liens
+    /// `prises/<p>/stem/<s>/midi/<m>` déjà posés compris : une prise connue, réimportée avec un MIDI
+    /// nouveau d'un stem, reçoit son lien et ses faits (revue de la tâche 6).
     pub fn verser_une_prise_en_stems<S: Source>(&mut self, source: &S, commande: &VerserUnePriseEnStems, contexte: &mut Contexte<'_>) -> Reponse<Faite>;
     /// Clôt l'import, chaque fichier et chaque jeu versés (sinon « Des fichiers restent à verser. ») :
     /// le rapport (`rapport::rapport`), les connues lues à la tête de l'ouverture
