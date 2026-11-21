@@ -192,7 +192,8 @@ fn nommer_sous(
 /// La copie en flux de `contenu` dans `racine`, sous le nom de la copie de rang `rang` de
 /// `IMPORT`, coupée à son `coupure`-ième passage par `etape`, et son retrait coupé aussi, le temps
 /// de ce seul versement, comme une coupure du processus (R1) : refusée, elle laisse son nom
-/// provisoire, seul nouveau dans `captations/`. Rend son chemin.
+/// provisoire, seul nouveau fichier de `captations/` ; un renommage coupé y laisse aussi le
+/// sous-dossier de l'empreinte, créé avant lui. Rend son chemin.
 fn une_copie_coupee(
     racine: &RacineDesDonnees,
     contenu: &[u8],
@@ -214,7 +215,10 @@ fn une_copie_coupee(
         matches!(rendu, Err(Erreur::Disque { .. })),
         "la copie coupée à {etape:?} : rendu {rendu:?}"
     );
-    let nouveaux = commun::nouveaux(&avant, &entrees(&dossier));
+    let nouveaux: Vec<String> = commun::nouveaux(&avant, &entrees(&dossier))
+        .into_iter()
+        .filter(|nom| dossier.join(nom).is_file())
+        .collect();
     assert_eq!(
         nouveaux,
         [format!(
