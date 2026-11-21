@@ -45,7 +45,7 @@ fn les_empreintes_nommees_se_coupent_au_premier_trait() {
     ];
 
     assert_eq!(
-        empreintes_nommees(cles),
+        empreintes_nommees(cles, []),
         BTreeSet::from(["e1".to_string(), "e2".to_string(), "e3".to_string()])
     );
 }

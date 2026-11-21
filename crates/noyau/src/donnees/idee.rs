@@ -4,15 +4,36 @@
 
 use std::collections::BTreeSet;
 
-use super::fonds::APPARENTE;
+use super::fonds::{APPARENTE, MIDI, STEM};
 use super::gestes::IdeeLue;
 
-/// Les empreintes que nomment des clés `<empreinte>/<clé>` : ce qui précède le premier `/` ; une
-/// clé sans `/` ne nomme rien.
-pub fn empreintes_nommees<'a>(cles: impl IntoIterator<Item = &'a str>) -> BTreeSet<String> {
-    cles.into_iter()
-        .filter_map(|cle| cle.split_once('/'))
-        .map(|(empreinte, _)| empreinte.to_string())
+/// Les empreintes que nomme le fonds (décision 12 ; P1) : de chaque clé de `cles` (les conteneurs
+/// qui nomment une captation), son premier segment ; si le deuxième vaut `stem`, le troisième ;
+/// si, de plus, le quatrième vaut `midi`, le cinquième ; et chaque valeur de `rapports` (les
+/// `imports/<i>/rapport`). Les segments se lisent à leur place, jamais dans un nom
+/// (`<e>/nom/<chemin>`), quel que soit le chemin. Une clé sans `/` ne nomme rien.
+pub fn empreintes_nommees<'a>(
+    cles: impl IntoIterator<Item = &'a str>,
+    rapports: impl IntoIterator<Item = &'a str>,
+) -> BTreeSet<String> {
+    let des_cles = cles
+        .into_iter()
+        .filter(|cle| cle.contains('/'))
+        .flat_map(|cle| {
+            let mut segments = cle.split('/');
+            let prise = segments.next();
+            let stem = (segments.next() == Some(STEM))
+                .then(|| segments.next())
+                .flatten();
+            let midi = (segments.next() == Some(MIDI))
+                .then(|| segments.next())
+                .flatten();
+            [prise, stem, midi]
+        });
+    des_cles
+        .flatten()
+        .chain(rapports)
+        .map(str::to_string)
         .collect()
 }
 
