@@ -173,11 +173,14 @@ pub struct WavInspecte<'a> {
     pub frequence: u32,
 }
 
+/// Les WAV d'un même couple (trames, fréquence), par (taille, début).
+type Distincts<'a> = BTreeSet<(u64, &'a [u8])>;
+
 /// Vrai si au moins deux WAV distincts ont le même nombre de trames à la même fréquence
 /// (question 16) ; deux WAV sont distincts si leurs tailles, ou les octets lus de leur début,
 /// diffèrent (question 37).
 pub fn jeu_propose(wav: &[WavInspecte<'_>]) -> bool {
-    let mut groupes: BTreeMap<(u64, u32), BTreeSet<(u64, &[u8])>> = BTreeMap::new();
+    let mut groupes: BTreeMap<(u64, u32), Distincts<'_>> = BTreeMap::new();
     for w in wav {
         groupes
             .entry((w.trames, w.frequence))
