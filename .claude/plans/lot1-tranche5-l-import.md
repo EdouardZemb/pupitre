@@ -3069,8 +3069,10 @@ impl DocumentsEnMemoire {
   celui-ci le clôt, avec ce qu'il a versé. » (question 35 ; V12). SYN-07, ligne « Lit · écrit » : « Lit ; un import n'écrit aucune décision musicale », et sa règle
   (question 32, (e)). CAP-02 : regrouper « rassemble » (question 33) ; et la règle « Une idée importée sans texte se
   montre « Fichier : » suivi du premier nom vu de sa première captation, écrit comme texte ; la recherche ne lit pas ce
-  nom. » (question 4 ; R12). CAP-07 (`:533-535`) : importer, refusé en lecture seule, et la page d'un fonds vide le
-  propose.
+  nom. » (question 4 ; R12). La ligne 126 de CAP-02 (« Promouvoir … y verse la matière de l'idée ») se récrit comme la
+  ligne 108 (question 33) ; CAP-03 et le § 70 · 1 disent aussi que l'inspection repropose, sans les appliquer, les
+  déclarations d'un import précédent (question 9). CAP-07 (`:533-535`) : importer, refusé en lecture seule, et la page
+  d'un fonds vide le propose.
 - [ ] **Étape 3 : le modèle, la persistance, l'architecture.** § 30 · 2 : la table gagne l'ULID d'un import. § 31 · 2.1
   et 2.4 : « Une captation se verse toujours » est la règle d'une capture (CAP-01), non d'un import (question 15).
   § 31 · 6.1 : la copie en flux, son nom provisoire `import-<ULID>-<rang>.<processus>.partiel`, rangé au démarrage s'il

@@ -604,7 +604,7 @@ stateDiagram-v2
 
 | Objet | Contenu | Nature |
 |---|---|---|
-| **Prise** | Empreinte, idée, noms d'origine tels quels, format, durée (engendrée, et non stockée, pour une prise en stems), date, appareil, origine déclarée, diapason mesuré ; d'un WAV, le codage, les canaux, la fréquence et les bits de son en-tête ; pour une prise en stems, l'entrée de chacun de ses stems | Captation, ou manifeste d'un jeu de stems ; ses métadonnées sont des décisions, des faits et une mesure (ci-dessous) |
+| **Prise** | Empreinte, idée, noms d'origine tels quels, format, durée (pour une prise en stems, engendrée et non stockée : celle de son stem le plus long, `—` dès qu'un stem n'a pas la sienne), date, appareil, origine déclarée, diapason mesuré ; d'un WAV, le codage, les canaux, la fréquence et les bits de son en-tête ; pour une prise en stems, l'entrée de chacun de ses stems | Captation, ou manifeste d'un jeu de stems ; ses métadonnées sont des décisions, des faits et une mesure (ci-dessous) |
 | **Stem** | Empreinte, noms d'origine, type, format, durée, origine déclarée, MIDI qui l'accompagnent ; une entrée sous chaque prise dont il est stem | Captation d'aucune idée : seule sa prise en a une ; son type est une décision, le reste des faits |
 | **MIDI versé** | Empreinte, noms d'origine, format SMF, division, origine déclarée ; seul, son idée. Celui qui accompagne un stem, le **MIDI d'un stem**, n'a pas d'idée : l'entrée du stem le nomme, et un même MIDI peut en accompagner plusieurs | Captation, d'une idée s'il est versé seul ; ses métadonnées sont des décisions et des faits |
 | **Texte versé** | Empreinte, idée, noms d'origine, format (brut, Markdown, ChordPro), origine déclarée | Captation ; ses métadonnées sont des décisions et des faits |
@@ -701,27 +701,30 @@ et celui d'un MIDI, et contrôle un texte ([ADR-024](adr/adr-024-import-d-un-fon
   **canaux**, sa **fréquence**, en hertz, et ses **bits** par échantillon, avec l'alignement
   d'un bloc ; `data` donne ses trames : sa taille, bornée à ce que le fichier porte après
   l'en-tête de `data`, divisée par l'alignement. Celle d'un RF64 vient de `ds64` quand `data`
-  dit `0xFFFFFFFF`. Sa **durée**, en millisecondes, vaut ⌊trames × 1 000 / fréquence⌋,
-  calculée sans débordement : deux WAV qui ont le même nombre de trames à la même fréquence
-  ont la même durée ;
+  dit `0xFFFFFFFF`. Dans un RIFF, `ds64` est un morceau comme un autre, sauté, et une taille
+  de `data` qui dit `0xFFFFFFFF`, celle d'un WAV écrit en flux ou d'un enregistrement
+  interrompu, se borne au fichier, comme toute taille. Sa **durée**, en millisecondes, vaut
+  ⌊trames × 1 000 / fréquence⌋, calculée sans débordement : deux WAV qui ont le même nombre
+  de trames à la même fréquence ont la même durée ;
 - **d'un MIDI**, ses 14 premiers octets : `MThd 00 00 00 06`, puis son format, ses pistes et
   sa division, gros-boutistes. Il en garde son **format**, `smf0`, `smf1` ou `smf2`, et sa
   **division**, brute, telle qu'écrite, en ticks par noire ou en SMPTE ; ses pistes ne se
   gardent pas ;
 - **d'un texte**, qu'il est lisible : en UTF-8, la marque `EF BB BF` admise en tête, ou en
   UTF-16 dont les deux premiers octets sont `FF FE` (petit-boutiste) ou `FE FF`
-  (gros-boutiste), de longueur paire, chaque demi-paire de substitution appariée. Il garde
-  son format, `brut`, `markdown` ou `chordpro`, d'après son extension.
+  (gros-boutiste), de longueur paire, chaque demi-paire de substitution appariée ; un texte
+  vide, ou fait de sa seule marque, est lisible. Il garde son format, `brut`, `markdown` ou
+  `chordpro`, d'après son extension.
 
 **Un fichier versé illisible.** Un fichier versé est **illisible** quand l'établi ne lit pas
 ce qu'il doit lire : un WAV dont les 65 536 premiers octets ne portent pas `fmt `, de
-16 octets au moins, puis l'en-tête de `data`, dont la fréquence ou l'alignement vaut 0, dont
-la taille de `data` renvoie à un `ds64` absent, ou dont la durée passe 2⁵³ − 1
-millisecondes ; un MIDI de moins de 14 octets, d'un format au-delà de 2, ou de format 0 qui
-n'a pas une seule piste ; un texte ni en UTF-8, ni en UTF-16 avec sa marque. Il est versé
-quand même, en captation, mais sans aucun fait, son format compris : ses faits valent `—`, et
-le rapport d'import le compte à part parmi les versés, une fois par contenu. Sans format, il
-ne s'écoute pas : le protocole des captations ne le sert pas
+16 octets au moins, puis l'en-tête de `data`, dont la fréquence ou l'alignement vaut 0, ou
+dont la durée passe 2⁵³ − 1 millisecondes, et un RF64 dont la taille de `data` renvoie à un
+`ds64` absent, ou de moins de 16 octets ; un MIDI de moins de 14 octets, d'un format au-delà
+de 2, ou de format 0 qui n'a pas une seule piste ; un texte ni en UTF-8, ni en UTF-16 avec sa
+marque. Il est versé quand même, en captation, mais sans aucun fait, son format compris : ses
+faits valent `—`, et le rapport d'import le compte à part parmi les versés, une fois par
+contenu. Sans format, il ne s'écoute pas : le protocole des captations ne le sert pas
 ([§ 40 · 7.5](40-architecture.md#75-linterface-la-csp-et-les-commandes)), même un WAV que
 l'appareil saurait jouer, dont l'en-tête passe ses 65 536 premiers octets. Une idée
 illisible, et un fichier illisible d'un document, qui le met en lecture seule, sont d'autres

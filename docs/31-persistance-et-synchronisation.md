@@ -232,19 +232,24 @@ pas, ni son empreinte de référence (§ 10, test 11). Ces clés se gèlent avec
   nom ne s'écrit pas en UTF-8 n'a pas de clé `nom` ;
 - sous `prises`, une **prise en stems**, nommée par l'empreinte `<p>` de son manifeste :
   `<p>/idee` ; `<p>/manifeste`, à `true` ; `<p>/nom/<chemin>`, le chemin de son dossier, ou
-  son dernier segment pour un jeu versé seul ; et l'**entrée** de chaque stem `<s>`, sous
-  `<p>/stem/<s>/` : `format` et `duree`, quand ils sont lus, `nom/<chemin>`, et `midi/<m>`, à
-  `true`, pour chaque MIDI `<m>` qui l'accompagne, un MIDI qui rejoint une prise déjà versée
-  compris. Son type, `type`, en chaîne, s'écrit quand
-  Sacha le garde ou le choisit, avec sa provenance
+  son dernier segment pour un jeu versé seul ; et l'**entrée** de chaque stem `<s>` :
+  `<p>/stem/<s>`, à `true`, écrite au versement de la prise, avant les autres clés du stem,
+  même pour un stem sans fait, sans nom ni origine, qu'elle nomme ainsi parmi les empreintes du
+  fonds ([§ 6.1](#61-adressage-par-contenu)) ; puis, sous `<p>/stem/<s>/` : `format` et
+  `duree`, quand ils sont lus, `nom/<chemin>`, et `midi/<m>`, à `true`, pour chaque MIDI `<m>`
+  qui l'accompagne, un MIDI qui rejoint une prise déjà versée compris. Son type, `type`, en
+  chaîne, s'écrit quand Sacha le garde ou le choisit, avec sa provenance
   ([§ 30 · 8.1](30-modele-de-domaine.md#81-la-provenance)) : `type/provenance`, `importee` ou
   `saisie` ; pour un type gardé, `type/par`, `nom`, et `type/depuis`, l'empreinte `<s>`, qu'un
   type choisi ôte ; et `type/le`, en secondes. Une entrée n'a pas de clé `idee` ;
 - sous `midi_verses`, le **MIDI d'un stem** : `format`, `division` et ses noms, sans `idee` ;
 - sous `imports`, de l'identifiant d'un import, un ULID : `<i>/ouvert`, l'heure de son
-  ouverture, en secondes, un entier ; `<i>/declaration/<chemin>`, la déclaration du dossier
-  `<chemin>`, faite à l'ouverture, `stems`, `main` ou `generee:<nom>`, en chaîne, le dossier
-  versé lui-même sous `<i>/declaration/` ; et `<i>/rapport`, l'empreinte de son rapport
+  ouverture, en secondes, un entier ; les déclarations du dossier `<chemin>`, faites à
+  l'ouverture, sous deux familles de clés, le chemin en dernier : `<i>/declaration/<chemin>`,
+  son origine, `main` ou `generee:<nom>`, en chaîne, et `<i>/jeu/<chemin>`, à `true`, s'il est
+  déclaré jeu de stems ; un dossier porte l'une, l'autre ou les deux, et le dossier versé
+  lui-même se déclare sous `<i>/declaration/` et `<i>/jeu/` ; et `<i>/rapport`, l'empreinte
+  de son rapport
   ([§ 30 · 9.2](30-modele-de-domaine.md#92-prises-photos-et-analyses)), en chaîne. Un import
   est clos dès que son rapport existe. Aucun chemin absolu ne s'y écrit ;
 - sous `origines_declarees`, l'ensemble des origines d'un contenu, par son empreinte :
