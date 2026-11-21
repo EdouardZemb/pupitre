@@ -22,8 +22,9 @@ jobs:
     # 638 mutants, la boîte comprise, en 35 min 14 s le 2026-11-16, PR #45 (exécution
     # 43775891270) ; 488 en 28 min 53 s, PR #37, et 549 en 23 min 59 s, PR #38, le 2026-11-14 ;
     # 551, sans la boîte, en 24 min 30 s le 2026-11-16, sur main (exécution 43874992227)
-    # (LE-29 de modele-projet).
-    timeout-minutes: 128
+    # (LE-29 de modele-projet). Provisoire : 300 le temps de remesurer le passage complet, l'import
+    # compris, que les 332 mutants du diff (36 min) disent plus long que le délai d'avant.
+    timeout-minutes: 300
     permissions:
       contents: read
     steps:
