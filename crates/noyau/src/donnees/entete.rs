@@ -59,7 +59,8 @@ struct Fmt {
 /// `data` quand celle de son morceau vaut `0xFFFF_FFFF` ; `data` donne les trames : sa taille,
 /// bornée à ce que le fichier porte après son en-tête, divisée par l'alignement. `None` (illisible)
 /// sans `fmt ` ou sans l'en-tête de `data` dans `debut`, ou si la fréquence ou l'alignement vaut 0,
-/// ou si la durée passe `gestes::ENTIER_SUR`. Le parcours des morceaux est borné.
+/// ou si la durée passe `gestes::ENTIER_SUR`. Le parcours des morceaux est borné : chacun avance d'au moins huit octets, et `debut` n'en
+/// compte pas plus que son nombre de morceaux.
 pub fn faits_wav(debut: &[u8], taille: u64) -> Option<FaitsWav> {
     let forme = debut.get(0..4)?;
     if forme != b"RIFF" && forme != b"RF64" {
@@ -71,7 +72,7 @@ pub fn faits_wav(debut: &[u8], taille: u64) -> Option<FaitsWav> {
     let mut fmt: Option<Fmt> = None;
     let mut taille_ds64: Option<u64> = None;
     let mut position = 12usize;
-    for _ in 0..debut.len() / 8 + 1 {
+    for _ in 0..debut.len() {
         let id = debut.get(position..position + 4)?;
         let morceau = u32_le(debut, position + 4)?;
         let corps = position + 8;

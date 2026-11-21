@@ -44,16 +44,20 @@ fn midi(format: u16, pistes: u16, division: u16) -> Vec<u8> {
     o
 }
 
-/// L'en-tête d'un RF64 mono 8 bits : `ds64` donne `data`, la taille de `data` vaut `0xFFFF_FFFF`.
-fn entete_rf64(frequence: u32, data: u64) -> Vec<u8> {
+/// L'en-tête d'un RF64 mono 8 bits : `ds64`, dont la taille déclarée est `ds64`, donne `data` ; la
+/// taille de `data` vaut `0xFFFF_FFFF`.
+fn entete_rf64_selon(frequence: u32, data: u64, ds64: u32) -> Vec<u8> {
     let mut o = b"RF64".to_vec();
     o.extend(0xFFFF_FFFFu32.to_le_bytes());
     o.extend(b"WAVE");
     o.extend(b"ds64");
-    o.extend(24u32.to_le_bytes());
-    o.extend(0u64.to_le_bytes());
-    o.extend(data.to_le_bytes());
-    o.extend(0u64.to_le_bytes());
+    o.extend(ds64.to_le_bytes());
+    let mut corps = [0u64.to_le_bytes(), data.to_le_bytes(), 0u64.to_le_bytes()].concat();
+    corps.resize(ds64 as usize + ds64 as usize % 2, 0);
+    if ds64 >= 16 {
+        corps[8..16].copy_from_slice(&data.to_le_bytes());
+    }
+    o.extend(corps);
     o.extend(b"fmt ");
     o.extend(16u32.to_le_bytes());
     o.extend(1u16.to_le_bytes());
@@ -65,6 +69,10 @@ fn entete_rf64(frequence: u32, data: u64) -> Vec<u8> {
     o.extend(b"data");
     o.extend(0xFFFF_FFFFu32.to_le_bytes());
     o
+}
+
+fn entete_rf64(frequence: u32, data: u64) -> Vec<u8> {
+    entete_rf64_selon(frequence, data, 24)
 }
 
 fn rf64(frequence: u32, trames: usize) -> Vec<u8> {
@@ -260,4 +268,38 @@ fn un_texte_coupe_au_milieu_d_un_caractere_reste_lisible() {
     assert!(lisible(&[&[0xC3], &[0xA9]])); // « é », coupé
     assert!(!lisible(&[b"pont ", &[0xC3]])); // coupé au bout du texte
     assert!(lisible(&[&[0xF0, 0x9F], &[0x98], &[0x80]]));
+}
+
+#[test]
+fn un_morceau_fmt_ou_ds64_trop_court_est_illisible() {
+    // `fmt ` déclare 15 octets : il en faut 16 au moins.
+    let mut court = wav(8_000, 1, 8, 80, None, &[]);
+    court[16..20].copy_from_slice(&15u32.to_le_bytes());
+    assert!(faits_wav(&court, 124).is_none());
+    // `ds64` de 16 octets, le moins qui porte la taille de `data` ; de 15, trop court.
+    let juste = entete_rf64_selon(8_000, 800, 16);
+    assert_eq!(faits_wav(&juste, u64::MAX).map(|f| f.trames), Some(800));
+    assert!(faits_wav(&entete_rf64_selon(8_000, 800, 15), u64::MAX).is_none());
+}
+
+#[test]
+fn un_wav_aux_nombreux_morceaux_vides_avant_data_se_lit() {
+    // Douze morceaux `JUNK` de taille nulle entre `fmt ` et `data` : le parcours les passe tous.
+    let octets = wav(8_000, 1, 8, 800, None, &b"JUNK\x00\x00\x00\x00".repeat(12));
+    assert_eq!(
+        faits_wav(&octets, octets.len() as u64).map(|f| f.trames),
+        Some(800)
+    );
+    // Au plus juste : sans les données, l'en-tête de `data` est le dernier morceau des octets lus.
+    let juste = &octets[..octets.len() - 800];
+    assert_eq!(
+        faits_wav(juste, octets.len() as u64).map(|f| f.trames),
+        Some(800)
+    );
+}
+
+#[test]
+fn un_bom_utf16_seul_est_un_texte_vide_lisible() {
+    assert!(lisible(&[&[0xFF, 0xFE]]));
+    assert!(lisible(&[&[0xFE, 0xFF]]));
 }
