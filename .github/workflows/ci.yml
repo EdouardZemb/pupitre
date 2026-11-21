@@ -80,7 +80,8 @@ jobs:
     # modele-projet). Le 2026-11-18, la PR #47, les requêtes, leur index et le journal compris,
     # n'a passé qu'à chaud (« Cache hit ») : 1 min 49 s (exécution 44254030959) ; la PR #48,
     # avant son passage à froid, dix passages verts à chaud, le plus long en 2 min 45 s
-    # (exécution 44286444480). Un délai ne baisse pas (§ 70 · 1).
+    # (exécution 44286444480). Un délai ne baisse pas, comme le § 70 · 1 le veut pour la
+    # mutation.
     timeout-minutes: 13
     permissions:
       contents: read
@@ -184,7 +185,7 @@ jobs:
     # et de l'établi, n'a passé qu'à chaud (« Cache hit ») : 5 min 44 s (exécution 44254030959),
     # dont 2 s pour trunk et tauri-cli ; la PR #48, avant son passage à froid, dix passages verts
     # à chaud, le plus long en 6 min 27 s (exécution 44305210149), dont 1 s pour trunk et
-    # tauri-cli. Un délai ne baisse pas (§ 70 · 1).
+    # tauri-cli. Un délai ne baisse pas, comme le § 70 · 1 le veut pour la mutation.
     timeout-minutes: 79
     permissions:
       contents: read
