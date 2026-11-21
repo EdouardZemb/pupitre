@@ -254,3 +254,56 @@ fn les_go_decimaux_a_une_decimale() {
         );
     }
 }
+
+#[test]
+fn le_premier_rang_d_un_contenu_est_verse_quel_que_soit_l_ordre() {
+    // Deux copies de même contenu, d'octets différents : celle de rang 1 est versée.
+    for fichiers in [[lu(1, 10, 7), lu(2, 20, 7)], [lu(2, 20, 7), lu(1, 10, 7)]] {
+        let c = comptes(&fichiers, &BTreeSet::new());
+        assert_eq!(
+            (c.verses.octets, c.dedoublonnes.octets),
+            (10, 20),
+            "{fichiers:?}"
+        );
+    }
+}
+
+#[test]
+fn la_relecture_refuse_ce_qu_elle_ne_lit_pas() {
+    let connues = BTreeSet::from([e(5)]);
+    let texte = String::from_utf8(rapport(
+        IMPORT_TEMOIN,
+        &fichiers_du_temoin(),
+        &connues,
+        &origines_du_temoin(),
+    ))
+    .unwrap();
+    let origine = format!(
+        "origine={} generee:Atelier invent\u{e9}\n",
+        origines_du_temoin()[0].empreinte
+    );
+    assert!(texte.contains(&origine));
+    for (remplace, par, raison) in [
+        ("vus=5 1300", "vus=+5 1300", "un signe n'est pas un chiffre"),
+        ("vus=5 1300", "vus=5 ", "des octets vides"),
+        (origine.as_str(), "origine= generee:x\n", "empreinte vide"),
+        (origine.as_str(), "origine=abc \n", "élément vide"),
+        (origine.as_str(), "origine=abc\n", "sans élément"),
+        (
+            "fichier-sans-nom=4",
+            "fichier-sans-nom=x",
+            "un rang illisible",
+        ),
+    ] {
+        let autre = texte.replacen(remplace, par, 1);
+        assert_eq!(lire_le_rapport(autre.as_bytes()), None, "{raison}");
+    }
+    let sans_lf = texte.trim_end_matches('\n');
+    assert_eq!(lire_le_rapport(sans_lf.as_bytes()), None, "sans LF final");
+    let origine_apres = texte.replacen(&origine, "", 1) + &origine;
+    assert_eq!(
+        lire_le_rapport(origine_apres.as_bytes()),
+        None,
+        "une origine après un fichier sans nom"
+    );
+}

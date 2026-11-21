@@ -70,9 +70,7 @@ fn premiers_rangs(fichiers: &[FichierDeLImport]) -> BTreeMap<&str, u64> {
         } = fichier
         {
             let entree = premiers.entry(empreinte.as_str()).or_insert(*rang);
-            if *rang < *entree {
-                *entree = *rang;
-            }
+            *entree = (*entree).min(*rang);
         }
     }
     premiers
