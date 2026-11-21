@@ -37,11 +37,24 @@ pub enum Ajout {
 }
 
 impl Ajout {
-    /// `main`, ou `generee:<nom>` : l'élément que dit le rapport.
+    /// `main`, ou `generee:<nom>` : l'élément que dit le rapport, et la valeur de
+    /// `imports/<i>/declaration/<chemin>`.
     pub fn element(&self) -> String {
         match self {
             Ajout::Main => "main".to_string(),
             Ajout::Generee(nom) => format!("generee:{nom}"),
+        }
+    }
+
+    /// L'inverse d'`element` ; `None` pour toute autre chaîne, `generee:` sans nom et `stems`
+    /// compris.
+    pub fn lire(valeur: &str) -> Option<Ajout> {
+        match valeur {
+            "main" => Some(Ajout::Main),
+            _ => valeur
+                .strip_prefix("generee:")
+                .filter(|nom| !nom.is_empty())
+                .map(|nom| Ajout::Generee(nom.to_string())),
         }
     }
 }
@@ -56,38 +69,18 @@ pub fn ajout_d_origine(lues: &OriginesLues, ajout: &Ajout) -> Option<Ajout> {
     if deja { None } else { Some(ajout.clone()) }
 }
 
-/// La déclaration d'un dossier, pendant l'import (question 22).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Declaration {
-    Stems,
-    Origine(Ajout),
-}
-
-impl Declaration {
-    /// `stems`, `main` ou `generee:<nom>` : la valeur de `imports/<i>/declaration/<chemin>`.
-    pub fn valeur(&self) -> String {
-        match self {
-            Declaration::Stems => "stems".to_string(),
-            Declaration::Origine(ajout) => ajout.element(),
-        }
-    }
-
-    /// L'inverse de `valeur` ; `None` pour toute autre chaîne, `generee:` sans nom compris.
-    pub fn lire(valeur: &str) -> Option<Declaration> {
-        match valeur {
-            "stems" => Some(Declaration::Stems),
-            "main" => Some(Declaration::Origine(Ajout::Main)),
-            _ => valeur
-                .strip_prefix("generee:")
-                .filter(|nom| !nom.is_empty())
-                .map(|nom| Declaration::Origine(Ajout::Generee(nom.to_string()))),
-        }
-    }
+/// La déclaration d'un dossier, pendant l'import (question 22 ; CAP-03) : jeu de stems
+/// (`stems`, sous `imports/<i>/jeu/<chemin>`), son origine (`origine`, sous
+/// `imports/<i>/declaration/<chemin>`), l'un, l'autre ou les deux.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Declaration {
+    pub stems: bool,
+    pub origine: Option<Ajout>,
 }
 
 /// Ce que les déclarations de l'import donnent au fichier `chemin` : l'origine du plus proche de
-/// ses dossiers déclarés, du sien au dossier versé (`""`) compris, qui déclare une origine ; et le
-/// jeu de stems, son propre dossier s'il est déclaré `stems` (question 17), jamais un dossier plus
+/// ses dossiers déclarés, du sien au dossier versé (`""`) compris, dont l'origine est présente ;
+/// et le jeu de stems, son propre dossier s'il porte `stems` (question 17), jamais un dossier plus
 /// haut. Une déclaration `stems` n'arrête pas l'origine d'un dossier plus haut. Seuls des dossiers
 /// se déclarent : le chemin du fichier lui-même n'est jamais une clé lue (balayage P22).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -112,13 +105,18 @@ pub fn declaration_du_fichier(
     chemin: &str,
     declarations: &BTreeMap<String, Declaration>,
 ) -> DeclarationDuFichier {
-    let origine = dossiers(chemin).find_map(|dossier| match declarations.get(dossier) {
-        Some(Declaration::Origine(ajout)) => Some(ajout.clone()),
-        _ => None,
+    let origine = dossiers(chemin).find_map(|dossier| {
+        declarations
+            .get(dossier)
+            .and_then(|declaration| declaration.origine.clone())
     });
     let jeu = dossiers(chemin)
         .next()
-        .filter(|dossier| declarations.get(*dossier) == Some(&Declaration::Stems))
+        .filter(|dossier| {
+            declarations
+                .get(*dossier)
+                .is_some_and(|declaration| declaration.stems)
+        })
         .map(str::to_string);
     DeclarationDuFichier { origine, jeu }
 }
@@ -133,8 +131,10 @@ pub fn premier_nom_vu<'a>(noms: impl IntoIterator<Item = (&'a str, &'a str)>) ->
 }
 
 /// Vrai si `chemin` est sous le préfixe `prefixe`, par segments entiers, octet pour octet
-/// (question 23) ; le préfixe vide prend tout.
+/// (question 23) ; une seule barre `/` finale du préfixe s'ôte d'abord, celle que l'écran montre
+/// (« Démos/ » vaut « Démos », « / » vaut le préfixe vide) ; le préfixe vide prend tout.
 pub fn sous_le_prefixe(chemin: &str, prefixe: &str) -> bool {
+    let prefixe = prefixe.strip_suffix('/').unwrap_or(prefixe);
     prefixe.is_empty()
         || chemin == prefixe
         || (chemin.starts_with(prefixe) && chemin.as_bytes().get(prefixe.len()) == Some(&b'/'))

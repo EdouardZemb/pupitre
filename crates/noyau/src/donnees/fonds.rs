@@ -114,13 +114,17 @@ pub const OUVERT: &str = "ouvert";
 /// D'un import, sous `imports/<ULID>/rapport` : l'empreinte de son rapport, une chaîne ; l'import
 /// est clos dès qu'elle existe (question 25).
 pub const RAPPORT: &str = "rapport";
-/// D'un import, sous `imports/<ULID>/declaration/<chemin>` : la déclaration du dossier `chemin`,
-/// `stems`, `main` ou `generee:<nom>`, une chaîne (question 22).
+/// D'un import, sous `imports/<ULID>/declaration/<chemin>` : l'origine déclarée du dossier
+/// `chemin`, `main` ou `generee:<nom>`, une chaîne (question 22).
 pub const DECLARATION: &str = "declaration";
+/// D'un import, sous `imports/<ULID>/jeu/<chemin>` : `true`, le dossier `chemin` déclaré jeu de
+/// stems (question 22).
+pub const JEU: &str = "jeu";
 /// D'une prise en stems, sous `prises/<empreinte>/manifeste` : `true` (question 21).
 pub const MANIFESTE: &str = "manifeste";
-/// D'une prise en stems, sous `prises/<p>/stem/<s>/…` : l'entrée de son stem `<s>`, son format, sa
-/// durée, son type, ses MIDI et ses noms (question 21).
+/// D'une prise en stems, sous `prises/<p>/stem/<s>` : `true`, l'entrée de son stem `<s>`, qui
+/// s'écrit toujours ; sous `prises/<p>/stem/<s>/…`, son format, sa durée, son type, ses MIDI et
+/// ses noms (question 21).
 pub const STEM: &str = "stem";
 /// D'un stem, sous `prises/<p>/stem/<s>/midi/<m>` : `true`, le MIDI `<m>` qui l'accompagne.
 pub const MIDI: &str = "midi";

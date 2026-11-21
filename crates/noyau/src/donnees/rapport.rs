@@ -264,16 +264,19 @@ pub fn lire_le_rapport(octets: &[u8]) -> Option<RapportLu> {
 /// Les octets laissés pour chaque fichier à verser, en plus de ses octets (question 8).
 pub const MARGE_PAR_FICHIER: u64 = 4_096;
 
-/// La place qui manque : la taille à verser, la place libre, et ce qui manque.
+/// La place qui manque : la taille à verser, la place qu'il faut (le besoin), la place libre, et
+/// ce qui manque.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ManqueDePlace {
     pub a_verser: u64,
+    pub besoin: u64,
     pub libre: u64,
     pub manque: u64,
 }
 
-/// On verse si `a_verser` + 2 × `poids_du_fonds` + `MARGE_PAR_FICHIER` × `fichiers` tient dans
-/// `libre`, calculé en `u128` ; sinon le manque, borné à `u64::MAX`.
+/// On verse si le besoin, `a_verser` + 2 × `poids_du_fonds` + `MARGE_PAR_FICHIER` × `fichiers`,
+/// tient dans `libre`, calculé en `u128` ; sinon le besoin et le manque, chacun borné à
+/// `u64::MAX`.
 pub fn place(
     a_verser: u64,
     fichiers: u64,
@@ -287,6 +290,7 @@ pub fn place(
         None | Some(0) => Ok(()),
         Some(manque) => Err(ManqueDePlace {
             a_verser,
+            besoin: u64::try_from(besoin).unwrap_or(u64::MAX),
             libre,
             manque: u64::try_from(manque).unwrap_or(u64::MAX),
         }),
@@ -306,12 +310,17 @@ pub fn go(octets: u64, vers_le_haut: bool) -> String {
     format!("{},{} Go", dixiemes / 10, dixiemes % 10)
 }
 
+/// « Verser 4,0 Go demande 4,1 Go de place libre, deux fois le poids du fonds compris ; il y en a
+/// 1,0 Go : il manque 3,1 Go. » : la taille à verser, le besoin et le manque arrondis au dixième
+/// supérieur, la place libre au dixième inférieur.
 impl fmt::Display for ManqueDePlace {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "La taille à verser, {}, passe la place libre, {} : il manque {}.",
+            "Verser {} demande {} de place libre, deux fois le poids du fonds compris ; il y en a \
+             {} : il manque {}.",
             go(self.a_verser, true),
+            go(self.besoin, true),
             go(self.libre, false),
             go(self.manque, true)
         )

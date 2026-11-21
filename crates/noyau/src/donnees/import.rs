@@ -12,8 +12,8 @@ use crate::donnees::demarrage::fichier_du_voisin;
 use crate::donnees::entete::{FaitsMidi, FaitsWav};
 use crate::donnees::fonds::{
     BITS, CANAUX, CODAGE, DECLARATION, DEPUIS, DIVISION, DUREE, FORMAT, FREQUENCE, GENEREE, IDEE,
-    IMPORTEE, IMPORTS, LE, MAIN, MANIFESTE, MIDI, MIDI_VERSES, NOM, ORIGINES_DECLAREES, OUVERT,
-    PAR, PAR_LE_NOM, PRISES, PROVENANCE, RAPPORT, SAISIE, STEM, TYPE,
+    IMPORTEE, IMPORTS, JEU, LE, MAIN, MANIFESTE, MIDI, MIDI_VERSES, NOM, ORIGINES_DECLAREES,
+    OUVERT, PAR, PAR_LE_NOM, PRISES, PROVENANCE, RAPPORT, SAISIE, STEM, TYPE,
 };
 use crate::donnees::gestes::{
     Appareil, Impossible, Sorte, date_du_message, naissance_de_l_idee, oter, poser, versee,
@@ -96,7 +96,8 @@ impl Faits {
 }
 
 /// Ce qu'un import ouvert donne à chacune de ses opérations : son ULID, l'heure de son ouverture
-/// (le jour que disent ses messages), l'appareil.
+/// (le jour des messages « Import du … » ; « Idée du … » se date à l'heure de la naissance de
+/// l'idée, celle du versement), l'appareil.
 pub struct ImportOuvert<'a> {
     /// L'ULID de l'import.
     pub import: &'a str,
@@ -133,9 +134,11 @@ fn controler_l_ajout(ajout: &Ajout) -> Result<(), Impossible> {
     Ok(())
 }
 
-/// Ouvrir l'import (question 22) : `imports/<i>/ouvert` à `heure`, et chaque déclaration sous
-/// `imports/<i>/declaration/<chemin>` ; « Import du 3 novembre ouvert ». Refusé : un nom de
-/// générateur vide, ou qui porte un caractère de contrôle.
+/// Ouvrir l'import (question 22) : `imports/<i>/ouvert` à `heure` ; pour chaque dossier déclaré,
+/// `imports/<i>/declaration/<chemin>` à son origine (`Ajout::element`) si elle est présente, et
+/// `imports/<i>/jeu/<chemin>` à `true` s'il est déclaré jeu de stems ; un dossier sans l'un ni
+/// l'autre n'écrit rien. « Import du 3 novembre ouvert ». Refusé : un nom de générateur vide, ou
+/// qui porte un caractère de contrôle.
 pub fn ouvrir(
     import: &str,
     declarations: &BTreeMap<String, Declaration>,
@@ -147,13 +150,19 @@ pub fn ouvrir(
         Simple::Entier(heure),
     )];
     for (chemin, declaration) in declarations {
-        if let Declaration::Origine(ajout) = declaration {
+        if let Some(ajout) = &declaration.origine {
             controler_l_ajout(ajout)?;
+            changements.push(poser(
+                &[IMPORTS, &format!("{import}/{DECLARATION}/{chemin}")],
+                Simple::Chaine(ajout.element()),
+            ));
         }
-        changements.push(poser(
-            &[IMPORTS, &format!("{import}/{DECLARATION}/{chemin}")],
-            Simple::Chaine(declaration.valeur()),
-        ));
+        if declaration.stems {
+            changements.push(poser(
+                &[IMPORTS, &format!("{import}/{JEU}/{chemin}")],
+                Simple::Vrai,
+            ));
+        }
     }
     Ok(Operation {
         changements,
@@ -353,15 +362,19 @@ pub struct MidiDuStem<'a> {
 
 /// Ce que le fonds porte déjà d'une prise en stems : elle (son manifeste), ses noms, par
 /// empreinte, ce que portent ses stems et leurs MIDI, et les liens d'un stem à son MIDI déjà posés
-/// sous la prise.
+/// sous la prise. `stems[s].origines` et `midis[m].origines` sont les origines du contenu, à
+/// quelque rôle que ce soit (un même contenu peut être aussi une prise, ou un MIDI versé seul) :
+/// elles se remplissent pour chaque stem et chaque MIDI du versement, même sous une prise neuve.
+/// `captation` n'y sert que pour les MIDI.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct DejaDeLaPrise {
     /// La prise, sous l'empreinte de son manifeste.
     pub prise: DejaLu,
-    /// Ses stems, par empreinte : leurs noms sous `prises/<p>/stem/<s>/nom/…`.
+    /// Ses stems, par empreinte : leurs noms sous `prises/<p>/stem/<s>/nom/…`, et les origines du
+    /// contenu ; `captation` n'y sert pas.
     pub stems: BTreeMap<String, DejaLu>,
-    /// Les MIDI de ses stems, par empreinte : leur entrée sous `midi_verses`, `captation` vrai
-    /// s'ils l'ont déjà.
+    /// Les MIDI de ses stems, par empreinte : `captation` vrai s'ils ont déjà leur entrée sous
+    /// `midi_verses`, leurs noms, et les origines du contenu.
     pub midis: BTreeMap<String, DejaLu>,
     /// Les liens déjà posés sous la prise, `prises/<p>/stem/<s>/midi/<m>` : (le stem, le MIDI).
     pub liens_midi: BTreeSet<(String, String)>,
@@ -371,13 +384,16 @@ pub struct DejaDeLaPrise {
 /// chemin de son dossier, ou son dernier segment pour un jeu versé seul ; `None` pour un jeu versé
 /// seul dont le dossier n'a pas de nom en UTF-8 : la prise n'a alors aucune clé `nom`, et ses stems
 /// gardent les leurs (R23). Neuve : son idée naît ; `prises/<p>/idee`, `<p>/manifeste` à `true`,
-/// `<p>/nom/<nom>` ; pour chaque stem, `<p>/stem/<s>/format` et `…/duree` s'ils sont présents,
-/// `…/nom/<chemin>` ; « Idée du 3 novembre : prise en stems versée ». Neuve ou connue : pour chaque
-/// MIDI d'un stem, `<p>/stem/<s>/midi/<m>` à `true` si ce lien n'est pas déjà posé
-/// (`deja.liens_midi`), et, s'il n'a pas d'entrée sous `midi_verses`, `midi_verses/<m>/format` et
-/// `…/division`, jamais `idee` : le manifeste ne compte que les stems audio, et un MIDI ajouté au
-/// dossier d'une prise connue la rejoint (ADR-024, décision 1) ; chaque nom absent, de la prise,
-/// des stems et des MIDI, et l'origine, sur la prise, chaque stem et chaque MIDI. Connue :
+/// `<p>/nom/<nom>` ; pour chaque stem, son entrée, `<p>/stem/<s>` à `true`, avant ses autres clés,
+/// même sans fait, sans nom ni origine : elle le nomme parmi les empreintes du fonds ; puis
+/// `<p>/stem/<s>/format` et `…/duree` s'ils sont présents, `…/nom/<chemin>` ; « Idée du 3
+/// novembre : prise en stems versée ». Une prise connue n'écrit aucune entrée : son manifeste égal,
+/// ses stems sont les mêmes. Neuve ou connue : pour chaque MIDI d'un stem,
+/// `<p>/stem/<s>/midi/<m>` à `true` si ce lien n'est pas déjà posé (`deja.liens_midi`), et, s'il
+/// n'a pas d'entrée sous `midi_verses`, `midi_verses/<m>/format` et `…/division`, jamais `idee` :
+/// le manifeste ne compte que les stems audio, et un MIDI ajouté au dossier d'une prise connue la
+/// rejoint (ADR-024, décision 1) ; chaque nom absent, de la prise, des stems et des MIDI, et
+/// l'origine, sur la prise, chaque stem et chaque MIDI. Connue :
 /// « Import du 3 novembre : » suivi de ce qui s'ajoute, « nom d'origine ajouté », « MIDI d'un stem
 /// ajouté », « origine déclarée », séparés par une virgule ; `Ok(None)` si rien ne s'ajoute. Sans
 /// stem : `Impossible::JeuSansAudio`. L'idée naît par `gestes::naissance_de_l_idee`.
@@ -473,9 +489,11 @@ pub fn verser_une_prise_en_stems(
             Simple::Vrai,
         ));
         for stem in stems {
+            let entree = format!("{manifeste}/{STEM}/{}", stem.empreinte);
+            changements.push(poser(&[PRISES, &entree], Simple::Vrai));
             changements.extend(poser_les_faits(
                 PRISES,
-                &format!("{manifeste}/{STEM}/{}", stem.empreinte),
+                &entree,
                 stem.faits.format.as_ref(),
                 &[(DUREE, stem.faits.duree_ms)],
             ));

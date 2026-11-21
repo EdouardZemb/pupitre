@@ -8,7 +8,7 @@ use super::gestes::ENTIER_SUR;
 /// au-delà, le WAV est illisible (question 10).
 pub const ENTETE_AU_PLUS: usize = 65_536;
 
-/// La taille d'un morceau RF64 dont la vraie taille est dans `ds64`.
+/// La taille de `data`, dans un RF64 seul, dont la vraie taille est dans `ds64`.
 const TAILLE_RF64: u32 = 0xFFFF_FFFF;
 
 /// Les faits d'un WAV lus dans son en-tête (§ 30 · 9.2).
@@ -55,17 +55,22 @@ struct Fmt {
 /// Les faits d'un WAV : `debut`, ses `ENTETE_AU_PLUS` premiers octets au plus ; `taille`, celle du
 /// fichier. `RIFF` ou `RF64` puis `WAVE` ; les morceaux depuis l'octet 12, chacun `<id><taille u32
 /// LE><données>`, complété à un nombre pair ; `fmt ` (16 octets au moins) donne le codage, les
-/// canaux, la fréquence, l'alignement d'un bloc et les bits ; `ds64` (RF64) donne la taille de
-/// `data` quand celle de son morceau vaut `0xFFFF_FFFF` ; `data` donne les trames : sa taille,
-/// bornée à ce que le fichier porte après son en-tête, divisée par l'alignement. `None` (illisible)
-/// sans `fmt ` ou sans l'en-tête de `data` dans `debut`, ou si la fréquence ou l'alignement vaut 0,
-/// ou si la durée passe `gestes::ENTIER_SUR`. Le parcours des morceaux est borné : chacun avance d'au moins huit octets, et `debut` n'en
-/// compte pas plus que son nombre de morceaux.
+/// canaux, la fréquence, l'alignement d'un bloc et les bits ; `data` donne les trames : sa taille,
+/// bornée à ce que le fichier porte après son en-tête, divisée par l'alignement. Dans un `RF64`
+/// seul, `ds64` (16 octets au moins) donne la taille de `data` quand celle de son morceau vaut
+/// `0xFFFF_FFFF`. Dans un `RIFF`, `ds64` est un morceau inconnu, sauté comme les autres, et
+/// `0xFFFF_FFFF` une taille de `data` comme une autre, bornée au fichier : un WAV écrit en flux,
+/// un enregistrement interrompu (question 16). `None` (illisible) sans `fmt ` ou sans l'en-tête de
+/// `data` dans `debut`, si la fréquence ou l'alignement vaut 0, si la durée passe
+/// `gestes::ENTIER_SUR`, ou pour un `RF64` dont la taille de `data` renvoie à un `ds64` absent, ou
+/// dont le `ds64` a moins de 16 octets. Le parcours des morceaux est borné : chacun avance d'au
+/// moins huit octets, et `debut` n'en compte pas plus que son nombre de morceaux.
 pub fn faits_wav(debut: &[u8], taille: u64) -> Option<FaitsWav> {
     let forme = debut.get(0..4)?;
     if forme != b"RIFF" && forme != b"RF64" {
         return None;
     }
+    let rf64 = forme == b"RF64";
     if debut.get(8..12)? != b"WAVE" {
         return None;
     }
@@ -89,7 +94,7 @@ pub fn faits_wav(debut: &[u8], taille: u64) -> Option<FaitsWav> {
                     bits: u16_le(debut, corps + 14)?,
                 });
             }
-            b"ds64" => {
+            b"ds64" if rf64 => {
                 if morceau < 16 {
                     return None;
                 }
@@ -100,7 +105,7 @@ pub fn faits_wav(debut: &[u8], taille: u64) -> Option<FaitsWav> {
                 if f.frequence == 0 || f.alignement == 0 {
                     return None;
                 }
-                let declaree = if morceau == TAILLE_RF64 {
+                let declaree = if rf64 && morceau == TAILLE_RF64 {
                     taille_ds64?
                 } else {
                     u64::from(morceau)
