@@ -274,8 +274,8 @@ aucune origine.
   décodable » reste la marque du nœud, pour ce qu'il ne saura pas décoder
   ([ADR-024](../adr/adr-024-import-d-un-fonds.md)).
 - Arborescence profonde, noms longs ou en Unicode : acceptés. Un nom qui ne s'écrit pas en
-  UTF-8, que seul Windows sait écrire, est versé sans nom d'origine, et compté parmi les
-  sans nom.
+  UTF-8 (sous Windows, une demi-paire de substitution ; ailleurs, un octet invalide) est versé
+  sans nom d'origine, et compté parmi les sans nom.
 - Un lien ou une jonction compte parmi les ignorés, sans être suivi ni lu. Le dossier de
   Pupitre, un dossier qui le contient ou qui s'y trouve, ne se verse pas. Un fichier changé
   depuis l'inspection, que disent sa taille ou sa marque de dernière écriture, arrête

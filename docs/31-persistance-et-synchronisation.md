@@ -821,8 +821,8 @@ renommer, reste, avec un avertissement, et le démarrage suivant le relit, puis 
 fonds le nomme. Le démarrage ne retire aucun nom provisoire : une capture interrompue doit en
 relire l'audio ([CAP-01](20-sfd/21-capter-et-organiser.md#cap-01--capter-en-un-geste) · 2).
 Seul l'import retire les siens : à sa reprise, ses copies dont le fonds ne nomme pas
-l'empreinte, et à sa clôture, toutes. Le nom provisoire d'une capture garde sa règle : il
-n'est jamais retiré.
+l'empreinte, et à sa clôture, toutes. Le nom provisoire d'une capture garde sa règle : le
+démarrage ne retire jamais celui d'une capture interrompue.
 
 | Propriété | Conséquence | Testée par |
 |---|---|---|

@@ -3,7 +3,8 @@
 //! comptés, et la marque de dernière écriture que tient le système de fichiers ; un rang sans
 //! entrée, un lien et un fichier retiré ne se lisent pas. Les noms que seul Windows sait écrire
 //! (balayage Q20) : un chemin de plus de 300 unités UTF-16, les deux formes Unicode d'un nom, une
-//! jonction, un nom sans forme UTF-8, et un fichier tenu ouvert sans partage.
+//! jonction et un fichier tenu ouvert sans partage ; et un nom sans forme UTF-8 (sous Windows,
+//! une demi-paire de substitution ; ailleurs, un octet invalide).
 
 mod commun;
 

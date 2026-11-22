@@ -210,14 +210,16 @@ Les critères d'INC-0 y sont entrés avec la porte, le 2026-11-09, chacun relu c
 D'autres tests d'INC-0 nomment un critère dont ils ne tiennent qu'une part
 ([pistes](pistes.md)).
 
-Trois critères de
+Cinq critères de
 [CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant) restent hors du
-tableau à la tranche 5 du lot 1 d'INC-1. Le 8 arrive par parts : sa première, la proposition
-d'un jeu de stems à l'inspection (`jeu_propose`), sans écran, a son test nommé (`cap03_8_…`), et
-le critère s'inscrira avec l'écran qui la montre. Le 12, la lecture simple, s'inscrira avec ce
-même écran, un test de l'interface et le relevé de l'essai. Le 4 n'est livré qu'en part, celle
-« sans morceaux » : aucun morceau n'existe au lot 1, et son test nommé (`cap03_4_…`) prouve que
-des noms semblables ne créent ni lien ni regroupement ; il ne s'inscrit pas à cette tranche.
+tableau à la tranche 5 du lot 1 d'INC-1 : le 4, le 5, le 6, le 8 et le 12. Le 5 attend les
+morceaux, et le 6, les analyses : ni les uns ni les autres n'existent au lot 1. Le 8 arrive par
+parts : sa première, la proposition d'un jeu de stems à l'inspection (`jeu_propose`), sans
+écran, a son test nommé (`cap03_8_…`), et le critère s'inscrira avec l'écran qui la montre.
+Le 12, la lecture simple, s'inscrira avec ce même écran, un test de l'interface et le relevé de
+l'essai. Le 4 n'est livré qu'en part, celle « sans morceaux » : aucun morceau n'existe au
+lot 1, et son test nommé (`cap03_4_…`) prouve que des noms semblables ne créent ni lien ni
+regroupement ; il ne s'inscrit pas à cette tranche.
 
 ---
 
