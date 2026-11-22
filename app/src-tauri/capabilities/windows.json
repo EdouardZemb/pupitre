@@ -29,6 +29,16 @@
     "allow-enregistrer-une-requete",
     "allow-renommer-une-requete",
     "allow-supprimer-une-requete",
+    "allow-inspecter-un-dossier",
+    "allow-ouvrir-l-import",
+    "allow-verser-un-fichier",
+    "allow-verser-une-prise-en-stems",
+    "allow-clore-l-import",
+    "allow-declarer-une-origine",
+    "allow-choisir-le-type-d-un-stem",
+    "allow-lire-un-texte-verse",
+    "allow-lire-un-rapport",
+    "allow-generateurs",
     "allow-exporter-cahier"
   ]
 }

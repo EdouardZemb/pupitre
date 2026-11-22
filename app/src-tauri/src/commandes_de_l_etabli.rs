@@ -1,16 +1,28 @@
-//! Les commandes de la tranche 2 et les lectures de la boîte (tranche 3), servies par l'établi :
-//! chacune envoie au fil du fonds (`Ouverture::demander`) l'appel de la méthode de même nom des
-//! services, et rend sa `Reponse`, aux types de `commandes`. Chacune prend l'état, l'ouverture
-//! du fonds, et au plus un argument, nommé `commande` : un seul mot, que le camelCase des
-//! arguments de Tauri ne change pas.
+//! Les commandes de la tranche 2, les lectures de la boîte (tranche 3) et les commandes de
+//! l'import (tranche 5), servies par l'établi : chacune envoie au fil du fonds
+//! (`Ouverture::demander`) l'appel de la méthode de même nom des services, et rend sa `Reponse`,
+//! aux types de `commandes`. Chacune prend l'état, l'ouverture du fonds, et au plus un argument,
+//! nommé `commande` : un seul mot, que le camelCase des arguments de Tauri ne change pas. Les
+//! commandes de l'import prennent aussi, de l'état, le dossier choisi (`DossierChoisi`), et celles
+//! qui comparent la place libre, le dossier de l'application (`DossierDeLApplication`).
+
+use std::path::Path;
+use std::sync::{Arc, PoisonError};
 
 use commandes::{
-    Boite, Completer, Enregistrer, EtatDuFonds, Etiqueter, Faite, Fenetre, Notee, Noter, Regrouper,
-    Relier, Renommer, Reponse, RequeteEnregistree, Supprimer, Viser, VueDUneIdee, VueDeLaBoite,
-    VueDesRetirees, VueDuJournal,
+    Boite, Captation, ChoisirLeType, CloreLImport, Completer, DeclarerUneOrigine, Enregistrer,
+    EtatDuFonds, Etiqueter, Faite, Fenetre, FichierVerse, ImportClos, ImportOuvert, Inspection,
+    LireUnRapport, Notee, Noter, OuvrirLImport, Raison, RapportDImport, Refus, Regrouper, Relier,
+    Renommer, Reponse, RequeteEnregistree, Supprimer, TexteLu, VerserUnFichier,
+    VerserUnePriseEnStems, Viser, VueDUneIdee, VueDeLaBoite, VueDesRetirees, VueDuJournal,
 };
+use stockage::source::SourceSurFichiers;
+use tauri::Manager;
+use tauri_plugin_dialog::DialogExt;
 
+use crate::DossierChoisi;
 use crate::fil::Ouverture;
+use crate::systeme::{self, DossierDeLApplication};
 
 /// Noter une idée (`Services::noter`).
 #[tauri::command]
@@ -204,6 +216,229 @@ pub async fn supprimer_une_requete(
 ) -> Reponse<Faite> {
     ouverture
         .demander(move |services, contexte| services.supprimer_une_requete(&commande, contexte))
+        .await
+}
+
+/// Le refus de `Raison::Impossible`, de message `message`.
+fn impossible(message: String) -> Refus {
+    Refus {
+        raison: Raison::Impossible,
+        message,
+    }
+}
+
+/// La source du dossier choisi, que garde `DossierChoisi` ; sans elle, « Aucun dossier n'est
+/// choisi. », de `Raison::Impossible`.
+fn la_source(choisi: &DossierChoisi) -> Result<Arc<SourceSurFichiers>, Refus> {
+    choisi
+        .0
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone()
+        .ok_or_else(|| impossible("Aucun dossier n'est choisi.".to_string()))
+}
+
+/// Oublie le dossier choisi, s'il est encore `source` : un dossier choisi entre-temps reste.
+fn oublier(choisi: &DossierChoisi, source: &Arc<SourceSurFichiers>) {
+    let mut gardee = choisi.0.lock().unwrap_or_else(PoisonError::into_inner);
+    if gardee
+        .as_ref()
+        .is_some_and(|actuelle| Arc::ptr_eq(actuelle, source))
+    {
+        *gardee = None;
+    }
+}
+
+/// La place libre du volume du dossier de l'application, où vit la racine des données
+/// (`systeme::place_libre` ; R19) ; un échec, de `Raison::Disque` : « La place libre ne se lit
+/// pas : <erreur>. ».
+fn lire_la_place_libre(application: &Path) -> Result<u64, Refus> {
+    systeme::place_libre(application).map_err(|erreur| Refus {
+        raison: Raison::Disque,
+        message: format!("La place libre ne se lit pas : {erreur}."),
+    })
+}
+
+/// Le refus d'un dossier choisi qui ne se parcourt pas : de `Raison::Disque`, le texte de
+/// l'erreur du stockage, qui nomme le dossier ou l'entrée en cause.
+fn refus_du_parcours(erreur: stockage::Erreur) -> Refus {
+    Refus {
+        raison: Raison::Disque,
+        message: erreur.to_string(),
+    }
+}
+
+/// Inspecter un dossier à verser (`Services::inspecter`). La boîte de dossier, « Importer un
+/// dossier », attend sa réponse hors du fil de l'IPC (`spawn_blocking`) ; fermée sans choix :
+/// `Ok(None)`, et rien ne change. Le dossier choisi, admis par `systeme::admettre_le_dossier`
+/// (son refus, de `Raison::Impossible`), puis parcouru par `SourceSurFichiers::parcourir` (son
+/// refus, de `Raison::Disque`), hors du fil du fonds ; la source, gardée dans `DossierChoisi` ;
+/// puis, au fil, la place libre, lue sur le volume du dossier de l'application, où vit la racine
+/// des données, que la commande ne connaît pas (R19), et l'inspection.
+#[tauri::command]
+pub async fn inspecter_un_dossier<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    ouverture: tauri::State<'_, Ouverture>,
+    choisi: tauri::State<'_, DossierChoisi>,
+    application: tauri::State<'_, DossierDeLApplication>,
+) -> Reponse<Option<Inspection>> {
+    let dossier_de_l_application = application.0.clone();
+    let parcouru = tauri::async_runtime::spawn_blocking(
+        move || -> Result<Option<SourceSurFichiers>, Refus> {
+            let boite = app.dialog().file().set_title("Importer un dossier");
+            #[cfg(desktop)]
+            let boite = match app.get_webview_window("main") {
+                Some(fenetre) => boite.set_parent(&fenetre),
+                None => boite,
+            };
+            let Some(chemin) = boite.blocking_pick_folder() else {
+                return Ok(None);
+            };
+            let chemin = chemin.into_path().map_err(|erreur| {
+                impossible(format!("Le dossier choisi ne se lit pas : {erreur}."))
+            })?;
+            let admis = systeme::admettre_le_dossier(&chemin, &dossier_de_l_application)
+                .map_err(impossible)?;
+            SourceSurFichiers::parcourir(&admis)
+                .map(Some)
+                .map_err(refus_du_parcours)
+        },
+    )
+    .await
+    .map_err(|_| impossible("Le choix du dossier s'est interrompu.".to_string()))??;
+    let Some(source) = parcouru else {
+        return Ok(None);
+    };
+    let source = Arc::new(source);
+    *choisi.0.lock().unwrap_or_else(PoisonError::into_inner) = Some(Arc::clone(&source));
+    let application = application.0.clone();
+    ouverture
+        .demander(move |services, _| {
+            let place_libre = lire_la_place_libre(&application)?;
+            services.inspecter(&*source, place_libre)
+        })
+        .await
+        .map(Some)
+}
+
+/// Ouvrir l'import du dossier choisi, ou le reprendre (`Services::ouvrir_l_import`) : la place
+/// libre, relue au fil comme à l'inspection, que les services comparent de nouveau.
+#[tauri::command]
+pub async fn ouvrir_l_import(
+    ouverture: tauri::State<'_, Ouverture>,
+    choisi: tauri::State<'_, DossierChoisi>,
+    application: tauri::State<'_, DossierDeLApplication>,
+    commande: OuvrirLImport,
+) -> Reponse<ImportOuvert> {
+    let source = la_source(&choisi)?;
+    let application = application.0.clone();
+    ouverture
+        .demander(move |services, contexte| {
+            let place_libre = lire_la_place_libre(&application)?;
+            services.ouvrir_l_import(&*source, &commande, place_libre, contexte)
+        })
+        .await
+}
+
+/// Verser un fichier du dossier choisi (`Services::verser_un_fichier`).
+#[tauri::command]
+pub async fn verser_un_fichier(
+    ouverture: tauri::State<'_, Ouverture>,
+    choisi: tauri::State<'_, DossierChoisi>,
+    commande: VerserUnFichier,
+) -> Reponse<FichierVerse> {
+    let source = la_source(&choisi)?;
+    ouverture
+        .demander(move |services, contexte| {
+            services.verser_un_fichier(&*source, &commande, contexte)
+        })
+        .await
+}
+
+/// Verser une prise en stems du dossier choisi (`Services::verser_une_prise_en_stems`).
+#[tauri::command]
+pub async fn verser_une_prise_en_stems(
+    ouverture: tauri::State<'_, Ouverture>,
+    choisi: tauri::State<'_, DossierChoisi>,
+    commande: VerserUnePriseEnStems,
+) -> Reponse<Faite> {
+    let source = la_source(&choisi)?;
+    ouverture
+        .demander(move |services, contexte| {
+            services.verser_une_prise_en_stems(&*source, &commande, contexte)
+        })
+        .await
+}
+
+/// Clore l'import du dossier choisi (`Services::clore_l_import`) ; clos, le dossier choisi
+/// s'oublie, s'il est encore celui de l'import. Refusée, l'import reste ouvert, et le dossier
+/// choisi reste.
+#[tauri::command]
+pub async fn clore_l_import(
+    ouverture: tauri::State<'_, Ouverture>,
+    choisi: tauri::State<'_, DossierChoisi>,
+    commande: CloreLImport,
+) -> Reponse<ImportClos> {
+    let source = la_source(&choisi)?;
+    let de_l_import = Arc::clone(&source);
+    let clos = ouverture
+        .demander(move |services, contexte| services.clore_l_import(&*source, &commande, contexte))
+        .await?;
+    oublier(&choisi, &de_l_import);
+    Ok(clos)
+}
+
+/// Déclarer l'origine d'une captation, ou des captations du dernier import clos sous un préfixe
+/// (`Services::declarer_une_origine`).
+#[tauri::command]
+pub async fn declarer_une_origine(
+    ouverture: tauri::State<'_, Ouverture>,
+    commande: DeclarerUneOrigine,
+) -> Reponse<Faite> {
+    ouverture
+        .demander(move |services, contexte| services.declarer_une_origine(&commande, contexte))
+        .await
+}
+
+/// Choisir le type d'un stem, ou garder celui qui est proposé
+/// (`Services::choisir_le_type_d_un_stem`).
+#[tauri::command]
+pub async fn choisir_le_type_d_un_stem(
+    ouverture: tauri::State<'_, Ouverture>,
+    commande: ChoisirLeType,
+) -> Reponse<Faite> {
+    ouverture
+        .demander(move |services, contexte| services.choisir_le_type_d_un_stem(&commande, contexte))
+        .await
+}
+
+/// Lire un texte versé, `commande` sa captation (`Services::lire_un_texte_verse`).
+#[tauri::command]
+pub async fn lire_un_texte_verse(
+    ouverture: tauri::State<'_, Ouverture>,
+    commande: Captation,
+) -> Reponse<TexteLu> {
+    ouverture
+        .demander(move |services, _| services.lire_un_texte_verse(&commande))
+        .await
+}
+
+/// Lire le rapport d'un import (`Services::lire_un_rapport`).
+#[tauri::command]
+pub async fn lire_un_rapport(
+    ouverture: tauri::State<'_, Ouverture>,
+    commande: LireUnRapport,
+) -> Reponse<RapportDImport> {
+    ouverture
+        .demander(move |services, _| services.lire_un_rapport(&commande))
+        .await
+}
+
+/// Les noms des générateurs déclarés du fonds (`Services::generateurs`).
+#[tauri::command]
+pub async fn generateurs(ouverture: tauri::State<'_, Ouverture>) -> Reponse<Vec<String>> {
+    ouverture
+        .demander(|services, _| services.generateurs())
         .await
 }
 

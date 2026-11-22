@@ -1,5 +1,8 @@
-//! Le système : l'heure, l'aléa et le dossier de l'application, les seuls que l'établi lit.
+//! Le système : l'heure, l'aléa, le dossier de l'application et la place libre du disque, les
+//! seuls que l'établi lit ; et le dossier choisi, admis s'il n'est pas celui de l'application.
 
+use std::fs;
+use std::io;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -44,6 +47,79 @@ pub fn racine_des_donnees(dossier: &Path) -> PathBuf {
 /// Ouvre `donnees/` sous le dossier de l'application reçu, par le fil du fonds.
 pub fn ouvrir(dossier: &Path) -> Ouverture {
     fil::ouvrir(racine_des_donnees(dossier))
+}
+
+/// Le dossier de l'application, que `run()` garde dans l'état de Tauri.
+pub struct DossierDeLApplication(pub PathBuf);
+
+/// La place offerte à l'appelant sur le volume de `dossier` (question 8 ; P10) : sous Windows,
+/// `GetDiskFreeSpaceExW`, déclaré dans un bloc `unsafe extern "system"`, le seul du dépôt, sur le
+/// chemin canonique de `dossier` (`fs::canonicalize`, qui rend un `\\?\`), en UTF-16 fini par un
+/// zéro, `lpFreeBytesAvailableToCaller` seul lu ; un échec rend l'erreur du système. Hors de
+/// Windows : `io::ErrorKind::Unsupported`, une branche qu'aucun job ne compile, l'établi n'ayant
+/// que Windows pour cible (balayage Q12).
+#[cfg(windows)]
+pub fn place_libre(dossier: &Path) -> io::Result<u64> {
+    use std::os::windows::ffi::OsStrExt;
+    let canonique = fs::canonicalize(dossier)?;
+    let nom: Vec<u16> = canonique
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    let (mut offerte, mut totale, mut libre) = (0u64, 0u64, 0u64);
+    // SAFETY : `nom` est un chemin en UTF-16 fini par un zéro, qui vit jusqu'au retour de l'appel ;
+    // les trois sorties sont des `u64` à nous, chacun de la taille et de l'alignement d'un
+    // `ULARGE_INTEGER`, que l'appel écrit sans en garder l'adresse ; il ne lit rien d'autre.
+    let fait = unsafe { GetDiskFreeSpaceExW(nom.as_ptr(), &mut offerte, &mut totale, &mut libre) };
+    if fait == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(offerte)
+}
+
+/// Hors de Windows, la place libre ne se lit pas : `io::ErrorKind::Unsupported`. Aucun job ne
+/// compile cette branche, l'établi n'ayant que Windows pour cible (balayage Q12).
+#[cfg(not(windows))]
+pub fn place_libre(_dossier: &Path) -> io::Result<u64> {
+    Err(io::ErrorKind::Unsupported.into())
+}
+
+/// L'appel de `kernel32` que l'établi déclare à la main, sans dépendance.
+#[cfg(windows)]
+#[link(name = "kernel32")]
+unsafe extern "system" {
+    /// `GetDiskFreeSpaceExW` : sur le volume du dossier `dossier`, la place offerte à l'appelant
+    /// (`lpFreeBytesAvailableToCaller`, quotas compris), la taille offerte à l'appelant
+    /// (`lpTotalNumberOfBytes`) et la place libre du volume (`lpTotalNumberOfFreeBytes`) ; 0 en
+    /// cas d'échec, l'erreur dans `GetLastError`.
+    fn GetDiskFreeSpaceExW(
+        dossier: *const u16,
+        offerte: *mut u64,
+        totale: *mut u64,
+        libre: *mut u64,
+    ) -> i32;
+}
+
+/// Le refus d'un dossier qui est celui de l'application, le contient ou s'y trouve.
+const DANS_PUPITRE: &str =
+    "Ce dossier est celui de Pupitre, le contient ou s'y trouve : il ne se verse pas.";
+
+/// Admet le dossier choisi (question 14) : refusé s'il est le dossier de l'application, le contient
+/// ou s'y trouve, leurs chemins canoniques comparés par segments (`Path::starts_with`), « Ce
+/// dossier est celui de Pupitre, le contient ou s'y trouve : il ne se verse pas. » ; rend son
+/// chemin, tel que choisi. Un chemin qui ne se rend pas canonique (`fs::canonicalize`) : « Le
+/// dossier choisi ne se lit pas : <erreur>. », ou « Le dossier de Pupitre ne se lit pas :
+/// <erreur>. ».
+pub fn admettre_le_dossier(choisi: &Path, application: &Path) -> Result<PathBuf, String> {
+    let canonique = fs::canonicalize(choisi)
+        .map_err(|erreur| format!("Le dossier choisi ne se lit pas : {erreur}."))?;
+    let de_l_application = fs::canonicalize(application)
+        .map_err(|erreur| format!("Le dossier de Pupitre ne se lit pas : {erreur}."))?;
+    if canonique.starts_with(&de_l_application) || de_l_application.starts_with(&canonique) {
+        return Err(DANS_PUPITRE.to_string());
+    }
+    Ok(choisi.to_path_buf())
 }
 
 #[cfg(test)]

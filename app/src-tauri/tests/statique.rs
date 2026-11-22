@@ -1,8 +1,8 @@
 //! Contrôle statique d'I30 (§ 70 · 3) : hors du module `systeme` de l'établi, aucun code ne devine
-//! un chemin, ne lit l'horloge ni ne tire l'aléa ; l'acteur d'Automerge ne naît que dans les
-//! fichiers que le contrôle admet (`ACTEUR_ADMIS`). Le test lit sur le disque chaque `src/` de
-//! `crates/` et celui de l'établi ; une racine dont aucune source n'est lue est une faute.
-//! L'interface a sa propre règle.
+//! un chemin, ne lit l'horloge, ne tire l'aléa, ne lit la place libre du disque ni n'est non sûr
+//! (`unsafe`) ; l'acteur d'Automerge ne naît que dans les fichiers que le contrôle admet
+//! (`ACTEUR_ADMIS`). Le test lit sur le disque chaque `src/` de `crates/` et celui de l'établi ;
+//! une racine dont aucune source n'est lue est une faute. L'interface a sa propre règle.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -17,7 +17,8 @@ const ETABLI: &str = "app/src-tauri/src/";
 /// Le manifeste de l'établi, nommé depuis la racine du dépôt, que lit le contrôle d'I29.
 const MANIFESTE_DE_L_ETABLI: &str = "app/src-tauri/Cargo.toml";
 
-/// Le seul fichier qui devine un chemin, lit l'horloge et tire l'aléa.
+/// Le seul fichier qui devine un chemin, lit l'horloge, tire l'aléa, lit la place libre du disque
+/// et porte du code non sûr.
 const SYSTEME: &str = "app/src-tauri/src/systeme.rs";
 
 /// Le fichier de l'établi qui porte `dossier_jetable`, seul admis à nommer `temp_dir`, une fois.
@@ -68,6 +69,20 @@ const HORLOGE: &[&str] = &["SystemTime", "Instant", "UNIX_EPOCH"];
 /// L'aléa, admis dans `SYSTEME`.
 const ALEA: &[&str] = &["getrandom", "rand::", "OsRng", "thread_rng"];
 
+/// La place libre du disque, admise dans `SYSTEME` : l'appel de Windows, celui d'Unix, et ce que
+/// des crates offrent pour la lire.
+const PLACE_LIBRE: &[&str] = &[
+    "GetDiskFreeSpaceEx",
+    "statvfs",
+    "available_space",
+    "fs2::",
+    "sysinfo",
+];
+
+/// Le code non sûr, admis dans `SYSTEME` seul, où la place libre se lit par un appel de Windows
+/// déclaré à la main.
+const NON_SUR: &[&str] = &["unsafe"];
+
 /// L'acteur d'Automerge : il naît de l'un de ces mots, ou d'une copie du document.
 const ACTEUR: &[&str] = &[
     "ActorId::random",
@@ -114,6 +129,8 @@ fn controler(sources: &[(String, String)]) -> Vec<String> {
                 for mot in HORLOGE
                     .iter()
                     .chain(ALEA)
+                    .chain(PLACE_LIBRE)
+                    .chain(NON_SUR)
                     .filter(|mot| ligne.contains(**mot))
                 {
                     faute(mot);
@@ -333,7 +350,8 @@ fn i30_chaque_controle_refuse_ce_qu_on_y_plante() {
         &[source(lecture, "let copie = doc.fork();\n")],
         "crates/services/src/lecture.rs:1 contient « .fork( »",
     );
-    // L'acteur n'est pas admis dans `systeme`, qui n'admet que les chemins, l'horloge et l'aléa.
+    // L'acteur n'est pas admis dans `systeme`, qui n'admet que les chemins, l'horloge, l'aléa, la
+    // place libre et le code non sûr.
     refuse(
         &[source(systeme, "let a = ActorId::random();\n")],
         "app/src-tauri/src/systeme.rs:1 contient « ActorId::random »",
