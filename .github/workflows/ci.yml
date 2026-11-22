@@ -82,8 +82,12 @@ jobs:
     # avant son passage à froid, dix passages verts à chaud, le plus long en 2 min 45 s
     # (exécution 44286444480). Le 2026-11-21, la PR #50, les règles de l'import au noyau
     # comprises, n'a passé qu'à chaud : quatorze passages verts, le plus long en 2 min 44 s
-    # (exécution 44914073744), et 2 min 4 s sur `ed2961f` (exécution 44942319369). Un délai ne
-    # baisse pas, comme le § 70 · 1 le veut pour la mutation.
+    # (exécution 44914073744), et 2 min 4 s sur `ed2961f` (exécution 44942319369). Le
+    # 2026-11-22, la PR #51, l'import et le test 13 entier compris, n'a passé qu'à chaud :
+    # dix-huit passages verts, le plus long en 4 min 18 s (exécution 44993982995), dont 1 min
+    # 47 s pour le fonds de mesure, et 4 min 1 s sur `f6e4e88` (exécution 44998445817) ; le
+    # double du plus long, 8 min 36 s, tient dans le délai. Un délai ne baisse pas, comme le
+    # § 70 · 1 le veut pour la mutation.
     timeout-minutes: 13
     permissions:
       contents: read
@@ -195,7 +199,10 @@ jobs:
     # tauri-cli. Le 2026-11-21, la PR #50, les règles de l'import au noyau comprises, n'a passé
     # qu'à chaud : quatorze passages verts, le plus long en 6 min 21 s (exécution 44933288106),
     # dont 3 s pour trunk et tauri-cli, et 5 min 59 s sur `ed2961f` (exécution 44942319369),
-    # dont 2 s. Un délai ne baisse pas, comme le § 70 · 1 le veut pour la mutation.
+    # dont 2 s. Le 2026-11-22, la PR #51, l'import, la source sur fichiers et la place libre
+    # compris, n'a passé qu'à chaud : neuf passages verts, le plus long en 7 min 0 s (exécution
+    # 44993982995), dont 2 s pour trunk et tauri-cli, et 6 min 57 s sur `f6e4e88` (exécution
+    # 44998445817), dont 1 s. Un délai ne baisse pas, comme le § 70 · 1 le veut pour la mutation.
     timeout-minutes: 79
     permissions:
       contents: read
