@@ -43,7 +43,6 @@ fn messages() -> Vec<(String, String)> {
     let rangee = Path::new("captations").join(&e[..2]).join(&e);
     let c_ajout = format!("documents/fonds/ajouts/{e}.automerge");
     let c_voisin = format!("documents/fonds/ajouts/{e}.automerge.4242.partiel");
-    let c_provisoire = format!("captations/{e}.4242.partiel");
     let disque = |chemin: &Path, genre: ErrorKind, texte: &str| Erreur::Disque {
         chemin: chemin.to_path_buf(),
         erreur: refus_du_systeme(genre, texte),
@@ -308,16 +307,46 @@ fn messages() -> Vec<(String, String)> {
                  et la prend à l'ouverture suivante."
             ),
         ),
+        // Sous `captations/`, un nom provisoire, une copie d'import ou une captation rangée ne
+        // nomme ni l'import ni l'empreinte : « Une captation », au féminin ; `captations/` même
+        // garde son nom (question 26).
         (
             Avertissement::NomProvisoireRestant {
                 chemin: provisoire,
                 erreur: refus_du_systeme(ErrorKind::Other, "rename failed"),
             }
             .to_string(),
-            format!(
-                "{c_provisoire} n'a pas pu se lire, ou prendre le nom de son empreinte : il \
-                 reste, et l'ouverture suivante le relit."
-            ),
+            "Une captation n'a pas pu se lire, ou prendre le nom de son empreinte : elle reste, \
+             et l'ouverture suivante la relit."
+                .to_string(),
+        ),
+        (
+            Avertissement::NomProvisoireRestant {
+                chemin: copie,
+                erreur: refus_du_systeme(ErrorKind::Other, "read failed"),
+            }
+            .to_string(),
+            "Une captation n'a pas pu se lire, ou prendre le nom de son empreinte : elle reste, \
+             et l'ouverture suivante la relit."
+                .to_string(),
+        ),
+        (
+            Avertissement::NomProvisoireRestant {
+                chemin: Path::new("captations").to_path_buf(),
+                erreur: refus_du_systeme(ErrorKind::Other, "read failed"),
+            }
+            .to_string(),
+            "captations n'a pas pu se lire, ou prendre le nom de son empreinte : il reste, et \
+             l'ouverture suivante le relit."
+                .to_string(),
+        ),
+        (
+            Avertissement::NonDurable {
+                chemin: rangee,
+                erreur: refus_du_systeme(ErrorKind::Other, "sync failed"),
+            }
+            .to_string(),
+            "Une captation est en place, mais son renommage n'est pas rendu durable.".to_string(),
         ),
         (
             Echec::Refusee(refus_du_systeme(ErrorKind::Other, "rename failed")).to_string(),
