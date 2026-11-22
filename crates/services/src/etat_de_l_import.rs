@@ -15,15 +15,15 @@ use commandes::{
     JeuAVerser, NatureDuFichier, OrigineADeclarer, OrigineDeclaree, RapportDImport,
 };
 use noyau::donnees::entete::{self, ControleDuTexte, ENTETE_AU_PLUS};
-use noyau::donnees::gestes::{Impossible, Sorte};
+use noyau::donnees::gestes::{self, Impossible};
 use noyau::donnees::identifiants::{Hacheur, empreinte};
 use noyau::donnees::import::Faits;
-use noyau::donnees::origine::{self, Ajout, Declaration, Origine, OriginesLues};
+use noyau::donnees::origine::{self, Ajout, Origine, OriginesLues};
 use noyau::donnees::rapport::{self, FichierDeLImport, ManqueDePlace, OrigineChangee, RapportLu};
 use noyau::donnees::signature::{self, FormatSonore, Nature, Reconnu, SIGNATURE_AU_PLUS};
-use noyau::donnees::stems::{self, TypeDeStem, WavInspecte};
+use noyau::donnees::stems::{self, WavInspecte};
 
-use crate::lecture::{self, NomsPoses};
+use crate::lecture;
 use crate::{Entree, Raison, Refus, SorteDEntree, Source};
 
 /// Les octets lus d'un coup quand l'inspection calcule une empreinte en flux.
@@ -52,9 +52,6 @@ pub(crate) struct FichierVu {
     pub(crate) chemin: Option<String>,
     /// Ses octets au parcours.
     pub(crate) octets: u64,
-    /// Sa marque de dernière écriture au parcours ; `None` si le système de fichiers ne la tient
-    /// pas.
-    pub(crate) marque: Option<u64>,
     /// Sa nature, une étiquette ID3 résolue (`signature::apres_id3`).
     nature: Nature,
     /// Les faits de son en-tête : d'un WAV ou d'un MIDI lisibles, ceux de `entete::faits_wav` ou
@@ -73,11 +70,11 @@ pub(crate) struct FichierVu {
 impl FichierVu {
     /// La sorte de sa captation : une prise pour un audio, un MIDI versé seul pour un MIDI, un
     /// texte versé pour un texte ; `None` pour un fichier ignoré, qui ne se verse pas.
-    pub(crate) fn sorte(&self) -> Option<Sorte> {
+    pub(crate) fn sorte(&self) -> Option<gestes::Sorte> {
         match self.nature {
-            Nature::Audio(_) => Some(Sorte::Prise),
-            Nature::Midi => Some(Sorte::MidiVerseSeul),
-            Nature::Texte(_) => Some(Sorte::TexteVerse),
+            Nature::Audio(_) => Some(gestes::Sorte::Prise),
+            Nature::Midi => Some(gestes::Sorte::MidiVerseSeul),
+            Nature::Texte(_) => Some(gestes::Sorte::TexteVerse),
             Nature::Ignore => None,
         }
     }
@@ -137,7 +134,6 @@ fn lire_le_fichier<S: Source>(
         rang: entree.rang,
         chemin: entree.chemin.clone(),
         octets: entree.octets,
-        marque: entree.marque,
         nature: Nature::Ignore,
         faits: None,
         empreinte: None,
@@ -226,7 +222,7 @@ fn ne_se_lit_pas(entree: &Entree, erreur: &str) -> Refus {
 /// celle que `dernieres` porte pour son chemin (question 9).
 pub(crate) fn dossiers_inspectes(
     fichiers: &[FichierVu],
-    dernieres: &BTreeMap<String, Declaration>,
+    dernieres: &BTreeMap<String, origine::Declaration>,
 ) -> Vec<DossierInspecte> {
     let mut audio: BTreeMap<&str, Vec<&FichierVu>> = BTreeMap::from([("", Vec::new())]);
     for fichier in fichiers {
@@ -268,34 +264,6 @@ pub(crate) fn dossiers_inspectes(
         .collect()
 }
 
-/// Vrai si `source` reprend l'import qui a posé `poses` (question 2 ; R2) : il a posé au moins un
-/// nom de fichier ; chacun est le chemin d'une entrée de la source ; et chaque nom de ses prises
-/// en stems est le préfixe, par segments entiers (`<nom>/`), du chemin d'une entrée, ou le nom du
-/// dossier versé (`Source::nom_du_dossier`), celui d'un jeu versé seul.
-pub(crate) fn reprend<S: Source>(source: &S, poses: &NomsPoses) -> bool {
-    let chemins: BTreeSet<&str> = source
-        .entrees()
-        .iter()
-        .filter_map(|entree| entree.chemin.as_deref())
-        .collect();
-    let sous = |jeu: &str| {
-        chemins.iter().any(|chemin| {
-            chemin
-                .strip_prefix(jeu)
-                .is_some_and(|reste| reste.starts_with('/'))
-        })
-    };
-    !poses.fichiers.is_empty()
-        && poses
-            .fichiers
-            .keys()
-            .all(|chemin| chemins.contains(chemin.as_str()))
-        && poses
-            .jeux
-            .iter()
-            .all(|jeu| source.nom_du_dossier() == Some(jeu.as_str()) || sous(jeu))
-}
-
 /// Ce que l'inspection garde, dans les services, jusqu'à l'ouverture ou à une autre : chaque
 /// fichier vu, la taille à verser et ses fichiers (question 8), l'import resté ouvert qu'elle
 /// reprend, et ceux qu'elle ne reprend pas, que l'ouverture clôt d'abord (question 35).
@@ -307,19 +275,11 @@ pub(crate) struct InspectionGardee {
     pub(crate) a_verser: u64,
     /// Le nombre de ces fichiers.
     a_verser_fichiers: u64,
-    /// L'import resté ouvert que la source reprend.
-    pub(crate) reprise: Option<String>,
-    /// Les imports restés ouverts que la source ne reprend pas.
-    pub(crate) a_clore: Vec<String>,
 }
 
 impl InspectionGardee {
-    /// L'inspection de `fichiers`, sa taille à verser comptée, avec `reprise` et `a_clore`.
-    pub(crate) fn de(
-        fichiers: Vec<FichierVu>,
-        reprise: Option<String>,
-        a_clore: Vec<String>,
-    ) -> Self {
+    /// L'inspection de `fichiers`, sa taille à verser comptée.
+    pub(crate) fn de(fichiers: Vec<FichierVu>) -> Self {
         let a_verser: Vec<u64> = fichiers
             .iter()
             .filter(|fichier| fichier.sorte().is_some() && !fichier.connu)
@@ -331,8 +291,6 @@ impl InspectionGardee {
                 .fold(0u64, |somme, octets| somme.saturating_add(*octets)),
             a_verser_fichiers: a_verser.len() as u64,
             fichiers,
-            reprise,
-            a_clore,
         }
     }
 
@@ -390,7 +348,7 @@ pub(crate) struct JeuOuvert {
 /// fichier audio : `Impossible::JeuSansAudio`.
 pub(crate) fn jeux_de(
     fichiers: &[FichierVu],
-    declarations: &BTreeMap<String, Declaration>,
+    declarations: &BTreeMap<String, origine::Declaration>,
 ) -> Result<BTreeMap<String, JeuOuvert>, Impossible> {
     let mut jeux = BTreeMap::new();
     for (dossier, declaration) in declarations {
@@ -462,7 +420,7 @@ pub(crate) struct EtatDeLImport {
     /// La tête qui suit son ouverture, où se lisent les captations connues de son rapport.
     pub(crate) tete: Vec<ChangeHash>,
     /// Ses déclarations, traduites pour le noyau.
-    pub(crate) declarations: BTreeMap<String, Declaration>,
+    pub(crate) declarations: BTreeMap<String, origine::Declaration>,
     /// Les fichiers que son inspection a vus, dans l'ordre de leurs rangs.
     fichiers: Vec<FichierVu>,
     /// Ses jeux de stems, par dossier.
@@ -480,7 +438,7 @@ impl EtatDeLImport {
         import: String,
         ouvert_le: i64,
         tete: Vec<ChangeHash>,
-        declarations: BTreeMap<String, Declaration>,
+        declarations: BTreeMap<String, origine::Declaration>,
         fichiers: Vec<FichierVu>,
         jeux: BTreeMap<String, JeuOuvert>,
         nommees: BTreeSet<String>,
@@ -494,36 +452,6 @@ impl EtatDeLImport {
             jeux,
             donnes: BTreeMap::new(),
             nommees,
-        }
-    }
-
-    /// La reprise (question 2 ; R7) : chaque fichier dont un nom porte l'ULID de l'import (`poses`)
-    /// est compté de nouveau, sans être relu, illisible si sa captation n'a pas de `format` ;
-    /// chaque jeu dont la prise en stems porte le nom, son chemin, ou `nom_du_dossier` pour le
-    /// dossier versé, est versé.
-    pub(crate) fn reprendre(&mut self, poses: &NomsPoses, nom_du_dossier: Option<&str>) {
-        for fichier in &self.fichiers {
-            let pose = fichier
-                .chemin
-                .as_ref()
-                .and_then(|chemin| poses.fichiers.get(chemin));
-            if let Some((empreinte, illisible)) = pose {
-                self.donnes.insert(
-                    fichier.rang,
-                    Donne::Lu {
-                        empreinte: empreinte.clone(),
-                        illisible: *illisible,
-                    },
-                );
-            }
-        }
-        for (dossier, jeu) in &mut self.jeux {
-            let nom = if dossier.is_empty() {
-                nom_du_dossier
-            } else {
-                Some(dossier.as_str())
-            };
-            jeu.verse = nom.is_some_and(|nom| poses.jeux.contains(nom));
         }
     }
 
@@ -752,14 +680,14 @@ impl io::Read for FluxControle<'_> {
 /// de deux entrées du même chemin, la dernière l'emporte, vide comprise.
 pub(crate) fn declarations_du_noyau(
     declarations: &[DeclarationDUnDossier],
-) -> BTreeMap<String, Declaration> {
+) -> BTreeMap<String, origine::Declaration> {
     let mut traduites = BTreeMap::new();
     for DeclarationDUnDossier {
         chemin,
         declaration,
     } in declarations
     {
-        let traduite = Declaration {
+        let traduite = origine::Declaration {
             stems: declaration.stems,
             origine: match &declaration.origine {
                 OrigineADeclarer::Aucune => None,
@@ -767,7 +695,7 @@ pub(crate) fn declarations_du_noyau(
                 OrigineADeclarer::Generee { nom } => Some(Ajout::Generee(nom.clone())),
             },
         };
-        if traduite == Declaration::default() {
+        if traduite == origine::Declaration::default() {
             traduites.remove(chemin);
         } else {
             traduites.insert(chemin.clone(), traduite);
@@ -778,7 +706,9 @@ pub(crate) fn declarations_du_noyau(
 
 /// La déclaration des commandes qui répond à celle du noyau : l'inverse de
 /// `declarations_du_noyau`, `None` en `Aucune`.
-pub(crate) fn declaration_des_commandes(declaration: &Declaration) -> commandes::Declaration {
+pub(crate) fn declaration_des_commandes(
+    declaration: &origine::Declaration,
+) -> commandes::Declaration {
     commandes::Declaration {
         stems: declaration.stems,
         origine: match &declaration.origine {
@@ -787,19 +717,6 @@ pub(crate) fn declaration_des_commandes(declaration: &Declaration) -> commandes:
             Some(Ajout::Generee(nom)) => OrigineADeclarer::Generee { nom: nom.clone() },
         },
     }
-}
-
-/// Les déclarations des commandes, une par chemin, dans l'ordre des chemins.
-pub(crate) fn declarations_des_commandes(
-    declarations: &BTreeMap<String, Declaration>,
-) -> Vec<DeclarationDUnDossier> {
-    declarations
-        .iter()
-        .map(|(chemin, declaration)| DeclarationDUnDossier {
-            chemin: chemin.clone(),
-            declaration: declaration_des_commandes(declaration),
-        })
-        .collect()
 }
 
 /// Le fichier inspecté des commandes : son rang, son chemin, ses octets, sa nature, et s'il est
@@ -849,20 +766,20 @@ pub(crate) fn origine_des_commandes(lues: &OriginesLues) -> OrigineDeclaree {
 }
 
 /// Le type de stem des commandes qui répond à celui du noyau.
-pub(crate) fn type_des_commandes(type_de_stem: TypeDeStem) -> commandes::TypeDeStem {
+pub(crate) fn type_des_commandes(type_de_stem: stems::TypeDeStem) -> commandes::TypeDeStem {
     match type_de_stem {
-        TypeDeStem::Voix => commandes::TypeDeStem::Voix,
-        TypeDeStem::Choeurs => commandes::TypeDeStem::Choeurs,
-        TypeDeStem::Batterie => commandes::TypeDeStem::Batterie,
-        TypeDeStem::Percussions => commandes::TypeDeStem::Percussions,
-        TypeDeStem::Basse => commandes::TypeDeStem::Basse,
-        TypeDeStem::Guitare => commandes::TypeDeStem::Guitare,
-        TypeDeStem::Clavier => commandes::TypeDeStem::Clavier,
-        TypeDeStem::Cordes => commandes::TypeDeStem::Cordes,
-        TypeDeStem::Cuivres => commandes::TypeDeStem::Cuivres,
-        TypeDeStem::Synthe => commandes::TypeDeStem::Synthe,
-        TypeDeStem::Effets => commandes::TypeDeStem::Effets,
-        TypeDeStem::Autre => commandes::TypeDeStem::Autre,
+        stems::TypeDeStem::Voix => commandes::TypeDeStem::Voix,
+        stems::TypeDeStem::Choeurs => commandes::TypeDeStem::Choeurs,
+        stems::TypeDeStem::Batterie => commandes::TypeDeStem::Batterie,
+        stems::TypeDeStem::Percussions => commandes::TypeDeStem::Percussions,
+        stems::TypeDeStem::Basse => commandes::TypeDeStem::Basse,
+        stems::TypeDeStem::Guitare => commandes::TypeDeStem::Guitare,
+        stems::TypeDeStem::Clavier => commandes::TypeDeStem::Clavier,
+        stems::TypeDeStem::Cordes => commandes::TypeDeStem::Cordes,
+        stems::TypeDeStem::Cuivres => commandes::TypeDeStem::Cuivres,
+        stems::TypeDeStem::Synthe => commandes::TypeDeStem::Synthe,
+        stems::TypeDeStem::Effets => commandes::TypeDeStem::Effets,
+        stems::TypeDeStem::Autre => commandes::TypeDeStem::Autre,
     }
 }
 

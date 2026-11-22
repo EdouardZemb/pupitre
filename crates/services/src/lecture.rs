@@ -111,24 +111,6 @@ pub fn faits_de(doc: &Automerge, conteneur: &str, empreinte: &str) -> Faits {
     }
 }
 
-/// La tête de l'ouverture de l'import `import` : le hash de la modification qui a posé
-/// `imports/<i>/ouvert`, et de chacune, si la clé est en conflit (`get_all`, puis
-/// `Automerge::hash_for_opid`, d'après l'identifiant de chaque valeur). Aucun si la clé ne se lit
-/// pas.
-pub fn tete_de_l_ouverture(doc: &Automerge, import: &str) -> Vec<ChangeHash> {
-    let Some(imports) = objet(doc, &ROOT, IMPORTS) else {
-        return Vec::new();
-    };
-    doc.get_all(&imports, format!("{import}/{OUVERT}").as_str())
-        .map(|valeurs| {
-            valeurs
-                .iter()
-                .filter_map(|(_, id)| doc.hash_for_opid(id))
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
 /// Les captations dont `<empreinte>/idee` vaut `id`, dans les trois conteneurs, ordre (sorte,
 /// empreinte). Chaque conteneur se parcourt par `map_range`, en un passage, chaque clé coupée au
 /// premier `/` ; un conteneur absent de la racine du document se saute.
