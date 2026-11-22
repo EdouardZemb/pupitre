@@ -23,7 +23,7 @@ use noyau::donnees::rapport::{self, FichierDeLImport, ManqueDePlace, OrigineChan
 use noyau::donnees::signature::{self, FormatSonore, Nature, Reconnu, SIGNATURE_AU_PLUS};
 use noyau::donnees::stems::{self, WavInspecte};
 
-use crate::lecture;
+use crate::lecture::{self, NomsPoses};
 use crate::{Entree, Raison, Refus, SorteDEntree, Source};
 
 /// Les octets lus d'un coup quand l'inspection calcule une empreinte en flux.
@@ -52,6 +52,9 @@ pub(crate) struct FichierVu {
     pub(crate) chemin: Option<String>,
     /// Ses octets au parcours.
     pub(crate) octets: u64,
+    /// Sa marque de dernière écriture au parcours ; `None` si le système de fichiers ne la tient
+    /// pas (question 14 ; R8).
+    pub(crate) marque: Option<u64>,
     /// Sa nature, une étiquette ID3 résolue (`signature::apres_id3`).
     nature: Nature,
     /// Les faits de son en-tête : d'un WAV ou d'un MIDI lisibles, ceux de `entete::faits_wav` ou
@@ -134,6 +137,7 @@ fn lire_le_fichier<S: Source>(
         rang: entree.rang,
         chemin: entree.chemin.clone(),
         octets: entree.octets,
+        marque: entree.marque,
         nature: Nature::Ignore,
         faits: None,
         empreinte: None,
@@ -264,6 +268,34 @@ pub(crate) fn dossiers_inspectes(
         .collect()
 }
 
+/// Vrai si `source` reprend l'import qui a posé `poses` (question 2 ; R2) : il a posé au moins un
+/// nom de fichier ; chacun est le chemin d'une entrée de la source ; et chaque nom de ses prises
+/// en stems est le préfixe, par segments entiers (`<nom>/`), du chemin d'une entrée, ou le nom du
+/// dossier versé (`Source::nom_du_dossier`), celui d'un jeu versé seul.
+pub(crate) fn reprend<S: Source>(source: &S, poses: &NomsPoses) -> bool {
+    let chemins: BTreeSet<&str> = source
+        .entrees()
+        .iter()
+        .filter_map(|entree| entree.chemin.as_deref())
+        .collect();
+    let sous = |jeu: &str| {
+        chemins.iter().any(|chemin| {
+            chemin
+                .strip_prefix(jeu)
+                .is_some_and(|reste| reste.starts_with('/'))
+        })
+    };
+    !poses.fichiers.is_empty()
+        && poses
+            .fichiers
+            .keys()
+            .all(|chemin| chemins.contains(chemin.as_str()))
+        && poses
+            .jeux
+            .iter()
+            .all(|jeu| source.nom_du_dossier() == Some(jeu.as_str()) || sous(jeu))
+}
+
 /// Ce que l'inspection garde, dans les services, jusqu'à l'ouverture ou à une autre : chaque
 /// fichier vu, la taille à verser et ses fichiers (question 8), l'import resté ouvert qu'elle
 /// reprend, et ceux qu'elle ne reprend pas, que l'ouverture clôt d'abord (question 35).
@@ -275,11 +307,19 @@ pub(crate) struct InspectionGardee {
     pub(crate) a_verser: u64,
     /// Le nombre de ces fichiers.
     a_verser_fichiers: u64,
+    /// L'import resté ouvert que la source reprend.
+    pub(crate) reprise: Option<String>,
+    /// Les imports restés ouverts que la source ne reprend pas.
+    pub(crate) a_clore: Vec<String>,
 }
 
 impl InspectionGardee {
-    /// L'inspection de `fichiers`, sa taille à verser comptée.
-    pub(crate) fn de(fichiers: Vec<FichierVu>) -> Self {
+    /// L'inspection de `fichiers`, sa taille à verser comptée, avec `reprise` et `a_clore`.
+    pub(crate) fn de(
+        fichiers: Vec<FichierVu>,
+        reprise: Option<String>,
+        a_clore: Vec<String>,
+    ) -> Self {
         let a_verser: Vec<u64> = fichiers
             .iter()
             .filter(|fichier| fichier.sorte().is_some() && !fichier.connu)
@@ -291,6 +331,8 @@ impl InspectionGardee {
                 .fold(0u64, |somme, octets| somme.saturating_add(*octets)),
             a_verser_fichiers: a_verser.len() as u64,
             fichiers,
+            reprise,
+            a_clore,
         }
     }
 
@@ -452,6 +494,36 @@ impl EtatDeLImport {
             jeux,
             donnes: BTreeMap::new(),
             nommees,
+        }
+    }
+
+    /// La reprise (question 2 ; R7) : chaque fichier dont un nom porte l'ULID de l'import (`poses`)
+    /// est compté de nouveau, sans être relu, illisible si sa captation n'a pas de `format` ;
+    /// chaque jeu dont la prise en stems porte le nom, son chemin, ou `nom_du_dossier` pour le
+    /// dossier versé, est versé.
+    pub(crate) fn reprendre(&mut self, poses: &NomsPoses, nom_du_dossier: Option<&str>) {
+        for fichier in &self.fichiers {
+            let pose = fichier
+                .chemin
+                .as_ref()
+                .and_then(|chemin| poses.fichiers.get(chemin));
+            if let Some((empreinte, illisible)) = pose {
+                self.donnes.insert(
+                    fichier.rang,
+                    Donne::Lu {
+                        empreinte: empreinte.clone(),
+                        illisible: *illisible,
+                    },
+                );
+            }
+        }
+        for (dossier, jeu) in &mut self.jeux {
+            let nom = if dossier.is_empty() {
+                nom_du_dossier
+            } else {
+                Some(dossier.as_str())
+            };
+            jeu.verse = nom.is_some_and(|nom| poses.jeux.contains(nom));
         }
     }
 
@@ -736,6 +808,20 @@ pub(crate) fn declaration_des_commandes(
             Some(Ajout::Generee(nom)) => OrigineADeclarer::Generee { nom: nom.clone() },
         },
     }
+}
+
+/// Les déclarations des commandes qui répondent à celles du noyau, une par chemin, dans l'ordre
+/// des chemins : celles qu'une inspection rend, reprises de l'ouverture de l'import (R2).
+pub(crate) fn declarations_des_commandes(
+    declarations: &BTreeMap<String, origine::Declaration>,
+) -> Vec<DeclarationDUnDossier> {
+    declarations
+        .iter()
+        .map(|(chemin, declaration)| DeclarationDUnDossier {
+            chemin: chemin.clone(),
+            declaration: declaration_des_commandes(declaration),
+        })
+        .collect()
 }
 
 /// Le fichier inspecté des commandes : son rang, son chemin, ses octets, sa nature, et s'il est

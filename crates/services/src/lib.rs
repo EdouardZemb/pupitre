@@ -51,7 +51,7 @@ use noyau::donnees::import::{self, MidiDuStem, StemAVerser};
 use noyau::donnees::index::{self, Index};
 use noyau::donnees::journal;
 use noyau::donnees::origine;
-use noyau::donnees::rapport;
+use noyau::donnees::rapport::{self, FichierDeLImport};
 use noyau::donnees::requete;
 use noyau::donnees::stems;
 
@@ -626,14 +626,25 @@ impl<D: Documents, C: Captations> Services<D, C> {
     }
 
     /// L'état du fonds : né ou non (`documents.fonds().is_some()`), la lecture seule
-    /// (`documents.lecture_seule()`), ses avertissements (`documents.avertissements()`), et le
-    /// message de l'opération du dernier geste de tri, celui qu'annuler défait. En lecture seule
-    /// comme ailleurs.
+    /// (`documents.lecture_seule()`), ses avertissements (`documents.avertissements()`), puis
+    /// `IMPORT_RESTE_OUVERT` si le fonds porte un import ouvert, sans rapport (`lecture::imports`),
+    /// que ces services ne conduisent pas (question 2) ; et le message de l'opération du dernier
+    /// geste de tri, celui qu'annuler défait. En lecture seule comme ailleurs.
     pub fn etat_du_fonds(&self) -> Reponse<EtatDuFonds> {
+        let mut avertissements = self.documents.avertissements();
+        let conduit = self.import.as_ref().map(|etat| etat.import.as_str());
+        let reste_ouvert = self.documents.fonds().is_some_and(|fonds| {
+            lecture::imports(fonds)
+                .iter()
+                .any(|lu| lu.rapport.is_none() && Some(lu.import.as_str()) != conduit)
+        });
+        if reste_ouvert {
+            avertissements.push(IMPORT_RESTE_OUVERT.to_string());
+        }
         Ok(EtatDuFonds {
             ne: self.documents.fonds().is_some(),
             lecture_seule: self.documents.lecture_seule(),
-            avertissements: self.documents.avertissements(),
+            avertissements,
             a_annuler: self
                 .dernier_geste
                 .as_ref()
@@ -675,7 +686,22 @@ impl<D: Documents, C: Captations> Services<D, C> {
         let fonds = self.documents.fonds();
         let nommees = fonds.map(lecture::empreintes_nommees).unwrap_or_default();
         let fichiers = etat_de_l_import::lire_les_fichiers(source, &tailles, &nommees)?;
-        let gardee = InspectionGardee::de(fichiers);
+        let mut reprise = None;
+        let mut a_clore = Vec::new();
+        if let Some(fonds) = fonds {
+            for ouvert in lecture::imports(fonds)
+                .into_iter()
+                .filter(|lu| lu.rapport.is_none())
+            {
+                let poses = lecture::noms_poses_par(fonds, &ouvert.import);
+                if reprise.is_none() && etat_de_l_import::reprend(source, &poses) {
+                    reprise = Some(ouvert.import);
+                } else {
+                    a_clore.push(ouvert.import);
+                }
+            }
+        }
+        let gardee = InspectionGardee::de(fichiers, reprise, a_clore);
         let manque = gardee
             .place(poids_du_fonds(fonds), place_libre)
             .err()
@@ -683,8 +709,14 @@ impl<D: Documents, C: Captations> Services<D, C> {
         let dernieres = fonds
             .map(lecture::dernieres_declarations)
             .unwrap_or_default();
+        let declarations_reprises = match (fonds, &gardee.reprise) {
+            (Some(fonds), Some(import)) => etat_de_l_import::declarations_des_commandes(
+                &lecture::declarations_de(fonds, import),
+            ),
+            _ => Vec::new(),
+        };
         let inspection = Inspection {
-            reprise: None,
+            reprise: gardee.reprise.clone(),
             nom_du_dossier: source.nom_du_dossier().map(str::to_string),
             fichiers: gardee
                 .fichiers
@@ -696,8 +728,8 @@ impl<D: Documents, C: Captations> Services<D, C> {
             libre: place_libre.min(ENTIER_SUR),
             manque,
             generateurs: generateurs_du_fonds(fonds),
-            declarations_reprises: Vec::new(),
-            ouvert_ailleurs: false,
+            declarations_reprises,
+            ouvert_ailleurs: !gardee.a_clore.is_empty(),
         };
         self.inspection = Some(gardee);
         Ok(inspection)
@@ -713,22 +745,26 @@ impl<D: Documents, C: Captations> Services<D, C> {
     /// s'ôte avant de comparer les déclarations d'un import repris ; deux entrées du même chemin,
     /// la dernière l'emporte (balayage Q3). Les refus se disent avant toute écriture.
     ///
-    /// Un import ouvert que la source ne reprend pas se clôt d'abord (question 35 ;
-    /// `clore_un_import_ouvert_ailleurs`). Neuf : l'ULID tiré, puis `import::ouvrir`, par
-    /// `faire_naitre` dans un Pupitre neuf (la naissance tirée d'abord, comme `noter`), sinon
-    /// `appliquer` ; la tête qui suit, gardée. Repris : rien ne s'écrit ; les déclarations sont
-    /// celles de l'ouverture, et une commande qui en porte d'autres est refusée, « Cet import
-    /// reprend ses déclarations : elles ne changent pas. » ; la tête de l'ouverture, retrouvée par
-    /// l'opération qui a posé `imports/<i>/ouvert` (`lecture::tete_de_l_ouverture`) ; chaque fichier
-    /// dont un nom porte l'ULID de l'import, compté de nouveau sans être relu, illisible si sa
-    /// captation n'a pas de `format`, ses octets ceux de son entrée (R7), et chaque jeu dont la
-    /// prise en stems est nommée, versé (`EtatDeLImport::reprendre`) ; puis ses copies non nommées,
-    /// retirées (`copies_a_retirer`, à la reprise). Les empreintes nommées, lues une fois et
-    /// gardées dans l'état de l'import (R26). Rend les rangs à verser, hors des jeux, et chaque jeu
-    /// avec les siens ; l'avertissement, le premier qu'une écriture a rendu.
+    /// Un import ouvert que la source ne reprend pas se clôt d'abord, une fois (question 35 ;
+    /// `clore_un_import_ouvert_ailleurs`) : une ouverture refusée après cette clôture garde
+    /// l'inspection, et la tentative suivante ne reclôt pas l'import que le fonds porte clos.
+    /// Neuf : l'ULID tiré, puis `import::ouvrir`, par `faire_naitre` dans un Pupitre neuf (la
+    /// naissance tirée d'abord, comme `noter`), sinon `appliquer` ; la tête qui suit, gardée.
+    /// Repris : rien ne s'écrit ; les déclarations sont celles de l'ouverture
+    /// (`lecture::declarations_de`), qu'une commande sans déclaration reprend telles quelles, et
+    /// une commande qui en porte d'autres est refusée, « Cet import reprend ses déclarations :
+    /// elles ne changent pas. » ; la tête de l'ouverture, retrouvée par l'opération qui a posé
+    /// `imports/<i>/ouvert` (`lecture::tete_de_l_ouverture`) ; chaque fichier dont un nom porte
+    /// l'ULID de l'import (`lecture::noms_poses_par`), compté de nouveau sans être relu,
+    /// illisible si sa captation n'a pas de `format`, ses octets ceux de son entrée (R7), et chaque
+    /// jeu dont la prise en stems est nommée, de son chemin ou du nom du dossier versé
+    /// (`Source::nom_du_dossier`), versé (`EtatDeLImport::reprendre`) ; puis ses copies non
+    /// nommées, retirées (`copies_a_retirer`, à la reprise). Les empreintes nommées, lues une fois
+    /// et gardées dans l'état de l'import (R26). Rend les rangs à verser, hors des jeux, et chaque
+    /// jeu avec les siens ; les avertissements des écritures, joints (`joindre`).
     pub fn ouvrir_l_import<S: Source>(
         &mut self,
-        _source: &S,
+        source: &S,
         commande: &OuvrirLImport,
         place_libre: u64,
         contexte: &mut Contexte<'_>,
@@ -743,45 +779,100 @@ impl<D: Documents, C: Captations> Services<D, C> {
         gardee
             .place(poids_du_fonds(self.documents.fonds()), place_libre)
             .map_err(|manque| refus_de_l_import(&manque.to_string()))?;
-        let declarations = etat_de_l_import::declarations_du_noyau(&commande.declarations);
+        let reprise = gardee.reprise.clone();
+        let a_clore = gardee.a_clore.clone();
+        let demandees = etat_de_l_import::declarations_du_noyau(&commande.declarations);
+        let declarations = match (&reprise, self.documents.fonds()) {
+            (Some(import), Some(fonds)) => {
+                let de_l_ouverture: BTreeMap<String, origine::Declaration> =
+                    lecture::declarations_de(fonds, import)
+                        .into_iter()
+                        .filter(|(_, declaration)| *declaration != origine::Declaration::default())
+                        .collect();
+                if !demandees.is_empty() && demandees != de_l_ouverture {
+                    return Err(refus_de_l_import(
+                        "Cet import reprend ses déclarations : elles ne changent pas.",
+                    ));
+                }
+                de_l_ouverture
+            }
+            _ => demandees,
+        };
         let jeux =
             etat_de_l_import::jeux_de(&gardee.fichiers, &declarations).map_err(refus_impossible)?;
-        let naissance = self
-            .documents
-            .fonds()
-            .is_none()
-            .then(|| naissance_tiree(contexte));
-        let import = ulid_tire(contexte);
-        let ouverture = import::ouvrir(
-            &import,
-            &declarations,
-            contexte.heure,
-            commande.decalage_minutes,
-        )
-        .map_err(refus_impossible)?;
-        let avertissement = match naissance {
-            Some(naissance) => self.documents.faire_naitre(&naissance, &ouverture)?,
-            None => self.documents.appliquer(&ouverture)?,
+        let neuf = match reprise {
+            Some(_) => None,
+            None => {
+                let naissance = self
+                    .documents
+                    .fonds()
+                    .is_none()
+                    .then(|| naissance_tiree(contexte));
+                let import = ulid_tire(contexte);
+                let ouverture = import::ouvrir(
+                    &import,
+                    &declarations,
+                    contexte.heure,
+                    commande.decalage_minutes,
+                )
+                .map_err(refus_impossible)?;
+                Some((naissance, import, ouverture))
+            }
         };
-        let fonds = self.documents.fonds().ok_or_else(fonds_non_ne)?;
-        let tete = fonds.get_heads();
-        let nommees = lecture::empreintes_nommees(fonds);
+        let mut avertissement = None;
+        for ailleurs in &a_clore {
+            let averti = self.clore_un_import_ouvert_ailleurs(
+                ailleurs,
+                contexte.heure,
+                commande.decalage_minutes,
+            )?;
+            avertissement = joindre(avertissement, averti);
+        }
+        let (import, ouvert_le, tete, nommees, poses) = match (neuf, reprise) {
+            (Some((naissance, import, ouverture)), _) => {
+                let averti = match naissance {
+                    Some(naissance) => self.documents.faire_naitre(&naissance, &ouverture)?,
+                    None => self.documents.appliquer(&ouverture)?,
+                };
+                avertissement = joindre(avertissement, averti);
+                let fonds = self.documents.fonds().ok_or_else(fonds_non_ne)?;
+                let tete = fonds.get_heads();
+                let nommees = lecture::empreintes_nommees(fonds);
+                (import, contexte.heure, tete, nommees, None)
+            }
+            (None, Some(import)) => {
+                let fonds = self.documents.fonds().ok_or_else(fonds_non_ne)?;
+                let tete = lecture::tete_de_l_ouverture(fonds, &import);
+                let ouvert_le = lecture::imports(fonds)
+                    .into_iter()
+                    .find(|lu| lu.import == import)
+                    .map_or(contexte.heure, |lu| lu.ouvert_le);
+                let nommees = lecture::empreintes_nommees(fonds);
+                let poses = lecture::noms_poses_par(fonds, &import);
+                self.retirer_les_copies(&import, &nommees, false)?;
+                (import, ouvert_le, tete, nommees, Some(poses))
+            }
+            (None, None) => return Err(refus_de_l_import("Aucun dossier n'est inspecté.")),
+        };
         let gardee = self
             .inspection
             .take()
             .ok_or_else(|| refus_de_l_import("Aucun dossier n'est inspecté."))?;
-        let etat = EtatDeLImport::nouveau(
+        let mut etat = EtatDeLImport::nouveau(
             import,
-            contexte.heure,
+            ouvert_le,
             tete,
             declarations,
             gardee.fichiers,
             jeux,
             nommees,
         );
+        if let Some(poses) = &poses {
+            etat.reprendre(poses, source.nom_du_dossier());
+        }
         let ouvert = commandes::ImportOuvert {
             import: etat.import.clone(),
-            repris: false,
+            repris: poses.is_some(),
             rangs: etat.rangs_hors_des_jeux(),
             jeux: etat.jeux_a_verser(),
             avertissement,
@@ -847,7 +938,9 @@ impl<D: Documents, C: Captations> Services<D, C> {
     /// d'`origines_a` et d'`origines_de` (`etat_de_l_import::origines_changees`) ; relu
     /// (`rapport::lire_le_rapport`), il donne le rapport rendu, ses octets bornés à `ENTIER_SUR` ;
     /// versé par `Captations::verser` ; `import::clore` ; chaque copie de l'import retirée
-    /// (`copies_a_retirer`, à la clôture). L'état de l'import oublié, les services gardent son
+    /// (`copies_a_retirer`, à la clôture) : un retrait refusé ne défait pas la clôture écrite, qui
+    /// est faite, son refus joint à l'avertissement rendu (`joindre`), la copie restée dans
+    /// `captations/`. L'état de l'import oublié, les services gardent son
     /// ULID et sa table (`EtatDeLImport::table` : chemin → empreinte de chaque fichier versé ou
     /// dédoublonné, et de la prise en stems de chaque jeu, sous le chemin de son dossier),
     /// jusqu'à l'inspection suivante : `Portee::Prefixe` se résout sur elle (R6 ;
@@ -868,8 +961,13 @@ impl<D: Documents, C: Captations> Services<D, C> {
             }
         };
         self.dernier_clos = Some((etat.import.clone(), etat.table()));
-        self.retirer_les_copies(&etat.import)?;
-        Ok(clos)
+        let retrait = self
+            .retirer_les_copies(&etat.import, &BTreeSet::new(), true)
+            .err();
+        Ok(ImportClos {
+            avertissement: joindre(clos.avertissement, retrait.map(|refus| refus.message)),
+            ..clos
+        })
     }
 
     /// Déclare une origine après l'import (question 22) : sur la captation de
@@ -1120,7 +1218,9 @@ impl<D: Documents, C: Captations> Services<D, C> {
                 rang,
             })
         };
-        if source.octets_actuels(rang)? != fichier.octets {
+        if source.octets_actuels(rang)? != fichier.octets
+            || autre_marque(fichier.marque, source.marque_actuelle(rang)?)
+        {
             return Err(change());
         }
         let mut flux = FluxControle::de(source.lire_en_flux(rang)?, fichier.texte());
@@ -1131,7 +1231,10 @@ impl<D: Documents, C: Captations> Services<D, C> {
         )?;
         let lisible = flux.lisible();
         drop(flux);
-        if !versement.rangee || versement.octets != fichier.octets {
+        if !versement.rangee
+            || versement.octets != fichier.octets
+            || autre_marque(fichier.marque, source.marque_actuelle(rang)?)
+        {
             return Err(change());
         }
         let faits = fichier.faits_de_la_copie(lisible);
@@ -1354,10 +1457,73 @@ impl<D: Documents, C: Captations> Services<D, C> {
         })
     }
 
-    /// Retire les copies de l'import `import` que `copies_a_retirer` désigne à la clôture : toutes.
-    fn retirer_les_copies(&self, import: &str) -> Result<(), Refus> {
+    /// Clôt l'import `import`, resté ouvert, que la source inspectée ne reprend pas (question 35),
+    /// une fois : un import que le fonds porte déjà clos, son rapport lu (`lecture::imports`), ne
+    /// se reclôt pas, et rien ne s'écrit ; de même d'un import qu'il ne porte pas. Son rapport se
+    /// compte par la règle du noyau (`rapport::rapport`, donc `rapport::comptes`, sans connues) sur
+    /// chaque fichier nommé à son ULID (`lecture::noms_poses_par`), rangé dans l'ordre de leurs
+    /// chemins, ses octets ceux de sa captation (`Captations::taille`), illisible si sa captation
+    /// n'a pas de `format` : chacun vu ; le premier nom d'un contenu, versé ; un nom dont un autre
+    /// nom du même import désigne déjà le contenu, dédoublonné ; les illisibles parmi eux. Ignorés
+    /// et sans nom à zéro : le fonds n'en garde rien. Aucune ligne `origine=`. Versé par
+    /// `Captations::verser`, puis `import::clore`, « Import du <jour de son ouverture> clos », à
+    /// `heure` ; ses copies retirées (`copies_a_retirer`, à la clôture), un retrait refusé ne
+    /// défaisant pas la clôture écrite : son refus se joint à l'avertissement rendu (`joindre`).
+    /// Rend l'avertissement de l'écriture.
+    fn clore_un_import_ouvert_ailleurs(
+        &mut self,
+        import: &str,
+        heure: i64,
+        decalage_minutes: i32,
+    ) -> Result<Option<String>, Refus> {
+        let fonds = self.documents.fonds().ok_or_else(fonds_non_ne)?;
+        let ouvert_le = match lecture::imports(fonds)
+            .into_iter()
+            .find(|lu| lu.import == import)
+        {
+            Some(lu) if lu.rapport.is_none() => lu.ouvert_le,
+            _ => return Ok(None),
+        };
+        let poses = lecture::noms_poses_par(fonds, import);
+        let mut fichiers = Vec::new();
+        for (rang, (empreinte, illisible)) in (1..).zip(poses.fichiers.values()) {
+            fichiers.push(FichierDeLImport::Lu {
+                rang,
+                octets: self.captations.taille(empreinte)?.unwrap_or(0),
+                empreinte: empreinte.clone(),
+                illisible: *illisible,
+                sans_nom: false,
+            });
+        }
+        let octets = rapport::rapport(import, &fichiers, &BTreeSet::new(), &[]);
+        let empreinte = self.captations.verser(&octets)?;
+        let ouvert = import::ImportOuvert {
+            import,
+            ouvert_le,
+            par: self.appareil,
+        };
+        let avertissement = self.documents.appliquer(&import::clore(
+            &ouvert,
+            &empreinte,
+            heure,
+            decalage_minutes,
+        ))?;
+        let retrait = self
+            .retirer_les_copies(import, &BTreeSet::new(), true)
+            .err();
+        Ok(joindre(avertissement, retrait.map(|refus| refus.message)))
+    }
+
+    /// Retire les copies de l'import `import` que `copies_a_retirer` désigne : à la clôture
+    /// (`a_la_cloture`), toutes ; à la reprise, celles dont l'empreinte n'est pas dans `nommees`.
+    fn retirer_les_copies(
+        &self,
+        import: &str,
+        nommees: &BTreeSet<String>,
+        a_la_cloture: bool,
+    ) -> Result<(), Refus> {
         let copies = self.captations.copies_de_l_import(import)?;
-        for nom in copies_a_retirer(&copies, import, &BTreeSet::new(), true) {
+        for nom in copies_a_retirer(&copies, import, nommees, a_la_cloture) {
             self.captations.retirer_une_copie(&nom)?;
         }
         Ok(())
@@ -1644,6 +1810,12 @@ fn poids_du_fonds(fonds: Option<&Automerge>) -> u64 {
     })
 }
 
+/// Vrai si la marque de dernière écriture `actuelle` n'est pas celle de l'inspection,
+/// `inspectee` ; l'une absente, rien ne se compare (question 14).
+fn autre_marque(inspectee: Option<u64>, actuelle: Option<u64>) -> bool {
+    matches!((inspectee, actuelle), (Some(avant), Some(apres)) if avant != apres)
+}
+
 /// Le refus d'une commande de l'import qui ne se fait pas : `Raison::Impossible`, `message`.
 fn refus_de_l_import(message: &str) -> Refus {
     Refus {
@@ -1659,6 +1831,10 @@ const ORIGINE_GARDEE: &str = "L'origine reste générée : une origine déclaré
 /// Le refus d'une déclaration par préfixe qui ne nomme pas le dernier import clos, ou qui suit
 /// une inspection (R6).
 const PLUS_INSPECTE: &str = "Ce dossier n'est plus inspecté.";
+
+/// L'avertissement de l'état du fonds quand le fonds porte un import ouvert que les services ne
+/// conduisent pas (question 2).
+const IMPORT_RESTE_OUVERT: &str = "Un import est resté ouvert : rechoisir son dossier le reprend.";
 
 /// Le refus d'une captation que le fonds ne porte pas : le constat
 /// `Impossible::CaptationAbsente` du noyau, qui ne nomme pas l'empreinte (question 26).

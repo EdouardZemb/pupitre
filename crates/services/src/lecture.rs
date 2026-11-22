@@ -8,10 +8,11 @@
 //! Ce que l'import écrit se lit ici aussi (§ 31 · 2 ; questions 9, 18, 20 à 22) : les noms
 //! d'origine d'un contenu et son premier nom vu, ses origines déclarées, ce que le fonds porte déjà
 //! d'un contenu ou d'une prise en stems, les noms qu'a posés un import, les stems d'une prise, les
-//! imports, leurs déclarations et les générateurs. Les clés d'une captation sont à plat,
-//! `<empreinte>/<clé>` : chacune se coupe à sa place (`lire_la_cle`), et le chemin d'un nom garde
-//! ses `/`. Une clé marque, à `true` (l'entrée d'un stem, `manifeste`, le lien d'un stem à son
-//! MIDI, un jeu déclaré, une origine), se lit à sa seule présence.
+//! imports, la tête de l'ouverture de chacun, leurs déclarations et les générateurs. Les clés
+//! d'une captation sont à plat, `<empreinte>/<clé>` : chacune se coupe à sa place (`lire_la_cle`),
+//! et le chemin d'un nom garde ses `/`. Une clé marque, à `true` (l'entrée d'un stem,
+//! `manifeste`, le lien d'un stem à son MIDI, un jeu déclaré, une origine), se lit à sa seule
+//! présence.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -109,6 +110,24 @@ pub fn faits_de(doc: &Automerge, conteneur: &str, empreinte: &str) -> Faits {
         bits: naturel_de(BITS).and_then(|n| u16::try_from(n).ok()),
         division: naturel_de(DIVISION).and_then(|n| u16::try_from(n).ok()),
     }
+}
+
+/// La tête de l'ouverture de l'import `import` : le hash de la modification qui a posé
+/// `imports/<i>/ouvert`, et de chacune, si la clé est en conflit (`get_all`, puis
+/// `Automerge::hash_for_opid`, d'après l'identifiant de chaque valeur). Aucun si la clé ne se lit
+/// pas. Une reprise y lit, comme l'ouverture de l'import, les captations connues de son rapport.
+pub fn tete_de_l_ouverture(doc: &Automerge, import: &str) -> Vec<ChangeHash> {
+    let Some(imports) = objet(doc, &ROOT, IMPORTS) else {
+        return Vec::new();
+    };
+    doc.get_all(&imports, format!("{import}/{OUVERT}").as_str())
+        .map(|valeurs| {
+            valeurs
+                .iter()
+                .filter_map(|(_, id)| doc.hash_for_opid(id))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// Les captations dont `<empreinte>/idee` vaut `id`, dans les trois conteneurs, ordre (sorte,
