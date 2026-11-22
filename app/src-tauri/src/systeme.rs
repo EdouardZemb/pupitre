@@ -85,7 +85,8 @@ pub fn place_libre(_dossier: &Path) -> io::Result<u64> {
     Err(io::ErrorKind::Unsupported.into())
 }
 
-/// L'appel de `kernel32` que l'établi déclare à la main, sans dépendance.
+// L'appel de `kernel32` que l'établi déclare à la main, sans dépendance : un commentaire, rustdoc
+// ne documentant pas un bloc `extern` (`unused_doc_comments`).
 #[cfg(windows)]
 #[link(name = "kernel32")]
 unsafe extern "system" {
