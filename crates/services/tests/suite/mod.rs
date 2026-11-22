@@ -9,8 +9,9 @@
 //! interdisent (`une_modification`, `message_connu`, `parcourir`, `parcourir_les_types`) ; la
 //! boîte entière, l'assiette du noyau qui répond à celle des commandes, le texte du compte, celui
 //! de la réponse d'une requête, le jeu de requêtes d'I09 et d'I13, un document dont une idée est
-//! illisible, les commandes des requêtes enregistrées et la requête entière. Le fichier s'inclut par `mod suite;` dans les tests des
-//! services, et par
+//! illisible, les commandes des requêtes enregistrées et la requête entière ; et les aides des
+//! tests de la lecture du fonds importé, qui ouvrent un import et y versent par ses opérations
+//! nommées, sans commande. Le fichier s'inclut par `mod suite;` dans les tests des services, et par
 //! `#[path = "../../services/tests/suite/mod.rs"]` dans ceux du stockage : il ne nomme que ce
 //! que les deux voient, les services, les commandes, le noyau et `automerge`.
 
@@ -32,21 +33,34 @@ use commandes::{
 };
 use noyau::donnees::boite::texte_du_compte;
 use noyau::donnees::changement::{Changement, Operation, Simple};
+use noyau::donnees::entete::{FaitsMidi, FaitsWav};
 use noyau::donnees::fonds::{
-    ACTEUR_DE_LA_GENESE, APPARENTE, AU, CONTENEURS_DE_LA_GENESE, CONTENU, DEPUIS, DU, DUREE, ETAT,
-    ETIQUETTE, ETIQUETTES, FORMAT, GENESE, IDEE as IDEE_D_UNE_CAPTATION, IDEES, IDENTIFIANT, LE,
-    LIENS, LIGNEE, MESSAGE_DE_LA_GENESE, MESSAGE_DE_LA_NAISSANCE, MIDI_VERSES, NOM, PAR, PHOTOS,
-    PLUS_DE_SECONDES, PRISES, PROPRIETAIRE, PROVENANCE, REQUETES_ENREGISTREES, RETIREE, TEXTE,
-    TEXTES_VERSES, VERSION_DE_SCHEMA,
+    ACTEUR_DE_LA_GENESE, APPARENTE, AU, BITS, CANAUX, CODAGE, CONTENEURS_DE_LA_GENESE,
+    CONTENEURS_NOMMANT_UNE_CAPTATION, CONTENU, DECLARATION, DEPUIS, DIVISION, DU, DUREE, ETAT,
+    ETIQUETTE, ETIQUETTES, FORMAT, FREQUENCE, GENEREE, GENESE, IDEE as IDEE_D_UNE_CAPTATION, IDEES,
+    IDENTIFIANT, IMPORTS, JEU, LE, LIENS, LIGNEE, MAIN, MANIFESTE, MESSAGE_DE_LA_GENESE,
+    MESSAGE_DE_LA_NAISSANCE, MIDI, MIDI_VERSES, NOM, ORIGINES_DECLAREES, OUVERT, PAR, PAR_LE_NOM,
+    PHOTOS, PLUS_DE_SECONDES, PRISES, PROPRIETAIRE, PROVENANCE, RAPPORT, REQUETES_ENREGISTREES,
+    RETIREE, STEM, TEXTE, TEXTES_VERSES, TYPE, VERSION_DE_SCHEMA,
 };
 use noyau::donnees::gestes;
 use noyau::donnees::idee::cle_du_lien;
-use noyau::donnees::identifiants::empreinte;
+use noyau::donnees::identifiants::{empreinte, ulid};
+use noyau::donnees::import::{
+    self, ChoixDuType, DejaDeLaPrise, DejaLu, Faits, ImportOuvert, MidiDuStem, StemAVerser,
+};
 use noyau::donnees::journal::empreinte_du_journal;
+use noyau::donnees::origine::{Ajout, Declaration, OriginesLues};
+use noyau::donnees::rapport;
 use noyau::donnees::requete::texte_de_la_reponse;
+use noyau::donnees::signature::{FormatSonore, FormatTexte};
+use noyau::donnees::stems::TypeDeStem;
 use noyau::donnees::version::{Migration, message_de_la_migration};
 use services::application;
-use services::lecture::{lire_l_idee, teneur, version_de_schema};
+use services::lecture::{
+    self, ImportLu, NomsPoses, ProvenanceDuType, StemLu, TypeLu, lire_l_idee, teneur,
+    version_de_schema,
+};
 use services::{Alea, Captations, Contexte, Documents, Services, Versee};
 
 /// L'heure des tests, en secondes : le 14 novembre 2023, 22 h 13 min 20 s UTC.
@@ -839,10 +853,28 @@ fn descendre<'d>(
 const CHAMPS_DE_LA_RACINE: [&str; 4] = [VERSION_DE_SCHEMA, IDENTIFIANT, LIGNEE, PROPRIETAIRE];
 /// Les clés d'une idée.
 const CHAMPS_D_UNE_IDEE: [&str; 7] = [TEXTE, ETIQUETTES, PROVENANCE, PAR, LE, DEPUIS, RETIREE];
-/// Les faits d'une prise, sous `<empreinte>/<fait>`.
-const FAITS_D_UNE_PRISE: [&str; 3] = [IDEE_D_UNE_CAPTATION, FORMAT, DUREE];
-/// Les faits d'un MIDI versé ou d'un texte versé, sous `<empreinte>/<fait>`.
-const FAITS_D_UN_MIDI_OU_D_UN_TEXTE: [&str; 2] = [IDEE_D_UNE_CAPTATION, FORMAT];
+/// Les faits d'une captation, sous `<empreinte>/<fait>` : son idée, son format, sa durée, les faits
+/// de l'en-tête d'un WAV et d'un MIDI, et la marque d'une prise en stems.
+const FAITS_D_UNE_CAPTATION: [&str; 9] = [
+    IDEE_D_UNE_CAPTATION,
+    FORMAT,
+    DUREE,
+    CODAGE,
+    CANAUX,
+    FREQUENCE,
+    BITS,
+    DIVISION,
+    MANIFESTE,
+];
+/// Les faits d'un stem, sous `<p>/stem/<s>/<fait>` : son format, sa durée et son type.
+const FAITS_D_UN_STEM: [&str; 3] = [FORMAT, DUREE, TYPE];
+/// Les clés de la provenance du type d'un stem, sous `<p>/stem/<s>/type/<clé>`.
+const PROVENANCE_DU_TYPE: [&str; 4] = [PROVENANCE, PAR, DEPUIS, LE];
+/// Les faits d'un import, sous `<i>/<fait>` : l'heure de son ouverture et son rapport.
+const FAITS_D_UN_IMPORT: [&str; 2] = [OUVERT, RAPPORT];
+/// Les deux familles d'une déclaration d'import, sous `<i>/<famille>/<chemin>` : l'origine du
+/// dossier et son jeu de stems (balayage Q3).
+const DECLARATIONS_D_UN_IMPORT: [&str; 2] = [DECLARATION, JEU];
 /// Les noms qu'une idée ne porte jamais (§ 30 · 13) : sa durée, son état « reliée », ses prises,
 /// ses photos, ses MIDI versés et ses textes versés, tous engendrés.
 const INTERDITS_SOUS_UNE_IDEE: [&str; 6] =
@@ -866,11 +898,66 @@ const CHAMPS_D_UNE_REQUETE: [&str; 9] = [
 /// chaque lecture engendre du fonds.
 const INTERDITS_SOUS_UNE_REQUETE: [&str; 2] = ["resultats", "nombre"];
 
-/// `cle` est `<empreinte>/<fait>`, coupée au premier `/`, l'empreinte non vide et le fait l'un de
-/// `faits`.
-fn fait_d_une_captation(cle: &str, faits: &[&str]) -> bool {
-    cle.split_once('/')
-        .is_some_and(|(nom, fait)| !nom.is_empty() && faits.contains(&fait))
+/// Ce qui suit `<mot>/` en tête de `texte` ; `None` si `texte` ne commence pas ainsi.
+fn apres<'t>(texte: &'t str, mot: &str) -> Option<&'t str> {
+    texte.strip_prefix(mot)?.strip_prefix('/')
+}
+
+/// `reste` est `nom/<chemin>`, le chemin non vide.
+fn un_nom(reste: &str) -> bool {
+    apres(reste, NOM).is_some_and(|chemin| !chemin.is_empty())
+}
+
+/// `cle` est une clé d'une captation, sous `prises`, `midi_verses` ou `textes_verses` : `<e>/`
+/// suivi d'un fait (`FAITS_D_UNE_CAPTATION`), de `nom/<chemin>`, ou de `stem/` et de ce que
+/// `cle_d_un_stem` admet ; l'empreinte non vide.
+fn cle_d_une_captation(cle: &str) -> bool {
+    let Some((empreinte, reste)) = cle.split_once('/') else {
+        return false;
+    };
+    !empreinte.is_empty()
+        && (FAITS_D_UNE_CAPTATION.contains(&reste)
+            || un_nom(reste)
+            || apres(reste, STEM).is_some_and(cle_d_un_stem))
+}
+
+/// `sous_le_stem`, ce qui suit `<p>/stem/`, est `<s>`, l'entrée du stem (balayage Q4), ou `<s>/`
+/// suivi d'un fait du stem (`FAITS_D_UN_STEM`), de `type/` et d'une clé de sa provenance
+/// (`PROVENANCE_DU_TYPE`), de `nom/<chemin>` ou de `midi/<m>` ; le stem non vide, le MIDI non vide
+/// et sans `/`.
+fn cle_d_un_stem(sous_le_stem: &str) -> bool {
+    let Some((stem, fait)) = sous_le_stem.split_once('/') else {
+        return !sous_le_stem.is_empty();
+    };
+    !stem.is_empty()
+        && (FAITS_D_UN_STEM.contains(&fait)
+            || apres(fait, TYPE).is_some_and(|cle| PROVENANCE_DU_TYPE.contains(&cle))
+            || un_nom(fait)
+            || apres(fait, MIDI).is_some_and(|midi| !midi.is_empty() && !midi.contains('/')))
+}
+
+/// `cle` est une clé d'un import (balayage Q3) : `<i>/` suivi d'un fait (`FAITS_D_UN_IMPORT`), ou
+/// de `declaration/<chemin>` ou de `jeu/<chemin>` (`DECLARATIONS_D_UN_IMPORT`), le chemin vide
+/// pour le dossier versé lui-même ; l'ULID non vide.
+fn cle_d_un_import(cle: &str) -> bool {
+    let Some((import, reste)) = cle.split_once('/') else {
+        return false;
+    };
+    !import.is_empty()
+        && (FAITS_D_UN_IMPORT.contains(&reste)
+            || DECLARATIONS_D_UN_IMPORT
+                .iter()
+                .any(|famille| apres(reste, famille).is_some()))
+}
+
+/// `cle` est celle d'une origine déclarée : `<e>/main`, ou `<e>/generee/<nom>` ; l'empreinte et le
+/// nom non vides.
+fn cle_d_une_origine(cle: &str) -> bool {
+    let Some((empreinte, reste)) = cle.split_once('/') else {
+        return false;
+    };
+    !empreinte.is_empty()
+        && (reste == MAIN || apres(reste, GENEREE).is_some_and(|nom| !nom.is_empty()))
 }
 
 /// `cle` est celle d'un lien « apparenté », `apparente:<a>:<b>`, ses deux bouts non vides.
@@ -883,10 +970,11 @@ fn cle_d_un_lien(cle: &str) -> bool {
 
 /// La liste blanche, tirée des clés du schéma : à la racine du document, ses champs et ses neuf
 /// conteneurs ; sous `idees`, chaque idée, ses champs, et chaque étiquette sous `etiquettes` ;
-/// sous `prises`, `<empreinte>/` suivi de `idee`, `format` ou `duree` ; sous `midi_verses` et
-/// `textes_verses`, `<empreinte>/` suivi de `idee` ou `format` ; sous `liens`, la clé d'un lien ;
-/// sous `requetes_enregistrees`, chaque requête enregistrée et ses champs
-/// (`CHAMPS_D_UNE_REQUETE`), rien d'autre dessous.
+/// sous `prises`, `midi_verses` et `textes_verses`, les clés d'une captation
+/// (`cle_d_une_captation`) ; sous `liens`, la clé d'un lien ; sous `requetes_enregistrees`, chaque
+/// requête enregistrée et ses champs (`CHAMPS_D_UNE_REQUETE`), rien d'autre dessous ; sous
+/// `imports`, les clés d'un import (`cle_d_un_import`) ; sous `origines_declarees`, celles d'une
+/// origine (`cle_d_une_origine`).
 fn permis(chemin: &[String]) -> bool {
     match chemin {
         [cle] => {
@@ -896,10 +984,11 @@ fn permis(chemin: &[String]) -> bool {
         [conteneur, _] if conteneur == IDEES => true,
         [conteneur, _, champ] if conteneur == IDEES => CHAMPS_D_UNE_IDEE.contains(&champ.as_str()),
         [conteneur, _, sous, _] if conteneur == IDEES && sous == ETIQUETTES => true,
-        [conteneur, cle] if conteneur == PRISES => fait_d_une_captation(cle, &FAITS_D_UNE_PRISE),
-        [conteneur, cle] if conteneur == MIDI_VERSES || conteneur == TEXTES_VERSES => {
-            fait_d_une_captation(cle, &FAITS_D_UN_MIDI_OU_D_UN_TEXTE)
+        [conteneur, cle] if CONTENEURS_NOMMANT_UNE_CAPTATION.contains(&conteneur.as_str()) => {
+            cle_d_une_captation(cle)
         }
+        [conteneur, cle] if conteneur == IMPORTS => cle_d_un_import(cle),
+        [conteneur, cle] if conteneur == ORIGINES_DECLAREES => cle_d_une_origine(cle),
         [conteneur, cle] if conteneur == LIENS => cle_d_un_lien(cle),
         [conteneur, _] if conteneur == REQUETES_ENREGISTREES => true,
         [conteneur, _, champ] if conteneur == REQUETES_ENREGISTREES => {
@@ -911,8 +1000,10 @@ fn permis(chemin: &[String]) -> bool {
 
 /// Un nom interdit (§ 30 · 13) : `etiquettes` à la racine du document ; sous une idée, l'un de
 /// `INTERDITS_SOUS_UNE_IDEE` ; sous une requête enregistrée, l'un de `INTERDITS_SOUS_UNE_REQUETE` ;
-/// partout, chaque clé coupée à chaque `/`, l'un de `INTERDITS_PARTOUT`, une étiquette ou un
-/// identifiant de ce nom compris.
+/// partout, chaque segment lu d'une clé (`segments_lus`), l'un de `INTERDITS_PARTOUT`, une
+/// étiquette ou un identifiant de ce nom compris. Un texte libre, que Sacha ou son dossier ont
+/// écrit, ne se lit pas : le chemin d'un nom d'origine, celui d'une déclaration ou d'un jeu, et le
+/// nom d'un générateur (P4 ; balayage Q3).
 fn interdit(chemin: &[String]) -> bool {
     let sous_son_parent = match chemin {
         [cle] => cle == ETIQUETTES,
@@ -925,10 +1016,55 @@ fn interdit(chemin: &[String]) -> bool {
         _ => false,
     };
     sous_son_parent
-        || chemin
+        || segments_lus(chemin)
             .iter()
-            .flat_map(|cle| cle.split('/'))
-            .any(|segment| INTERDITS_PARTOUT.contains(&segment))
+            .any(|segment| INTERDITS_PARTOUT.contains(segment))
+}
+
+/// Les segments d'un chemin du document qu'`interdit` lit : chaque clé coupée à chaque `/` ; d'une
+/// clé à plat, jusqu'au mot qui ouvre un texte libre, lui compris (`debut_du_texte_libre`).
+fn segments_lus(chemin: &[String]) -> Vec<&str> {
+    match chemin {
+        [conteneur, cle] => {
+            let segments: Vec<&str> = cle.split('/').collect();
+            let fin = debut_du_texte_libre(conteneur, &segments).unwrap_or(segments.len());
+            std::iter::once(conteneur.as_str())
+                .chain(segments[..fin].iter().copied())
+                .collect()
+        }
+        _ => chemin.iter().flat_map(|cle| cle.split('/')).collect(),
+    }
+}
+
+/// Le rang du premier segment d'un texte libre dans la clé à plat `segments` du conteneur
+/// `conteneur` : sous un conteneur de captations, ce qui suit `nom` au deuxième segment
+/// (`<e>/nom/<chemin>`), ou au quatrième sous `stem` (`<p>/stem/<s>/nom/<chemin>`) ; sous
+/// `imports`, ce qui suit `declaration` ou `jeu` au deuxième (`<i>/jeu/<chemin>`) ; sous
+/// `origines_declarees`, ce qui suit `generee` au deuxième (`<e>/generee/<nom>`). Aucun ailleurs.
+fn debut_du_texte_libre(conteneur: &str, segments: &[&str]) -> Option<usize> {
+    if CONTENEURS_NOMMANT_UNE_CAPTATION.contains(&conteneur) {
+        ouvre(segments, 1, &[NOM]).or_else(|| {
+            if segments.get(1) == Some(&STEM) {
+                ouvre(segments, 3, &[NOM])
+            } else {
+                None
+            }
+        })
+    } else if conteneur == IMPORTS {
+        ouvre(segments, 1, &DECLARATIONS_D_UN_IMPORT)
+    } else if conteneur == ORIGINES_DECLAREES {
+        ouvre(segments, 1, &[GENEREE])
+    } else {
+        None
+    }
+}
+
+/// Le rang qui suit `rang`, si le segment de ce rang est l'un de `mots`.
+fn ouvre(segments: &[&str], rang: usize, mots: &[&str]) -> Option<usize> {
+    segments
+        .get(rang)
+        .filter(|segment| mots.contains(*segment))
+        .map(|_| rang + 1)
 }
 
 /// I01 (§ 70 · 3) : les chemins du document dont la clé sort de la liste blanche que tirent les
@@ -4720,4 +4856,953 @@ pub fn le_journal_se_lit_en_fenetre<P: Paire>(paire: &mut P) {
             lignes: vec![entree("Genèse du fonds", 0)],
         })
     );
+}
+
+/// Le second import des tests de la lecture du fonds importé : `ulid(LENDEMAIN, [0x22; 10])`, ouvert
+/// au lendemain, après `IMPORT`.
+fn second_import() -> String {
+    ulid(LENDEMAIN, [0x22; 10])
+}
+
+/// L'idée de rang `n` qu'un versement des tests de l'import fait naître : un ULID écrit, jamais
+/// tiré.
+fn idee_importee(n: usize) -> String {
+    format!("01HF7YAT00000000000000{n:04}")
+}
+
+/// Les faits d'un WAV lisible de `trames` trames : PCM, mono, 8 000 Hz, 8 bits ; 8 000 trames
+/// durent 1 000 ms.
+fn faits_d_un_wav(trames: u64) -> Faits {
+    Faits::du_wav(&FaitsWav {
+        codage: 1,
+        canaux: 1,
+        frequence: 8_000,
+        bits: 8,
+        trames,
+    })
+}
+
+/// Les faits d'un MIDI lisible : format 1, deux pistes, 480 divisions.
+fn faits_d_un_midi() -> Faits {
+    Faits::du_midi(&FaitsMidi {
+        format: 1,
+        pistes: 2,
+        division: 480,
+    })
+}
+
+/// Les faits d'un stem WAV lisible de `duree_ms` millisecondes, tels que `lecture::stems_de` les
+/// lit : son format et sa durée, seuls.
+fn faits_d_un_stem(duree_ms: u64) -> Faits {
+    Faits {
+        format: Some(FormatSonore::Wav.nom().to_string()),
+        duree_ms: Some(duree_ms),
+        ..Faits::default()
+    }
+}
+
+/// Le fonds de `services`, qui doit être né.
+fn fonds_de<D: Documents, C: Captations>(services: &Services<D, C>) -> &Automerge {
+    services.documents().fonds().expect("le fonds est né")
+}
+
+/// Écrit `operation` par les documents de `services`, sans commande : elle fait naître le fonds
+/// s'il n'est pas né, après la naissance des tests ; faite, sans avertissement.
+fn ecrire_l_operation<D: Documents, C: Captations>(
+    services: &mut Services<D, C>,
+    operation: &Operation,
+) {
+    let ecrite = if services.documents().fonds().is_none() {
+        let naissance = gestes::naissance(
+            ULID_DU_DOCUMENT,
+            ULID_DE_LA_LIGNEE,
+            IDENTIFIANT_DE_PROPRIETAIRE,
+            HEURE,
+        );
+        services.documents_mut().faire_naitre(&naissance, operation)
+    } else {
+        services.documents_mut().appliquer(operation)
+    };
+    assert_eq!(ecrite, Ok(None), "« {} »", operation.message);
+}
+
+/// L'import `id`, ouvert à `heure`, à l'établi.
+fn ouvert_a(id: &str, heure: i64) -> ImportOuvert<'_> {
+    ImportOuvert {
+        import: id,
+        ouvert_le: heure,
+        par: gestes::Appareil::Etabli,
+    }
+}
+
+/// Ouvre l'import `ouvert`, ses dossiers déclarés `declarations`, au décalage local nul.
+fn ouvrir_l_import<D: Documents, C: Captations>(
+    services: &mut Services<D, C>,
+    ouvert: &ImportOuvert<'_>,
+    declarations: &[(&str, Declaration)],
+) {
+    let declarations: BTreeMap<String, Declaration> = declarations
+        .iter()
+        .map(|(chemin, declaration)| (chemin.to_string(), declaration.clone()))
+        .collect();
+    let ouverture = import::ouvrir(ouvert.import, &declarations, ouvert.ouvert_le, 0)
+        .expect("l'import s'ouvre");
+    ecrire_l_operation(services, &ouverture);
+}
+
+/// Verse par l'import `ouvert` le fichier `empreinte` de la sorte `sorte`, ses faits `faits`, son
+/// chemin `chemin` et son origine `origine`, ce que le fonds en porte lu par `lecture::deja_lu`,
+/// à l'heure de l'ouverture ; un contenu neuf fait naître l'idée `idee`. Vrai si quelque chose
+/// s'écrit.
+// Huit arguments : les services, l'import, puis chaque donnée du versement.
+#[allow(clippy::too_many_arguments)]
+fn verser_le_fichier<D: Documents, C: Captations>(
+    services: &mut Services<D, C>,
+    ouvert: &ImportOuvert<'_>,
+    sorte: gestes::Sorte,
+    empreinte: &str,
+    faits: &Faits,
+    chemin: &str,
+    origine: Option<&Ajout>,
+    idee: &str,
+) -> bool {
+    let fonds = fonds_de(services);
+    let deja = lecture::deja_lu(fonds, sorte, empreinte, &lecture::empreintes_nommees(fonds));
+    let versement = import::verser_un_fichier(
+        ouvert,
+        sorte,
+        empreinte,
+        faits,
+        Some(chemin),
+        origine,
+        &deja,
+        idee,
+        ouvert.ouvert_le,
+        0,
+    )
+    .expect("le fichier se verse");
+    let ecrit = versement.is_some();
+    if let Some(versement) = versement {
+        ecrire_l_operation(services, &versement);
+    }
+    ecrit
+}
+
+/// Verse par l'import `ouvert` le jeu `stems`, sous le nom `nom` et l'origine `origine`, ce que le
+/// fonds porte de la prise lu par `lecture::deja_de_la_prise`, à l'heure de l'ouverture ; une prise
+/// neuve fait naître l'idée `idee`. Rend l'empreinte de son manifeste, et vrai si quelque chose
+/// s'écrit.
+fn verser_le_jeu<D: Documents, C: Captations>(
+    services: &mut Services<D, C>,
+    ouvert: &ImportOuvert<'_>,
+    nom: &str,
+    stems: &[StemAVerser<'_>],
+    origine: Option<&Ajout>,
+    idee: &str,
+) -> (String, bool) {
+    let empreintes: Vec<&str> = stems.iter().map(|stem| stem.empreinte).collect();
+    let midis: Vec<&str> = stems
+        .iter()
+        .filter_map(|stem| stem.midi.as_ref().map(|midi| midi.empreinte))
+        .collect();
+    let manifeste = empreinte(&rapport::manifeste(&empreintes));
+    let deja = lecture::deja_de_la_prise(fonds_de(services), &manifeste, &empreintes, &midis);
+    let versement = import::verser_une_prise_en_stems(
+        ouvert,
+        &manifeste,
+        Some(nom),
+        stems,
+        origine,
+        &deja,
+        idee,
+        ouvert.ouvert_le,
+        0,
+    )
+    .expect("le jeu se verse");
+    let ecrit = versement.is_some();
+    if let Some(versement) = versement {
+        ecrire_l_operation(services, &versement);
+    }
+    (manifeste, ecrit)
+}
+
+/// Les noms `noms`, chacun (chemin, ULID de l'import), tels que `lecture::noms_de` les rend.
+fn noms_lus(noms: &[(&str, &str)]) -> Vec<(String, String)> {
+    noms.iter()
+        .map(|(chemin, ulid)| (chemin.to_string(), ulid.to_string()))
+        .collect()
+}
+
+/// I01 sur ce que l'import écrit (§ 70 · 3 ; balayage Q3, Q4) : un import, ouvert sur deux
+/// dossiers déclarés, `total` de la main de Sacha et `compte` à la fois jeu de stems et
+/// `generee:total`, verse un fichier de chaque sorte de `total/`, puis le jeu `compte`, l'entrée
+/// de chacun de ses deux stems comprise, dont le nom d'origine `compte/a_envoyer.wav` et un MIDI ;
+/// le type proposé du premier stem est gardé, et l'import se clôt sur son rapport. `compte`,
+/// `total` et `a_envoyer` n'y sont que des textes libres, chemins, nom de jeu ou de générateur :
+/// `parcourir` ne refuse rien, et `lecture::stems_de` lit les deux stems, le type gardé avec sa
+/// provenance. Sur une copie du fonds, une clé `prises/<e>/total` et une prise d'empreinte
+/// `total`, plantées, sont les deux chemins qu'il rend.
+pub fn un_fonds_importe_ne_garde_ni_compte_ni_total<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let ouvert = ouvert_a(IMPORT, HEURE);
+    let total = Ajout::Generee("total".to_string());
+    ouvrir_l_import(
+        &mut services,
+        &ouvert,
+        &[
+            (
+                "compte",
+                Declaration {
+                    stems: true,
+                    origine: Some(total.clone()),
+                },
+            ),
+            (
+                "total",
+                Declaration {
+                    stems: false,
+                    origine: Some(Ajout::Main),
+                },
+            ),
+        ],
+    );
+    let prise = empreinte(b"une prise de total");
+    let midi_seul = empreinte(b"un midi de total");
+    let texte = empreinte(b"un texte de total");
+    let fichiers = [
+        (
+            gestes::Sorte::Prise,
+            &prise,
+            faits_d_un_wav(8_000),
+            "total/prise.wav",
+            21,
+        ),
+        (
+            gestes::Sorte::MidiVerseSeul,
+            &midi_seul,
+            faits_d_un_midi(),
+            "total/air.mid",
+            22,
+        ),
+        (
+            gestes::Sorte::TexteVerse,
+            &texte,
+            Faits::d_un_texte(FormatTexte::Brut),
+            "total/notes.txt",
+            23,
+        ),
+    ];
+    for (sorte, e, faits, chemin, rang) in &fichiers {
+        assert!(
+            verser_le_fichier(
+                &mut services,
+                &ouvert,
+                *sorte,
+                e,
+                faits,
+                chemin,
+                Some(&Ajout::Main),
+                &idee_importee(*rang),
+            ),
+            "« {chemin} » ne s'écrit pas"
+        );
+    }
+    let voix = empreinte(b"un stem de voix de compte");
+    let basse = empreinte(b"un stem de basse de compte");
+    let midi_de_la_basse = empreinte(b"le midi de la basse de compte");
+    let faits_de_la_voix = faits_d_un_wav(8_000);
+    let faits_de_la_basse = faits_d_un_wav(12_000);
+    let faits_du_midi = faits_d_un_midi();
+    let stems = [
+        StemAVerser {
+            empreinte: &voix,
+            faits: &faits_de_la_voix,
+            chemin: Some("compte/a_envoyer.wav"),
+            midi: None,
+        },
+        StemAVerser {
+            empreinte: &basse,
+            faits: &faits_de_la_basse,
+            chemin: Some("compte/basse.wav"),
+            midi: Some(MidiDuStem {
+                empreinte: &midi_de_la_basse,
+                faits: &faits_du_midi,
+                chemin: Some("compte/basse.mid"),
+            }),
+        },
+    ];
+    let (manifeste, versee) = verser_le_jeu(
+        &mut services,
+        &ouvert,
+        "compte",
+        &stems,
+        Some(&total),
+        &idee_importee(24),
+    );
+    assert!(versee, "le jeu « compte » ne s'écrit pas");
+    let garde = import::choisir_le_type(
+        &manifeste,
+        &voix,
+        true,
+        TypeDeStem::Autre,
+        ChoixDuType::Garder,
+        Some("a_envoyer.wav"),
+        HEURE,
+    )
+    .expect("le type proposé se garde");
+    ecrire_l_operation(&mut services, &garde);
+    let le_rapport = empreinte(b"le rapport de l'import de total");
+    ecrire_l_operation(
+        &mut services,
+        &import::clore(&ouvert, &le_rapport, HEURE, 0),
+    );
+
+    let fonds = fonds_de(&services);
+    assert_eq!(parcourir(fonds), Vec::<String>::new());
+    let mut stems_lus = vec![
+        StemLu {
+            empreinte: voix.clone(),
+            faits: faits_d_un_stem(1_000),
+            noms: noms_lus(&[("compte/a_envoyer.wav", IMPORT)]),
+            type_de_stem: Some(TypeLu {
+                type_de_stem: TypeDeStem::Autre,
+                provenance: ProvenanceDuType::Garde {
+                    par: Some(PAR_LE_NOM.to_string()),
+                    depuis: Some(voix.clone()),
+                },
+                le: Some(HEURE),
+            }),
+            midis: BTreeSet::new(),
+        },
+        StemLu {
+            empreinte: basse.clone(),
+            faits: faits_d_un_stem(1_500),
+            noms: noms_lus(&[("compte/basse.wav", IMPORT)]),
+            type_de_stem: None,
+            midis: BTreeSet::from([midi_de_la_basse.clone()]),
+        },
+    ];
+    stems_lus.sort_by(|a, b| a.empreinte.cmp(&b.empreinte));
+    assert_eq!(lecture::stems_de(fonds, &manifeste), stems_lus);
+
+    let mut doc = fonds.clone();
+    let prises_du_document = objet_au_bout(&doc, &[PRISES]);
+    let mut tx = doc.transaction();
+    tx.put(&prises_du_document, format!("{prise}/total"), true)
+        .expect("poser un total sous la prise");
+    tx.put(
+        &prises_du_document,
+        format!("total/{IDEE_D_UNE_CAPTATION}"),
+        IDEE,
+    )
+    .expect("poser une prise d'empreinte total");
+    let (plantation, _) = tx.commit();
+    plantation.expect("la plantation est une modification");
+    assert_eq!(
+        parcourir(&doc),
+        vec![
+            format!("{PRISES}/{prise}/total"),
+            format!("{PRISES}/total/{IDEE_D_UNE_CAPTATION}"),
+        ]
+    );
+}
+
+/// La durée d'une prise en stems (CAP-02 ; balayage Q4 ; question 21 ; R11) : un import verse la
+/// prise en stems P1, de deux stems, de 1 000 ms, que suit un MIDI, et de 1 500 ms ; P2, de deux
+/// stems, de 2 000 ms et un FLAC sans `duree` ; puis un MIDI versé seul. La vue de l'idée de P1
+/// porte 1 500 ms, et P1 pour seule captation : le MIDI d'un stem n'est pas une captation de
+/// l'idée ; celle de P2 ne porte aucune durée. Une requête au contenu « MIDI versé » ne rend que
+/// l'idée du MIDI versé seul, et non celle de P1, dont un stem porte un MIDI.
+pub fn la_duree_d_une_prise_en_stems_vient_de_ses_stems<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let ouvert = ouvert_a(IMPORT, HEURE);
+    ouvrir_l_import(&mut services, &ouvert, &[]);
+    let s1 = empreinte(b"un stem de 1 000 ms");
+    let s2 = empreinte(b"un stem de 1 500 ms");
+    let s3 = empreinte(b"un stem de 2 000 ms");
+    let s4 = empreinte(b"un stem flac sans duree");
+    let midi_de_s1 = empreinte(b"le midi du stem de 1 000 ms");
+    let midi_seul = empreinte(b"un midi verse seul");
+    let (f1, f2, f3) = (
+        faits_d_un_wav(8_000),
+        faits_d_un_wav(12_000),
+        faits_d_un_wav(16_000),
+    );
+    let sans_duree = Faits::d_un_audio(FormatSonore::Flac);
+    let faits_du_midi = faits_d_un_midi();
+    let (p1, versee) = verser_le_jeu(
+        &mut services,
+        &ouvert,
+        "Jeu A",
+        &[
+            StemAVerser {
+                empreinte: &s1,
+                faits: &f1,
+                chemin: Some("Jeu A/voix.wav"),
+                midi: Some(MidiDuStem {
+                    empreinte: &midi_de_s1,
+                    faits: &faits_du_midi,
+                    chemin: Some("Jeu A/voix.mid"),
+                }),
+            },
+            StemAVerser {
+                empreinte: &s2,
+                faits: &f2,
+                chemin: Some("Jeu A/basse.wav"),
+                midi: None,
+            },
+        ],
+        None,
+        &idee_importee(41),
+    );
+    assert!(versee, "P1 ne s'écrit pas");
+    let (p2, versee) = verser_le_jeu(
+        &mut services,
+        &ouvert,
+        "Jeu B",
+        &[
+            StemAVerser {
+                empreinte: &s3,
+                faits: &f3,
+                chemin: Some("Jeu B/voix.wav"),
+                midi: None,
+            },
+            StemAVerser {
+                empreinte: &s4,
+                faits: &sans_duree,
+                chemin: Some("Jeu B/basse.flac"),
+                midi: None,
+            },
+        ],
+        None,
+        &idee_importee(42),
+    );
+    assert!(versee, "P2 ne s'écrit pas");
+    assert!(
+        verser_le_fichier(
+            &mut services,
+            &ouvert,
+            gestes::Sorte::MidiVerseSeul,
+            &midi_seul,
+            &faits_du_midi,
+            "air.mid",
+            None,
+            &idee_importee(43),
+        ),
+        "le MIDI versé seul ne s'écrit pas"
+    );
+
+    let vue = services
+        .vue_d_une_idee(&idee_importee(41))
+        .expect("la vue de l'idée de P1 se lit");
+    assert_eq!(vue.duree_ms, Some(1_500));
+    assert_eq!(vue.captations, prises(&[p1.as_str()]));
+    let vue = services
+        .vue_d_une_idee(&idee_importee(42))
+        .expect("la vue de l'idée de P2 se lit");
+    assert_eq!(vue.duree_ms, None);
+    assert_eq!(vue.captations, prises(&[p2.as_str()]));
+    let midis_verses = services
+        .boite(&boite_de_la_requete(Requete {
+            contenu: Some(Contenu::MidiVerse),
+            ..Requete::default()
+        }))
+        .expect("la boîte se lit");
+    assert_eq!(
+        idees_des_lignes(&midis_verses.lignes),
+        vec![idee_importee(43)]
+    );
+}
+
+/// Les noms d'un contenu et son premier nom vu (question 20) : le premier import verse la prise X
+/// sous `C/prise.wav`, puis sous `B/copie.wav`, qui n'ajoute qu'un nom ; le second, au lendemain,
+/// sous `A/prise.wav`, générée par « Atelier inventé ». `noms_de` rend les trois noms dans l'ordre
+/// de leurs chemins, chacun avec l'import qui l'a vu ; le premier vu est `B/copie.wav`, le plus
+/// petit chemin du premier import. `deja_lu`, `origines_de`, `origines_a` à la tête d'avant le
+/// second import, `empreintes_nommees_a`, `generateurs` et `imports` lisent ce fonds.
+pub fn les_noms_d_un_contenu_et_son_premier_nom_vu<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let premier = ouvert_a(IMPORT, HEURE);
+    ouvrir_l_import(&mut services, &premier, &[]);
+    let a_l_ouverture = fonds_de(&services).get_heads();
+    let x = empreinte(b"une prise aux trois noms");
+    let faits = faits_d_un_wav(8_000);
+    for (chemin, rang) in [("C/prise.wav", 61), ("B/copie.wav", 62)] {
+        assert!(
+            verser_le_fichier(
+                &mut services,
+                &premier,
+                gestes::Sorte::Prise,
+                &x,
+                &faits,
+                chemin,
+                None,
+                &idee_importee(rang),
+            ),
+            "« {chemin} » ne s'écrit pas"
+        );
+    }
+    let avant_le_second = fonds_de(&services).get_heads();
+    let second = second_import();
+    let ouvert = ouvert_a(&second, LENDEMAIN);
+    let atelier = Ajout::Generee("Atelier inventé".to_string());
+    ouvrir_l_import(
+        &mut services,
+        &ouvert,
+        &[(
+            "A",
+            Declaration {
+                stems: false,
+                origine: Some(atelier.clone()),
+            },
+        )],
+    );
+    assert!(
+        verser_le_fichier(
+            &mut services,
+            &ouvert,
+            gestes::Sorte::Prise,
+            &x,
+            &faits,
+            "A/prise.wav",
+            Some(&atelier),
+            &idee_importee(63),
+        ),
+        "« A/prise.wav » ne s'écrit pas"
+    );
+
+    let fonds = fonds_de(&services);
+    assert_eq!(
+        lecture::noms_de(fonds, PRISES, &x, None),
+        noms_lus(&[
+            ("A/prise.wav", second.as_str()),
+            ("B/copie.wav", IMPORT),
+            ("C/prise.wav", IMPORT),
+        ])
+    );
+    assert_eq!(
+        lecture::premier_nom_vu(fonds, &x),
+        Some("B/copie.wav".to_string())
+    );
+    let de_l_atelier = OriginesLues {
+        main: false,
+        generees: BTreeSet::from(["Atelier inventé".to_string()]),
+    };
+    assert_eq!(lecture::origines_de(fonds, &x), de_l_atelier);
+    assert_eq!(
+        lecture::origines_a(fonds, &x, &avant_le_second),
+        OriginesLues::default()
+    );
+    assert_eq!(
+        lecture::empreintes_nommees_a(fonds, &a_l_ouverture),
+        BTreeSet::new()
+    );
+    assert_eq!(
+        lecture::empreintes_nommees_a(fonds, &avant_le_second),
+        BTreeSet::from([x.clone()])
+    );
+    assert_eq!(
+        lecture::deja_lu(
+            fonds,
+            gestes::Sorte::Prise,
+            &x,
+            &lecture::empreintes_nommees(fonds)
+        ),
+        DejaLu {
+            captation: true,
+            noms: BTreeSet::from([
+                "A/prise.wav".to_string(),
+                "B/copie.wav".to_string(),
+                "C/prise.wav".to_string(),
+            ]),
+            origines: de_l_atelier.clone(),
+        }
+    );
+    assert_eq!(
+        lecture::deja_lu(fonds, gestes::Sorte::MidiVerseSeul, &x, &BTreeSet::new()),
+        DejaLu {
+            captation: false,
+            noms: BTreeSet::new(),
+            origines: de_l_atelier,
+        }
+    );
+    assert_eq!(
+        lecture::generateurs(fonds),
+        BTreeSet::from(["Atelier inventé".to_string()])
+    );
+    assert_eq!(
+        lecture::imports(fonds),
+        vec![
+            ImportLu {
+                import: IMPORT.to_string(),
+                ouvert_le: HEURE,
+                rapport: None,
+            },
+            ImportLu {
+                import: second,
+                ouvert_le: LENDEMAIN,
+                rapport: None,
+            },
+        ]
+    );
+}
+
+/// Les noms qu'a posés un import (R2, R7 ; question 9 ; balayage Q3) : le premier, ouvert sur
+/// `Démos`, de la main de Sacha, et `Jeu A`, jeu de stems généré par « Atelier inventé », verse de
+/// `Démos/` un WAV, un WAV illisible et un texte, puis le jeu `Jeu A`, une voix que suit un MIDI et
+/// une basse illisible ; `deja_de_la_prise` ne lit rien de la prise avant lui, et tout après.
+/// L'import clos, `noms_poses_par` rend les trois fichiers, les deux stems et le MIDI, chacun avec
+/// son empreinte, les deux illisibles marqués, et le jeu à part. Le second, au lendemain, ouvert
+/// sur `Jeu A` seul, déclaré jeu sans origine, reverse le même dossier : rien ne s'écrit après son
+/// ouverture, et il n'a posé aucun nom. `declarations_de` lit les déclarations de chacun ;
+/// `dernieres_declarations`, `Démos` du premier et `Jeu A` entière du second ; `imports`, le
+/// premier clos sur son rapport.
+pub fn les_noms_poses_par_un_import<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let premier = ouvert_a(IMPORT, HEURE);
+    let atelier = Ajout::Generee("Atelier inventé".to_string());
+    let demos = Declaration {
+        stems: false,
+        origine: Some(Ajout::Main),
+    };
+    let jeu_de_l_atelier = Declaration {
+        stems: true,
+        origine: Some(atelier.clone()),
+    };
+    ouvrir_l_import(
+        &mut services,
+        &premier,
+        &[
+            ("Démos", demos.clone()),
+            ("Jeu A", jeu_de_l_atelier.clone()),
+        ],
+    );
+    let prise = empreinte(b"une prise des demos");
+    let bruit = empreinte(b"un wav illisible des demos");
+    let texte = empreinte(b"un texte des demos");
+    let lisible = faits_d_un_wav(8_000);
+    let illisible = Faits::default();
+    let brut = Faits::d_un_texte(FormatTexte::Brut);
+    let fichiers = [
+        (
+            gestes::Sorte::Prise,
+            &prise,
+            &lisible,
+            "Démos/prise.wav",
+            71,
+        ),
+        (
+            gestes::Sorte::Prise,
+            &bruit,
+            &illisible,
+            "Démos/bruit.wav",
+            72,
+        ),
+        (
+            gestes::Sorte::TexteVerse,
+            &texte,
+            &brut,
+            "Démos/notes.txt",
+            73,
+        ),
+    ];
+    for (sorte, e, faits, chemin, rang) in fichiers {
+        assert!(
+            verser_le_fichier(
+                &mut services,
+                &premier,
+                sorte,
+                e,
+                faits,
+                chemin,
+                Some(&Ajout::Main),
+                &idee_importee(rang),
+            ),
+            "« {chemin} » ne s'écrit pas"
+        );
+    }
+    let voix = empreinte(b"la voix du jeu A");
+    let basse = empreinte(b"la basse illisible du jeu A");
+    let midi = empreinte(b"le midi de la voix du jeu A");
+    let faits_du_midi = faits_d_un_midi();
+    let stems = [
+        StemAVerser {
+            empreinte: &voix,
+            faits: &lisible,
+            chemin: Some("Jeu A/voix.wav"),
+            midi: Some(MidiDuStem {
+                empreinte: &midi,
+                faits: &faits_du_midi,
+                chemin: Some("Jeu A/voix.mid"),
+            }),
+        },
+        StemAVerser {
+            empreinte: &basse,
+            faits: &illisible,
+            chemin: Some("Jeu A/basse.wav"),
+            midi: None,
+        },
+    ];
+    let manifeste = empreinte(&rapport::manifeste(&[voix.as_str(), basse.as_str()]));
+    let deja = |services: &Services<P::D, P::C>| {
+        lecture::deja_de_la_prise(
+            fonds_de(services),
+            &manifeste,
+            &[voix.as_str(), basse.as_str()],
+            &[midi.as_str()],
+        )
+    };
+    assert_eq!(
+        deja(&services),
+        DejaDeLaPrise {
+            prise: DejaLu::default(),
+            stems: BTreeMap::from([
+                (voix.clone(), DejaLu::default()),
+                (basse.clone(), DejaLu::default()),
+            ]),
+            midis: BTreeMap::from([(midi.clone(), DejaLu::default())]),
+            liens_midi: BTreeSet::new(),
+        }
+    );
+    let (verse, versee) = verser_le_jeu(
+        &mut services,
+        &premier,
+        "Jeu A",
+        &stems,
+        Some(&atelier),
+        &idee_importee(74),
+    );
+    assert!(versee, "le jeu « Jeu A » ne s'écrit pas");
+    assert_eq!(verse, manifeste);
+    let de_l_atelier = OriginesLues {
+        main: false,
+        generees: BTreeSet::from(["Atelier inventé".to_string()]),
+    };
+    let porte = |chemin: &str| DejaLu {
+        captation: true,
+        noms: BTreeSet::from([chemin.to_string()]),
+        origines: de_l_atelier.clone(),
+    };
+    assert_eq!(
+        deja(&services),
+        DejaDeLaPrise {
+            prise: porte("Jeu A"),
+            stems: BTreeMap::from([
+                (voix.clone(), porte("Jeu A/voix.wav")),
+                (basse.clone(), porte("Jeu A/basse.wav")),
+            ]),
+            midis: BTreeMap::from([(midi.clone(), porte("Jeu A/voix.mid"))]),
+            liens_midi: BTreeSet::from([(voix.clone(), midi.clone())]),
+        }
+    );
+    let le_rapport = empreinte(b"le rapport du premier import");
+    ecrire_l_operation(
+        &mut services,
+        &import::clore(&premier, &le_rapport, HEURE, 0),
+    );
+    let poses = NomsPoses {
+        fichiers: BTreeMap::from([
+            ("Démos/prise.wav".to_string(), (prise.clone(), false)),
+            ("Démos/bruit.wav".to_string(), (bruit.clone(), true)),
+            ("Démos/notes.txt".to_string(), (texte.clone(), false)),
+            ("Jeu A/voix.wav".to_string(), (voix.clone(), false)),
+            ("Jeu A/basse.wav".to_string(), (basse.clone(), true)),
+            ("Jeu A/voix.mid".to_string(), (midi.clone(), false)),
+        ]),
+        jeux: BTreeSet::from(["Jeu A".to_string()]),
+    };
+    assert_eq!(lecture::noms_poses_par(fonds_de(&services), IMPORT), poses);
+
+    let second = second_import();
+    let ouvert = ouvert_a(&second, LENDEMAIN);
+    let jeu_sans_origine = Declaration {
+        stems: true,
+        origine: None,
+    };
+    ouvrir_l_import(
+        &mut services,
+        &ouvert,
+        &[("Jeu A", jeu_sans_origine.clone())],
+    );
+    let apres_l_ouverture = fonds_de(&services).get_heads();
+    for (sorte, e, faits, chemin, rang) in fichiers {
+        assert!(
+            !verser_le_fichier(
+                &mut services,
+                &ouvert,
+                sorte,
+                e,
+                faits,
+                chemin,
+                None,
+                &idee_importee(rang + 10),
+            ),
+            "« {chemin} » s'écrit de nouveau"
+        );
+    }
+    let (_, reversee) = verser_le_jeu(
+        &mut services,
+        &ouvert,
+        "Jeu A",
+        &stems,
+        None,
+        &idee_importee(84),
+    );
+    assert!(!reversee, "le jeu « Jeu A » s'écrit de nouveau");
+
+    let fonds = fonds_de(&services);
+    assert_eq!(fonds.get_heads(), apres_l_ouverture);
+    assert_eq!(
+        lecture::noms_poses_par(fonds, &second),
+        NomsPoses::default()
+    );
+    assert_eq!(lecture::noms_poses_par(fonds, IMPORT), poses);
+    assert_eq!(
+        lecture::declarations_de(fonds, IMPORT),
+        BTreeMap::from([
+            ("Démos".to_string(), demos.clone()),
+            ("Jeu A".to_string(), jeu_de_l_atelier),
+        ])
+    );
+    assert_eq!(
+        lecture::declarations_de(fonds, &second),
+        BTreeMap::from([("Jeu A".to_string(), jeu_sans_origine.clone())])
+    );
+    assert_eq!(
+        lecture::dernieres_declarations(fonds),
+        BTreeMap::from([
+            ("Démos".to_string(), demos),
+            ("Jeu A".to_string(), jeu_sans_origine),
+        ])
+    );
+    assert_eq!(
+        lecture::imports(fonds),
+        vec![
+            ImportLu {
+                import: IMPORT.to_string(),
+                ouvert_le: HEURE,
+                rapport: Some(le_rapport),
+            },
+            ImportLu {
+                import: second,
+                ouvert_le: LENDEMAIN,
+                rapport: None,
+            },
+        ]
+    );
+    assert_eq!(parcourir(fonds), Vec::<String>::new());
+}
+
+/// Un nom posé hors du jeu n'est pas parmi ceux du stem (balayage Q19) : la prise en stems P nomme
+/// son stem S `Jeu A/voix.wav` ; un second import verse le même contenu seul, sous
+/// `Voix seule.wav` (`import::verser_un_fichier`), que le fonds nomme déjà (`DejaLu::captation`
+/// vrai) : il reçoit `prises/<S>/nom/Voix seule.wav`, sans `idee`, et aucune idée ne naît. Le
+/// `StemLu` de S que rend `stems_de(P)` ne porte que `Jeu A/voix.wav`, et
+/// `noms_de(doc, PRISES, S, None)` rend `Voix seule.wav` ; le premier nom vu de S est celui du
+/// jeu ; `noms_poses_par` rend à chaque import le sien, S lisible par le format de son stem.
+pub fn un_nom_pose_hors_du_jeu_n_est_pas_parmi_ceux_du_stem<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let premier = ouvert_a(IMPORT, HEURE);
+    ouvrir_l_import(
+        &mut services,
+        &premier,
+        &[(
+            "Jeu A",
+            Declaration {
+                stems: true,
+                origine: None,
+            },
+        )],
+    );
+    let s = empreinte(b"une voix du jeu A, versee aussi seule");
+    let faits = faits_d_un_wav(8_000);
+    let (p, versee) = verser_le_jeu(
+        &mut services,
+        &premier,
+        "Jeu A",
+        &[StemAVerser {
+            empreinte: &s,
+            faits: &faits,
+            chemin: Some("Jeu A/voix.wav"),
+            midi: None,
+        }],
+        None,
+        &idee_importee(81),
+    );
+    assert!(versee, "le jeu « Jeu A » ne s'écrit pas");
+    let second = second_import();
+    let ouvert = ouvert_a(&second, LENDEMAIN);
+    ouvrir_l_import(&mut services, &ouvert, &[]);
+    let fonds = fonds_de(&services);
+    assert!(
+        lecture::deja_lu(
+            fonds,
+            gestes::Sorte::Prise,
+            &s,
+            &lecture::empreintes_nommees(fonds)
+        )
+        .captation,
+        "le fonds ne nomme pas le stem S"
+    );
+    assert!(
+        verser_le_fichier(
+            &mut services,
+            &ouvert,
+            gestes::Sorte::Prise,
+            &s,
+            &faits,
+            "Voix seule.wav",
+            None,
+            &idee_importee(82),
+        ),
+        "« Voix seule.wav » ne s'écrit pas"
+    );
+
+    let fonds = fonds_de(&services);
+    assert!(
+        lecture::lire_la_captation(fonds, gestes::Sorte::Prise, &s).is_none(),
+        "S versé seul a sa captation"
+    );
+    assert!(
+        lecture::lire_l_idee(fonds, &idee_importee(82)).is_none(),
+        "S versé seul a fait naître une idée"
+    );
+    let du_jeu = noms_lus(&[("Jeu A/voix.wav", IMPORT)]);
+    assert_eq!(
+        lecture::stems_de(fonds, &p),
+        vec![StemLu {
+            empreinte: s.clone(),
+            faits: faits_d_un_stem(1_000),
+            noms: du_jeu.clone(),
+            type_de_stem: None,
+            midis: BTreeSet::new(),
+        }]
+    );
+    assert_eq!(
+        lecture::noms_de(fonds, PRISES, &s, None),
+        noms_lus(&[("Voix seule.wav", second.as_str())])
+    );
+    assert_eq!(
+        lecture::noms_de(fonds, PRISES, &p, Some(s.as_str())),
+        du_jeu
+    );
+    assert_eq!(
+        lecture::premier_nom_vu(fonds, &s),
+        Some("Jeu A/voix.wav".to_string())
+    );
+    assert_eq!(
+        lecture::noms_poses_par(fonds, &second),
+        NomsPoses {
+            fichiers: BTreeMap::from([("Voix seule.wav".to_string(), (s.clone(), false))]),
+            jeux: BTreeSet::new(),
+        }
+    );
+    assert_eq!(
+        lecture::noms_poses_par(fonds, IMPORT),
+        NomsPoses {
+            fichiers: BTreeMap::from([("Jeu A/voix.wav".to_string(), (s.clone(), false))]),
+            jeux: BTreeSet::from(["Jeu A".to_string()]),
+        }
+    );
+    assert_eq!(parcourir(fonds), Vec::<String>::new());
 }

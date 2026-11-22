@@ -7,13 +7,14 @@
 //! nom provisoire de `captations/` dont le contenu entier donne une empreinte que le fonds nomme,
 //! tel qu'il se lit, prend ce nom (§ 31 · 6.1) ; un nom provisoire qui ne le peut pas reste, avec
 //! un avertissement. Une copie en flux coupée, dont le nom provisoire reste, s'y range de même,
-//! entière et nommée, un stem compris (question 31).
+//! entière et nommée, un stem et un rapport d'import compris (question 31).
 //!
 //! Le fonds naît d'une idée au texte long, qui ne sert qu'à la naissance : les écritures des
 //! tests sont courtes, et leurs fichiers d'ajout pèsent bien moins que le fichier complet.
 
 mod commun;
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -357,6 +358,50 @@ fn un_stem_nomme_prend_son_nom_au_demarrage() {
         "le stem nommé n'a pas pris son nom"
     );
     assert!(!provisoire.exists(), "le nom provisoire du stem reste");
+    drop(fonds);
+}
+
+// § 31 · 10, test 4 : renommage perdu après la réponse, sur un rapport d'import (P1 ; R1)
+#[test]
+fn un_rapport_nomme_prend_son_nom_au_demarrage() {
+    let chemin = commun::dossier_jetable("demarrage-rapport-range").join("donnees");
+    let racine = ouvrir(&chemin);
+    let rapport = octets(12, 3000);
+    let r = empreinte(&rapport);
+    let ouvert = ImportOuvert {
+        import: IMPORT,
+        ouvert_le: HEURE,
+        par: Appareil::Etabli,
+    };
+    let ouverture = import::ouvrir(IMPORT, &BTreeMap::new(), HEURE, 0).expect("ouvrir l'import");
+    let naissance = gestes::naissance(
+        NAISSANCE.identifiant,
+        NAISSANCE.lignee,
+        NAISSANCE.proprietaire,
+        HEURE,
+    );
+    let mut fonds = racine
+        .faire_naitre(&naissance, &ouverture)
+        .expect("faire naître le fonds de l'import ouvert");
+    faite(
+        fonds.appliquer(&import::clore(&ouvert, &r, HEURE, 0)),
+        "clore l'import sur son rapport",
+    );
+    drop(fonds);
+    let provisoire = une_copie_coupee(&racine, &rapport, 1, Etape::Renommage, 1);
+    pas_rangee(&racine, &r, "avant le démarrage, le rapport");
+
+    let fonds = ouvrir_le_fonds(&racine);
+
+    assert_eq!(
+        racine
+            .captations()
+            .relire(&r)
+            .expect("relire le rapport rangé"),
+        rapport,
+        "le rapport nommé n'a pas pris son nom"
+    );
+    assert!(!provisoire.exists(), "le nom provisoire du rapport reste");
     drop(fonds);
 }
 

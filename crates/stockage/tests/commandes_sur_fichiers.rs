@@ -481,6 +481,40 @@ fn le_journal_se_lit_en_fenetre() {
 }
 
 #[test]
+fn i01_un_fonds_importe_ne_garde_ni_compte_ni_total() {
+    let racine = racine_jetable("commandes-import-i01");
+    suite::un_fonds_importe_ne_garde_ni_compte_ni_total(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn la_duree_d_une_prise_en_stems_vient_de_ses_stems() {
+    let racine = racine_jetable("commandes-duree-prise-en-stems");
+    suite::la_duree_d_une_prise_en_stems_vient_de_ses_stems(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn les_noms_d_un_contenu_et_son_premier_nom_vu() {
+    let racine = racine_jetable("commandes-noms-premier-vu");
+    suite::les_noms_d_un_contenu_et_son_premier_nom_vu(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn les_noms_poses_par_un_import() {
+    let racine = racine_jetable("commandes-noms-poses");
+    suite::les_noms_poses_par_un_import(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn un_nom_pose_hors_du_jeu_n_est_pas_parmi_ceux_du_stem() {
+    let racine = racine_jetable("commandes-nom-hors-du-jeu");
+    suite::un_nom_pose_hors_du_jeu_n_est_pas_parmi_ceux_du_stem(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
 fn la_migration_de_test_est_la_meme_dans_les_deux_crates() {
     assert_eq!(suite::migration_de_test(), commun::migration_de_test());
 }

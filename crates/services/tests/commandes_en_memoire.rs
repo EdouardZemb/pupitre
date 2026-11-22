@@ -372,6 +372,31 @@ fn le_journal_se_lit_en_fenetre() {
     suite::le_journal_se_lit_en_fenetre(&mut PaireEnMemoire);
 }
 
+#[test]
+fn i01_un_fonds_importe_ne_garde_ni_compte_ni_total() {
+    suite::un_fonds_importe_ne_garde_ni_compte_ni_total(&mut PaireEnMemoire);
+}
+
+#[test]
+fn la_duree_d_une_prise_en_stems_vient_de_ses_stems() {
+    suite::la_duree_d_une_prise_en_stems_vient_de_ses_stems(&mut PaireEnMemoire);
+}
+
+#[test]
+fn les_noms_d_un_contenu_et_son_premier_nom_vu() {
+    suite::les_noms_d_un_contenu_et_son_premier_nom_vu(&mut PaireEnMemoire);
+}
+
+#[test]
+fn les_noms_poses_par_un_import() {
+    suite::les_noms_poses_par_un_import(&mut PaireEnMemoire);
+}
+
+#[test]
+fn un_nom_pose_hors_du_jeu_n_est_pas_parmi_ceux_du_stem() {
+    suite::un_nom_pose_hors_du_jeu_n_est_pas_parmi_ceux_du_stem(&mut PaireEnMemoire);
+}
+
 /// Un fonds où « Ponts lents » est enregistrée (le texte « pont », l'étiquette `lent`, plus d'une
 /// minute), et deux répliques de son document (`Automerge::fork`) : l'une renomme la requête
 /// « Ponts du soir » (`renommer_une_requete`), l'autre la supprime (`supprimer_une_requete`),
