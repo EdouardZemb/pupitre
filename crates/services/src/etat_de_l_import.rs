@@ -500,7 +500,11 @@ impl EtatDeLImport {
     /// La reprise (question 2 ; R7) : chaque fichier dont un nom porte l'ULID de l'import (`poses`)
     /// est compté de nouveau, sans être relu, illisible si sa captation n'a pas de `format` ;
     /// chaque jeu dont la prise en stems porte le nom, son chemin, ou `nom_du_dossier` pour le
-    /// dossier versé, est versé.
+    /// dossier versé, est versé. Un autre jeu se reverse en entier : ses stems et leurs MIDI
+    /// comptés s'oublient, puisque sa prise en stems demande chacun d'eux copié (`stems_du_jeu`).
+    /// C'est le jeu dont la prise n'a pas de nom (R23), ou dont le nom a été posé par un autre
+    /// import (une prise connue, un stem renommé), alors que ses stems portent un nom à l'ULID de
+    /// l'import ; leurs copies se dédoublonnent, et la prise, connue, ne fait naître aucune idée.
     pub(crate) fn reprendre(&mut self, poses: &NomsPoses, nom_du_dossier: Option<&str>) {
         for fichier in &self.fichiers {
             let pose = fichier
@@ -524,6 +528,11 @@ impl EtatDeLImport {
                 Some(dossier.as_str())
             };
             jeu.verse = nom.is_some_and(|nom| poses.jeux.contains(nom));
+            if !jeu.verse {
+                for rang in jeu.audio.iter().chain(jeu.midis.values()) {
+                    self.donnes.remove(rang);
+                }
+            }
         }
     }
 

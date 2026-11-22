@@ -747,7 +747,11 @@ impl<D: Documents, C: Captations> Services<D, C> {
     ///
     /// Un import ouvert que la source ne reprend pas se clôt d'abord, une fois (question 35 ;
     /// `clore_un_import_ouvert_ailleurs`) : une ouverture refusée après cette clôture garde
-    /// l'inspection, et la tentative suivante ne reclôt pas l'import que le fonds porte clos.
+    /// l'inspection, et la tentative suivante ne reclôt pas l'import que le fonds porte clos. Son
+    /// rapport se compte comme sa propre clôture l'aurait fait, par `rapport::comptes`, sur chaque
+    /// nom de fichier posé à son ULID, avec les connues lues à la tête de son ouverture, comme une
+    /// reprise (R7) ; seuls les ignorés et les sans nom restent à zéro, l'état qui les disait étant
+    /// perdu, et aucune origine changée ne s'y compte.
     /// Neuf : l'ULID tiré, puis `import::ouvrir`, par `faire_naitre` dans un Pupitre neuf (la
     /// naissance tirée d'abord, comme `noter`), sinon `appliquer` ; la tête qui suit, gardée.
     /// Repris : rien ne s'écrit ; les déclarations sont celles de l'ouverture
@@ -1460,12 +1464,15 @@ impl<D: Documents, C: Captations> Services<D, C> {
     /// Clôt l'import `import`, resté ouvert, que la source inspectée ne reprend pas (question 35),
     /// une fois : un import que le fonds porte déjà clos, son rapport lu (`lecture::imports`), ne
     /// se reclôt pas, et rien ne s'écrit ; de même d'un import qu'il ne porte pas. Son rapport se
-    /// compte par la règle du noyau (`rapport::rapport`, donc `rapport::comptes`, sans connues) sur
-    /// chaque fichier nommé à son ULID (`lecture::noms_poses_par`), rangé dans l'ordre de leurs
-    /// chemins, ses octets ceux de sa captation (`Captations::taille`), illisible si sa captation
-    /// n'a pas de `format` : chacun vu ; le premier nom d'un contenu, versé ; un nom dont un autre
-    /// nom du même import désigne déjà le contenu, dédoublonné ; les illisibles parmi eux. Ignorés
-    /// et sans nom à zéro : le fonds n'en garde rien. Aucune ligne `origine=`. Versé par
+    /// compte comme sa propre clôture l'aurait fait, par la règle du noyau (`rapport::rapport`,
+    /// donc `rapport::comptes`), avec les connues lues à la tête de son ouverture
+    /// (`lecture::tete_de_l_ouverture`, puis `lecture::empreintes_nommees_a`), comme une reprise
+    /// (R7), sur chaque fichier nommé à son ULID (`lecture::noms_poses_par`), rangé dans l'ordre de
+    /// leurs chemins, ses octets ceux de sa captation (`Captations::taille`), illisible si sa
+    /// captation n'a pas de `format` : chacun vu ; le premier nom d'un contenu que le fonds ne
+    /// portait pas à l'ouverture, versé ; un contenu connu, ou qu'un autre nom du même import
+    /// désigne déjà, dédoublonné ; les illisibles parmi les versés. Ignorés et sans nom à zéro :
+    /// l'état qui les disait est perdu. Aucune ligne `origine=`. Versé par
     /// `Captations::verser`, puis `import::clore`, « Import du <jour de son ouverture> clos », à
     /// `heure` ; ses copies retirées (`copies_a_retirer`, à la clôture), un retrait refusé ne
     /// défaisant pas la clôture écrite : son refus se joint à l'avertissement rendu (`joindre`).
@@ -1484,6 +1491,8 @@ impl<D: Documents, C: Captations> Services<D, C> {
             Some(lu) if lu.rapport.is_none() => lu.ouvert_le,
             _ => return Ok(None),
         };
+        let connues =
+            lecture::empreintes_nommees_a(fonds, &lecture::tete_de_l_ouverture(fonds, import));
         let poses = lecture::noms_poses_par(fonds, import);
         let mut fichiers = Vec::new();
         for (rang, (empreinte, illisible)) in (1..).zip(poses.fichiers.values()) {
@@ -1495,7 +1504,7 @@ impl<D: Documents, C: Captations> Services<D, C> {
                 sans_nom: false,
             });
         }
-        let octets = rapport::rapport(import, &fichiers, &BTreeSet::new(), &[]);
+        let octets = rapport::rapport(import, &fichiers, &connues, &[]);
         let empreinte = self.captations.verser(&octets)?;
         let ouvert = import::ImportOuvert {
             import,
