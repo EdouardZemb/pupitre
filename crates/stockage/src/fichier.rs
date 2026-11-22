@@ -4,19 +4,23 @@
 //! cahier des tables : un fichier qui existait reste entier jusqu'au dernier moment.
 //!
 //! Chaque étape d'une écriture a sa fonction, qui passe par le point d'injection d'une panne
-//! juste avant son geste sur le disque : les écritures à côté (`ecrire_a_cote`), les
-//! versements des captations, le démarrage des documents et le rangement des noms provisoires
-//! passent par elles.
+//! juste avant son geste sur le disque : les écritures à côté (`ecrire_a_cote`), les copies en
+//! flux des captations, le démarrage des documents et le rangement des noms provisoires passent
+//! par elles.
 
 use std::fmt;
 use std::fs::{self, File};
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 
 use noyau::donnees::demarrage::voisin_libre;
+use noyau::donnees::identifiants::Hacheur;
 
-use crate::constat_du_disque;
 use crate::pannes::{self, Etape};
+use crate::{Accord, constat_du_disque};
+
+/// Les octets d'un tronçon d'une copie en flux, au plus.
+pub(crate) const TRONCON: usize = 1_048_576;
 
 /// Pourquoi une écriture à côté n'est pas faite, ou pas tout à fait. Son texte (`Display`) le dit
 /// en français, sans recopier celui de l'erreur du système.
@@ -35,7 +39,7 @@ impl fmt::Display for Echec {
             Echec::Refusee(erreur) => write!(
                 f,
                 "{} : celui qu'il devait remplacer n'a pas changé.",
-                constat_du_disque("Le fichier écrit à côté", erreur.kind())
+                constat_du_disque("Le fichier écrit à côté", Accord::Masculin, erreur.kind())
             ),
             Echec::NonDurable(_) => {
                 f.write_str("Le fichier est en place, mais son renommage n'est pas rendu durable.")
@@ -137,11 +141,84 @@ pub(crate) fn ecrire_et_synchroniser(chemin: &Path, octets: &[u8]) -> io::Result
     fichier.sync_all()
 }
 
+/// Copie `flux` dans `chemin`, tronçon par tronçon, chacun de [`TRONCON`] octets, le dernier
+/// d'au plus autant, l'empreinte calculée en chemin (`Hacheur`), puis le synchronise
+/// (`sync_all`) et le ferme : rend l'empreinte et les octets copiés. Un flux vide ne fait aucun
+/// tronçon. Les points : [`Etape::VoisinEcrit`] après la création, [`Etape::Troncon`] avant
+/// l'écriture de chaque tronçon, [`Etape::SyncAll`] avant la synchronisation. Une erreur de la
+/// lecture du flux remonte telle quelle, comme un refus du disque : l'appelant, qui enveloppe le
+/// flux, les distingue.
+pub(crate) fn copier_et_synchroniser(
+    chemin: &Path,
+    flux: &mut dyn Read,
+) -> io::Result<(String, u64)> {
+    let mut fichier = File::create(chemin)?;
+    pannes::point(Etape::VoisinEcrit)?;
+    let mut hacheur = Hacheur::nouveau();
+    let mut tampon = vec![0; TRONCON];
+    let mut octets = 0;
+    loop {
+        let lus = remplir(flux, &mut tampon)?;
+        if lus == 0 {
+            break;
+        }
+        pannes::point(Etape::Troncon)?;
+        fichier.write_all(&tampon[..lus])?;
+        hacheur.ajouter(&tampon[..lus]);
+        octets += lus as u64;
+        if lus < TRONCON {
+            break;
+        }
+    }
+    pannes::point(Etape::SyncAll)?;
+    // Fermé à la sortie, avant de prendre la place : Windows ne renomme pas un fichier ouvert.
+    fichier.sync_all()?;
+    Ok((hacheur.finir(), octets))
+}
+
 /// Les octets de `chemin` (`fs::read`), passés par `pannes::relue`. Le point :
 /// [`Etape::Relecture`].
 pub(crate) fn lire(chemin: &Path) -> io::Result<Vec<u8>> {
     pannes::point(Etape::Relecture)?;
     fs::read(chemin).map(pannes::relue)
+}
+
+/// L'empreinte du contenu de `chemin`, lu en flux, tronçon par tronçon, chacun d'au plus
+/// [`TRONCON`] octets, sans le tenir en mémoire. Le point : [`Etape::Relecture`], à son début ;
+/// son premier tronçon passe par `pannes::relue`, et une relecture altérée compte dès lui.
+pub(crate) fn empreinte_en_flux(chemin: &Path) -> io::Result<String> {
+    pannes::point(Etape::Relecture)?;
+    let mut fichier = File::open(chemin)?;
+    let mut tampon = vec![0; TRONCON];
+    let mut lus = remplir(&mut fichier, &mut tampon)?;
+    tampon.truncate(lus);
+    let premier = pannes::relue(tampon);
+    let mut hacheur = Hacheur::nouveau();
+    hacheur.ajouter(&premier);
+    let mut tampon = premier;
+    tampon.resize(TRONCON, 0);
+    // Un tronçon plein peut avoir une suite ; un tronçon plus court finit le fichier.
+    while lus == TRONCON {
+        lus = remplir(&mut fichier, &mut tampon)?;
+        hacheur.ajouter(&tampon[..lus]);
+    }
+    Ok(hacheur.finir())
+}
+
+/// Lit `lecteur` jusqu'à remplir `tampon`, ou jusqu'à sa fin : rend les octets lus, moins que
+/// `tampon.len()` à la fin seulement. Une lecture interrompue (`ErrorKind::Interrupted`) se
+/// reprend ; une autre erreur remonte.
+fn remplir(lecteur: &mut dyn Read, tampon: &mut [u8]) -> io::Result<usize> {
+    let mut lus = 0;
+    while lus < tampon.len() {
+        match lecteur.read(&mut tampon[lus..]) {
+            Ok(0) => break,
+            Ok(n) => lus += n,
+            Err(erreur) if erreur.kind() == io::ErrorKind::Interrupted => {}
+            Err(erreur) => return Err(erreur),
+        }
+    }
+    Ok(lus)
 }
 
 /// Renomme `de` en `vers` (`fs::rename`, qui remplace au besoin). Le point :

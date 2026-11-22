@@ -1,7 +1,8 @@
-//! Les en-têtes d'un WAV et d'un MIDI, le texte lisible (§ 30 · 9.2 ; question 10).
+//! Les en-têtes d'un WAV et d'un MIDI, le texte lisible et son décodage (§ 30 · 9.2 ;
+//! question 10 ; balayage Q9).
 
 use noyau::donnees::entete::{
-    ControleDuTexte, ENTETE_AU_PLUS, FaitsMidi, FaitsWav, faits_midi, faits_wav,
+    ControleDuTexte, ENTETE_AU_PLUS, FaitsMidi, FaitsWav, decoder_le_texte, faits_midi, faits_wav,
 };
 use noyau::donnees::gestes::ENTIER_SUR;
 
@@ -333,4 +334,70 @@ fn un_wav_aux_nombreux_morceaux_vides_avant_data_se_lit() {
 fn un_bom_utf16_seul_est_un_texte_vide_lisible() {
     assert!(lisible(&[&[0xFF, 0xFE]]));
     assert!(lisible(&[&[0xFE, 0xFF]]));
+}
+
+/// `decoder_le_texte(octets)`, après avoir vérifié qu'il rend `None` si et seulement si
+/// `ControleDuTexte`, nourri des mêmes octets en un seul tronçon, ne les dit pas lisibles.
+fn decode(octets: &[u8]) -> Option<String> {
+    let decode = decoder_le_texte(octets);
+    assert_eq!(
+        decode.is_none(),
+        !lisible(&[octets]),
+        "le décodage et le contrôle divergent sur {octets:?}"
+    );
+    decode
+}
+
+/// `texte` en UTF-16 après sa marque : `FE FF` puis gros-boutiste si `gros`, sinon `FF FE` puis
+/// petit-boutiste.
+fn utf16(texte: &str, gros: bool) -> Vec<u8> {
+    let mut octets = if gros {
+        vec![0xFE, 0xFF]
+    } else {
+        vec![0xFF, 0xFE]
+    };
+    for unite in texte.encode_utf16() {
+        octets.extend(if gros {
+            unite.to_be_bytes()
+        } else {
+            unite.to_le_bytes()
+        });
+    }
+    octets
+}
+
+#[test]
+fn decoder_le_texte_suit_le_controle_du_texte() {
+    // L'UTF-8 se décode tel quel ; sa marque `EF BB BF`, en tête, s'ôte.
+    let pont = "Pont du soir, l'été";
+    assert_eq!(decode(pont.as_bytes()).as_deref(), Some(pont));
+    let marque = [b"\xEF\xBB\xBF".as_slice(), pont.as_bytes()].concat();
+    assert_eq!(decode(&marque).as_deref(), Some(pont));
+    // L'UTF-16 après sa marque, petit- puis gros-boutiste, une paire de substitution comprise
+    // (U+1D11E, la clé de sol) ; la marque s'ôte.
+    let cle = "Un pont en \u{1D11E}";
+    assert_eq!(utf16(cle, false)[..4], [0xFF, 0xFE, 0x55, 0x00]);
+    assert_eq!(utf16(cle, true)[..4], [0xFE, 0xFF, 0x00, 0x55]);
+    assert_eq!(decode(&utf16(cle, false)).as_deref(), Some(cle));
+    assert_eq!(decode(&utf16(cle, true)).as_deref(), Some(cle));
+    // Une demi-paire seule, haute ou basse, dans les deux ordres d'octets.
+    assert_eq!(decode(&[0xFF, 0xFE, 0x00, 0xD8]), None);
+    assert_eq!(decode(&[0xFF, 0xFE, 0x00, 0xDC, 0x6C, 0x00]), None);
+    assert_eq!(decode(&[0xFE, 0xFF, 0xD8, 0x00]), None);
+    assert_eq!(decode(&[0xFE, 0xFF, 0x00, 0x6C, 0xDC, 0x00]), None);
+    // Une longueur impaire après la marque.
+    assert_eq!(decode(&[0xFF, 0xFE, 0x6C]), None);
+    assert_eq!(decode(&[0xFE, 0xFF, 0x00, 0x6C, 0x00]), None);
+    // Ni UTF-8 ni UTF-16 marqué : du Latin-1, un caractère coupé au bout, une marque coupée ou
+    // fausse.
+    assert_eq!(decode(b"\xE9t\xE9"), None);
+    assert_eq!(decode(b"pont \xC3"), None);
+    assert_eq!(decode(&[0xFF]), None);
+    assert_eq!(decode(&[0xFE]), None);
+    assert_eq!(decode(&[0xFF, 0x41]), None);
+    // Un texte vide, ou fait de sa seule marque.
+    assert_eq!(decode(b"").as_deref(), Some(""));
+    assert_eq!(decode(&[0xFF, 0xFE]).as_deref(), Some(""));
+    assert_eq!(decode(&[0xFE, 0xFF]).as_deref(), Some(""));
+    assert_eq!(decode(b"\xEF\xBB\xBF").as_deref(), Some(""));
 }

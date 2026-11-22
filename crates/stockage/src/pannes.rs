@@ -2,10 +2,11 @@
 //!
 //! Chaque étape d'une écriture passe par `point` juste avant son geste sur le disque, sauf `Save`
 //! et `Reception`, qui y passent juste après leur geste en mémoire, et chaque lecture de
-//! `fichier::lire` rend ses octets par `relue`. Sans la fonction `pannes`, le point
-//! laisse tout passer et la relecture rend les octets tels quels : la configuration livrée n'a
-//! rien d'autre. Sous la fonction, que seuls les tests du stockage demandent, une panne s'arme
-//! par `couper` ou `alterer_la_relecture`, dans le fil du test, et se désarme à sa chute.
+//! `fichier::lire` rend ses octets par `relue`, comme le premier tronçon de chaque lecture en flux
+//! de `fichier::empreinte_en_flux`. Sans la fonction `pannes`, le point laisse tout passer et la
+//! relecture rend les octets tels quels : la configuration livrée n'a rien d'autre. Sous la
+//! fonction, que seuls les tests du stockage demandent, une panne s'arme par `couper` ou
+//! `alterer_la_relecture`, dans le fil du test, et se désarme à sa chute.
 
 #[cfg(feature = "pannes")]
 use std::cell::{Cell, RefCell};
@@ -20,16 +21,21 @@ pub enum Etape {
     /// (`Automerge::load`) : en échec, comme des octets qui ne se relisent pas, la compaction est
     /// infidèle, et rien ne s'écrit.
     Save,
-    /// Après la création du voisin, avant d'y écrire ses octets (`write_all`).
+    /// Après la création du voisin, avant d'y écrire ses octets (`write_all`) ; d'une copie en
+    /// flux, avant son premier tronçon.
     VoisinEcrit,
+    /// Avant l'écriture de chaque tronçon d'une copie en flux : la `rang`-ième coupe après
+    /// `rang - 1` tronçons écrits.
+    Troncon,
     /// Avant la synchronisation du voisin (`sync_all`).
     SyncAll,
-    /// Avant chaque lecture de `fichier::lire` (`fs::read`) : la relecture d'un voisin ou du nom
-    /// provisoire d'une captation, et chaque fichier que lisent l'ouverture (son démarrage
-    /// compris : chaque `.partiel` du dossier du fonds et de `ajouts/` ; puis, le fonds lu, chaque
-    /// nom provisoire de `captations/`), la relecture du disque, la compaction, et la naissance
-    /// (chaque `.partiel` du dossier du fonds).
-    /// `Captations::relire` et `Captations::verifier` n'y passent pas.
+    /// Avant chaque lecture de `fichier::lire` (`fs::read`), et au début de chaque lecture en
+    /// flux de `fichier::empreinte_en_flux` : la relecture d'un voisin ou du nom provisoire d'une
+    /// captation, et chaque fichier que lisent l'ouverture (son démarrage compris : chaque
+    /// `.partiel` du dossier du fonds et de `ajouts/` ; puis, le fonds lu, chaque nom provisoire
+    /// de `captations/`, lu en flux), la relecture du disque, la compaction, et la naissance
+    /// (chaque `.partiel` du dossier du fonds). `Captations::relire`, `Captations::verifier` et
+    /// les autres lectures des captations rangées n'y passent pas.
     Relecture,
     /// Avant le renommage du voisin (`fs::rename`).
     Renommage,
@@ -66,7 +72,8 @@ pub fn couper(etape: Etape, rang: usize) -> Panne {
 /// La `rang`-ième lecture réussie de `fichier::lire` (dès 1) dans ce fil depuis cet appel réussit,
 /// mais rend ses octets altérés : le premier inversé (`!`), ou un octet ajouté si rien n'est lu.
 /// Une fois. Une lecture qui échoue, coupée par une panne `Relecture` ou refusée par le disque,
-/// ne compte pas.
+/// ne compte pas. Chaque lecture en flux de `fichier::empreinte_en_flux` compte comme une lecture
+/// de `fichier::lire`, dès son premier tronçon lu, qui s'altère de même.
 #[cfg(feature = "pannes")]
 pub fn alterer_la_relecture(rang: usize) -> Panne {
     armer(Sorte::Alteration, rang)
@@ -87,13 +94,15 @@ pub(crate) fn point(etape: Etape) -> io::Result<()> {
     Ok(())
 }
 
-/// Les octets lus par `fichier::lire`, tels quels sans la fonction `pannes`.
+/// Les octets lus par `fichier::lire`, ou le premier tronçon d'une lecture en flux, tels quels sans
+/// la fonction `pannes`.
 #[cfg(not(feature = "pannes"))]
 pub(crate) fn relue(octets: Vec<u8>) -> Vec<u8> {
     octets
 }
 
-/// Les octets lus par `fichier::lire`, altérés si une panne de relecture tombe à cette lecture.
+/// Les octets lus par `fichier::lire`, ou le premier tronçon d'une lecture en flux, altérés si une
+/// panne de relecture tombe à cette lecture.
 #[cfg(feature = "pannes")]
 pub(crate) fn relue(mut octets: Vec<u8>) -> Vec<u8> {
     if passer(Sorte::Alteration) {

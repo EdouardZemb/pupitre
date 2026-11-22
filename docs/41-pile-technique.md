@@ -284,7 +284,7 @@ pas dans ce budget.
 | Où | Dépendance | Sert à |
 |---|---|---|
 | Application | `leptos` | Interface |
-| Application | `tauri`, et ses greffons pour les fichiers et le micro : `tauri-plugin-dialog`, la boîte d'enregistrement du cahier des tables ([REN-07](20-sfd/28-rendus-encre-impression.md#ren-07--imprimer)) | Applications |
+| Application | `tauri`, et ses greffons pour les fichiers et le micro : `tauri-plugin-dialog`, ses boîtes de dialogue : l'enregistrement du cahier des tables ([REN-07](20-sfd/28-rendus-encre-impression.md#ren-07--imprimer)), le dossier à verser d'un import ([CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)), et, d'avance, la destination de l'archive ([SYN-07](20-sfd/29-socle-donnees-appareils.md#syn-07--exporter-et-importer)) | Applications |
 | Application | `wasm-bindgen`, `wasm-bindgen-futures`, `js-sys` | L'interface appelle les commandes du côté natif (`invoke` de Tauri), écoute le signal d'un document changé, et lit la date du jour, celle de l'export du cahier, et le décalage local d'un geste et d'une date |
 | Application (côté natif), nœud | `automerge` | Documents, synchronisation |
 | Application (côté natif), nœud | `getrandom` | L'aléa des identifiants, que le noyau reçoit en argument ([§ 70 · 1](70-qualite-et-verification.md#1-la-stratégie)) : dix octets pour un ULID, seize pour l'UUID version 4 de l'identifiant de propriétaire (quatre bits de version, deux de variante) ; un acteur neuf vient d'Automerge. L'établi le tire dans son seul module `systeme`, et le stockage ne le déclare pas (I30, [§ 70 · 3](70-qualite-et-verification.md#3-les-invariants-et-leurs-tests)) : les identifiants se forment dans les services, de l'aléa que chaque commande reçoit par le contexte du geste ; « une seule dépendance de plus pour le stockage », que dit l'[ADR-023](adr/adr-023-stockage-des-documents.md), se lit ainsi (précision du 2026-11-15). Un aléa défaillant (`AleaDuSysteme`) ne fait tomber que le fil du fonds, chaque commande qui passe par lui disant alors « Le fonds ne répond plus. » ; l'application ne s'arrête pas (décidé par la maîtrise d'ouvrage le 2026-11-15) |
@@ -300,7 +300,12 @@ pas dans ce budget.
 | Analyseur | demucs, beat-this, librosa, faster-whisper, pymupdf ; basic-pitch dans son propre environnement ; essentia, facultatif | Analyse lourde, encre des PDF — isolés dans leur conteneur |
 
 Le noyau n'a aucune dépendance d'entrées-sorties. Ce tableau est un budget, pas une cible :
-s'en approcher demande de se justifier.
+s'en approcher demande de se justifier. L'import d'un fonds
+([CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)) n'ajoute aucune
+dépendance : son dossier se choisit par la boîte de `tauri-plugin-dialog`, et la place libre se
+lit par un appel de Windows, `GetDiskFreeSpaceExW`, déclaré à la main dans le seul module
+`systeme` de l'établi, sans crate de plus (I30,
+[§ 70 · 3](70-qualite-et-verification.md#3-les-invariants-et-leurs-tests)).
 
 Une dépendance entre à sa dernière version publiée, sauf quand une autre l'en empêche :
 `pdf-writer` reste en 0.12.1, alors que la dernière version est plus récente, car `svg2pdf`

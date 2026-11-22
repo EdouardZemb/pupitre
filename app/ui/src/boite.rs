@@ -3043,6 +3043,7 @@ mod tests {
                 par: Appareil::Etabli,
             },
             retiree: None,
+            nom_de_fichier: None,
         }
     }
 

@@ -1,5 +1,8 @@
-//! Le système : l'heure, l'aléa et le dossier de l'application, les seuls que l'établi lit.
+//! Le système : l'heure, l'aléa, le dossier de l'application et la place libre du disque, les
+//! seuls que l'établi lit ; et le dossier choisi, admis s'il n'est pas celui de l'application.
 
+use std::fs;
+use std::io;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -46,6 +49,88 @@ pub fn ouvrir(dossier: &Path) -> Ouverture {
     fil::ouvrir(racine_des_donnees(dossier))
 }
 
+/// Le dossier de l'application, que `run()` garde dans l'état de Tauri.
+pub struct DossierDeLApplication(pub PathBuf);
+
+/// La place offerte à l'appelant sur le volume de `dossier` (question 8 ; P10) : sous Windows,
+/// `GetDiskFreeSpaceExW`, déclaré dans un bloc `unsafe extern "system"`, le seul du dépôt, sur le
+/// chemin canonique de `dossier` (`fs::canonicalize`, qui rend un `\\?\`), en UTF-16 fini par un
+/// zéro, `lpFreeBytesAvailableToCaller` seul lu ; un échec rend l'erreur du système. Hors de
+/// Windows : `io::ErrorKind::Unsupported`, une branche qu'aucun job ne compile, l'établi n'ayant
+/// que Windows pour cible (balayage Q12).
+#[cfg(windows)]
+pub fn place_libre(dossier: &Path) -> io::Result<u64> {
+    place_offerte(&fs::canonicalize(dossier)?)
+}
+
+/// L'appel de `GetDiskFreeSpaceExW` sur `canonique`, un chemin déjà canonique, passé tel quel en
+/// UTF-16 fini par un zéro : `lpFreeBytesAvailableToCaller` ; un retour nul rend l'erreur du
+/// système (`io::Error::last_os_error`), jamais 0. Séparé de `place_libre` pour que l'échec de
+/// l'appel lui-même s'éprouve : sur un dossier absent, `fs::canonicalize` refuse avant lui.
+#[cfg(windows)]
+fn place_offerte(canonique: &Path) -> io::Result<u64> {
+    use std::os::windows::ffi::OsStrExt;
+    let nom: Vec<u16> = canonique
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    let (mut offerte, mut totale, mut libre) = (0u64, 0u64, 0u64);
+    // SAFETY : `nom` est un chemin en UTF-16 fini par un zéro, qui vit jusqu'au retour de l'appel ;
+    // les trois sorties sont des `u64` à nous, chacun de la taille et de l'alignement d'un
+    // `ULARGE_INTEGER`, que l'appel écrit sans en garder l'adresse ; il ne lit rien d'autre.
+    let fait = unsafe { GetDiskFreeSpaceExW(nom.as_ptr(), &mut offerte, &mut totale, &mut libre) };
+    if fait == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(offerte)
+}
+
+/// Hors de Windows, la place libre ne se lit pas : `io::ErrorKind::Unsupported`. Aucun job ne
+/// compile cette branche, l'établi n'ayant que Windows pour cible (balayage Q12).
+#[cfg(not(windows))]
+pub fn place_libre(_dossier: &Path) -> io::Result<u64> {
+    Err(io::ErrorKind::Unsupported.into())
+}
+
+// L'appel de `kernel32` que l'établi déclare à la main, sans dépendance : un commentaire, rustdoc
+// ne documentant pas un bloc `extern` (`unused_doc_comments`).
+#[cfg(windows)]
+#[link(name = "kernel32")]
+unsafe extern "system" {
+    /// `GetDiskFreeSpaceExW` : sur le volume du dossier `dossier`, la place offerte à l'appelant
+    /// (`lpFreeBytesAvailableToCaller`, quotas compris), la taille offerte à l'appelant
+    /// (`lpTotalNumberOfBytes`) et la place libre du volume (`lpTotalNumberOfFreeBytes`) ; 0 en
+    /// cas d'échec, l'erreur dans `GetLastError`.
+    fn GetDiskFreeSpaceExW(
+        dossier: *const u16,
+        offerte: *mut u64,
+        totale: *mut u64,
+        libre: *mut u64,
+    ) -> i32;
+}
+
+/// Le refus d'un dossier qui est celui de l'application, le contient ou s'y trouve.
+const DANS_PUPITRE: &str =
+    "Ce dossier est celui de Pupitre, le contient ou s'y trouve : il ne se verse pas.";
+
+/// Admet le dossier choisi (question 14) : refusé s'il est le dossier de l'application, le contient
+/// ou s'y trouve, leurs chemins canoniques comparés par segments (`Path::starts_with`), « Ce
+/// dossier est celui de Pupitre, le contient ou s'y trouve : il ne se verse pas. » ; rend son
+/// chemin, tel que choisi. Un chemin qui ne se rend pas canonique (`fs::canonicalize`) : « Le
+/// dossier choisi ne se lit pas : <erreur>. », ou « Le dossier de Pupitre ne se lit pas :
+/// <erreur>. ».
+pub fn admettre_le_dossier(choisi: &Path, application: &Path) -> Result<PathBuf, String> {
+    let canonique = fs::canonicalize(choisi)
+        .map_err(|erreur| format!("Le dossier choisi ne se lit pas : {erreur}."))?;
+    let de_l_application = fs::canonicalize(application)
+        .map_err(|erreur| format!("Le dossier de Pupitre ne se lit pas : {erreur}."))?;
+    if canonique.starts_with(&de_l_application) || de_l_application.starts_with(&canonique) {
+        return Err(DANS_PUPITRE.to_string());
+    }
+    Ok(choisi.to_path_buf())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -71,6 +156,91 @@ mod tests {
     fn la_racine_des_donnees_est_donnees_sous_le_dossier_recu() {
         let dossier = crate::tests::dossier_jetable("racine-des-donnees");
         assert_eq!(racine_des_donnees(&dossier), dossier.join("donnees"));
+    }
+
+    /// Le refus d'un dossier que `admettre_le_dossier` ne verse pas.
+    const DANS_PUPITRE: &str =
+        "Ce dossier est celui de Pupitre, le contient ou s'y trouve : il ne se verse pas.";
+
+    #[cfg(windows)]
+    #[test]
+    fn la_place_libre_se_lit_sur_un_chemin_long() {
+        // GetDiskFreeSpaceExW refuse un chemin de plus de 260 unités sans `\\?\` : le chemin
+        // canonique le porte.
+        let mut long = crate::tests::dossier_jetable("place-libre-long");
+        let mut etage = 0;
+        while long.to_string_lossy().encode_utf16().count() <= 300 {
+            etage += 1;
+            long.push(format!("étage-{etage}-{}", "ô".repeat(40)));
+        }
+        std::fs::create_dir_all(&long).unwrap_or_else(|e| panic!("créer {} : {e}", long.display()));
+        let place = place_libre(&long)
+            .unwrap_or_else(|e| panic!("la place libre de {} : {e}", long.display()));
+        assert!(
+            place > 0,
+            "aucune place offerte sur le volume du dossier jetable"
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn la_place_libre_d_un_dossier_absent_est_refusee() {
+        let absent = crate::tests::dossier_jetable("place-libre-absent").join("absent");
+        assert!(
+            place_libre(&absent).is_err(),
+            "un dossier absent rend une place"
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn l_echec_de_l_appel_rend_l_erreur_du_systeme_jamais_zero() {
+        // `fs::canonicalize` refuse un dossier absent avant l'appel : le chemin `\\?\…\absent`,
+        // canonique jusqu'à son parent, va ici tel quel à `GetDiskFreeSpaceExW`, qui échoue.
+        let absent = std::fs::canonicalize(crate::tests::dossier_jetable("place-libre-appel"))
+            .expect("le dossier jetable se rend canonique")
+            .join("absent");
+        assert!(
+            absent.to_string_lossy().starts_with(r"\\?\"),
+            "{}",
+            absent.display()
+        );
+        let erreur = place_offerte(&absent).expect_err("un dossier absent rend une place");
+        // ERROR_PATH_NOT_FOUND : l'erreur que l'appel laisse au système (`GetLastError`).
+        assert_eq!(erreur.raw_os_error(), Some(3), "{erreur}");
+    }
+
+    #[test]
+    fn un_dossier_dans_celui_de_l_application_est_refuse() {
+        let jetable = crate::tests::dossier_jetable("dossier-admis");
+        let application = jetable.join("app");
+        let dedans = application.join("x");
+        let autre = jetable.join("autre");
+        // Un voisin dont le nom commence par celui de l'application : les segments se comparent
+        // entiers.
+        let voisin = jetable.join("app-voisin");
+        for dossier in [&dedans, &autre, &voisin] {
+            std::fs::create_dir_all(dossier)
+                .unwrap_or_else(|e| panic!("créer {} : {e}", dossier.display()));
+        }
+        // Le dossier de l'application, un dossier qui s'y trouve, sous une forme qui n'est pas
+        // canonique aussi, et le dossier qui le contient.
+        for refuse in [&application, &dedans, &dedans.join(".."), &jetable] {
+            assert_eq!(
+                admettre_le_dossier(refuse, &application),
+                Err(DANS_PUPITRE.to_string()),
+                "{}",
+                refuse.display()
+            );
+        }
+        for admis in [&autre, &voisin] {
+            assert_eq!(
+                admettre_le_dossier(admis, &application),
+                Ok(admis.clone()),
+                "{}",
+                admis.display()
+            );
+        }
     }
 
     /// L'identifiant de l'application, lu dans `tauri.conf.json`.

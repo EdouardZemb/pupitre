@@ -1,20 +1,25 @@
 //! L'établi : l'enveloppe Tauri de l'interface ; le fil du fonds, qui possède la racine des
-//! données et sert une à une les commandes que l'interface envoie ; et l'export du cahier des
-//! tables.
+//! données et sert une à une les commandes que l'interface envoie ; le dossier choisi, que les
+//! commandes de l'import se partagent ; et l'export du cahier des tables.
 
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
+use std::sync::{Arc, Mutex};
 
 use noyau::rendu::Instrument;
 use noyau::rendu::pages::Date;
 use noyau::table::CoucheSombre;
+use stockage::source::SourceSurFichiers;
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
 mod commandes_de_l_etabli;
 mod fil;
 mod systeme;
+
+/// Le dossier choisi, parcouru, que les commandes de l'import se partagent ; oublié à la clôture.
+pub(crate) struct DossierChoisi(pub Mutex<Option<Arc<SourceSurFichiers>>>);
 
 /// L'instrument que l'interface nomme : « guitare », « clavier » ou « les-deux ».
 fn lire_instrument(s: &str) -> Option<Instrument> {
@@ -154,6 +159,16 @@ pub(crate) fn gestionnaire<R: tauri::Runtime>()
         commandes_de_l_etabli::enregistrer_une_requete,
         commandes_de_l_etabli::renommer_une_requete,
         commandes_de_l_etabli::supprimer_une_requete,
+        commandes_de_l_etabli::inspecter_un_dossier,
+        commandes_de_l_etabli::ouvrir_l_import,
+        commandes_de_l_etabli::verser_un_fichier,
+        commandes_de_l_etabli::verser_une_prise_en_stems,
+        commandes_de_l_etabli::clore_l_import,
+        commandes_de_l_etabli::declarer_une_origine,
+        commandes_de_l_etabli::choisir_le_type_d_un_stem,
+        commandes_de_l_etabli::lire_un_texte_verse,
+        commandes_de_l_etabli::lire_un_rapport,
+        commandes_de_l_etabli::generateurs,
     ]
 }
 
@@ -169,8 +184,9 @@ pub(crate) fn refuser_la_captation(
 }
 
 /// L'établi : au démarrage, la racine des données s'ouvre sous le dossier de l'application, par
-/// le fil du fonds, et Tauri garde l'ouverture dans son état ; puis le gestionnaire sert les
-/// commandes, et le protocole `captation` refuse toute requête.
+/// le fil du fonds, et Tauri garde dans son état l'ouverture, le dossier de l'application
+/// (`systeme::DossierDeLApplication`) et le dossier choisi, aucun d'abord (`DossierChoisi`) ;
+/// puis le gestionnaire sert les commandes, et le protocole `captation` refuse toute requête.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -178,6 +194,8 @@ pub fn run() {
         .setup(|app| {
             let dossier = systeme::dossier_de_l_application(app.handle())?;
             app.manage(systeme::ouvrir(&dossier));
+            app.manage(systeme::DossierDeLApplication(dossier));
+            app.manage(DossierChoisi(Mutex::new(None)));
             Ok(())
         })
         .register_uri_scheme_protocol("captation", |_contexte, requete| {

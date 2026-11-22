@@ -322,8 +322,9 @@ de tête (§ 2.4) : le [glossaire](80-glossaire.md#les-données) les distingue.
   nom déjà pris reçoit un suffixe (`<nom>.<processus>-2.partiel`, `-3`…). Tout autre
   `.partiel` de `documents/` est retiré, qu'il porte un autre nom ou un autre contenu ; un
   fichier qui n'est pas un `.partiel` est laissé tel quel, et le démarrage ne crée aucun
-  dossier dans `documents/`. Le nom provisoire d'une captation suit le § 6.1 : il n'est jamais
-  retiré d'office.
+  dossier dans `documents/`. Le nom provisoire d'une captation suit le § 6.1 : le démarrage
+  ne le retire jamais, et seuls la reprise et la clôture d'un import retirent ceux de cet
+  import.
   Une opération refusée ôte son voisin avant de dire son refus : elle le vide, rend ce vide
   durable (`sync_all`, sous chaque système), puis le retire ; l'export du cahier, lui, retire
   le sien sans le vider. Un retrait qui échoue, ou qu'une coupure perd, laisse ainsi un voisin
@@ -372,7 +373,12 @@ de tête (§ 2.4) : le [glossaire](80-glossaire.md#les-données) les distingue.
   manquée (ci-dessus), une version de schéma absente, nulle, ou qui n'est pas un entier non
   signé, ou une migration qui ne s'applique pas ; et plus récente, devant une version de schéma
   plus récente (§ 2.4). Ni l'une ni
-  l'autre n'écrit d'opération ni ne se compacte. Illisible, le document n'envoie ni ne
+  l'autre n'écrit d'opération ni ne se compacte. Une capture y verse encore sa captation,
+  puis son opération est refusée : une captation se verse toujours, c'est la règle d'une
+  capture ([CAP-01](20-sfd/21-capter-et-organiser.md#cap-01--capter-en-un-geste)) ; un
+  import, lui, y est refusé entier, dès l'inspection, avant toute captation
+  ([CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)).
+  Illisible, le document n'envoie ni ne
   reçoit ; plus récent, il reçoit, et ne transmet aucune modification. La réparation vient du
   nœud ou, sans lui, de l'archive complète. Le bandeau du document en lecture seule propose
   alors de repartir de l'archive. Pupitre ferme la racine des données : chaque fichier qu'il y
@@ -519,8 +525,11 @@ structure. La genèse pose la version de schéma 1.
   sans y écrire. C'est l'impossibilité stricte que nomme l'ADR-006. Elle
   en reçoit encore les modifications par la synchronisation, et ne lui transmet aucune
   modification : ses messages partent sans modification. Ce qu'elle reçoit s'écrit en
-  fichiers d'ajout, sans compaction. Une captation n'est jamais refusée pour autant : elle
-  s'écrit, et l'idée qui la reçoit naît après la mise à jour.
+  fichiers d'ajout, sans compaction. La captation d'une capture n'est jamais refusée pour
+  autant : elle s'écrit, et l'idée qui la reçoit naît après la mise à jour
+  ([CAP-01](20-sfd/21-capter-et-organiser.md#cap-01--capter-en-un-geste)). Cette règle est
+  celle d'une capture, non d'un import, refusé entier, avant toute captation
+  ([CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)).
 - **Une version de schéma illisible ouvre le document en lecture seule.** Une version de
   schéma absente, nulle, ou qui n'est pas un entier non signé, ouvre le document en lecture
   seule, sans échange, comme un fichier illisible (§ 2.1).
@@ -780,24 +789,40 @@ premiers caractères de l'empreinte : `captations/3f/3fa1…`. Git range ainsi s
 256 sous-dossiers. Au fonds visé, quelques milliers de captations, chacun en compte quelques
 dizaines ; à cent mille, quelques centaines : aucun ne déborde.
 
-Une captation s'écrit sous un nom provisoire, dans `captations/`, jamais dans un dossier
-temporaire : `<empreinte>.<processus>.partiel`, ou, si ce nom est pris,
-`<empreinte>.<processus>-2.partiel`, `-3`…, formé comme le nom d'un voisin (§ 2.1). Elle est
-écrite, synchronisée sur le disque, fermée, relue contre son empreinte, puis renommée à son
-empreinte, dans son sous-dossier. Hors de Windows, ce sous-dossier est synchronisé à son tour,
-et le dossier `captations/` quand le sous-dossier vient d'être créé ; sous Windows, la
+Une captation s'écrit sous un **nom provisoire**, dans `captations/`, jamais dans un dossier
+temporaire, formé sur une base comme le nom d'un voisin (§ 2.1) : `<base>.<processus>.partiel`,
+ou, si ce nom est pris, `<base>.<processus>-2.partiel`, puis `-3`, et ainsi de suite. Elle s'y
+copie **en flux**, par tronçons d'au plus 1 048 576 octets, son empreinte calculée en chemin ;
+elle est synchronisée sur le disque, fermée, relue en flux contre son empreinte, puis renommée
+à son empreinte, dans son sous-dossier. Hors de Windows, ce sous-dossier est synchronisé à son
+tour, et le dossier `captations/` quand le sous-dossier vient d'être créé ; sous Windows, la
 captation renommée est rouverte en écriture, sans être tronquée, et synchronisée, comme au
-§ 2.1. Si l'empreinte existe déjà, rien ne s'écrit, ni nom provisoire ni captation : rien n'est
-jamais réécrit. Un nom provisoire laissé par un arrêt brutal n'est jamais retiré d'office : une
-capture interrompue doit en relire l'audio
-([CAP-01](20-sfd/21-capter-et-organiser.md#cap-01--capter-en-un-geste) · 2). Un renommage
-peut se perdre après la réponse, sous Windows comme ailleurs (§ 2.1) : au démarrage, à
-l'ouverture du fonds, un nom provisoire de `captations/` dont le contenu entier donne une
-empreinte que le fonds nomme, et qu'aucun fichier ne porte encore, prend ce nom ; de deux noms
-provisoires du même contenu, le premier dans l'ordre des noms. En lecture seule, le fonds nomme
-ce qui s'en lit. Un nom provisoire qui ne se lit pas, ou que le disque refuse de renommer,
-reste, avec un avertissement, et le démarrage suivant le relit, puis le range si le fonds le
-nomme. Les autres restent, pour la reprise d'une capture interrompue.
+§ 2.1. Rien n'est jamais réécrit : une captation déjà rangée sous cette empreinte reste telle
+quelle, et la copie qui la redonne retire son nom provisoire.
+
+- **Par octets**, la voie d'une capture, du manifeste d'une prise en stems et du rapport d'un
+  import, l'empreinte se calcule d'abord : elle est la base, `<empreinte>.<processus>.partiel`,
+  et, si une captation la porte déjà, rien ne s'écrit, ni nom provisoire ni captation.
+- **La copie d'un fichier versé**, dont l'empreinte ne se connaît qu'à la fin, prend pour base
+  `import-<ULID>-<rang>`, l'identifiant de son import et le rang du fichier dans le dossier
+  versé : `import-<ULID>-<rang>.<processus>.partiel`. Une empreinte autre que celle
+  qu'attendait l'inspection retire le nom provisoire sans rien ranger, et arrête l'import
+  ([CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)).
+
+Un renommage peut se perdre après la réponse, sous Windows comme ailleurs (§ 2.1) : au
+démarrage, à l'ouverture du fonds, un nom provisoire de `captations/` dont le contenu entier
+donne une empreinte que le fonds nomme, celle d'une captation d'une idée, d'un stem ou de son
+MIDI, d'un manifeste ou d'un rapport d'import (§ 2), et qu'aucun fichier ne porte encore,
+prend ce nom, quel que soit le sien ; de deux noms provisoires du même contenu, le premier
+dans l'ordre des noms. La copie d'un fichier versé, entière et nommée, se range ainsi ; coupée
+entre deux tronçons, elle ne donne pas l'empreinte nommée, et reste. En lecture seule, le
+fonds nomme ce qui s'en lit. Un nom provisoire qui ne se lit pas, ou que le disque refuse de
+renommer, reste, avec un avertissement, et le démarrage suivant le relit, puis le range si le
+fonds le nomme. Le démarrage ne retire aucun nom provisoire : une capture interrompue doit en
+relire l'audio ([CAP-01](20-sfd/21-capter-et-organiser.md#cap-01--capter-en-un-geste) · 2).
+Seul l'import retire les siens : à sa reprise, ses copies dont le fonds ne nomme pas
+l'empreinte, et à sa clôture, toutes. Le nom provisoire d'une capture garde sa règle : le
+démarrage ne retire jamais celui d'une capture interrompue.
 
 | Propriété | Conséquence | Testée par |
 |---|---|---|
@@ -1074,7 +1099,7 @@ pupitre-archive-AAAA-MM-JJ/               un dossier, écrit sous un nom proviso
 | 1 | **Dérivés jetables** : supprimer tous les dérivés, les reconstruire, comparer les empreintes canoniques. Celles de l'index de recherche (§ 7) sont celles des réponses entières d'un jeu de requêtes fixé, chacune le SHA-256 de son JSON : après chaque geste, une annulation et une écriture refusée, l'index tenu et un index neuf, bâti à l'appel, rendent les mêmes, et le fonds rouvert, qui le rebâtit, rend celles d'avant sa réouverture | Un dérivé dépend d'un état non stocké, ou un contenu décidé s'est logé dans un cache |
 | 2 | **Aller-retour du miroir** : documents → miroir → documents, comparer leurs teneurs (§ 2.6) | Le miroir perd une information |
 | 3 | **Convergence** : trois répliques, opérations concurrentes aléatoires, synchronisation dans un ordre aléatoire | Les répliques divergent ; ou un conflit de texte, d'accord, de hauteur ou d'attribut est fusionné, ou perdu, au lieu d'être présenté « à trancher » |
-| 4 | **Captations** : l'empreinte de chaque objet égale son nom ; aucun objet modifié après écriture ; couper l'écriture à chaque étape ; renommage perdu après la réponse : la captation nommée par un document prend son nom au démarrage | Corruption ou réécriture ; ou une captation nommée a un contenu qui trahit son nom ; ou une captation qu'un document nomme manque ; ou, au démarrage, un nom provisoire de `captations/` est retiré |
+| 4 | **Captations** : l'empreinte de chaque objet égale son nom ; aucun objet modifié après écriture ; couper l'écriture à chaque étape, par octets comme dans la copie en flux d'un fichier versé (§ 6.1), entre deux tronçons compris ; renommage perdu après la réponse : la captation nommée par un document, une prise, un stem ou son MIDI, un manifeste ou un rapport d'import, prend son nom au démarrage | Corruption ou réécriture ; ou une captation nommée a un contenu qui trahit son nom ; ou une captation qu'un document nomme manque ; ou, au démarrage, un nom provisoire de `captations/` est retiré |
 | 5 | **Aucune éviction prématurée** : couper le nœud, capter, purger le cache | Une captation non accusée disparaît |
 | 6 | **Restauration** : la procédure du § 9, chaque semaine sur le nœud, chaque nuit en CI sur un jeu de test | Un seul de ses contrôles échoue |
 | 7 | **Rien d'engendré dans les documents** : chercher les champs interdits du [§ 30 · 13](30-modele-de-domaine.md#13-ce-que-le-modèle-interdit-de-stocker) | Un champ engendré est stocké |
@@ -1083,5 +1108,5 @@ pupitre-archive-AAAA-MM-JJ/               un dossier, écrit sous un nom proviso
 | 10 | **Version de schéma** : ouvrir un document de version de schéma N + 1 avec une application qui ne connaît que la version de schéma N ; la copie plus récente reçoit, et ne transmet aucune modification ; une copie entière qui reçoit la version de schéma N + 1 passe en lecture seule ; une copie plus récente relue du disque le reste ; deux copies plus récentes ne s'échangent aucune modification, et leur échange finit ; migrer deux répliques chacune de son côté, puis les fusionner ; après la migration, deux répliques écrivent hors ligne, chacune de son côté, un élément différent de la donnée nouvelle d'un même objet ancien (deux clés `<objet>/<élément>`) | Une opération s'applique au document plus récent, son refus ne se nomme pas, une captation est refusée, ou une modification part du document plus récent ; ou une copie entière écrit après avoir reçu une version de schéma plus récente, ou une copie plus récente après s'être relue du disque ; ou l'échange de deux copies plus récentes ne finit pas ; ou la migration paraît deux fois ; ou l'un des deux éléments sort de la vue |
 | 11 | **Genèse et teneur figées** : comparer les octets de chaque genèse, la teneur de deux documents témoins, l'un ordinaire, l'autre qui porte une valeur de chaque type que la teneur écrit, et les octets du manifeste et du rapport d'import témoins ([§ 30 · 9.2](30-modele-de-domaine.md#92-prises-photos-et-analyses)), rebâtis par les règles du noyau, à leurs empreintes de référence, que `crates/stockage/tests/references.rs` est seul à écrire ; le test ne lit aucune étiquette de git, que la CI ne récupère pas. Avant l'étiquette qui les publie, une PR qui change la genèse, l'écriture de la teneur, ou la forme du manifeste ou du rapport y met les nouvelles. Dès elle, ces empreintes ne changent plus : une PR qui en change une est refusée, et le plan du lot 1 dit par quelle porte. Et deux documents qui ne diffèrent que par leur lignée ont la même teneur | L'une de ces empreintes a changé ; ou deux documents qui ne diffèrent que par leur lignée ont des teneurs différentes |
 | 12 | **Lignée** : présenter à la synchronisation une copie et le même document reconstruit depuis le miroir | Les deux fusionnent, ou la copie remplacée n'est pas gardée à part, intacte, ou le document reconstruit n'a pas la teneur de la copie qu'il remplace |
-| 13 | **Fonds de mesure** : 2 000 idées, 200 octets de texte en moyenne, chaque texte écrit trois fois, trois étiquettes et un lien par idée, cinq opérations par idée ; 6 000 prises avec toutes leurs métadonnées ([§ 30 · 9.2](30-modele-de-domaine.md#92-prises-photos-et-analyses)), dont 100 prises en stems de douze stems, chaque stem avec son MIDI versé, soit 2 400 captations de plus, sans audio, et chaque nom d'origine de 80 octets en moyenne, chemin compris ; un acteur par ouverture, 3 000 en tout ; engendrées à l'exécution | Son fichier complet passe 4,5 Mo |
+| 13 | **Fonds de mesure** : 2 000 idées visibles, 200 octets de texte en moyenne, chaque texte écrit trois fois, trois étiquettes et un lien par idée ; 6 000 idées importées, dont 4 000 retirées par regroupement, par vingt imports, chacun avec son rapport ; dont 100 prises en stems de douze stems, chacun avec son MIDI, et leur manifeste ; chaque fait d'en-tête, chaque nom d'origine de 80 octets en moyenne, chemin compris ; des origines déclarées, une moitié générée, dont cinquante sous deux noms ; un acteur toutes les sept opérations, 3 000 au moins ; la date, l'appareil et le diapason mesuré absents, jusqu'à l'opération qui les écrit ; engendrées à l'exécution | Son fichier complet pèse 4 500 000 octets ou plus, ou une compaction de 101 fichiers d'ajout passe 2 s en `--release` |
 | 14 | **Archive complète** : l'exporter, la réimporter dans un Pupitre neuf ; lancer un Pupitre neuf et l'ouvrir sans aucun geste, puis y réimporter l'archive ; la réimporter dans un Pupitre qui a déjà un fonds ; abîmer un fichier d'ajout et repartir de l'archive ; repartir de l'archive alors qu'un autre processus tient ouvert un fichier de la racine abîmée ; refuser le premier geste d'un Pupitre neuf, puis y réimporter l'archive ; exporter deux fois le même jour ; exporter vers un support trop petit | Une teneur ou le journal diffère, une captation manque ou trahit son empreinte ; ou le Pupitre seulement ouvert refuse l'archive ; ou la réimportation dans un Pupitre qui a déjà un fonds écrit quoi que ce soit ; ou la racine des données abîmée n'est pas gardée à part, octet pour octet, ou la teneur reprise diffère de celle de l'archive ; ou une reprise dont le renommage échoue écrit quoi que ce soit, ou ne le dit pas ; ou, après un premier geste refusé, l'archive est refusée ; ou deux exports le même jour ne donnent pas deux archives ; ou l'export vers un support trop petit écrit quoi que ce soit, ou ne dit pas ce qui manque |

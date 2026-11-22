@@ -5,7 +5,10 @@
 //! `Documents`, et rend la réponse aux types de `commandes`. `application` applique les
 //! changements que le noyau calcule ; `lecture` tire du document le fonds lu, et l'arbre de sa
 //! teneur, que le noyau reçoit ; `mesure` engendre le fonds de mesure (§ 31 · 10, test 13) par
-//! les seules opérations de `Services`.
+//! les seules opérations de `Services`. Le troisième contrat, la source à verser (`Source`), a
+//! sa réalisation en mémoire dans `source_en_memoire`, hors de la fonction `en-memoire` : le
+//! générateur du fonds de mesure l'emploie. `etat_de_l_import` tient l'état d'un import : ce que
+//! l'inspection a lu de la source, puis l'import ouvert, et les conversions de ses types.
 //!
 //! La fonction `en-memoire`, que seuls les tests demandent, compile le module `en_memoire`, la
 //! paire d'adaptateurs en mémoire.
@@ -14,29 +17,46 @@ pub mod application;
 mod contrats;
 #[cfg(feature = "en-memoire")]
 pub mod en_memoire;
+mod etat_de_l_import;
 pub mod lecture;
 pub mod mesure;
+pub mod source_en_memoire;
 
 pub use commandes::{Raison, Refus};
-pub use contrats::{Alea, Captations, Documents, Ecriture, FONDS_NON_NE};
+pub use contrats::{
+    Alea, Captations, Documents, Ecriture, Entree, FONDS_NON_NE, SorteDEntree, Source, Versement,
+    l_entree, le_fichier,
+};
 
 use std::cell::RefCell;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use automerge::{Automerge, ChangeHash};
 use commandes::{
-    Captation, Completer, Enregistrer, EntreeDuJournal, EtatDuFonds, Etiqueter, FENETRE_MAX, Faite,
-    Fenetre, LONGUEUR_D_UNE_LIGNE, LigneDeLaBoite, Notee, Noter, Regrouper, Relier, Renommer,
-    Reponse, RequeteEnregistree, Supprimer, Viser, VueDUneIdee, VueDeLaBoite, VueDesRetirees,
-    VueDuJournal,
+    Captation, CaptationVue, ChoisirLeType, CloreLImport, Completer, DeclarerUneOrigine,
+    ENTIER_SUR, Enregistrer, EntreeDuJournal, EtatDuFonds, Etiqueter, FENETRE_MAX, Faite, Fenetre,
+    FichierVerse, ImportClos, Inspection, Issue, LONGUEUR_D_UNE_LIGNE, LigneDeLaBoite,
+    LireUnRapport, MidiVu, Notee, Noter, OuvrirLImport, Portee, RapportDImport, Regrouper, Relier,
+    Renommer, Reponse, RequeteEnregistree, StemVu, Supprimer, TexteLu, TypeVu, VerserUnFichier,
+    VerserUnePriseEnStems, Viser, VueDUneIdee, VueDeLaBoite, VueDesRetirees, VueDuJournal,
 };
 use noyau::donnees::boite::{self, EnBoite};
 use noyau::donnees::changement::Operation;
+use noyau::donnees::demarrage::copies_a_retirer;
+use noyau::donnees::entete;
+use noyau::donnees::fonds::MIDI_VERSES;
 use noyau::donnees::gestes::{self, CaptationLue, GesteDeTri, IdeeLue, Impossible};
 use noyau::donnees::identifiants::{ulid, uuid_v4};
+use noyau::donnees::import::{self, MidiDuStem, StemAVerser};
 use noyau::donnees::index::{self, Index};
 use noyau::donnees::journal;
+use noyau::donnees::origine;
+use noyau::donnees::rapport::{self, FichierDeLImport};
 use noyau::donnees::requete;
+use noyau::donnees::stems;
+
+use etat_de_l_import::{Donne, EtatDeLImport, FluxControle, InspectionGardee};
+use lecture::{ProvenanceDuType, StemLu, TypeLu};
 
 /// Ce que le côté natif donne à une commande qui écrit : l'heure du geste et l'aléa, des
 /// arguments, jamais l'horloge ni le hasard des services.
@@ -98,6 +118,15 @@ pub struct Services<D: Documents, C: Captations> {
     dernier_geste: Option<GesteDeTri>,
     /// L'index tenu, et les têtes du fonds dont il est bâti ; aucun à l'ouverture des services.
     index: RefCell<Option<(Vec<ChangeHash>, Index)>>,
+    /// La dernière inspection, gardée jusqu'à l'ouverture qui la reprend, ou jusqu'à une autre.
+    inspection: Option<InspectionGardee>,
+    /// L'import ouvert par ces services ; `None` hors d'un import.
+    import: Option<EtatDeLImport>,
+    /// Le dernier import clos, son ULID et sa table (`EtatDeLImport::table` : chemin → empreinte
+    /// de chaque fichier versé ou dédoublonné, et de la prise en stems de chaque jeu versé, sous
+    /// le chemin de son dossier), oubliés à l'inspection suivante (R6) : `Portee::Prefixe` se
+    /// résout sur elle, à la déclaration d'une origine, s'il nomme cet import.
+    dernier_clos: Option<(String, BTreeMap<String, String>)>,
 }
 
 impl<D: Documents, C: Captations> Services<D, C> {
@@ -110,6 +139,9 @@ impl<D: Documents, C: Captations> Services<D, C> {
             appareil,
             dernier_geste: None,
             index: RefCell::new(None),
+            inspection: None,
+            import: None,
+            dernier_clos: None,
         }
     }
 
@@ -372,10 +404,10 @@ impl<D: Documents, C: Captations> Services<D, C> {
     /// seule), puis la fiche, sous une idée qui naît avec elle (son ULID tiré) ; sans fonds, la
     /// naissance d'abord, comme `noter`. En lecture seule, la captation versée, le refus de
     /// `lecture_seule()`, tel quel, sans rien tirer ; une fiche déjà versée, ou que le noyau
-    /// refuse (`gestes::verser`) : `Raison::Impossible`, et rien ne s'écrit dans le fonds. Pas
-    /// encore une commande : l'import la recevra. Le décalage, celui du message (« Idée du … :
-    /// prise versée »), passe tel quel à `gestes::verser` ; l'import le recevra de sa commande.
-    /// Ne touche pas au dernier geste de tri.
+    /// refuse (`gestes::verser`) : `Raison::Impossible`, et rien ne s'écrit dans le fonds. La voie
+    /// d'une capture, qui verse toujours : l'import a ses propres commandes (`verser_un_fichier`).
+    /// Le décalage, celui du message (« Idée du … : prise versée »), passe tel quel à
+    /// `gestes::verser`. Ne touche pas au dernier geste de tri.
     pub fn verser_une_fiche(
         &mut self,
         sorte: gestes::Sorte,
@@ -440,13 +472,18 @@ impl<D: Documents, C: Captations> Services<D, C> {
     /// (§ 30 · 9.3), dans l'ordre de leurs octets, ses captations, son état de reliée
     /// (§ 30 · 9.1), sa durée (§ 30 · 9.2) et la date de son retrait. Les bouts de chaque lien,
     /// l'état de reliée et la durée, des seules prises, se tirent des règles du noyau
-    /// (`noyau::donnees::idee`). Sans fonds, ou sans idée qui se lise sous cet identifiant :
-    /// `Raison::Impossible`.
+    /// (`noyau::donnees::idee`). Chaque captation vue (`captation_vue`) : ses faits, ses noms vus,
+    /// son origine déclarée et ses stems. Sans fonds, ou sans idée qui se lise sous cet
+    /// identifiant : `Raison::Impossible`.
     pub fn vue_d_une_idee(&self, idee: &str) -> Reponse<VueDUneIdee> {
         let fonds = self.documents.fonds().ok_or_else(|| idee_absente(idee))?;
         let lue = lecture::lire_l_idee(fonds, idee).ok_or_else(|| idee_absente(idee))?;
         let captations = lecture::captations_de(fonds, idee);
         let duree_ms = duree_des_prises(&captations);
+        let captations_vues = captations
+            .iter()
+            .map(|captation| captation_vue(fonds, captation))
+            .collect();
         let mut liens: Vec<String> = lue
             .liens
             .iter()
@@ -475,6 +512,7 @@ impl<D: Documents, C: Captations> Services<D, C> {
             reliee,
             duree_ms,
             retiree: lue.retiree,
+            captations_vues,
         })
     }
 
@@ -526,7 +564,11 @@ impl<D: Documents, C: Captations> Services<D, C> {
     /// comme ailleurs.
     pub fn boite(&self, commande: &commandes::Boite) -> Reponse<VueDeLaBoite> {
         let Some(fonds) = self.documents.fonds() else {
-            return Ok(vue_de_la_boite(&Index::construire(Vec::new(), 0), commande));
+            return Ok(vue_de_la_boite(
+                &Index::construire(Vec::new(), 0),
+                commande,
+                None,
+            ));
         };
         let tetes = fonds.get_heads();
         let mut tenu = self.index.borrow_mut();
@@ -534,7 +576,7 @@ impl<D: Documents, C: Captations> Services<D, C> {
             *tenu = None;
         }
         let (_, l_index) = tenu.get_or_insert_with(|| (tetes, index_du_fonds(fonds)));
-        Ok(vue_de_la_boite(l_index, commande))
+        Ok(vue_de_la_boite(l_index, commande, Some(fonds)))
     }
 
     /// La même réponse que `boite`, d'un index neuf, bâti à l'appel du fonds lu, sans l'index
@@ -543,11 +585,9 @@ impl<D: Documents, C: Captations> Services<D, C> {
     /// `Index::construire` ou d'`Index::repondre` se voit aux tests du noyau. Sans fonds, un index
     /// vide. Ne touche pas à l'index tenu.
     pub fn boite_sans_index(&self, commande: &commandes::Boite) -> Reponse<VueDeLaBoite> {
-        let l_index = self
-            .documents
-            .fonds()
-            .map_or_else(|| Index::construire(Vec::new(), 0), index_du_fonds);
-        Ok(vue_de_la_boite(&l_index, commande))
+        let fonds = self.documents.fonds();
+        let l_index = fonds.map_or_else(|| Index::construire(Vec::new(), 0), index_du_fonds);
+        Ok(vue_de_la_boite(&l_index, commande, fonds))
     }
 
     /// Les requêtes enregistrées du fonds, chacune qui a un nom (`lecture::requetes_enregistrees`),
@@ -576,28 +616,944 @@ impl<D: Documents, C: Captations> Services<D, C> {
     /// retirée d'abord, leur nombre, et la fenêtre de leurs lignes, comme celle de la boîte. Sans
     /// fonds : aucune. En lecture seule comme ailleurs.
     pub fn retirees(&self, commande: &Fenetre) -> Reponse<VueDesRetirees> {
-        let (idees, _) = self.documents.fonds().map(en_boite).unwrap_or_default();
+        let fonds = self.documents.fonds();
+        let (idees, _) = fonds.map(en_boite).unwrap_or_default();
         let rangees = boite::retirees(idees);
         Ok(VueDesRetirees {
             total: compte(rangees.len()),
-            lignes: fenetre(rangees, commande.debut, commande.nombre),
+            lignes: fenetre(rangees, commande.debut, commande.nombre, fonds),
         })
     }
 
     /// L'état du fonds : né ou non (`documents.fonds().is_some()`), la lecture seule
-    /// (`documents.lecture_seule()`), ses avertissements (`documents.avertissements()`), et le
-    /// message de l'opération du dernier geste de tri, celui qu'annuler défait. En lecture seule
-    /// comme ailleurs.
+    /// (`documents.lecture_seule()`), ses avertissements (`documents.avertissements()`), puis
+    /// `IMPORT_RESTE_OUVERT` si le fonds porte un import ouvert, sans rapport (`lecture::imports`),
+    /// que ces services ne conduisent pas (question 2) ; et le message de l'opération du dernier
+    /// geste de tri, celui qu'annuler défait. En lecture seule comme ailleurs.
     pub fn etat_du_fonds(&self) -> Reponse<EtatDuFonds> {
+        let mut avertissements = self.documents.avertissements();
+        let conduit = self.import.as_ref().map(|etat| etat.import.as_str());
+        let reste_ouvert = self.documents.fonds().is_some_and(|fonds| {
+            lecture::imports(fonds)
+                .iter()
+                .any(|lu| lu.rapport.is_none() && Some(lu.import.as_str()) != conduit)
+        });
+        if reste_ouvert {
+            avertissements.push(IMPORT_RESTE_OUVERT.to_string());
+        }
         Ok(EtatDuFonds {
             ne: self.documents.fonds().is_some(),
             lecture_seule: self.documents.lecture_seule(),
-            avertissements: self.documents.avertissements(),
+            avertissements,
             a_annuler: self
                 .dernier_geste
                 .as_ref()
                 .map(|geste| geste.operation.message.clone()),
         })
+    }
+
+    /// Inspecte `source` sans rien écrire : refusée en lecture seule, du refus de
+    /// `lecture_seule()`. Chaque fichier lu de `SIGNATURE_AU_PLUS` octets
+    /// (`signature::reconnaitre`) ; une étiquette ID3, de quatre de plus à sa suite
+    /// (`signature::apres_id3`) ; un WAV, de `ENTETE_AU_PLUS` (`entete::faits_wav`) ; un lien, un
+    /// ignoré, jamais au-delà (`etat_de_l_import::lire_les_fichiers`). Une lecture refusée arrête
+    /// l'inspection et nomme le fichier, de `Raison::Disque` : « « x.wav » ne se lit pas :
+    /// <erreur>. », sans nom « Le fichier n° <rang> ne se lit pas : <erreur>. » (question 38).
+    /// L'empreinte d'un fichier audio, MIDI ou texte ne se calcule que si sa taille est dans
+    /// `Captations::tailles` (question 8) ; connu, si le fonds le nomme. La taille à verser, ses
+    /// fichiers, le poids du fichier complet (`Automerge::save`, 0 sans fonds) et `place_libre` :
+    /// `rapport::place`, en entiers ; le manque, son texte (`rapport::ManqueDePlace`) ; la taille à
+    /// verser et la place libre rendues, bornées à `ENTIER_SUR` (balayage Q6). Chaque dossier : ses
+    /// fichiers audio, le jeu proposé (`stems::jeu_propose`, sur les tailles et les en-têtes lus,
+    /// sans empreinte ; question 37), la déclaration reproposée
+    /// (`lecture::dernieres_declarations`). La reprise (question 2 ; R2) : l'import ouvert dont au
+    /// moins un nom de fichier est posé (`lecture::noms_poses_par`), dont chaque nom de fichier est
+    /// le chemin d'une entrée de la source, et chaque nom de prise en stems le préfixe, par
+    /// segments entiers (`<nom>/`), d'une entrée, ou `nom_du_dossier`
+    /// (`etat_de_l_import::reprend`) ; elle rend les déclarations de son ouverture
+    /// (`lecture::declarations_de`). Un import ouvert que la source ne reprend pas :
+    /// `ouvert_ailleurs` (question 35). L'inspection se garde dans les services, avec la marque de
+    /// dernière écriture de chaque entrée et chaque empreinte calculée, jusqu'à l'ouverture ou à
+    /// une autre ; elle oublie l'inspection d'avant, l'état d'un import ouvert par ces services
+    /// (rechoisir son dossier le reprend), et la table du dernier import clos (R6).
+    pub fn inspecter<S: Source>(&mut self, source: &S, place_libre: u64) -> Reponse<Inspection> {
+        if let Some(refus) = self.documents.lecture_seule() {
+            return Err(refus);
+        }
+        self.inspection = None;
+        self.import = None;
+        self.dernier_clos = None;
+        let tailles = self.captations.tailles()?;
+        let fonds = self.documents.fonds();
+        let nommees = fonds.map(lecture::empreintes_nommees).unwrap_or_default();
+        let fichiers = etat_de_l_import::lire_les_fichiers(source, &tailles, &nommees)?;
+        let mut reprise = None;
+        let mut a_clore = Vec::new();
+        if let Some(fonds) = fonds {
+            for ouvert in lecture::imports(fonds)
+                .into_iter()
+                .filter(|lu| lu.rapport.is_none())
+            {
+                let poses = lecture::noms_poses_par(fonds, &ouvert.import);
+                if reprise.is_none() && etat_de_l_import::reprend(source, &poses) {
+                    reprise = Some(ouvert.import);
+                } else {
+                    a_clore.push(ouvert.import);
+                }
+            }
+        }
+        let gardee = InspectionGardee::de(fichiers, reprise, a_clore);
+        let manque = gardee
+            .place(poids_du_fonds(fonds), place_libre)
+            .err()
+            .map(|manque| manque.to_string());
+        let dernieres = fonds
+            .map(lecture::dernieres_declarations)
+            .unwrap_or_default();
+        let declarations_reprises = match (fonds, &gardee.reprise) {
+            (Some(fonds), Some(import)) => etat_de_l_import::declarations_des_commandes(
+                &lecture::declarations_de(fonds, import),
+            ),
+            _ => Vec::new(),
+        };
+        let inspection = Inspection {
+            reprise: gardee.reprise.clone(),
+            nom_du_dossier: source.nom_du_dossier().map(str::to_string),
+            fichiers: gardee
+                .fichiers
+                .iter()
+                .map(etat_de_l_import::fichier_inspecte)
+                .collect(),
+            dossiers: etat_de_l_import::dossiers_inspectes(&gardee.fichiers, &dernieres),
+            a_verser: gardee.a_verser.min(ENTIER_SUR),
+            libre: place_libre.min(ENTIER_SUR),
+            manque,
+            generateurs: generateurs_du_fonds(fonds),
+            declarations_reprises,
+            ouvert_ailleurs: !gardee.a_clore.is_empty(),
+        };
+        self.inspection = Some(gardee);
+        Ok(inspection)
+    }
+
+    /// Ouvre l'import inspecté (question 15) : en lecture seule, le refus ; sans inspection,
+    /// « Aucun dossier n'est inspecté. » ; la place, de nouveau comparée, son manque en refus
+    /// (`Raison::Impossible`, le texte de `rapport::ManqueDePlace`) ; un dossier déclaré jeu de
+    /// stems (`stems`) sans fichier audio, `JeuSansAudio`. Chaque `DeclarationDUnDossier` se
+    /// traduit en `origine::Declaration` (`etat_de_l_import::declarations_du_noyau`) : `stems` tel
+    /// quel, `Aucune` en `None`, `Main` en `Some(Ajout::Main)`, `Generee { nom }` en
+    /// `Some(Ajout::Generee(nom))` ; une déclaration vide (`stems` faux, `Aucune`) n'écrit rien, et
+    /// s'ôte avant de comparer les déclarations d'un import repris ; deux entrées du même chemin,
+    /// la dernière l'emporte (balayage Q3). Les refus se disent avant toute écriture.
+    ///
+    /// Un import ouvert que la source ne reprend pas se clôt d'abord, une fois (question 35 ;
+    /// `clore_un_import_ouvert_ailleurs`) : une ouverture refusée après cette clôture garde
+    /// l'inspection, et la tentative suivante ne reclôt pas l'import que le fonds porte clos. Son
+    /// rapport se compte comme sa propre clôture l'aurait fait, par `rapport::comptes`, sur chaque
+    /// nom de fichier posé à son ULID, avec les connues lues à la tête de son ouverture, comme une
+    /// reprise (R7) ; seuls les ignorés et les sans nom restent à zéro, l'état qui les disait étant
+    /// perdu, et aucune origine changée ne s'y compte.
+    /// Neuf : l'ULID tiré, puis `import::ouvrir`, par `faire_naitre` dans un Pupitre neuf (la
+    /// naissance tirée d'abord, comme `noter`), sinon `appliquer` ; la tête qui suit, gardée.
+    /// Repris : rien ne s'écrit ; les déclarations sont celles de l'ouverture
+    /// (`lecture::declarations_de`), qu'une commande sans déclaration reprend telles quelles, et
+    /// une commande qui en porte d'autres est refusée, « Cet import reprend ses déclarations :
+    /// elles ne changent pas. » ; la tête de l'ouverture, retrouvée par l'opération qui a posé
+    /// `imports/<i>/ouvert` (`lecture::tete_de_l_ouverture`) ; chaque fichier dont un nom porte
+    /// l'ULID de l'import (`lecture::noms_poses_par`), compté de nouveau sans être relu,
+    /// illisible si sa captation n'a pas de `format`, ses octets ceux de son entrée (R7), et chaque
+    /// jeu dont la prise en stems est nommée, de son chemin ou du nom du dossier versé
+    /// (`Source::nom_du_dossier`), versé (`EtatDeLImport::reprendre`) ; puis ses copies non
+    /// nommées, retirées (`copies_a_retirer`, à la reprise). Les empreintes nommées, lues une fois
+    /// et gardées dans l'état de l'import (R26). Rend les rangs à verser, hors des jeux, et chaque
+    /// jeu avec les siens ; les avertissements des écritures, joints (`joindre`).
+    pub fn ouvrir_l_import<S: Source>(
+        &mut self,
+        source: &S,
+        commande: &OuvrirLImport,
+        place_libre: u64,
+        contexte: &mut Contexte<'_>,
+    ) -> Reponse<commandes::ImportOuvert> {
+        if let Some(refus) = self.documents.lecture_seule() {
+            return Err(refus);
+        }
+        let gardee = self
+            .inspection
+            .as_ref()
+            .ok_or_else(|| refus_de_l_import("Aucun dossier n'est inspecté."))?;
+        gardee
+            .place(poids_du_fonds(self.documents.fonds()), place_libre)
+            .map_err(|manque| refus_de_l_import(&manque.to_string()))?;
+        let reprise = gardee.reprise.clone();
+        let a_clore = gardee.a_clore.clone();
+        let demandees = etat_de_l_import::declarations_du_noyau(&commande.declarations);
+        let declarations = match (&reprise, self.documents.fonds()) {
+            (Some(import), Some(fonds)) => {
+                let de_l_ouverture: BTreeMap<String, origine::Declaration> =
+                    lecture::declarations_de(fonds, import)
+                        .into_iter()
+                        .filter(|(_, declaration)| *declaration != origine::Declaration::default())
+                        .collect();
+                if !demandees.is_empty() && demandees != de_l_ouverture {
+                    return Err(refus_de_l_import(
+                        "Cet import reprend ses déclarations : elles ne changent pas.",
+                    ));
+                }
+                de_l_ouverture
+            }
+            _ => demandees,
+        };
+        let jeux =
+            etat_de_l_import::jeux_de(&gardee.fichiers, &declarations).map_err(refus_impossible)?;
+        let neuf = match reprise {
+            Some(_) => None,
+            None => {
+                let naissance = self
+                    .documents
+                    .fonds()
+                    .is_none()
+                    .then(|| naissance_tiree(contexte));
+                let import = ulid_tire(contexte);
+                let ouverture = import::ouvrir(
+                    &import,
+                    &declarations,
+                    contexte.heure,
+                    commande.decalage_minutes,
+                )
+                .map_err(refus_impossible)?;
+                Some((naissance, import, ouverture))
+            }
+        };
+        let mut avertissement = None;
+        for ailleurs in &a_clore {
+            let averti = self.clore_un_import_ouvert_ailleurs(
+                ailleurs,
+                contexte.heure,
+                commande.decalage_minutes,
+            )?;
+            avertissement = joindre(avertissement, averti);
+        }
+        let (import, ouvert_le, tete, nommees, poses) = match (neuf, reprise) {
+            (Some((naissance, import, ouverture)), _) => {
+                let averti = match naissance {
+                    Some(naissance) => self.documents.faire_naitre(&naissance, &ouverture)?,
+                    None => self.documents.appliquer(&ouverture)?,
+                };
+                avertissement = joindre(avertissement, averti);
+                let fonds = self.documents.fonds().ok_or_else(fonds_non_ne)?;
+                let tete = fonds.get_heads();
+                let nommees = lecture::empreintes_nommees(fonds);
+                (import, contexte.heure, tete, nommees, None)
+            }
+            (None, Some(import)) => {
+                let fonds = self.documents.fonds().ok_or_else(fonds_non_ne)?;
+                let tete = lecture::tete_de_l_ouverture(fonds, &import);
+                let ouvert_le = lecture::imports(fonds)
+                    .into_iter()
+                    .find(|lu| lu.import == import)
+                    .map_or(contexte.heure, |lu| lu.ouvert_le);
+                let nommees = lecture::empreintes_nommees(fonds);
+                let poses = lecture::noms_poses_par(fonds, &import);
+                self.retirer_les_copies(&import, &nommees, false)?;
+                (import, ouvert_le, tete, nommees, Some(poses))
+            }
+            (None, None) => return Err(refus_de_l_import("Aucun dossier n'est inspecté.")),
+        };
+        let gardee = self
+            .inspection
+            .take()
+            .ok_or_else(|| refus_de_l_import("Aucun dossier n'est inspecté."))?;
+        let mut etat = EtatDeLImport::nouveau(
+            import,
+            ouvert_le,
+            tete,
+            declarations,
+            gardee.fichiers,
+            jeux,
+            nommees,
+        );
+        if let Some(poses) = &poses {
+            etat.reprendre(poses, source.nom_du_dossier());
+        }
+        let ouvert = commandes::ImportOuvert {
+            import: etat.import.clone(),
+            repris: poses.is_some(),
+            rangs: etat.rangs_hors_des_jeux(),
+            jeux: etat.jeux_a_verser(),
+            avertissement,
+        };
+        self.import = Some(etat);
+        Ok(ouvert)
+    }
+
+    /// Verse le fichier `rang` de l'import ouvert : un autre import, `AucunImportOuvert` ; en
+    /// lecture seule, le refus ; déjà compté, `Issue::DejaFait` ; un rang qui n'est pas un fichier
+    /// à verser, « Le dossier versé n'a pas de fichier n° <rang> à verser. ». Ses octets ou sa
+    /// marque de dernière écriture changés depuis l'inspection (`octets_actuels`,
+    /// `marque_actuelle`, lus avant la copie, puis `marque_actuelle` relue après), ses octets
+    /// copiés autres que ceux de l'inspection, ou son empreinte autre que celle qu'a calculée
+    /// l'inspection (passée en `attendue` à `verser_en_flux`, qui ne range rien en désaccord ;
+    /// R20) : `FichierChange` (question 14 ; R8). Une marque de dernière écriture absente ne
+    /// compare rien. Une lecture que la source refuse (`octets_actuels`, `marque_actuelle`,
+    /// `lire_en_flux`), un fichier déplacé ou tenu depuis l'inspection : le refus nomme le fichier,
+    /// comme à l'inspection (`etat_de_l_import::ne_se_lit_pas` ; question 38). La copie en flux,
+    /// sous `import::nom_de_la_copie`, le flux contrôlé (ses octets comptés, un texte par
+    /// `ControleDuTexte` : `FluxControle`) ; ses faits, ceux de l'en-tête lu à l'inspection, ou
+    /// aucun (illisible : un en-tête qui ne se lit pas, un texte que le contrôle refuse). Un
+    /// fichier audio d'un jeu, et le MIDI d'un de ses stems (`stem_du_midi`) : la captation seule,
+    /// `Issue::Stem`. Sinon `import::verser_un_fichier`, son origine celle des déclarations
+    /// (`origine::declaration_du_fichier`), ce que le fonds en porte lu par `lecture::deja_lu`,
+    /// l'ULID de l'idée tiré pour un contenu neuf seulement ; `Issue::Verse` ou
+    /// `Issue::Dedoublonne` ; les empreintes nommées de l'état, tenues à jour.
+    pub fn verser_un_fichier<S: Source>(
+        &mut self,
+        source: &S,
+        commande: &VerserUnFichier,
+        contexte: &mut Contexte<'_>,
+    ) -> Reponse<FichierVerse> {
+        let mut etat = self.prendre_l_import(&commande.import)?;
+        let verse = self.verser_dans_l_import(&mut etat, source, commande, contexte);
+        self.import = Some(etat);
+        verse
+    }
+
+    /// Verse la prise en stems du jeu `dossier`, chacun de ses stems déjà copié (sinon « Les stems
+    /// de ce jeu ne sont pas tous versés. ») ; un dossier qui n'est pas un jeu de l'import, « Ce
+    /// dossier n'est pas un jeu de stems de cet import. » ; un jeu déjà versé, fait, sans rien
+    /// écrire. Le manifeste (`rapport::manifeste`) par `Captations::verser`, puis
+    /// `import::verser_une_prise_en_stems`, son nom le chemin du dossier, ou
+    /// `Source::nom_du_dossier` pour le dossier versé ; sans nom en UTF-8, aucun, et aucune ligne
+    /// `fichier-sans-nom` au rapport, qui ne nomme que le rang d'un fichier (R23) ; son origine,
+    /// celle que les déclarations donnent à ses stems. Ce que le fonds porte déjà de la prise se
+    /// lit par `lecture::deja_de_la_prise`, les liens `prises/<p>/stem/<s>/midi/<m>` déjà posés
+    /// compris : une prise connue, réimportée avec un MIDI nouveau d'un stem, reçoit son lien et
+    /// ses faits (revue de la tâche 6). L'ULID de l'idée, tiré pour une prise neuve seulement.
+    pub fn verser_une_prise_en_stems<S: Source>(
+        &mut self,
+        source: &S,
+        commande: &VerserUnePriseEnStems,
+        contexte: &mut Contexte<'_>,
+    ) -> Reponse<Faite> {
+        let mut etat = self.prendre_l_import(&commande.import)?;
+        let faite = self.verser_le_jeu(&mut etat, source, commande, contexte);
+        self.import = Some(etat);
+        faite
+    }
+
+    /// Clôt l'import, chaque fichier et chaque jeu versés (sinon « Des fichiers restent à
+    /// verser. ») : le rapport (`rapport::rapport`), les connues lues à la tête de l'ouverture
+    /// (`lecture::empreintes_nommees_a`), chaque origine changée par comparaison
+    /// d'`origines_a` et d'`origines_de` (`etat_de_l_import::origines_changees`) ; relu
+    /// (`rapport::lire_le_rapport`), il donne le rapport rendu, ses octets bornés à `ENTIER_SUR` ;
+    /// versé par `Captations::verser` ; `import::clore` ; chaque copie de l'import retirée
+    /// (`copies_a_retirer`, à la clôture) : un retrait refusé ne défait pas la clôture écrite, qui
+    /// est faite, son refus joint à l'avertissement rendu (`joindre`), la copie restée dans
+    /// `captations/`. L'état de l'import oublié, les services gardent son
+    /// ULID et sa table (`EtatDeLImport::table` : chemin → empreinte de chaque fichier versé ou
+    /// dédoublonné, et de la prise en stems de chaque jeu, sous le chemin de son dossier),
+    /// jusqu'à l'inspection suivante : `Portee::Prefixe` se résout sur elle (R6 ;
+    /// `declarer_une_origine`). La source n'est pas relue. Refusé avant d'écrire, l'import reste
+    /// ouvert.
+    pub fn clore_l_import<S: Source>(
+        &mut self,
+        _source: &S,
+        commande: &CloreLImport,
+        contexte: &mut Contexte<'_>,
+    ) -> Reponse<ImportClos> {
+        let etat = self.prendre_l_import(&commande.import)?;
+        let clos = match self.ecrire_la_cloture(&etat, commande, contexte) {
+            Ok(clos) => clos,
+            Err(refus) => {
+                self.import = Some(etat);
+                return Err(refus);
+            }
+        };
+        self.dernier_clos = Some((etat.import.clone(), etat.table()));
+        let retrait = self
+            .retirer_les_copies(&etat.import, &BTreeSet::new(), true)
+            .err();
+        Ok(ImportClos {
+            avertissement: joindre(clos.avertissement, retrait.map(|refus| refus.message)),
+            ..clos
+        })
+    }
+
+    /// Déclare une origine après l'import (question 22) : sur la captation de
+    /// `Portee::Captation`, que le fonds porte sous sa sorte ; ou sur les captations dont un chemin
+    /// de la table du dernier import clos (chemin → empreinte, gardée par `clore_l_import`
+    /// jusqu'à l'inspection suivante ; R6), la prise en stems d'un jeu sous le chemin de son
+    /// dossier (CAP-03 ; ADR-024, § 3), est sous le préfixe de `Portee::Prefixe`
+    /// (`origine::sous_le_prefixe`, par segments entiers ; balayage Q13), l'import qu'il nomme
+    /// étant celui de la table, sinon « Ce dossier n'est plus inspecté. ». En lecture seule, le
+    /// refus de `lecture_seule()`, tel quel ; une captation que le fonds ne porte pas,
+    /// `Impossible::CaptationAbsente` ; un préfixe sans cible, « Ce dossier n'a aucune captation
+    /// versée par cet import. ». Chaque cible, une fois, avec ses origines
+    /// (`lecture::origines_de`), passe à `import::declarer_une_origine`, à l'heure du contexte ; la
+    /// portée du message, la captation nommée par `captation_nommee`, ou le préfixe suivi d'une
+    /// barre `/`, qu'il en porte une ou non (« « Démos/ » »). L'opération, s'il y en a une, par
+    /// `Documents::appliquer`.
+    /// L'avertissement « L'origine reste générée : une origine déclarée ne se retire pas. » dès
+    /// qu'une cible générée est gardée (`generees_gardees` > 0), l'opération faite pour les autres
+    /// cibles, s'il y en a (V9), suivi de celui de l'écriture, s'il y en a un (`joindre`) ; une
+    /// origine déjà portée par chaque cible : `Faite { avertissement: None }`, sans opération
+    /// (R16). Ne tire rien de l'aléa ; ne touche pas au dernier geste de tri.
+    pub fn declarer_une_origine(
+        &mut self,
+        commande: &DeclarerUneOrigine,
+        contexte: &mut Contexte<'_>,
+    ) -> Reponse<Faite> {
+        if let Some(refus) = self.documents.lecture_seule() {
+            return Err(refus);
+        }
+        let (cibles, portee) = self.cibles_de(&commande.portee)?;
+        let fonds = self.documents.fonds().ok_or_else(fonds_non_ne)?;
+        let origines: Vec<origine::OriginesLues> = cibles
+            .keys()
+            .map(|empreinte| lecture::origines_de(fonds, empreinte))
+            .collect();
+        let cibles_du_noyau: Vec<import::Cible<'_>> = cibles
+            .iter()
+            .zip(&origines)
+            .map(|((empreinte, nommee), origines)| import::Cible {
+                empreinte: empreinte.as_str(),
+                origines,
+                nommee: nommee.as_str(),
+            })
+            .collect();
+        let declaree = import::declarer_une_origine(
+            &cibles_du_noyau,
+            etat_de_l_import::ajout_du_noyau(&commande.origine).as_ref(),
+            &portee,
+            contexte.heure,
+        )
+        .map_err(refus_impossible)?;
+        let gardee = (declaree.generees_gardees > 0).then(|| ORIGINE_GARDEE.to_string());
+        let ecrite = match &declaree.operation {
+            Some(operation) => self.documents.appliquer(operation)?,
+            None => None,
+        };
+        Ok(Faite {
+            avertissement: joindre(gardee, ecrite),
+        })
+    }
+
+    /// Choisit le type d'un stem, ou garde celui qui est proposé (question 18) : en lecture seule,
+    /// le refus de `lecture_seule()`, tel quel ; le stem `commande.stem` de la prise
+    /// `commande.prise`, lu par `lecture::stems_de` (sans fonds, ou sans ce stem sous la prise,
+    /// `import::choisir_le_type` le refuse, `Impossible::StemAbsent`) ; la proposition,
+    /// `stems::type_propose` de son premier nom vu, celui que montre la vue (`noms_vus`, sur les
+    /// noms de son entrée dans la prise), qui le nomme aussi dans le message ; puis
+    /// `import::choisir_le_type`, à l'heure du contexte, et `Documents::appliquer`. Ne tire rien
+    /// de l'aléa ; ne touche pas au dernier geste de tri.
+    pub fn choisir_le_type_d_un_stem(
+        &mut self,
+        commande: &ChoisirLeType,
+        contexte: &mut Contexte<'_>,
+    ) -> Reponse<Faite> {
+        if let Some(refus) = self.documents.lecture_seule() {
+            return Err(refus);
+        }
+        let noms = self
+            .documents
+            .fonds()
+            .and_then(|fonds| {
+                lecture::stems_de(fonds, &commande.prise)
+                    .into_iter()
+                    .find(|stem| stem.empreinte == commande.stem)
+            })
+            .map(|stem| noms_vus(stem.noms));
+        let premier = noms
+            .as_ref()
+            .and_then(|noms| noms.first())
+            .map(String::as_str);
+        let operation = import::choisir_le_type(
+            &commande.prise,
+            &commande.stem,
+            noms.is_some(),
+            stems::type_propose(premier),
+            choix_du_noyau(&commande.choix),
+            premier,
+            contexte.heure,
+        )
+        .map_err(refus_impossible)?;
+        let avertissement = self.documents.appliquer(&operation)?;
+        Ok(Faite { avertissement })
+    }
+
+    /// Le texte versé `commande`, relu par `Captations::relire`, qui le relit contre son
+    /// empreinte, puis décodé par la règle du noyau, `entete::decoder_le_texte`, jamais par un
+    /// second décodeur dans les services (balayage Q9) ; illisible, `None`. Une captation d'une
+    /// autre sorte, ou que le fonds ne porte pas sous `textes_verses` :
+    /// `Impossible::CaptationAbsente`. Une lecture : en lecture seule comme ailleurs.
+    pub fn lire_un_texte_verse(&self, commande: &Captation) -> Reponse<TexteLu> {
+        let absente = || captation_absente(&commande.empreinte);
+        let fonds = self.documents.fonds().ok_or_else(absente)?;
+        let versee = commande.sorte == commandes::Sorte::TexteVerse
+            && lecture::lire_la_captation(fonds, gestes::Sorte::TexteVerse, &commande.empreinte)
+                .is_some();
+        if !versee {
+            return Err(absente());
+        }
+        let octets = self.captations.relire(&commande.empreinte)?;
+        Ok(TexteLu {
+            texte: entete::decoder_le_texte(&octets),
+        })
+    }
+
+    /// Le rapport de l'import `commande.import`, l'empreinte que porte `imports/<i>/rapport`
+    /// (`lecture::imports`), relu par `Captations::relire`, qui le relit contre son empreinte ; un
+    /// import que le fonds ne porte pas, ou qui n'est pas clos : « Cet import n'a pas de
+    /// rapport. ». Ses comptes se lisent par la règle du noyau, `rapport::lire_le_rapport`, jamais
+    /// par un second lecteur de ses lignes dans les services (balayage P14) ; `None` (une autre
+    /// version, une ligne manquante ou mal formée) : `Raison::Illisible`, « Ce rapport vient d'une
+    /// version plus récente. ». Rendu aux types des commandes, ses octets bornés à `ENTIER_SUR`
+    /// (`etat_de_l_import::rapport_des_commandes`). En lecture seule comme ailleurs.
+    pub fn lire_un_rapport(&self, commande: &LireUnRapport) -> Reponse<RapportDImport> {
+        let empreinte = self
+            .documents
+            .fonds()
+            .and_then(|fonds| {
+                lecture::imports(fonds)
+                    .into_iter()
+                    .find(|lu| lu.import == commande.import)
+            })
+            .and_then(|lu| lu.rapport)
+            .ok_or_else(|| refus_de_l_import("Cet import n'a pas de rapport."))?;
+        let octets = self.captations.relire(&empreinte)?;
+        let lu = rapport::lire_le_rapport(&octets).ok_or_else(|| Refus {
+            raison: Raison::Illisible,
+            message: "Ce rapport vient d'une version plus récente.".to_string(),
+        })?;
+        Ok(etat_de_l_import::rapport_des_commandes(&lu))
+    }
+
+    /// Les noms de générateurs du fonds (question 22 : l'écran les offre, sans normaliser), ceux
+    /// des origines déclarées et ceux des déclarations des imports, chacun une fois, dans l'ordre
+    /// de leurs octets (`generateurs_du_fonds`) ; sans fonds, aucun. En lecture seule comme
+    /// ailleurs.
+    pub fn generateurs(&self) -> Reponse<Vec<String>> {
+        Ok(generateurs_du_fonds(self.documents.fonds()))
+    }
+
+    /// Les cibles d'une déclaration d'origine de portée `portee`, chacune une fois, sous son
+    /// empreinte, avec ce qui la nomme, et la portée du message (voir `declarer_une_origine`) :
+    /// une captation, nommée par `captation_nommee` ; les captations de la table du dernier import
+    /// clos sous le préfixe, fichiers et prises en stems, chacune nommée par le premier de ses
+    /// chemins, entre guillemets. Les refus : une captation que le fonds ne porte pas,
+    /// `Impossible::CaptationAbsente` ; un préfixe d'un autre import que le dernier clos, ou sans
+    /// lui, « Ce dossier n'est plus inspecté. » ; un préfixe qui ne prend aucune captation de la
+    /// table, un dossier de fichiers tous ignorés compris, « Ce dossier n'a aucune captation versée
+    /// par cet import. » (C8 de la revue de la PR (b)).
+    fn cibles_de(&self, portee: &Portee) -> Result<(BTreeMap<String, String>, String), Refus> {
+        match portee {
+            Portee::Captation(captation) => {
+                let sorte = sorte_du_noyau(&captation.sorte);
+                let empreinte = &captation.empreinte;
+                let fonds = self
+                    .documents
+                    .fonds()
+                    .filter(|fonds| lecture::lire_la_captation(fonds, sorte, empreinte).is_some())
+                    .ok_or_else(|| captation_absente(empreinte))?;
+                let nommee = captation_nommee(fonds, sorte, empreinte);
+                let cible = BTreeMap::from([(empreinte.clone(), nommee.clone())]);
+                Ok((cible, nommee))
+            }
+            Portee::Prefixe { import, prefixe } => {
+                let (_, table) = self
+                    .dernier_clos
+                    .as_ref()
+                    .filter(|(clos, _)| clos == import)
+                    .ok_or_else(|| refus_de_l_import(PLUS_INSPECTE))?;
+                let mut cibles = BTreeMap::new();
+                for (chemin, empreinte) in table {
+                    if origine::sous_le_prefixe(chemin, prefixe) {
+                        cibles
+                            .entry(empreinte.clone())
+                            .or_insert_with(|| format!("« {chemin} »"));
+                    }
+                }
+                if cibles.is_empty() {
+                    return Err(refus_de_l_import(DOSSIER_SANS_CAPTATION));
+                }
+                let dite = if prefixe.ends_with('/') {
+                    format!("« {prefixe} »")
+                } else {
+                    format!("« {prefixe}/ »")
+                };
+                Ok((cibles, dite))
+            }
+        }
+    }
+
+    /// L'état de l'import `import`, pris aux services, qui le reprennent après la commande ; un
+    /// autre import, ou aucun : `Impossible::AucunImportOuvert`.
+    fn prendre_l_import(&mut self, import: &str) -> Result<EtatDeLImport, Refus> {
+        match self.import.take() {
+            Some(etat) if etat.import == import => Ok(etat),
+            autre => {
+                self.import = autre;
+                Err(refus_impossible(Impossible::AucunImportOuvert))
+            }
+        }
+    }
+
+    /// Le versement du fichier de `commande` dans l'import `etat` (voir `verser_un_fichier`).
+    fn verser_dans_l_import<S: Source>(
+        &mut self,
+        etat: &mut EtatDeLImport,
+        source: &S,
+        commande: &VerserUnFichier,
+        contexte: &mut Contexte<'_>,
+    ) -> Reponse<FichierVerse> {
+        if let Some(refus) = self.documents.lecture_seule() {
+            return Err(refus);
+        }
+        let rang = commande.rang;
+        if etat.donnes.contains_key(&rang) {
+            return Ok(FichierVerse {
+                rang,
+                issue: Issue::DejaFait,
+                avertissement: None,
+            });
+        }
+        let (fichier, sorte) = etat
+            .fichier(rang)
+            .and_then(|fichier| fichier.sorte().map(|sorte| (fichier.clone(), sorte)))
+            .ok_or_else(|| {
+                refus_de_l_import(&format!(
+                    "Le dossier versé n'a pas de fichier n° {rang} à verser."
+                ))
+            })?;
+        let change = || {
+            refus_impossible(Impossible::FichierChange {
+                nom: fichier.chemin.clone(),
+                rang,
+            })
+        };
+        let illisible_ici = |refus: Refus| {
+            etat_de_l_import::ne_se_lit_pas(fichier.chemin.as_deref(), rang, &refus.message)
+        };
+        if source.octets_actuels(rang).map_err(illisible_ici)? != fichier.octets
+            || autre_marque(
+                fichier.marque,
+                source.marque_actuelle(rang).map_err(illisible_ici)?,
+            )
+        {
+            return Err(change());
+        }
+        let lu = source.lire_en_flux(rang).map_err(illisible_ici)?;
+        let mut flux = FluxControle::de(lu, fichier.texte());
+        let versement = self.captations.verser_en_flux(
+            &import::nom_de_la_copie(&etat.import, rang),
+            &mut flux,
+            fichier.empreinte.as_deref(),
+        )?;
+        let lisible = flux.lisible();
+        drop(flux);
+        if !versement.rangee
+            || versement.octets != fichier.octets
+            || autre_marque(
+                fichier.marque,
+                source.marque_actuelle(rang).map_err(illisible_ici)?,
+            )
+        {
+            return Err(change());
+        }
+        let faits = fichier.faits_de_la_copie(lisible);
+        let illisible = faits.is_none();
+        let faits = faits.unwrap_or_default();
+        let empreinte = versement.empreinte;
+        if etat.jeu_de(rang).is_some() {
+            etat.donnes.insert(
+                rang,
+                Donne::Stem {
+                    empreinte,
+                    faits,
+                    illisible,
+                },
+            );
+            return Ok(FichierVerse {
+                rang,
+                issue: Issue::Stem,
+                avertissement: None,
+            });
+        }
+        let fonds = self.documents.fonds().ok_or_else(fonds_non_ne)?;
+        let deja = lecture::deja_lu(fonds, sorte, &empreinte, &etat.nommees);
+        let declaree = fichier
+            .chemin
+            .as_deref()
+            .and_then(|chemin| origine::declaration_du_fichier(chemin, &etat.declarations).origine);
+        let idee = if deja.captation {
+            String::new()
+        } else {
+            ulid_tire(contexte)
+        };
+        let ouvert = import::ImportOuvert {
+            import: &etat.import,
+            ouvert_le: etat.ouvert_le,
+            par: self.appareil,
+        };
+        let operation = import::verser_un_fichier(
+            &ouvert,
+            sorte,
+            &empreinte,
+            &faits,
+            fichier.chemin.as_deref(),
+            declaree.as_ref(),
+            &deja,
+            &idee,
+            contexte.heure,
+            commande.decalage_minutes,
+        )
+        .map_err(refus_impossible)?;
+        let avertissement = match operation {
+            Some(operation) => self.documents.appliquer(&operation)?,
+            None => None,
+        };
+        let issue = if deja.captation {
+            Issue::Dedoublonne
+        } else {
+            Issue::Verse
+        };
+        etat.nommees.insert(empreinte.clone());
+        etat.donnes.insert(
+            rang,
+            Donne::Lu {
+                empreinte,
+                illisible,
+            },
+        );
+        Ok(FichierVerse {
+            rang,
+            issue,
+            avertissement,
+        })
+    }
+
+    /// La prise en stems du jeu de `commande`, dans l'import `etat` (voir
+    /// `verser_une_prise_en_stems`).
+    fn verser_le_jeu<S: Source>(
+        &mut self,
+        etat: &mut EtatDeLImport,
+        source: &S,
+        commande: &VerserUnePriseEnStems,
+        contexte: &mut Contexte<'_>,
+    ) -> Reponse<Faite> {
+        if let Some(refus) = self.documents.lecture_seule() {
+            return Err(refus);
+        }
+        let dossier = commande.dossier.as_str();
+        match etat.jeu_verse(dossier) {
+            None => {
+                return Err(refus_de_l_import(
+                    "Ce dossier n'est pas un jeu de stems de cet import.",
+                ));
+            }
+            Some(true) => {
+                return Ok(Faite {
+                    avertissement: None,
+                });
+            }
+            Some(false) => {}
+        }
+        let copies = etat
+            .stems_du_jeu(dossier)
+            .ok_or_else(|| refus_de_l_import("Les stems de ce jeu ne sont pas tous versés."))?;
+        let stems: Vec<&str> = copies
+            .iter()
+            .map(|(stem, _)| stem.empreinte.as_str())
+            .collect();
+        let midis: Vec<&str> = copies
+            .iter()
+            .filter_map(|(_, midi)| midi.as_ref())
+            .map(|midi| midi.empreinte.as_str())
+            .collect();
+        let manifeste = self.captations.verser(&rapport::manifeste(&stems))?;
+        let fonds = self.documents.fonds().ok_or_else(fonds_non_ne)?;
+        let deja = lecture::deja_de_la_prise(fonds, &manifeste, &stems, &midis);
+        let a_verser: Vec<StemAVerser<'_>> = copies
+            .iter()
+            .map(|(stem, midi)| StemAVerser {
+                empreinte: &stem.empreinte,
+                faits: &stem.faits,
+                chemin: stem.chemin.as_deref(),
+                midi: midi.as_ref().map(|midi| MidiDuStem {
+                    empreinte: &midi.empreinte,
+                    faits: &midi.faits,
+                    chemin: midi.chemin.as_deref(),
+                }),
+            })
+            .collect();
+        let nom = if dossier.is_empty() {
+            source.nom_du_dossier()
+        } else {
+            Some(dossier)
+        };
+        let declaree = copies
+            .first()
+            .and_then(|(stem, _)| stem.chemin.as_deref())
+            .and_then(|chemin| origine::declaration_du_fichier(chemin, &etat.declarations).origine);
+        let idee = if deja.prise.captation {
+            String::new()
+        } else {
+            ulid_tire(contexte)
+        };
+        let ouvert = import::ImportOuvert {
+            import: &etat.import,
+            ouvert_le: etat.ouvert_le,
+            par: self.appareil,
+        };
+        let operation = import::verser_une_prise_en_stems(
+            &ouvert,
+            &manifeste,
+            nom,
+            &a_verser,
+            declaree.as_ref(),
+            &deja,
+            &idee,
+            contexte.heure,
+            commande.decalage_minutes,
+        )
+        .map_err(refus_impossible)?;
+        let avertissement = match operation {
+            Some(operation) => self.documents.appliquer(&operation)?,
+            None => None,
+        };
+        etat.nommees.extend(
+            stems
+                .iter()
+                .chain(&midis)
+                .map(|empreinte| empreinte.to_string()),
+        );
+        etat.nommees.insert(manifeste);
+        etat.noter_le_jeu_verse(dossier);
+        Ok(Faite { avertissement })
+    }
+
+    /// La clôture de l'import `etat`, jusqu'à son écriture (voir `clore_l_import`).
+    fn ecrire_la_cloture(
+        &mut self,
+        etat: &EtatDeLImport,
+        commande: &CloreLImport,
+        contexte: &mut Contexte<'_>,
+    ) -> Reponse<ImportClos> {
+        if let Some(refus) = self.documents.lecture_seule() {
+            return Err(refus);
+        }
+        if !etat.tout_est_verse() {
+            return Err(refus_de_l_import("Des fichiers restent à verser."));
+        }
+        let fonds = self.documents.fonds().ok_or_else(fonds_non_ne)?;
+        let connues = lecture::empreintes_nommees_a(fonds, &etat.tete);
+        let origines: Vec<rapport::OrigineChangee> = etat
+            .empreintes_versees()
+            .iter()
+            .flat_map(|empreinte| etat_de_l_import::origines_changees(fonds, empreinte, &etat.tete))
+            .collect();
+        let octets = rapport::rapport(
+            &etat.import,
+            &etat.fichiers_du_rapport(),
+            &connues,
+            &origines,
+        );
+        let relu = rapport::lire_le_rapport(&octets).ok_or_else(|| Refus {
+            raison: Raison::Illisible,
+            message: "Le rapport de cet import ne se relit pas.".to_string(),
+        })?;
+        let empreinte = self.captations.verser(&octets)?;
+        let ouvert = import::ImportOuvert {
+            import: &etat.import,
+            ouvert_le: etat.ouvert_le,
+            par: self.appareil,
+        };
+        let avertissement = self.documents.appliquer(&import::clore(
+            &ouvert,
+            &empreinte,
+            contexte.heure,
+            commande.decalage_minutes,
+        ))?;
+        Ok(ImportClos {
+            rapport: etat_de_l_import::rapport_des_commandes(&relu),
+            avertissement,
+        })
+    }
+
+    /// Clôt l'import `import`, resté ouvert, que la source inspectée ne reprend pas (question 35),
+    /// une fois : un import que le fonds porte déjà clos, son rapport lu (`lecture::imports`), ne
+    /// se reclôt pas, et rien ne s'écrit ; de même d'un import qu'il ne porte pas. Son rapport se
+    /// compte comme sa propre clôture l'aurait fait, par la règle du noyau (`rapport::rapport`,
+    /// donc `rapport::comptes`), avec les connues lues à la tête de son ouverture
+    /// (`lecture::tete_de_l_ouverture`, puis `lecture::empreintes_nommees_a`), comme une reprise
+    /// (R7), sur chaque fichier nommé à son ULID (`lecture::noms_poses_par`), rangé dans l'ordre de
+    /// leurs chemins, ses octets ceux de sa captation (`Captations::taille`), illisible si sa
+    /// captation n'a pas de `format` : chacun vu ; le premier nom d'un contenu que le fonds ne
+    /// portait pas à l'ouverture, versé ; un contenu connu, ou qu'un autre nom du même import
+    /// désigne déjà, dédoublonné ; les illisibles parmi les versés. Ignorés et sans nom à zéro :
+    /// l'état qui les disait est perdu. Aucune ligne `origine=`. Versé par
+    /// `Captations::verser`, puis `import::clore`, « Import du <jour de son ouverture> clos », à
+    /// `heure` ; ses copies retirées (`copies_a_retirer`, à la clôture), un retrait refusé ne
+    /// défaisant pas la clôture écrite : son refus se joint à l'avertissement rendu (`joindre`).
+    /// Rend l'avertissement de l'écriture.
+    fn clore_un_import_ouvert_ailleurs(
+        &mut self,
+        import: &str,
+        heure: i64,
+        decalage_minutes: i32,
+    ) -> Result<Option<String>, Refus> {
+        let fonds = self.documents.fonds().ok_or_else(fonds_non_ne)?;
+        let ouvert_le = match lecture::imports(fonds)
+            .into_iter()
+            .find(|lu| lu.import == import)
+        {
+            Some(lu) if lu.rapport.is_none() => lu.ouvert_le,
+            _ => return Ok(None),
+        };
+        let connues =
+            lecture::empreintes_nommees_a(fonds, &lecture::tete_de_l_ouverture(fonds, import));
+        let poses = lecture::noms_poses_par(fonds, import);
+        let mut fichiers = Vec::new();
+        for (rang, (empreinte, illisible)) in (1..).zip(poses.fichiers.values()) {
+            fichiers.push(FichierDeLImport::Lu {
+                rang,
+                octets: self.captations.taille(empreinte)?.unwrap_or(0),
+                empreinte: empreinte.clone(),
+                illisible: *illisible,
+                sans_nom: false,
+            });
+        }
+        let octets = rapport::rapport(import, &fichiers, &connues, &[]);
+        let empreinte = self.captations.verser(&octets)?;
+        let ouvert = import::ImportOuvert {
+            import,
+            ouvert_le,
+            par: self.appareil,
+        };
+        let avertissement = self.documents.appliquer(&import::clore(
+            &ouvert,
+            &empreinte,
+            heure,
+            decalage_minutes,
+        ))?;
+        let retrait = self
+            .retirer_les_copies(import, &BTreeSet::new(), true)
+            .err();
+        Ok(joindre(avertissement, retrait.map(|refus| refus.message)))
+    }
+
+    /// Retire les copies de l'import `import` que `copies_a_retirer` désigne : à la clôture
+    /// (`a_la_cloture`), toutes ; à la reprise, celles dont l'empreinte n'est pas dans `nommees`.
+    fn retirer_les_copies(
+        &self,
+        import: &str,
+        nommees: &BTreeSet<String>,
+        a_la_cloture: bool,
+    ) -> Result<(), Refus> {
+        let copies = self.captations.copies_de_l_import(import)?;
+        for nom in copies_a_retirer(&copies, import, nommees, a_la_cloture) {
+            self.captations.retirer_une_copie(&nom)?;
+        }
+        Ok(())
     }
 
     /// Un geste de tri, conduit (voir `Services`) : `idee`, l'identifiant que vise la commande,
@@ -696,9 +1652,13 @@ fn index_du_fonds(fonds: &Automerge) -> Index {
 /// La vue de la boîte qui répond à `commande` sur `l_index` : la réponse de sa requête
 /// (`index::Reponse`), sa date jugée sur ses bornes, les trouvées dans son ordre ; ses comptes,
 /// ses deux assiettes, chacune avec les illisibles de la réponse, et ses parts « sans … », chaque
-/// compte par `compte` ; les étiquettes du fonds ; puis la fenêtre des trouvées. `boite` et
-/// `boite_sans_index` la partagent.
-fn vue_de_la_boite(l_index: &Index, commande: &commandes::Boite) -> VueDeLaBoite {
+/// compte par `compte` ; les étiquettes du fonds ; puis la fenêtre des trouvées, le nom de fichier
+/// de chaque ligne sans texte lu dans `fonds`. `boite` et `boite_sans_index` la partagent.
+fn vue_de_la_boite(
+    l_index: &Index,
+    commande: &commandes::Boite,
+    fonds: Option<&Automerge>,
+) -> VueDeLaBoite {
     let reponse: index::Reponse = l_index.repondre(
         &requete_du_noyau(&commande.requete),
         bornes_du_noyau(&commande.bornes),
@@ -711,7 +1671,7 @@ fn vue_de_la_boite(l_index: &Index, commande: &commandes::Boite) -> VueDeLaBoite
         assiette_de_la_requete: assiette_des_commandes(reponse.assiette, reponse.illisibles),
         sans: sans_des_commandes(reponse.sans),
         etiquettes_du_fonds: l_index.etiquettes(),
-        lignes: fenetre(reponse.trouvees, commande.debut, commande.nombre),
+        lignes: fenetre(reponse.trouvees, commande.debut, commande.nombre, fonds),
     }
 }
 
@@ -737,14 +1697,62 @@ fn dans_la_fenetre<T>(rangees: Vec<T>, debut: u32, nombre: u32) -> impl Iterator
 }
 
 /// Les lignes de la fenêtre qui commence au rang `debut` de `rangees` et en prend `nombre`, borné
-/// à `FENETRE_MAX` (`dans_la_fenetre`).
-fn fenetre(rangees: Vec<EnBoite>, debut: u32, nombre: u32) -> Vec<LigneDeLaBoite> {
-    dans_la_fenetre(rangees, debut, nombre).map(ligne).collect()
+/// à `FENETRE_MAX` (`dans_la_fenetre`). Chaque ligne sans texte reçoit le premier nom vu de sa
+/// première captation (`noms_des_lignes_sans_texte`) ; une ligne qui a un texte, ou sans fonds,
+/// aucun.
+fn fenetre(
+    rangees: Vec<EnBoite>,
+    debut: u32,
+    nombre: u32,
+    fonds: Option<&Automerge>,
+) -> Vec<LigneDeLaBoite> {
+    let lignes: Vec<EnBoite> = dans_la_fenetre(rangees, debut, nombre).collect();
+    let mut noms = match fonds {
+        Some(fonds) => noms_des_lignes_sans_texte(fonds, &lignes),
+        None => BTreeMap::new(),
+    };
+    lignes
+        .into_iter()
+        .map(|dans_la_boite| {
+            let nom_de_fichier = noms.remove(&dans_la_boite.idee.id);
+            ligne(dans_la_boite, nom_de_fichier)
+        })
+        .collect()
+}
+
+/// Le nom de fichier de chaque ligne sans texte de `lignes`, sous l'identifiant de son idée : le
+/// premier nom vu de sa première captation. En un seul passage par fenêtre (C1 de la revue de la
+/// PR (b)) : les premières empreintes des lignes sans texte d'abord, des captations des idées lues
+/// de `fonds` en un passage (`lecture::captations_par_idee`) ; puis leurs premiers noms vus, en un
+/// passage sur `prises` (`lecture::premiers_noms_vus`). Aucune ligne sans texte : rien ne se lit.
+/// Une idée sans captation, ou dont la première n'a aucun nom, n'a pas d'entrée.
+fn noms_des_lignes_sans_texte(fonds: &Automerge, lignes: &[EnBoite]) -> BTreeMap<String, String> {
+    let sans_texte: Vec<&str> = lignes
+        .iter()
+        .filter(|ligne| ligne.idee.texte.is_none())
+        .map(|ligne| ligne.idee.id.as_str())
+        .collect();
+    if sans_texte.is_empty() {
+        return BTreeMap::new();
+    }
+    let mut captations = lecture::captations_par_idee(fonds);
+    let premieres: BTreeMap<&str, String> = sans_texte
+        .into_iter()
+        .filter_map(|idee| {
+            let premiere = captations.remove(idee)?.into_iter().next()?;
+            Some((idee, premiere.empreinte))
+        })
+        .collect();
+    let noms = lecture::premiers_noms_vus(fonds, &premieres.values().cloned().collect());
+    premieres
+        .into_iter()
+        .filter_map(|(idee, empreinte)| Some((idee.to_string(), noms.get(&empreinte)?.clone())))
+        .collect()
 }
 
 /// La ligne d'une idée de la boîte : ce qu'elle montre, son texte borné à `LONGUEUR_D_UNE_LIGNE`
-/// caractères, ses étiquettes dans l'ordre de leurs octets.
-fn ligne(dans_la_boite: EnBoite) -> LigneDeLaBoite {
+/// caractères, ses étiquettes dans l'ordre de leurs octets, et `nom_de_fichier`.
+fn ligne(dans_la_boite: EnBoite, nom_de_fichier: Option<String>) -> LigneDeLaBoite {
     let idee = dans_la_boite.idee;
     LigneDeLaBoite {
         idee: idee.id,
@@ -757,7 +1765,200 @@ fn ligne(dans_la_boite: EnBoite) -> LigneDeLaBoite {
         reliee: dans_la_boite.reliee,
         provenance: provenance_des_commandes(idee.provenance),
         retiree: idee.retiree,
+        nom_de_fichier,
     }
+}
+
+/// Ce que la vue d'une idée montre de la captation `captation` : ses faits, sous le conteneur de
+/// sa sorte (`lecture::faits_de`), sa durée celle de la captation lue (d'une prise en stems, celle
+/// de ses stems) ; ses noms vus (`noms_vus`), ceux de son conteneur ; son origine déclarée, la plus
+/// forte (`origine::la_plus_forte`) ; d'une prise, ses stems (`lecture::stems_de`), chacun par
+/// `stem_vu`.
+fn captation_vue(fonds: &Automerge, captation: &CaptationLue) -> CaptationVue {
+    let conteneur = captation.sorte.conteneur();
+    let empreinte = &captation.empreinte;
+    let mut faits = lecture::faits_de(fonds, conteneur, empreinte);
+    faits.duree_ms = captation.duree_ms;
+    let stems = if captation.sorte == gestes::Sorte::Prise {
+        lecture::stems_de(fonds, empreinte)
+            .into_iter()
+            .map(|stem| stem_vu(fonds, stem))
+            .collect()
+    } else {
+        Vec::new()
+    };
+    CaptationVue {
+        captation: Captation {
+            sorte: sorte_des_commandes(captation.sorte),
+            empreinte: empreinte.clone(),
+        },
+        faits: etat_de_l_import::faits_des_commandes(&faits),
+        noms: noms_vus(lecture::noms_de(fonds, conteneur, empreinte, None)),
+        origine: etat_de_l_import::origine_des_commandes(&lecture::origines_de(fonds, empreinte)),
+        stems,
+    }
+}
+
+/// Ce que la vue montre du stem `stem` : ses faits, ses noms vus, ceux de son entrée dans la
+/// prise ; son type, gardé ou choisi (`TypeVu::Garde`, `TypeVu::Choisi`), ou, sans type, celui
+/// que propose le premier de ses noms vus (`stems::type_propose` ; question 18) ; son MIDI, le
+/// premier qu'il porte, ses faits sous `midi_verses` et ses noms vus.
+fn stem_vu(fonds: &Automerge, stem: StemLu) -> StemVu {
+    let noms = noms_vus(stem.noms);
+    let type_de_stem = match stem.type_de_stem {
+        Some(TypeLu {
+            type_de_stem,
+            provenance: ProvenanceDuType::Garde { .. },
+            ..
+        }) => TypeVu::Garde(etat_de_l_import::type_des_commandes(type_de_stem)),
+        Some(TypeLu {
+            type_de_stem,
+            provenance: ProvenanceDuType::Choisi,
+            ..
+        }) => TypeVu::Choisi(etat_de_l_import::type_des_commandes(type_de_stem)),
+        None => TypeVu::Propose(etat_de_l_import::type_des_commandes(stems::type_propose(
+            noms.first().map(String::as_str),
+        ))),
+    };
+    let midi = stem.midis.into_iter().next().map(|midi| MidiVu {
+        faits: etat_de_l_import::faits_des_commandes(&lecture::faits_de(fonds, MIDI_VERSES, &midi)),
+        noms: noms_vus(lecture::noms_de(fonds, MIDI_VERSES, &midi, None)),
+        empreinte: midi,
+    });
+    StemVu {
+        empreinte: stem.empreinte,
+        faits: etat_de_l_import::faits_des_commandes(&stem.faits),
+        noms,
+        type_de_stem,
+        midi,
+    }
+}
+
+/// Les noms vus de `noms`, des couples (chemin, ULID) : le premier vu
+/// (`origine::premier_nom_vu`) d'abord, puis les autres chemins, chacun une fois, dans l'ordre de
+/// leurs octets.
+fn noms_vus(noms: Vec<(String, String)>) -> Vec<String> {
+    let premier = origine::premier_nom_vu(
+        noms.iter()
+            .map(|(chemin, vu_par)| (chemin.as_str(), vu_par.as_str())),
+    )
+    .map(str::to_string);
+    let autres: BTreeSet<String> = noms
+        .into_iter()
+        .map(|(chemin, _)| chemin)
+        .filter(|chemin| premier.as_ref() != Some(chemin))
+        .collect();
+    premier.into_iter().chain(autres).collect()
+}
+
+/// Le poids du fichier complet du fonds (`Automerge::save`) ; sans fonds, 0.
+fn poids_du_fonds(fonds: Option<&Automerge>) -> u64 {
+    fonds.map_or(0, |fonds| {
+        u64::try_from(fonds.save().len()).unwrap_or(u64::MAX)
+    })
+}
+
+/// Vrai si la marque de dernière écriture `actuelle` n'est pas celle de l'inspection,
+/// `inspectee` ; l'une absente, rien ne se compare (question 14).
+fn autre_marque(inspectee: Option<u64>, actuelle: Option<u64>) -> bool {
+    matches!((inspectee, actuelle), (Some(avant), Some(apres)) if avant != apres)
+}
+
+/// Le refus d'une commande de l'import qui ne se fait pas : `Raison::Impossible`, `message`.
+fn refus_de_l_import(message: &str) -> Refus {
+    Refus {
+        raison: Raison::Impossible,
+        message: message.to_string(),
+    }
+}
+
+/// L'avertissement d'une déclaration « de la main de Sacha » qu'une cible générée garde
+/// (question 22 ; V9).
+const ORIGINE_GARDEE: &str = "L'origine reste générée : une origine déclarée ne se retire pas.";
+
+/// Le refus d'une déclaration par préfixe qui ne nomme pas le dernier import clos, ou qui suit
+/// une inspection (R6).
+const PLUS_INSPECTE: &str = "Ce dossier n'est plus inspecté.";
+
+/// Le refus d'une déclaration par un préfixe qui ne prend aucune captation de la table du dernier
+/// import clos : un dossier de fichiers tous ignorés, ou un préfixe qui n'est pas un segment entier
+/// (C8 de la revue de la PR (b)). Une captation unique absente garde
+/// `Impossible::CaptationAbsente`.
+const DOSSIER_SANS_CAPTATION: &str = "Ce dossier n'a aucune captation versée par cet import.";
+
+/// L'avertissement de l'état du fonds quand le fonds porte un import ouvert que les services ne
+/// conduisent pas (question 2).
+const IMPORT_RESTE_OUVERT: &str = "Un import est resté ouvert : rechoisir son dossier le reprend.";
+
+/// Le refus d'une captation que le fonds ne porte pas : le constat
+/// `Impossible::CaptationAbsente` du noyau, qui ne nomme pas l'empreinte (question 26).
+fn captation_absente(empreinte: &str) -> Refus {
+    refus_impossible(Impossible::CaptationAbsente {
+        empreinte: empreinte.to_string(),
+    })
+}
+
+/// Ce qui nomme la captation `empreinte` de la sorte `sorte` dans un message (question 26) : son
+/// premier nom vu (`lecture::premier_nom_vu`), entre guillemets ; sans nom, « cette prise », « ce
+/// MIDI versé seul » ou « ce texte versé ».
+fn captation_nommee(fonds: &Automerge, sorte: gestes::Sorte, empreinte: &str) -> String {
+    match lecture::premier_nom_vu(fonds, empreinte) {
+        Some(nom) => format!("« {nom} »"),
+        None => match sorte {
+            gestes::Sorte::Prise => "cette prise",
+            gestes::Sorte::MidiVerseSeul => "ce MIDI versé seul",
+            gestes::Sorte::TexteVerse => "ce texte versé",
+        }
+        .to_string(),
+    }
+}
+
+/// Deux avertissements, le premier puis le second, séparés d'une espace ; un seul, tel quel ;
+/// aucun, `None`.
+fn joindre(premier: Option<String>, second: Option<String>) -> Option<String> {
+    match (premier, second) {
+        (Some(premier), Some(second)) => Some(format!("{premier} {second}")),
+        (premier, second) => premier.or(second),
+    }
+}
+
+/// Le choix du type d'un stem du noyau qui répond à celui des commandes.
+fn choix_du_noyau(choix: &commandes::ChoixDuType) -> import::ChoixDuType {
+    match choix {
+        commandes::ChoixDuType::Garder => import::ChoixDuType::Garder,
+        commandes::ChoixDuType::Choisir(choisi) => {
+            import::ChoixDuType::Choisir(type_du_noyau(choisi))
+        }
+    }
+}
+
+/// Le type de stem du noyau qui répond à celui des commandes : l'inverse de
+/// `etat_de_l_import::type_des_commandes`.
+fn type_du_noyau(type_de_stem: &commandes::TypeDeStem) -> stems::TypeDeStem {
+    match type_de_stem {
+        commandes::TypeDeStem::Voix => stems::TypeDeStem::Voix,
+        commandes::TypeDeStem::Choeurs => stems::TypeDeStem::Choeurs,
+        commandes::TypeDeStem::Batterie => stems::TypeDeStem::Batterie,
+        commandes::TypeDeStem::Percussions => stems::TypeDeStem::Percussions,
+        commandes::TypeDeStem::Basse => stems::TypeDeStem::Basse,
+        commandes::TypeDeStem::Guitare => stems::TypeDeStem::Guitare,
+        commandes::TypeDeStem::Clavier => stems::TypeDeStem::Clavier,
+        commandes::TypeDeStem::Cordes => stems::TypeDeStem::Cordes,
+        commandes::TypeDeStem::Cuivres => stems::TypeDeStem::Cuivres,
+        commandes::TypeDeStem::Synthe => stems::TypeDeStem::Synthe,
+        commandes::TypeDeStem::Effets => stems::TypeDeStem::Effets,
+        commandes::TypeDeStem::Autre => stems::TypeDeStem::Autre,
+    }
+}
+
+/// Les noms de générateurs de `fonds` (`lecture::generateurs`), chacun une fois, dans l'ordre de
+/// leurs octets ; sans fonds, aucun.
+fn generateurs_du_fonds(fonds: Option<&Automerge>) -> Vec<String> {
+    fonds
+        .map(lecture::generateurs)
+        .unwrap_or_default()
+        .into_iter()
+        .collect()
 }
 
 /// Un compte d'idées, en entier d'une réponse ; au-delà d'`u64`, que n'atteint aucun compte,

@@ -39,9 +39,10 @@ fn messages() -> Vec<(String, String)> {
     let ajout = dans_les_ajouts(&format!("{e}.automerge"));
     let voisin = dans_les_ajouts(&format!("{e}.automerge.4242.partiel"));
     let provisoire = Path::new("captations").join(format!("{e}.4242.partiel"));
+    let copie = Path::new("captations").join("import-01HF7YAT000000000000000004-3.4242.partiel");
+    let rangee = Path::new("captations").join(&e[..2]).join(&e);
     let c_ajout = format!("documents/fonds/ajouts/{e}.automerge");
     let c_voisin = format!("documents/fonds/ajouts/{e}.automerge.4242.partiel");
-    let c_provisoire = format!("captations/{e}.4242.partiel");
     let disque = |chemin: &Path, genre: ErrorKind, texte: &str| Erreur::Disque {
         chemin: chemin.to_path_buf(),
         erreur: refus_du_systeme(genre, texte),
@@ -157,19 +158,78 @@ fn messages() -> Vec<(String, String)> {
             disque(&complet, ErrorKind::Other, "read failed").to_string(),
             "documents/fonds/complet.automerge, le disque l'a refusé.".to_string(),
         ),
+        // Un chemin sous `captations/`, nom provisoire d'un import, sous-dossier ou captation
+        // rangée, ne nomme ni l'import ni l'empreinte : « Une captation », au féminin ;
+        // `captations/` même garde son nom.
+        (
+            disque(&copie, ErrorKind::StorageFull, "No space left on device").to_string(),
+            "Une captation ne tient plus sur le disque.".to_string(),
+        ),
+        (
+            disque(&copie, ErrorKind::Other, "write failed").to_string(),
+            "Une captation, le disque l'a refusée.".to_string(),
+        ),
+        (
+            disque(&rangee, ErrorKind::NotFound, "No such file or directory").to_string(),
+            "Une captation est absente.".to_string(),
+        ),
+        (
+            disque(
+                &rangee,
+                ErrorKind::PermissionDenied,
+                "Access is denied. (os error 5)",
+            )
+            .to_string(),
+            "Une captation est refusée par le système.".to_string(),
+        ),
+        (
+            disque(
+                &rangee,
+                ErrorKind::InvalidData,
+                "stream did not contain valid data",
+            )
+            .to_string(),
+            "Une captation ne se relit pas telle qu'elle a été écrite.".to_string(),
+        ),
+        (
+            disque(
+                &Path::new("captations").join(&e[..2]),
+                ErrorKind::Other,
+                "create failed",
+            )
+            .to_string(),
+            "Une captation, le disque l'a refusée.".to_string(),
+        ),
+        (
+            disque(Path::new("captations"), ErrorKind::Other, "read failed").to_string(),
+            "captations, le disque l'a refusé.".to_string(),
+        ),
+        // Une captation ne se nomme pas par son empreinte dans un message (question 26).
         (
             Erreur::CaptationAlteree {
                 empreinte: e.clone(),
             }
             .to_string(),
-            format!("Le contenu relu de la captation {e} ne donne pas son empreinte."),
+            "Une captation relue ne donne pas son empreinte.".to_string(),
         ),
         (
             Erreur::CaptationAbsente {
                 empreinte: e.clone(),
             }
             .to_string(),
-            format!("Aucune captation ne porte l'empreinte {e}."),
+            "Cette captation n'est pas dans le fonds.".to_string(),
+        ),
+        // Le fichier à verser ne se lit plus : le constat de son genre, jamais le texte du
+        // système.
+        (
+            Erreur::FichierAVerser {
+                erreur: refus_du_systeme(
+                    ErrorKind::PermissionDenied,
+                    "Access is denied. (os error 5)",
+                ),
+            }
+            .to_string(),
+            "Le fichier à verser est refusé par le système.".to_string(),
         ),
         (
             Erreur::FondsDejaOuvert.to_string(),
@@ -247,16 +307,46 @@ fn messages() -> Vec<(String, String)> {
                  et la prend à l'ouverture suivante."
             ),
         ),
+        // Sous `captations/`, un nom provisoire, une copie d'import ou une captation rangée ne
+        // nomme ni l'import ni l'empreinte : « Une captation », au féminin ; `captations/` même
+        // garde son nom (question 26).
         (
             Avertissement::NomProvisoireRestant {
                 chemin: provisoire,
                 erreur: refus_du_systeme(ErrorKind::Other, "rename failed"),
             }
             .to_string(),
-            format!(
-                "{c_provisoire} n'a pas pu se lire, ou prendre le nom de son empreinte : il \
-                 reste, et l'ouverture suivante le relit."
-            ),
+            "Une captation n'a pas pu se lire, ou prendre le nom de son empreinte : elle reste, \
+             et l'ouverture suivante la relit."
+                .to_string(),
+        ),
+        (
+            Avertissement::NomProvisoireRestant {
+                chemin: copie,
+                erreur: refus_du_systeme(ErrorKind::Other, "read failed"),
+            }
+            .to_string(),
+            "Une captation n'a pas pu se lire, ou prendre le nom de son empreinte : elle reste, \
+             et l'ouverture suivante la relit."
+                .to_string(),
+        ),
+        (
+            Avertissement::NomProvisoireRestant {
+                chemin: Path::new("captations").to_path_buf(),
+                erreur: refus_du_systeme(ErrorKind::Other, "read failed"),
+            }
+            .to_string(),
+            "captations n'a pas pu se lire, ou prendre le nom de son empreinte : il reste, et \
+             l'ouverture suivante le relit."
+                .to_string(),
+        ),
+        (
+            Avertissement::NonDurable {
+                chemin: rangee,
+                erreur: refus_du_systeme(ErrorKind::Other, "sync failed"),
+            }
+            .to_string(),
+            "Une captation est en place, mais son renommage n'est pas rendu durable.".to_string(),
         ),
         (
             Echec::Refusee(refus_du_systeme(ErrorKind::Other, "rename failed")).to_string(),

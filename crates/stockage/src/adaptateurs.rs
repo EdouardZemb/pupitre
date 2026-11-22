@@ -1,15 +1,19 @@
 //! Les adaptateurs du stockage (§ 40 · 3) : le fonds sur fichiers réalise le contrat `Documents`
-//! des services, et les captations de la racine des données, le contrat `Captations`. Chaque
-//! erreur du stockage s'y rend en refus, sa raison dite par `raison`, son message le texte de
-//! l'erreur ; un avertissement, de même, en texte. Chaque chemin s'y dit relatif à la racine des
-//! données (`Relatif`), sauf dans le refus d'ouvrir la racine des données elle-même
-//! (`refus_a_l_ouverture`), qui dit le chemin en cause entier.
+//! des services, et les captations de la racine des données, le contrat `Captations`, en flux
+//! comme par octets. Chaque erreur du stockage s'y rend en refus, sa raison dite par `raison`, son
+//! message le texte de l'erreur ; un avertissement, de même, en texte. Chaque chemin s'y dit
+//! relatif à la racine des données (`Relatif`), sauf dans le refus d'ouvrir la racine des données
+//! elle-même (`refus_a_l_ouverture`), qui dit le chemin en cause entier.
+
+use std::collections::BTreeSet;
+use std::io;
 
 use automerge::Automerge;
 use noyau::donnees::changement::Operation;
+use noyau::donnees::demarrage::Provisoire;
 #[cfg(feature = "pannes")]
 use noyau::donnees::version::Migration;
-use services::{Documents, Ecriture, FONDS_NON_NE, Raison, Refus};
+use services::{Documents, Ecriture, FONDS_NON_NE, Raison, Refus, Versement};
 
 use crate::{Avertissement, Captations, Document, Erreur, LectureSeule, RacineDesDonnees, Relatif};
 
@@ -118,7 +122,21 @@ impl Documents for FondsSurFichiers<'_> {
 }
 
 impl services::Captations for Captations<'_> {
-    /// [`Captations::verser`] ; une erreur se rend en refus.
+    /// [`Captations::verser_en_flux`] ; une erreur se rend en refus, celle du flux à verser
+    /// ([`Erreur::FichierAVerser`]) en `Raison::Disque`.
+    fn verser_en_flux(
+        &self,
+        base: &str,
+        flux: &mut dyn io::Read,
+        attendue: Option<&str>,
+    ) -> Result<Versement, Refus> {
+        Captations::verser_en_flux(self, base, flux, attendue)
+            .map_err(|erreur| refus(erreur, self.racine()))
+    }
+
+    /// [`Captations::verser`], la voie par octets, qui passe par la copie en flux et garde son
+    /// raccourci : une captation déjà rangée n'est ni réécrite ni rouverte. Une erreur se rend en
+    /// refus.
     fn verser(&self, octets: &[u8]) -> Result<String, Refus> {
         Captations::verser(self, octets).map_err(|erreur| refus(erreur, self.racine()))
     }
@@ -127,6 +145,37 @@ impl services::Captations for Captations<'_> {
     /// captation ne porte, en `Raison::Impossible`.
     fn relire(&self, empreinte: &str) -> Result<Vec<u8>, Refus> {
         Captations::relire(self, empreinte).map_err(|erreur| refus(erreur, self.racine()))
+    }
+
+    /// [`Captations::relire_une_plage`] ; une erreur se rend en refus, comme pour `relire`.
+    fn relire_une_plage(
+        &self,
+        empreinte: &str,
+        debut: u64,
+        longueur: u64,
+    ) -> Result<Vec<u8>, Refus> {
+        Captations::relire_une_plage(self, empreinte, debut, longueur)
+            .map_err(|erreur| refus(erreur, self.racine()))
+    }
+
+    /// [`Captations::taille`] ; une erreur se rend en refus.
+    fn taille(&self, empreinte: &str) -> Result<Option<u64>, Refus> {
+        Captations::taille(self, empreinte).map_err(|erreur| refus(erreur, self.racine()))
+    }
+
+    /// [`Captations::tailles`] ; une erreur se rend en refus.
+    fn tailles(&self) -> Result<BTreeSet<u64>, Refus> {
+        Captations::tailles(self).map_err(|erreur| refus(erreur, self.racine()))
+    }
+
+    /// [`Captations::copies_de_l_import`] ; une erreur se rend en refus.
+    fn copies_de_l_import(&self, import: &str) -> Result<Vec<Provisoire>, Refus> {
+        Captations::copies_de_l_import(self, import).map_err(|erreur| refus(erreur, self.racine()))
+    }
+
+    /// [`Captations::retirer_une_copie`] ; une erreur se rend en refus.
+    fn retirer_une_copie(&self, nom: &str) -> Result<(), Refus> {
+        Captations::retirer_une_copie(self, nom).map_err(|erreur| refus(erreur, self.racine()))
     }
 }
 
@@ -166,7 +215,11 @@ fn raison(erreur: &Erreur) -> Raison {
             | LectureSeule::VersionIllisible
             | LectureSeule::MigrationRefusee,
         ) => Raison::Illisible,
-        Erreur::Disque { .. } | Erreur::CaptationAlteree { .. } => Raison::Disque,
+        // Le fichier à verser qui ne se lit plus : un refus du disque, d'un autre disque que celui
+        // de la racine des données.
+        Erreur::Disque { .. } | Erreur::CaptationAlteree { .. } | Erreur::FichierAVerser { .. } => {
+            Raison::Disque
+        }
         // Une opération qui ne s'applique pas, une empreinte qu'aucun fichier ne porte, un fonds
         // qui n'est plus neuf (`pupitre_neuf`), ou un autre `Document` de la racine des données
         // qui vit quand une commande fait naître le fonds (`FondsSurFichiers::faire_naitre`) : la
