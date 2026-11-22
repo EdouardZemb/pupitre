@@ -8347,6 +8347,212 @@ pub fn un_import_coupe_apres_une_prise_en_stems_se_reprend<P: Paire>(
     assert_eq!(clos.rapport.origines_changees, 1);
 }
 
+/// R2 ; R23 : le dossier versé, sans nom en UTF-8, déclaré jeu de stems ; ses deux stems et sa
+/// prise en stems versés, puis les services rouverts. La prise n'a pas de nom, ses stems gardent
+/// le leur, à l'ULID de l'import : l'inspection dit la reprise ; l'ouverture reverse le jeu en
+/// entier, ses stems comme sa prise, connue ; la clôture rend les comptes d'un import fait d'une
+/// traite, sur `paire_neuve`.
+pub fn une_reprise_dont_la_prise_n_a_pas_de_nom_reverse_le_jeu<P: Paire>(
+    paire: &mut P,
+    paire_neuve: &mut P,
+) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let fichiers = [
+        (Some("basse.wav"), wav_de(8_000, 55)),
+        (Some("voix.wav"), wav_de(8_000, 56)),
+    ];
+    let declarations = [("", jeu_de_stems())];
+    let jeu_entier = vec![commandes::JeuAVerser {
+        dossier: String::new(),
+        rangs: vec![1, 2],
+    }];
+    let source = paire.source(None, &fichiers, &[]);
+    services
+        .inspecter(&source, PLACE_LIBRE)
+        .expect("le dossier s'inspecte");
+    let ouvert = services
+        .ouvrir_l_import(
+            &source,
+            &ouverture(&declarations),
+            PLACE_LIBRE,
+            &mut contexte,
+        )
+        .expect("l'import s'ouvre");
+    assert_eq!(ouvert.jeux, jeu_entier);
+    verser_le_jeu_entier(&mut services, &source, &ouvert.import, "", &mut contexte);
+
+    let mut services = paire.rouvrir(services, &[]);
+    let inspection = services
+        .inspecter(&source, PLACE_LIBRE)
+        .expect("le dossier s'inspecte de nouveau");
+    assert_eq!(inspection.reprise.as_deref(), Some(ouvert.import.as_str()));
+    let reprise = services
+        .ouvrir_l_import(
+            &source,
+            &ouverture(&declarations),
+            PLACE_LIBRE,
+            &mut contexte,
+        )
+        .expect("l'import se reprend");
+    assert!(reprise.repris, "l'ouverture ne dit pas la reprise");
+    assert_eq!(reprise.rangs, Vec::<u64>::new());
+    assert_eq!(reprise.jeux, jeu_entier);
+    verser_le_jeu_entier(&mut services, &source, &ouvert.import, "", &mut contexte);
+    let clos = services
+        .clore_l_import(&source, &cloture(&ouvert.import), &mut contexte)
+        .expect("l'import repris se clôt");
+
+    let mut neufs = paire_neuve.neufs();
+    let mut alea_neuf = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let source_neuve = paire_neuve.source(None, &fichiers, &[]);
+    let traite = importer(
+        &mut neufs,
+        &source_neuve,
+        &declarations,
+        &mut contexte_de_test(&mut alea_neuf),
+    );
+    assert_eq!(
+        clos.rapport,
+        RapportDImport {
+            import: ouvert.import.clone(),
+            ..traite.clos.rapport
+        }
+    );
+}
+
+/// R2 : un premier import, clos, verse le jeu `Jeu A` (`basse.wav`, `voix.wav`) ; un second, du
+/// même jeu dont `voix.wav` est renommé `voix reprise.wav`, verse ses stems et sa prise en stems,
+/// connue : le nom de la prise et celui de `basse.wav`, posés par le premier, ne se récrivent pas,
+/// et seul le stem renommé reçoit un nom à l'ULID du second. Les services rouverts, l'inspection
+/// du second dossier dit la reprise ; l'ouverture reverse le jeu en entier ; la clôture rend les
+/// comptes d'un second import fait d'une traite, après le même premier, sur `paire_neuve`.
+pub fn une_reprise_d_une_prise_connue_au_stem_renomme_reverse_le_jeu<P: Paire>(
+    paire: &mut P,
+    paire_neuve: &mut P,
+) {
+    let basse = wav_de(8_000, 57);
+    let voix = wav_de(8_000, 58);
+    let premiers = [
+        (Some("Jeu A/basse.wav"), basse.clone()),
+        (Some("Jeu A/voix.wav"), voix.clone()),
+    ];
+    let seconds = [
+        (Some("Jeu A/basse.wav"), basse),
+        (Some("Jeu A/voix reprise.wav"), voix),
+    ];
+    let declarations = [("Jeu A", jeu_de_stems())];
+    let jeu_entier = vec![commandes::JeuAVerser {
+        dossier: "Jeu A".to_string(),
+        rangs: vec![1, 2],
+    }];
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let premier = paire.source(Some(DOSSIER_VERSE), &premiers, &[]);
+    importer(&mut services, &premier, &declarations, &mut contexte);
+    let second = paire.source(Some(DOSSIER_VERSE), &seconds, &[]);
+    services
+        .inspecter(&second, PLACE_LIBRE)
+        .expect("le second dossier s'inspecte");
+    let ouvert = services
+        .ouvrir_l_import(
+            &second,
+            &ouverture(&declarations),
+            PLACE_LIBRE,
+            &mut contexte,
+        )
+        .expect("le second import s'ouvre");
+    assert_eq!(ouvert.jeux, jeu_entier);
+    verser_le_jeu_entier(
+        &mut services,
+        &second,
+        &ouvert.import,
+        "Jeu A",
+        &mut contexte,
+    );
+
+    let mut services = paire.rouvrir(services, &[]);
+    let inspection = services
+        .inspecter(&second, PLACE_LIBRE)
+        .expect("le second dossier s'inspecte de nouveau");
+    assert_eq!(inspection.reprise.as_deref(), Some(ouvert.import.as_str()));
+    let reprise = services
+        .ouvrir_l_import(
+            &second,
+            &ouverture(&declarations),
+            PLACE_LIBRE,
+            &mut contexte,
+        )
+        .expect("le second import se reprend");
+    assert!(reprise.repris, "l'ouverture ne dit pas la reprise");
+    assert_eq!(reprise.jeux, jeu_entier);
+    verser_le_jeu_entier(
+        &mut services,
+        &second,
+        &ouvert.import,
+        "Jeu A",
+        &mut contexte,
+    );
+    let clos = services
+        .clore_l_import(&second, &cloture(&ouvert.import), &mut contexte)
+        .expect("le second import repris se clôt");
+
+    let mut neufs = paire_neuve.neufs();
+    let mut alea_neuf = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte_neuf = contexte_de_test(&mut alea_neuf);
+    let premier_neuf = paire_neuve.source(Some(DOSSIER_VERSE), &premiers, &[]);
+    importer(&mut neufs, &premier_neuf, &declarations, &mut contexte_neuf);
+    let second_neuf = paire_neuve.source(Some(DOSSIER_VERSE), &seconds, &[]);
+    let traite = importer(&mut neufs, &second_neuf, &declarations, &mut contexte_neuf);
+    assert_eq!(
+        clos.rapport,
+        RapportDImport {
+            import: ouvert.import.clone(),
+            ..traite.clos.rapport
+        }
+    );
+}
+
+/// Verse chaque stem du jeu `dossier` de l'import `import`, aux rangs 1 et 2, chacun en
+/// `Issue::Stem`, puis sa prise en stems.
+fn verser_le_jeu_entier<D: Documents, C: Captations, S: Source>(
+    services: &mut Services<D, C>,
+    source: &S,
+    import: &str,
+    dossier: &str,
+    contexte: &mut Contexte<'_>,
+) {
+    for rang in [1, 2] {
+        let verse = verser_le_rang(services, source, import, rang, contexte);
+        assert_eq!(verse.issue, Issue::Stem, "le fichier n° {rang}");
+    }
+    services
+        .verser_une_prise_en_stems(
+            source,
+            &VerserUnePriseEnStems {
+                import: import.to_string(),
+                dossier: dossier.to_string(),
+                decalage_minutes: 0,
+            },
+            contexte,
+        )
+        .expect("la prise en stems se verse");
+}
+
 /// R2 ; question 35 : un import ouvert, le dossier versé déclaré de la main de Sacha, rien versé,
 /// puis les services rouverts ; l'inspection du même dossier ne dit aucune reprise, aucune
 /// déclaration reprise, et dit l'import ouvert ailleurs : sans nom posé, aucun import ne se
@@ -8709,12 +8915,13 @@ pub fn un_import_ouvert_ailleurs_se_clot_a_l_ouverture_du_suivant<P: Paire>(pair
     );
 }
 
-/// Question 35 ; la décision de la session (défaut (a) de la tâche 12) : l'import clos ailleurs se
-/// compte par la règle du noyau (`rapport::comptes`). Un import ouvert sur `A`, chacun de ses
-/// quatre fichiers versé : un WAV coupé (illisible), deux noms d'un même contenu, et un fichier
-/// sans nom ; l'ouverture de `B` le clôt ; son rapport compte les trois noms posés, le WAV coupé
-/// illisible, le second nom du même contenu dédoublonné ; ni ignoré, ni sans nom : le fonds n'en
-/// sait rien.
+/// Question 35 ; la décision de la session, révisée : l'import clos ailleurs se compte comme sa
+/// propre clôture l'aurait fait, par la règle du noyau (`rapport::comptes`), avec les connues
+/// lues à la tête de son ouverture. Un import d'avant, clos, verse un contenu ; puis un import
+/// ouvert sur `A`, chacun de ses cinq fichiers versé : ce contenu déjà au fonds, un WAV coupé
+/// (illisible), deux noms d'un même contenu, et un fichier sans nom ; l'ouverture de `B` le clôt ;
+/// son rapport compte les quatre noms posés, le contenu déjà au fonds et le second nom du même
+/// contenu dédoublonnés, le WAV coupé illisible ; ni ignoré, ni sans nom : le fonds n'en sait rien.
 pub fn un_import_clos_ailleurs_se_compte_par_la_regle_du_noyau<P: Paire>(paire: &mut P) {
     let mut services = paire.neufs();
     let mut alea = AleaDeTest {
@@ -8722,11 +8929,15 @@ pub fn un_import_clos_ailleurs_se_compte_par_la_regle_du_noyau<P: Paire>(paire: 
         appels: 0,
     };
     let mut contexte = contexte_de_test(&mut alea);
+    let connu = wav_de(8_000, 90);
+    let avant = paire.source(Some("Avant"), &[(Some("connu.wav"), connu.clone())], &[]);
+    importer(&mut services, &avant, &[], &mut contexte);
     let coupe = wav_coupe();
     let double = wav_de(8_000, 91);
     let source_a = paire.source(
         Some("A"),
         &[
+            (Some("v.wav"), connu.clone()),
             (Some("w.wav"), coupe.clone()),
             (Some("x.wav"), double.clone()),
             (Some("y.wav"), double.clone()),
@@ -8741,7 +8952,7 @@ pub fn un_import_clos_ailleurs_se_compte_par_la_regle_du_noyau<P: Paire>(paire: 
         .ouvrir_l_import(&source_a, &ouverture(&[]), PLACE_LIBRE, &mut contexte)
         .expect("l'import de A s'ouvre")
         .import;
-    for rang in 1..=4 {
+    for rang in 1..=5 {
         verser_le_rang(&mut services, &source_a, &premier, rang, &mut contexte);
     }
 
@@ -8753,7 +8964,12 @@ pub fn un_import_clos_ailleurs_se_compte_par_la_regle_du_noyau<P: Paire>(paire: 
         .ouvrir_l_import(&source_b, &ouverture(&[]), PLACE_LIBRE, &mut contexte)
         .expect("l'import de B s'ouvre");
 
-    let nommes = [coupe.as_slice(), double.as_slice(), double.as_slice()];
+    let nommes = [
+        connu.as_slice(),
+        coupe.as_slice(),
+        double.as_slice(),
+        double.as_slice(),
+    ];
     assert_eq!(
         services.lire_un_rapport(&commandes::LireUnRapport {
             import: premier.clone(),
@@ -8762,7 +8978,7 @@ pub fn un_import_clos_ailleurs_se_compte_par_la_regle_du_noyau<P: Paire>(paire: 
             import: premier.clone(),
             vus: compte_des(&nommes),
             verses: compte_des(&[coupe.as_slice(), double.as_slice()]),
-            dedoublonnes: compte_des(&[double.as_slice()]),
+            dedoublonnes: compte_des(&[connu.as_slice(), double.as_slice()]),
             illisibles: compte_des(&[coupe.as_slice()]),
             ignores: compte(0, 0),
             sans_nom: compte(0, 0),

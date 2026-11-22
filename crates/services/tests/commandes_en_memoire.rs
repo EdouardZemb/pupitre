@@ -595,6 +595,22 @@ fn un_import_coupe_apres_une_prise_en_stems_se_reprend() {
 }
 
 #[test]
+fn une_reprise_dont_la_prise_n_a_pas_de_nom_reverse_le_jeu() {
+    suite::une_reprise_dont_la_prise_n_a_pas_de_nom_reverse_le_jeu(
+        &mut PaireEnMemoire,
+        &mut PaireEnMemoire,
+    );
+}
+
+#[test]
+fn une_reprise_d_une_prise_connue_au_stem_renomme_reverse_le_jeu() {
+    suite::une_reprise_d_une_prise_connue_au_stem_renomme_reverse_le_jeu(
+        &mut PaireEnMemoire,
+        &mut PaireEnMemoire,
+    );
+}
+
+#[test]
 fn un_import_ouvert_sans_nom_ne_se_reprend_pas() {
     suite::un_import_ouvert_sans_nom_ne_se_reprend_pas(&mut PaireEnMemoire);
 }
