@@ -6,9 +6,12 @@
 //! geste de tri et son annulation coupés après le renommage, faits avec un avertissement, un
 //! fichier d'ajout altéré et une captation coupée, chaque refus ou avertissement disant ses
 //! chemins relatifs à la racine des données, l'état du fonds qui dit sa lecture seule et
-//! l'avertissement de sa naissance, de même, la boîte qui se lit en lecture seule, et la migration
-//! de test, la même dans la suite et dans les aides du stockage. La source à verser de la paire
-//! est un dossier jetable, écrit par le test, puis parcouru (`SourceDeTest`).
+//! l'avertissement de sa naissance, de même, la boîte qui se lit en lecture seule, la migration
+//! de test, la même dans la suite et dans les aides du stockage ; et, de l'import, une reprise
+//! après une copie coupée entre deux tronçons, la clôture qui retire les copies de l'import, une
+//! ouverture coupée après la clôture d'un import ouvert ailleurs, qui ne le reclôt pas, et une
+//! clôture dont le retrait d'une copie est refusé, faite avec un avertissement. La source à
+//! verser de la paire est un dossier jetable, écrit par le test, puis parcouru (`SourceDeTest`).
 
 #[path = "../../services/tests/suite/mod.rs"]
 mod suite;
@@ -23,11 +26,15 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-use commandes::{Appareil, EntreeDuJournal, Faite, LigneDeLaBoite, Notee, Provenance};
+use commandes::{
+    Appareil, EntreeDuJournal, Faite, LigneDeLaBoite, Notee, Provenance, RapportDImport,
+    VerserUnFichier,
+};
 use noyau::donnees::acces::Acces;
 use noyau::donnees::gestes;
+use noyau::donnees::import::{copie_de, nom_de_la_copie};
 use noyau::donnees::version::Migration;
-use services::{Documents, Entree, Raison, Refus, Services, Source};
+use services::{Documents, Entree, Raison, Refus, Services, Source, lecture};
 use stockage::pannes::{Etape, couper};
 use stockage::source::SourceSurFichiers;
 use stockage::{Captations, Document, FondsSurFichiers, LectureSeule, RacineDesDonnees};
@@ -954,6 +961,100 @@ fn les_generateurs_du_fonds_chacun_une_fois() {
 }
 
 #[test]
+fn une_reprise_rend_le_rapport_d_une_traite() {
+    let racine = racine_jetable("commandes-reprise");
+    let racine_neuve = racine_jetable("commandes-reprise-traite");
+    suite::une_reprise_rend_le_rapport_d_une_traite(
+        &mut PaireSurFichiers { racine: &racine },
+        &mut PaireSurFichiers {
+            racine: &racine_neuve,
+        },
+    );
+}
+
+#[test]
+fn un_import_coupe_apres_une_prise_en_stems_se_reprend() {
+    let racine = racine_jetable("commandes-reprise-jeu");
+    let racine_neuve = racine_jetable("commandes-reprise-jeu-traite");
+    suite::un_import_coupe_apres_une_prise_en_stems_se_reprend(
+        &mut PaireSurFichiers { racine: &racine },
+        &mut PaireSurFichiers {
+            racine: &racine_neuve,
+        },
+    );
+}
+
+#[test]
+fn un_import_ouvert_sans_nom_ne_se_reprend_pas() {
+    let racine = racine_jetable("commandes-reprise-sans-nom");
+    suite::un_import_ouvert_sans_nom_ne_se_reprend_pas(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn une_reprise_garde_les_declarations_de_l_ouverture() {
+    let racine = racine_jetable("commandes-reprise-declarations");
+    suite::une_reprise_garde_les_declarations_de_l_ouverture(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn un_fichier_change_depuis_l_inspection_arrete_l_import() {
+    let racine = racine_jetable("commandes-import-fichier-change");
+    suite::un_fichier_change_depuis_l_inspection_arrete_l_import(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn un_contenu_change_a_taille_egale_arrete_l_import() {
+    let racine = racine_jetable("commandes-import-contenu-change");
+    suite::un_contenu_change_a_taille_egale_arrete_l_import(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn un_import_ouvert_ailleurs_se_clot_a_l_ouverture_du_suivant() {
+    let racine = racine_jetable("commandes-import-ailleurs");
+    suite::un_import_ouvert_ailleurs_se_clot_a_l_ouverture_du_suivant(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn un_import_clos_ailleurs_se_compte_par_la_regle_du_noyau() {
+    let racine = racine_jetable("commandes-import-ailleurs-comptes");
+    suite::un_import_clos_ailleurs_se_compte_par_la_regle_du_noyau(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn en_lecture_seule_l_import_est_refuse_avant_toute_captation() {
+    let racine = racine_jetable("commandes-import-lecture-seule");
+    suite::en_lecture_seule_l_import_est_refuse_avant_toute_captation(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn l_etat_du_fonds_dit_qu_un_import_est_reste_ouvert() {
+    let racine = racine_jetable("commandes-import-reste-ouvert");
+    suite::l_etat_du_fonds_dit_qu_un_import_est_reste_ouvert(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn rechoisir_un_autre_dossier_ne_reprend_pas_l_import_ouvert() {
+    let racine = racine_jetable("commandes-reprise-autre-dossier");
+    suite::rechoisir_un_autre_dossier_ne_reprend_pas_l_import_ouvert(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
 fn la_migration_de_test_est_la_meme_dans_les_deux_crates() {
     assert_eq!(suite::migration_de_test(), commun::migration_de_test());
 }
@@ -1513,5 +1614,348 @@ fn l_etat_du_fonds_dit_l_avertissement_de_la_naissance() {
              durable."
                 .to_string()
         ])
+    );
+}
+
+/// Les noms provisoires de `captations` que `import::copie_de` dit de l'import `import`, dans
+/// l'ordre.
+fn copies_de(captations: &Path, import: &str) -> Vec<String> {
+    commun::entrees(captations)
+        .into_iter()
+        .filter(|nom| copie_de(nom).is_some_and(|(de, _)| de == import))
+        .collect()
+}
+
+/// Point de revue 4 ; question 31 ; R1 : quatre WAV, le quatrième de 2 621 440 octets ; les trois
+/// premiers versés, puis la copie du quatrième coupée avant son deuxième tronçon, comme par une
+/// coupure du processus, qui coupe aussi le retrait de son nom provisoire : le versement est
+/// refusé par le disque, et le nom provisoire `import-<I>-4.<processus>.partiel` reste, d'un
+/// tronçon. Rouvert, le fonds le garde, son contenu n'étant pas nommé ; l'inspection du même
+/// dossier dit la reprise, et l'ouverture de la reprise le retire. À la clôture, aucun nom
+/// provisoire de l'import ne reste, et le rapport égale celui d'un import fait d'une traite du
+/// même dossier.
+#[test]
+fn une_reprise_apres_une_coupure_entre_deux_troncons_ne_laisse_aucune_copie() {
+    let racine = racine_jetable("commandes-reprise-coupee");
+    let racine_neuve = racine_jetable("commandes-reprise-coupee-traite");
+    let mut paire = PaireSurFichiers { racine: &racine };
+    let mut services = paire.neufs();
+    let mut alea = alea_de_test();
+    let mut contexte = contexte_de_test(&mut alea);
+    let grand = suite::wav_de(2_621_396, 4);
+    assert_eq!(grand.len(), 2_621_440);
+    let fichiers = [
+        (Some("a.wav"), suite::wav_de(8_000, 1)),
+        (Some("b.wav"), suite::wav_de(8_000, 2)),
+        (Some("c.wav"), suite::wav_de(8_000, 3)),
+        (Some("d.wav"), grand),
+    ];
+    let source = paire.source(Some(suite::DOSSIER_VERSE), &fichiers, &[]);
+    services
+        .inspecter(&source, suite::PLACE_LIBRE)
+        .expect("le dossier s'inspecte");
+    let import = services
+        .ouvrir_l_import(
+            &source,
+            &suite::ouverture(&[]),
+            suite::PLACE_LIBRE,
+            &mut contexte,
+        )
+        .expect("l'import s'ouvre")
+        .import;
+    for rang in 1..=3 {
+        suite::verser_le_rang(&mut services, &source, &import, rang, &mut contexte);
+    }
+    let captations = racine.chemin().join("captations");
+
+    let rendu = {
+        let _troncon = couper(Etape::Troncon, 2);
+        let _retrait = couper(Etape::Retrait, 1);
+        services.verser_un_fichier(
+            &source,
+            &VerserUnFichier {
+                import: import.clone(),
+                rang: 4,
+                decalage_minutes: 0,
+            },
+            &mut contexte,
+        )
+    };
+    assert!(
+        matches!(
+            rendu,
+            Err(Refus {
+                raison: Raison::Disque,
+                ..
+            })
+        ),
+        "la copie coupée : rendu {rendu:?}"
+    );
+    let copie = format!(
+        "{}.{}.partiel",
+        nom_de_la_copie(&import, 4),
+        std::process::id()
+    );
+    assert_eq!(copies_de(&captations, &import), vec![copie.clone()]);
+    assert_eq!(commun::poids(&captations.join(&copie)), 1_048_576);
+
+    let mut services = paire.rouvrir(services, &[]);
+    assert_eq!(copies_de(&captations, &import), vec![copie]);
+    let inspection = services
+        .inspecter(&source, suite::PLACE_LIBRE)
+        .expect("le dossier s'inspecte de nouveau");
+    assert_eq!(inspection.reprise.as_deref(), Some(import.as_str()));
+    let reprise = services
+        .ouvrir_l_import(
+            &source,
+            &suite::ouverture(&[]),
+            suite::PLACE_LIBRE,
+            &mut contexte,
+        )
+        .expect("l'import se reprend");
+    assert!(reprise.repris, "l'ouverture ne dit pas la reprise");
+    assert_eq!(reprise.rangs, vec![4]);
+    assert_eq!(copies_de(&captations, &import), Vec::<String>::new());
+    suite::verser_le_rang(&mut services, &source, &import, 4, &mut contexte);
+    let clos = services
+        .clore_l_import(&source, &suite::cloture(&import), &mut contexte)
+        .expect("l'import repris se clôt");
+    assert_eq!(copies_de(&captations, &import), Vec::<String>::new());
+
+    let mut neuve = PaireSurFichiers {
+        racine: &racine_neuve,
+    };
+    let mut neufs = neuve.neufs();
+    let source_neuve = neuve.source(Some(suite::DOSSIER_VERSE), &fichiers, &[]);
+    let mut alea_neuf = alea_de_test();
+    let traite = suite::importer(
+        &mut neufs,
+        &source_neuve,
+        &[],
+        &mut contexte_de_test(&mut alea_neuf),
+    );
+    assert_eq!(
+        clos.rapport,
+        RapportDImport {
+            import: import.clone(),
+            ..traite.clos.rapport
+        }
+    );
+}
+
+/// Question 31 : un import ouvert, son fichier versé ; un nom provisoire de cet import,
+/// `import-<I>-9.1.partiel`, et un nom provisoire de capture, `<e>.1.partiel`, posés dans
+/// `captations/` ; la clôture retire le premier, et laisse le second.
+#[test]
+fn la_cloture_retire_chaque_copie_de_l_import() {
+    let racine = racine_jetable("commandes-import-copies");
+    let mut paire = PaireSurFichiers { racine: &racine };
+    let mut services = paire.neufs();
+    let mut alea = alea_de_test();
+    let mut contexte = contexte_de_test(&mut alea);
+    let source = paire.source(
+        Some(suite::DOSSIER_VERSE),
+        &[(Some("a.wav"), suite::wav_de(8_000, 1))],
+        &[],
+    );
+    services
+        .inspecter(&source, suite::PLACE_LIBRE)
+        .expect("le dossier s'inspecte");
+    let import = services
+        .ouvrir_l_import(
+            &source,
+            &suite::ouverture(&[]),
+            suite::PLACE_LIBRE,
+            &mut contexte,
+        )
+        .expect("l'import s'ouvre")
+        .import;
+    suite::verser_le_rang(&mut services, &source, &import, 1, &mut contexte);
+    let captations = racine.chemin().join("captations");
+    let copie = captations.join(format!("{}.1.partiel", nom_de_la_copie(&import, 9)));
+    fs::write(&copie, b"une copie laissee").expect("poser la copie de l'import");
+    let capture = captations.join(format!(
+        "{}.1.partiel",
+        stockage::empreinte(b"une capture laissee")
+    ));
+    fs::write(&capture, b"une capture laissee").expect("poser la copie d'une capture");
+
+    let clos = services
+        .clore_l_import(&source, &suite::cloture(&import), &mut contexte)
+        .expect("l'import se clôt");
+
+    assert_eq!(clos.avertissement, None);
+    assert!(!copie.exists(), "la copie de l'import reste");
+    assert!(capture.is_file(), "la copie d'une capture est retirée");
+}
+
+/// Question 35 ; le défaut (b) de la tâche 12 : un import ouvert sur `A`, un fichier versé, puis
+/// le fonds rouvert, qui se compacte ; l'inspection de `B` dit l'import ouvert ailleurs.
+/// L'ouverture de `B`, coupée au renommage de son fichier d'ajout, est refusée par le disque,
+/// l'import de `A` déjà clos, une fois ; la seconde tentative ouvre `B` sans le reclore : le
+/// journal ne porte qu'un « Import du 14 novembre clos ».
+#[test]
+fn une_ouverture_refusee_apres_la_cloture_d_un_import_ouvert_ailleurs_ne_le_reclot_pas() {
+    let racine = racine_jetable("commandes-import-ailleurs-une-fois");
+    let mut paire = PaireSurFichiers { racine: &racine };
+    let mut services = paire.neufs();
+    let mut alea = alea_de_test();
+    let mut contexte = contexte_de_test(&mut alea);
+    let source_a = paire.source(Some("A"), &[(Some("a.wav"), suite::wav_de(8_000, 1))], &[]);
+    services
+        .inspecter(&source_a, suite::PLACE_LIBRE)
+        .expect("A s'inspecte");
+    let premier = services
+        .ouvrir_l_import(
+            &source_a,
+            &suite::ouverture(&[]),
+            suite::PLACE_LIBRE,
+            &mut contexte,
+        )
+        .expect("l'import de A s'ouvre")
+        .import;
+    suite::verser_le_rang(&mut services, &source_a, &premier, 1, &mut contexte);
+    // Rouvert, le fonds se compacte : les écritures qui suivent sont trop petites pour en
+    // demander une autre, et chacune ne renomme que son propre fichier.
+    let mut services = paire.rouvrir(services, &[]);
+    let source_b = paire.source(Some("B"), &[(Some("b.wav"), suite::wav_de(8_000, 2))], &[]);
+    let inspection = services
+        .inspecter(&source_b, suite::PLACE_LIBRE)
+        .expect("B s'inspecte");
+    assert!(
+        inspection.ouvert_ailleurs,
+        "l'import de A n'est pas dit ouvert ailleurs"
+    );
+    let clos = "Import du 14 novembre clos";
+
+    let rendu = {
+        // Le premier renommage range le rapport de A ; le deuxième, le fichier d'ajout de sa
+        // clôture ; le troisième, celui de l'ouverture de B.
+        let _panne = couper(Etape::Renommage, 3);
+        services.ouvrir_l_import(
+            &source_b,
+            &suite::ouverture(&[]),
+            suite::PLACE_LIBRE,
+            &mut contexte,
+        )
+    };
+    assert!(
+        matches!(
+            rendu,
+            Err(Refus {
+                raison: Raison::Disque,
+                ..
+            })
+        ),
+        "l'ouverture coupée : rendu {rendu:?}"
+    );
+    let fonds = services.documents().fonds().expect("le fonds est né");
+    let imports = lecture::imports(fonds);
+    assert_eq!(imports.len(), 1, "les imports : {imports:?}");
+    assert_eq!(imports[0].import, premier);
+    assert!(imports[0].rapport.is_some(), "l'import de A n'est pas clos");
+    let messages = suite::messages_du_journal(&services);
+    assert_eq!(
+        messages.iter().filter(|message| *message == clos).count(),
+        1,
+        "{messages:?}"
+    );
+
+    let second = services
+        .ouvrir_l_import(
+            &source_b,
+            &suite::ouverture(&[]),
+            suite::PLACE_LIBRE,
+            &mut contexte,
+        )
+        .expect("la seconde tentative ouvre l'import de B");
+    assert!(!second.repris, "l'import de B se dit repris");
+    let messages = suite::messages_du_journal(&services);
+    assert_eq!(
+        messages.iter().filter(|message| *message == clos).count(),
+        1,
+        "{messages:?}"
+    );
+    assert_eq!(
+        messages.last().map(String::as_str),
+        Some("Import du 14 novembre ouvert")
+    );
+}
+
+/// Le doute 11 de la tâche 12 : un import repris après la réouverture du fonds, qui se compacte,
+/// chacun de ses fichiers versé avant ; un nom provisoire `import-<I>-9.1.partiel` posé ; la
+/// clôture, dont le retrait de cette copie est refusé par le disque, est faite : la réponse porte
+/// le refus en avertissement, sans nommer la copie ; la copie reste ; l'import est clos, et une
+/// seconde clôture n'en trouve plus d'ouvert.
+#[test]
+fn une_cloture_dont_le_retrait_d_une_copie_est_refuse_est_faite_avec_un_avertissement() {
+    let racine = racine_jetable("commandes-import-copie-restee");
+    let mut paire = PaireSurFichiers { racine: &racine };
+    let mut services = paire.neufs();
+    let mut alea = alea_de_test();
+    let mut contexte = contexte_de_test(&mut alea);
+    let source = paire.source(
+        Some(suite::DOSSIER_VERSE),
+        &[(Some("a.wav"), suite::wav_de(8_000, 1))],
+        &[],
+    );
+    services
+        .inspecter(&source, suite::PLACE_LIBRE)
+        .expect("le dossier s'inspecte");
+    let import = services
+        .ouvrir_l_import(
+            &source,
+            &suite::ouverture(&[]),
+            suite::PLACE_LIBRE,
+            &mut contexte,
+        )
+        .expect("l'import s'ouvre")
+        .import;
+    suite::verser_le_rang(&mut services, &source, &import, 1, &mut contexte);
+    // Rouvert, le fonds se compacte : le fichier d'ajout de la clôture n'en demande pas une
+    // autre, qui retirerait ses fichiers d'ajout avant la copie.
+    let mut services = paire.rouvrir(services, &[]);
+    services
+        .inspecter(&source, suite::PLACE_LIBRE)
+        .expect("le dossier s'inspecte de nouveau");
+    let reprise = services
+        .ouvrir_l_import(
+            &source,
+            &suite::ouverture(&[]),
+            suite::PLACE_LIBRE,
+            &mut contexte,
+        )
+        .expect("l'import se reprend");
+    assert!(reprise.repris, "l'ouverture ne dit pas la reprise");
+    assert_eq!(reprise.rangs, Vec::<u64>::new());
+    let copie = racine
+        .chemin()
+        .join("captations")
+        .join(format!("{}.1.partiel", nom_de_la_copie(&import, 9)));
+    fs::write(&copie, b"une copie laissee").expect("poser la copie de l'import");
+
+    let rendu = {
+        let _retrait = couper(Etape::Retrait, 1);
+        services.clore_l_import(&source, &suite::cloture(&import), &mut contexte)
+    };
+
+    let clos = rendu.expect("la clôture écrite est faite");
+    assert_eq!(
+        clos.avertissement.as_deref(),
+        Some("Une captation, le disque l'a refusée.")
+    );
+    assert!(copie.is_file(), "la copie au retrait refusé est retirée");
+    assert_eq!(
+        suite::messages_du_journal(&services)
+            .last()
+            .map(String::as_str),
+        Some("Import du 14 novembre clos")
+    );
+    assert_eq!(
+        services.clore_l_import(&source, &suite::cloture(&import), &mut contexte),
+        Err(Refus {
+            raison: Raison::Impossible,
+            message: "Aucun import n'est ouvert.".to_string(),
+        })
     );
 }

@@ -14,7 +14,8 @@
 //! nommées, sans commande ; les octets des fichiers à verser, écrits à l'exécution, l'import
 //! conduit par les commandes, unité par unité (`importer`), et les aides de ce qui le suit : les
 //! déclarations d'une origine, l'origine que montre la vue d'une prise, le type d'un stem et le
-//! texte versé relu. Le fichier s'inclut par `mod suite;`
+//! texte versé relu ; les commandes qui ouvrent et closent un import (`ouverture`, `cloture`), un
+//! WAV coupé (`wav_coupe`) et les tests de la reprise. Le fichier s'inclut par `mod suite;`
 //! dans les tests des services, et par `#[path = "../../services/tests/suite/mod.rs"]` dans ceux
 //! du stockage : il ne nomme que ce que les deux voient, les services, les commandes, le noyau et
 //! `automerge`.
@@ -140,7 +141,9 @@ pub trait Paire {
         liens: &[&str],
     ) -> Self::S;
     /// Change le contenu du fichier `rang` de `source` en `contenu`, et avance sa marque de
-    /// dernière écriture (question 14).
+    /// dernière écriture (question 14), même à taille égale : seule la marque dit alors le
+    /// changement. Ses octets et sa marque au parcours, que rend `entrees`, ne changent pas :
+    /// rechoisir le dossier, c'est le parcourir de nouveau, une autre source de ses mêmes chemins.
     fn changer(&mut self, source: &mut Self::S, rang: u64, contenu: &[u8]);
     /// Refuse toute lecture du fichier `rang` de `source` tant que `refusee` est vrai, puis la
     /// rend (question 38 ; V2).
@@ -5856,10 +5859,10 @@ pub fn un_nom_pose_hors_du_jeu_n_est_pas_parmi_ceux_du_stem<P: Paire>(paire: &mu
 // conduits par les commandes, sur la source à verser de chaque paire.
 
 /// La place libre des imports des tests, assez grande pour chacun.
-const PLACE_LIBRE: u64 = 1 << 40;
+pub const PLACE_LIBRE: u64 = 1 << 40;
 
 /// Le nom du dossier versé des tests de l'import.
-const DOSSIER_VERSE: &str = "Démos d'automne";
+pub const DOSSIER_VERSE: &str = "Démos d'automne";
 
 /// L'en-tête d'un WAV de `wav`, en octets : `RIFF`, `fmt ` de 16 octets, puis `data`.
 const ENTETE_WAV: usize = 44;
@@ -5896,7 +5899,7 @@ fn rempli(mut octets: Vec<u8>, valeur: u8) -> Vec<u8> {
 
 /// Un WAV des tests de l'import : 8 000 Hz, mono, 8 bits, `trames` trames, ses données remplies de
 /// `valeur`.
-fn wav_de(trames: u64, valeur: u8) -> Vec<u8> {
+pub fn wav_de(trames: u64, valeur: u8) -> Vec<u8> {
     rempli(wav(8_000, 1, 8, trames), valeur)
 }
 
@@ -5962,7 +5965,7 @@ pub struct ImportConduit {
 }
 
 /// Verse le fichier `rang` de l'import `import`, au décalage local nul, qui doit se verser.
-fn verser_le_rang<D: Documents, C: Captations, S: Source>(
+pub fn verser_le_rang<D: Documents, C: Captations, S: Source>(
     services: &mut Services<D, C>,
     source: &S,
     import: &str,
@@ -7213,7 +7216,7 @@ fn origine_vue_de<D: Documents, C: Captations>(
 }
 
 /// Les messages du journal du fonds de `services`, dans l'ordre de l'historique.
-fn messages_du_journal<D: Documents, C: Captations>(services: &Services<D, C>) -> Vec<String> {
+pub fn messages_du_journal<D: Documents, C: Captations>(services: &Services<D, C>) -> Vec<String> {
     services
         .journal()
         .expect("le journal se lit")
@@ -8039,5 +8042,889 @@ pub fn les_generateurs_du_fonds_chacun_une_fois<P: Paire>(paire: &mut P) {
             "Forge inventée".to_string(),
             "Studio rêvé".to_string(),
         ])
+    );
+}
+
+// La reprise d'un import (tâche 14) : rechoisir le dossier d'un import resté ouvert le reprend,
+// sous le même ULID ; un fichier changé depuis l'inspection arrête l'import ; un import ouvert
+// ailleurs se clôt à l'ouverture du suivant ; l'état du fonds dit l'import resté ouvert.
+
+/// L'avertissement de l'état du fonds quand un import est resté ouvert (question 2).
+const IMPORT_RESTE_OUVERT: &str = "Un import est resté ouvert : rechoisir son dossier le reprend.";
+
+/// Le refus d'une reprise qui changerait les déclarations de l'ouverture (R2).
+const DECLARATIONS_REPRISES: &str = "Cet import reprend ses déclarations : elles ne changent pas.";
+
+/// Le refus du versement de `b.wav`, changé depuis l'inspection (question 14).
+const B_A_CHANGE: &str = "« b.wav » a changé depuis l'inspection : l'import s'arrête, et \
+                          rechoisir le dossier le reprend.";
+
+/// La commande qui ouvre l'import, ses dossiers déclarés `declarations`, au décalage local nul.
+pub fn ouverture(declarations: &[(&str, commandes::Declaration)]) -> OuvrirLImport {
+    OuvrirLImport {
+        declarations: declarations
+            .iter()
+            .map(|(chemin, declaration)| DeclarationDUnDossier {
+                chemin: chemin.to_string(),
+                declaration: declaration.clone(),
+            })
+            .collect(),
+        decalage_minutes: 0,
+    }
+}
+
+/// La commande qui clôt l'import `import`, au décalage local nul.
+pub fn cloture(import: &str) -> CloreLImport {
+    CloreLImport {
+        import: import.to_string(),
+        decalage_minutes: 0,
+    }
+}
+
+/// Un WAV des tests de l'import coupé à 30 octets, dans son morceau `fmt `, avant l'en-tête de
+/// `data` : sa signature le dit WAV, son en-tête ne se lit pas (illisible ; V8). Tous les WAV
+/// coupés ont le même contenu.
+pub fn wav_coupe() -> Vec<u8> {
+    let mut octets = wav_de(8_000, 0);
+    octets.truncate(30);
+    octets
+}
+
+/// Le nombre des avertissements de l'état du fonds de `services` qui disent un import resté
+/// ouvert.
+fn avertit_d_un_import_reste_ouvert<D: Documents, C: Captations>(
+    services: &Services<D, C>,
+) -> usize {
+    services
+        .etat_du_fonds()
+        .expect("l'état du fonds se lit")
+        .avertissements
+        .iter()
+        .filter(|avertissement| *avertissement == IMPORT_RESTE_OUVERT)
+        .count()
+}
+
+/// L'import `import`, tel que le fonds de `services` le porte.
+fn import_lu<D: Documents, C: Captations>(services: &Services<D, C>, import: &str) -> ImportLu {
+    lecture::imports(fonds_de(services))
+        .into_iter()
+        .find(|lu| lu.import == import)
+        .unwrap_or_else(|| panic!("le fonds ne porte pas l'import {import}"))
+}
+
+/// Point de revue 4, sans coupure ; R7 ; V8 : huit fichiers, dont deux du même contenu, un sans
+/// nom, un WAV coupé à 30 octets (illisible) et un texte en Latin-1 (illisible). Les trois premiers
+/// versés, dont ce WAV et ce texte, puis les services rouverts, qui perdent leur état ;
+/// l'inspection du même dossier dit la reprise de l'import, sans import ouvert ailleurs ;
+/// l'ouverture le reprend, sous le même ULID, et ne rend que les rangs restants ; sa clôture rend
+/// les comptes d'un import fait d'une traite du même dossier, sur `paire_neuve`, illisibles et
+/// octets compris.
+pub fn une_reprise_rend_le_rapport_d_une_traite<P: Paire>(paire: &mut P, paire_neuve: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let coupe = wav_coupe();
+    let latin = b"Un \xe9t\xe9 en r\xe9\n".to_vec();
+    let double = wav_de(8_000, 43);
+    let fichiers: [(Option<&str>, Vec<u8>); 8] = [
+        (Some("A coupe.wav"), coupe.clone()),
+        (Some("B paroles.txt"), latin.clone()),
+        (Some("C essai.wav"), wav_de(8_000, 42)),
+        (Some("D double.wav"), double.clone()),
+        (Some("E double.wav"), double.clone()),
+        (Some("F pont.mid"), midi(1, 2, 480)),
+        (Some("G notes.txt"), b"Un pont qui hesite\n".to_vec()),
+        (None, wav_de(8_000, 44)),
+    ];
+    let source = paire.source(Some(DOSSIER_VERSE), &fichiers, &[]);
+    services
+        .inspecter(&source, PLACE_LIBRE)
+        .expect("le dossier s'inspecte");
+    let premiers: Vec<Option<&str>> = source.entrees()[..3]
+        .iter()
+        .map(|entree| entree.chemin.as_deref())
+        .collect();
+    assert_eq!(
+        premiers,
+        vec![
+            Some("A coupe.wav"),
+            Some("B paroles.txt"),
+            Some("C essai.wav")
+        ]
+    );
+    let ouvert = services
+        .ouvrir_l_import(&source, &ouverture(&[]), PLACE_LIBRE, &mut contexte)
+        .expect("l'import s'ouvre");
+    for rang in 1..=3 {
+        verser_le_rang(&mut services, &source, &ouvert.import, rang, &mut contexte);
+    }
+
+    let mut services = paire.rouvrir(services, &[]);
+    let inspection = services
+        .inspecter(&source, PLACE_LIBRE)
+        .expect("le dossier s'inspecte de nouveau");
+    assert_eq!(inspection.reprise.as_deref(), Some(ouvert.import.as_str()));
+    assert!(
+        !inspection.ouvert_ailleurs,
+        "l'import repris est dit ouvert ailleurs"
+    );
+    let reprise = services
+        .ouvrir_l_import(&source, &ouverture(&[]), PLACE_LIBRE, &mut contexte)
+        .expect("l'import se reprend");
+    assert_eq!(reprise.import, ouvert.import);
+    assert!(reprise.repris, "l'ouverture ne dit pas la reprise");
+    assert_eq!(reprise.rangs, vec![4, 5, 6, 7, 8]);
+    assert_eq!(reprise.jeux, Vec::<commandes::JeuAVerser>::new());
+    for rang in &reprise.rangs {
+        verser_le_rang(&mut services, &source, &ouvert.import, *rang, &mut contexte);
+    }
+    let clos = services
+        .clore_l_import(&source, &cloture(&ouvert.import), &mut contexte)
+        .expect("l'import repris se clôt");
+
+    let mut neufs = paire_neuve.neufs();
+    let mut alea_neuf = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let source_neuve = paire_neuve.source(Some(DOSSIER_VERSE), &fichiers, &[]);
+    let traite = importer(
+        &mut neufs,
+        &source_neuve,
+        &[],
+        &mut contexte_de_test(&mut alea_neuf),
+    );
+    assert_eq!(
+        clos.rapport,
+        RapportDImport {
+            import: ouvert.import.clone(),
+            ..traite.clos.rapport
+        }
+    );
+    assert_eq!(clos.rapport.vus.fichiers, 8);
+    assert_eq!(
+        clos.rapport.illisibles,
+        compte_des(&[coupe.as_slice(), latin.as_slice()])
+    );
+    assert_eq!(clos.rapport.dedoublonnes, compte_des(&[double.as_slice()]));
+    assert_eq!(clos.rapport.sans_nom.fichiers, 1);
+}
+
+/// R2 ; balayage Q3, Q4 et Q13 : `Jeu A` déclaré jeu de stems sans origine, `Atelier` déclaré
+/// généré par « Atelier inventé », sans jeu ; dans `Jeu A`, un stem illisible (un WAV coupé à 30
+/// octets, sans faits) et sans origine. La prise en stems versée, puis les services rouverts ;
+/// l'inspection du même dossier dit la reprise et rend les déclarations de l'ouverture ; la
+/// reprise ne rend que le rang d'`Atelier`, sans jeu à verser ; le stem illisible reste nommé et
+/// rangé, sans copie de l'import ; la clôture rend les comptes d'un import fait d'une traite, sur
+/// `paire_neuve`. Un stem sans nom en UTF-8 n'a pas de dossier et ne rejoint aucun jeu : il ne se
+/// forme pas par la source, et son entrée, sa seule clé, est éprouvée au noyau.
+pub fn un_import_coupe_apres_une_prise_en_stems_se_reprend<P: Paire>(
+    paire: &mut P,
+    paire_neuve: &mut P,
+) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let voix = wav_coupe();
+    let fichiers: [(Option<&str>, Vec<u8>); 3] = [
+        (Some("Atelier/nappe.wav"), wav_de(8_000, 51)),
+        (Some("Jeu A/basse.wav"), wav_de(8_000, 52)),
+        (Some("Jeu A/voix.wav"), voix.clone()),
+    ];
+    let declarations = [
+        ("Jeu A", jeu_de_stems()),
+        ("Atelier", origine_du_dossier(generee("Atelier inventé"))),
+    ];
+    let source = paire.source(Some(DOSSIER_VERSE), &fichiers, &[]);
+    services
+        .inspecter(&source, PLACE_LIBRE)
+        .expect("le dossier s'inspecte");
+    let ouvert = services
+        .ouvrir_l_import(
+            &source,
+            &ouverture(&declarations),
+            PLACE_LIBRE,
+            &mut contexte,
+        )
+        .expect("l'import s'ouvre");
+    assert_eq!(ouvert.rangs, vec![1]);
+    assert_eq!(
+        ouvert.jeux,
+        vec![commandes::JeuAVerser {
+            dossier: "Jeu A".to_string(),
+            rangs: vec![2, 3],
+        }]
+    );
+    for rang in [2, 3] {
+        let verse = verser_le_rang(&mut services, &source, &ouvert.import, rang, &mut contexte);
+        assert_eq!(verse.issue, Issue::Stem, "le fichier n° {rang}");
+    }
+    services
+        .verser_une_prise_en_stems(
+            &source,
+            &VerserUnePriseEnStems {
+                import: ouvert.import.clone(),
+                dossier: "Jeu A".to_string(),
+                decalage_minutes: 0,
+            },
+            &mut contexte,
+        )
+        .expect("la prise en stems se verse");
+
+    let mut services = paire.rouvrir(services, &[]);
+    let inspection = services
+        .inspecter(&source, PLACE_LIBRE)
+        .expect("le dossier s'inspecte de nouveau");
+    assert_eq!(inspection.reprise.as_deref(), Some(ouvert.import.as_str()));
+    assert_eq!(
+        inspection.declarations_reprises,
+        vec![
+            DeclarationDUnDossier {
+                chemin: "Atelier".to_string(),
+                declaration: origine_du_dossier(generee("Atelier inventé")),
+            },
+            DeclarationDUnDossier {
+                chemin: "Jeu A".to_string(),
+                declaration: jeu_de_stems(),
+            },
+        ]
+    );
+    let reprise = services
+        .ouvrir_l_import(
+            &source,
+            &ouverture(&declarations),
+            PLACE_LIBRE,
+            &mut contexte,
+        )
+        .expect("l'import se reprend");
+    assert!(reprise.repris, "l'ouverture ne dit pas la reprise");
+    assert_eq!(reprise.rangs, vec![1]);
+    assert_eq!(reprise.jeux, Vec::<commandes::JeuAVerser>::new());
+    let e_voix = empreinte(&voix);
+    assert!(
+        lecture::empreintes_nommees(fonds_de(&services)).contains(&e_voix),
+        "le stem illisible n'est plus nommé"
+    );
+    assert_eq!(
+        services.captations().taille(&e_voix),
+        Ok(Some(voix.len() as u64))
+    );
+    assert_eq!(
+        services.captations().copies_de_l_import(&ouvert.import),
+        Ok(Vec::new())
+    );
+    verser_le_rang(&mut services, &source, &ouvert.import, 1, &mut contexte);
+    let clos = services
+        .clore_l_import(&source, &cloture(&ouvert.import), &mut contexte)
+        .expect("l'import repris se clôt");
+
+    let mut neufs = paire_neuve.neufs();
+    let mut alea_neuf = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let source_neuve = paire_neuve.source(Some(DOSSIER_VERSE), &fichiers, &[]);
+    let traite = importer(
+        &mut neufs,
+        &source_neuve,
+        &declarations,
+        &mut contexte_de_test(&mut alea_neuf),
+    );
+    assert_eq!(
+        clos.rapport,
+        RapportDImport {
+            import: ouvert.import.clone(),
+            ..traite.clos.rapport
+        }
+    );
+    assert_eq!(clos.rapport.illisibles, compte_des(&[voix.as_slice()]));
+    assert_eq!(clos.rapport.origines_changees, 1);
+}
+
+/// R2 ; question 35 : un import ouvert, le dossier versé déclaré de la main de Sacha, rien versé,
+/// puis les services rouverts ; l'inspection du même dossier ne dit aucune reprise, aucune
+/// déclaration reprise, et dit l'import ouvert ailleurs : sans nom posé, aucun import ne se
+/// reprend.
+pub fn un_import_ouvert_sans_nom_ne_se_reprend_pas<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let source = paire.source(
+        Some(DOSSIER_VERSE),
+        &[
+            (Some("a.wav"), wav_de(8_000, 11)),
+            (Some("b.wav"), wav_de(8_000, 12)),
+        ],
+        &[],
+    );
+    services
+        .inspecter(&source, PLACE_LIBRE)
+        .expect("le dossier s'inspecte");
+    services
+        .ouvrir_l_import(
+            &source,
+            &ouverture(&[("", origine_du_dossier(OrigineADeclarer::Main))]),
+            PLACE_LIBRE,
+            &mut contexte,
+        )
+        .expect("l'import s'ouvre");
+
+    let mut services = paire.rouvrir(services, &[]);
+    let inspection = services
+        .inspecter(&source, PLACE_LIBRE)
+        .expect("le dossier s'inspecte de nouveau");
+
+    assert_eq!(inspection.reprise, None);
+    assert_eq!(
+        inspection.declarations_reprises,
+        Vec::<DeclarationDUnDossier>::new()
+    );
+    assert!(
+        inspection.ouvert_ailleurs,
+        "l'import ouvert sans nom n'est pas dit ouvert ailleurs"
+    );
+}
+
+/// R2 ; balayage Q3 et Q13 : un import ouvert, `Démos` déclaré de la main de Sacha, sans jeu, un
+/// fichier versé, puis les services rouverts ; l'inspection rend cette déclaration, reprise ; une
+/// ouverture qui déclare `Démos` jeu de stems, son origine gardée, est refusée ; sans déclaration,
+/// puis, inspecté de nouveau, avec les mêmes, l'import se reprend, sans rien écrire ; le second
+/// fichier versé porte l'origine de l'ouverture.
+pub fn une_reprise_garde_les_declarations_de_l_ouverture<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let b = wav_de(8_000, 22);
+    let source = paire.source(
+        Some(DOSSIER_VERSE),
+        &[
+            (Some("Démos/a.wav"), wav_de(8_000, 21)),
+            (Some("Démos/b.wav"), b.clone()),
+        ],
+        &[],
+    );
+    let demos = [("Démos", origine_du_dossier(OrigineADeclarer::Main))];
+    services
+        .inspecter(&source, PLACE_LIBRE)
+        .expect("le dossier s'inspecte");
+    let import = services
+        .ouvrir_l_import(&source, &ouverture(&demos), PLACE_LIBRE, &mut contexte)
+        .expect("l'import s'ouvre")
+        .import;
+    verser_le_rang(&mut services, &source, &import, 1, &mut contexte);
+
+    let mut services = paire.rouvrir(services, &[]);
+    let inspection = services
+        .inspecter(&source, PLACE_LIBRE)
+        .expect("le dossier s'inspecte de nouveau");
+    assert_eq!(inspection.reprise.as_deref(), Some(import.as_str()));
+    assert_eq!(
+        inspection.declarations_reprises,
+        vec![DeclarationDUnDossier {
+            chemin: "Démos".to_string(),
+            declaration: origine_du_dossier(OrigineADeclarer::Main),
+        }]
+    );
+    let journal = messages_du_journal(&services);
+    let changees = [(
+        "Démos",
+        commandes::Declaration {
+            stems: true,
+            origine: OrigineADeclarer::Main,
+        },
+    )];
+    assert_eq!(
+        services.ouvrir_l_import(&source, &ouverture(&changees), PLACE_LIBRE, &mut contexte),
+        Err(Refus {
+            raison: Raison::Impossible,
+            message: DECLARATIONS_REPRISES.to_string(),
+        })
+    );
+    let sans = services
+        .ouvrir_l_import(&source, &ouverture(&[]), PLACE_LIBRE, &mut contexte)
+        .expect("sans déclaration, l'import se reprend");
+    assert!(sans.repris, "l'ouverture sans déclaration ne reprend pas");
+    assert_eq!(sans.rangs, vec![2]);
+    services
+        .inspecter(&source, PLACE_LIBRE)
+        .expect("le dossier s'inspecte une troisième fois");
+    let memes = services
+        .ouvrir_l_import(&source, &ouverture(&demos), PLACE_LIBRE, &mut contexte)
+        .expect("avec les mêmes déclarations, l'import se reprend");
+    assert!(
+        memes.repris,
+        "l'ouverture aux mêmes déclarations ne reprend pas"
+    );
+    assert_eq!(memes.import, import);
+    assert_eq!(memes.rangs, vec![2]);
+    assert_eq!(messages_du_journal(&services), journal);
+
+    verser_le_rang(&mut services, &source, &import, 2, &mut contexte);
+    services
+        .clore_l_import(&source, &cloture(&import), &mut contexte)
+        .expect("l'import repris se clôt");
+    assert_eq!(origine_vue(&services, &b), OrigineDeclaree::Main);
+}
+
+/// Question 14 : `a.wav`, `b.wav` et `c.wav` ; l'import ouvert, `a.wav` versé ; `b.wav` récrit à
+/// une autre taille après l'inspection ; son versement est refusé, et le dit. Rechoisir le
+/// dossier, une nouvelle source de ses mêmes chemins, le reprend : `b.wav` changé se verse, et le
+/// rapport compte ses octets.
+pub fn un_fichier_change_depuis_l_inspection_arrete_l_import<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let a = wav_de(8_000, 61);
+    let c = wav_de(8_000, 63);
+    let change = wav_de(4_000, 64);
+    let mut source = paire.source(
+        Some(DOSSIER_VERSE),
+        &[
+            (Some("a.wav"), a.clone()),
+            (Some("b.wav"), wav_de(8_000, 62)),
+            (Some("c.wav"), c.clone()),
+        ],
+        &[],
+    );
+    services
+        .inspecter(&source, PLACE_LIBRE)
+        .expect("le dossier s'inspecte");
+    let import = services
+        .ouvrir_l_import(&source, &ouverture(&[]), PLACE_LIBRE, &mut contexte)
+        .expect("l'import s'ouvre")
+        .import;
+    verser_le_rang(&mut services, &source, &import, 1, &mut contexte);
+
+    paire.changer(&mut source, 2, &change);
+    assert_eq!(
+        services.verser_un_fichier(
+            &source,
+            &VerserUnFichier {
+                import: import.clone(),
+                rang: 2,
+                decalage_minutes: 0,
+            },
+            &mut contexte,
+        ),
+        Err(Refus {
+            raison: Raison::Impossible,
+            message: B_A_CHANGE.to_string(),
+        })
+    );
+
+    let rechoisie = paire.source(
+        Some(DOSSIER_VERSE),
+        &[
+            (Some("a.wav"), a.clone()),
+            (Some("b.wav"), change.clone()),
+            (Some("c.wav"), c.clone()),
+        ],
+        &[],
+    );
+    let inspection = services
+        .inspecter(&rechoisie, PLACE_LIBRE)
+        .expect("le dossier rechoisi s'inspecte");
+    assert_eq!(inspection.reprise.as_deref(), Some(import.as_str()));
+    let reprise = services
+        .ouvrir_l_import(&rechoisie, &ouverture(&[]), PLACE_LIBRE, &mut contexte)
+        .expect("l'import se reprend");
+    assert!(reprise.repris, "l'ouverture ne dit pas la reprise");
+    assert_eq!(reprise.rangs, vec![2, 3]);
+    assert_eq!(
+        verser_le_rang(&mut services, &rechoisie, &import, 2, &mut contexte).issue,
+        Issue::Verse
+    );
+    verser_le_rang(&mut services, &rechoisie, &import, 3, &mut contexte);
+    let clos = services
+        .clore_l_import(&rechoisie, &cloture(&import), &mut contexte)
+        .expect("l'import repris se clôt");
+    assert_eq!(
+        clos.rapport.verses,
+        compte_des(&[a.as_slice(), change.as_slice(), c.as_slice()])
+    );
+}
+
+/// Question 14 ; R8 : `a.wav`, `b.wav` et `c.wav` ; l'import ouvert, `a.wav` versé ; `b.wav`
+/// récrit à la même taille après l'inspection, sa marque de dernière écriture avancée ; son
+/// versement est refusé du même message ; aucune captation ne porte le contenu changé, et aucun
+/// nom provisoire de l'import ne reste. Rechoisir le dossier le reprend, et le contenu changé se
+/// verse.
+pub fn un_contenu_change_a_taille_egale_arrete_l_import<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let a = wav_de(8_000, 65);
+    let b = wav_de(8_000, 66);
+    let c = wav_de(8_000, 67);
+    let change = wav_de(8_000, 68);
+    assert_eq!(change.len(), b.len());
+    let mut source = paire.source(
+        Some(DOSSIER_VERSE),
+        &[
+            (Some("a.wav"), a.clone()),
+            (Some("b.wav"), b),
+            (Some("c.wav"), c.clone()),
+        ],
+        &[],
+    );
+    services
+        .inspecter(&source, PLACE_LIBRE)
+        .expect("le dossier s'inspecte");
+    let import = services
+        .ouvrir_l_import(&source, &ouverture(&[]), PLACE_LIBRE, &mut contexte)
+        .expect("l'import s'ouvre")
+        .import;
+    verser_le_rang(&mut services, &source, &import, 1, &mut contexte);
+
+    paire.changer(&mut source, 2, &change);
+    assert_eq!(
+        services.verser_un_fichier(
+            &source,
+            &VerserUnFichier {
+                import: import.clone(),
+                rang: 2,
+                decalage_minutes: 0,
+            },
+            &mut contexte,
+        ),
+        Err(Refus {
+            raison: Raison::Impossible,
+            message: B_A_CHANGE.to_string(),
+        })
+    );
+    let e_change = empreinte(&change);
+    assert_eq!(services.captations().taille(&e_change), Ok(None));
+    assert_eq!(
+        services.captations().copies_de_l_import(&import),
+        Ok(Vec::new())
+    );
+
+    let rechoisie = paire.source(
+        Some(DOSSIER_VERSE),
+        &[
+            (Some("a.wav"), a),
+            (Some("b.wav"), change.clone()),
+            (Some("c.wav"), c),
+        ],
+        &[],
+    );
+    let inspection = services
+        .inspecter(&rechoisie, PLACE_LIBRE)
+        .expect("le dossier rechoisi s'inspecte");
+    assert_eq!(inspection.reprise.as_deref(), Some(import.as_str()));
+    let reprise = services
+        .ouvrir_l_import(&rechoisie, &ouverture(&[]), PLACE_LIBRE, &mut contexte)
+        .expect("l'import se reprend");
+    assert_eq!(reprise.rangs, vec![2, 3]);
+    assert_eq!(
+        verser_le_rang(&mut services, &rechoisie, &import, 2, &mut contexte).issue,
+        Issue::Verse
+    );
+    assert_eq!(
+        services.captations().taille(&e_change),
+        Ok(Some(change.len() as u64))
+    );
+}
+
+/// Question 35 : un import ouvert sur `A`, un fichier versé ; l'inspection de `B` dit l'import
+/// ouvert ailleurs, sans reprise ; l'ouverture de `B` clôt d'abord l'import de `A` : le journal
+/// porte « Import du 14 novembre clos », puis « Import du 14 novembre ouvert » ; le rapport de `A`
+/// se relit, un vu, un versé, aucun dédoublonné ni ignoré ; `B` clos, l'état du fonds ne dit plus
+/// d'import resté ouvert.
+pub fn un_import_ouvert_ailleurs_se_clot_a_l_ouverture_du_suivant<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let a = wav_de(8_000, 71);
+    let source_a = paire.source(Some("A"), &[(Some("a.wav"), a.clone())], &[]);
+    services
+        .inspecter(&source_a, PLACE_LIBRE)
+        .expect("A s'inspecte");
+    let premier = services
+        .ouvrir_l_import(&source_a, &ouverture(&[]), PLACE_LIBRE, &mut contexte)
+        .expect("l'import de A s'ouvre")
+        .import;
+    verser_le_rang(&mut services, &source_a, &premier, 1, &mut contexte);
+
+    let source_b = paire.source(Some("B"), &[(Some("b.wav"), wav_de(8_000, 72))], &[]);
+    let inspection = services
+        .inspecter(&source_b, PLACE_LIBRE)
+        .expect("B s'inspecte");
+    assert_eq!(inspection.reprise, None);
+    assert!(
+        inspection.ouvert_ailleurs,
+        "l'import de A n'est pas dit ouvert ailleurs"
+    );
+    let avant = messages_du_journal(&services).len();
+    let second = services
+        .ouvrir_l_import(&source_b, &ouverture(&[]), PLACE_LIBRE, &mut contexte)
+        .expect("l'import de B s'ouvre");
+    assert!(!second.repris, "l'import de B se dit repris");
+    assert_eq!(
+        messages_du_journal(&services)[avant..].to_vec(),
+        vec![
+            "Import du 14 novembre clos".to_string(),
+            "Import du 14 novembre ouvert".to_string(),
+        ]
+    );
+    let un = compte_des(&[a.as_slice()]);
+    assert_eq!(
+        services.lire_un_rapport(&commandes::LireUnRapport {
+            import: premier.clone(),
+        }),
+        Ok(rapport_de(&premier, un.clone(), un, compte(0, 0)))
+    );
+
+    verser_le_rang(&mut services, &source_b, &second.import, 1, &mut contexte);
+    services
+        .clore_l_import(&source_b, &cloture(&second.import), &mut contexte)
+        .expect("l'import de B se clôt");
+    assert_eq!(avertit_d_un_import_reste_ouvert(&services), 0);
+    assert!(
+        lecture::imports(fonds_de(&services))
+            .iter()
+            .all(|lu| lu.rapport.is_some()),
+        "un import reste ouvert"
+    );
+}
+
+/// Question 35 ; la décision de la session (défaut (a) de la tâche 12) : l'import clos ailleurs se
+/// compte par la règle du noyau (`rapport::comptes`). Un import ouvert sur `A`, chacun de ses
+/// quatre fichiers versé : un WAV coupé (illisible), deux noms d'un même contenu, et un fichier
+/// sans nom ; l'ouverture de `B` le clôt ; son rapport compte les trois noms posés, le WAV coupé
+/// illisible, le second nom du même contenu dédoublonné ; ni ignoré, ni sans nom : le fonds n'en
+/// sait rien.
+pub fn un_import_clos_ailleurs_se_compte_par_la_regle_du_noyau<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let coupe = wav_coupe();
+    let double = wav_de(8_000, 91);
+    let source_a = paire.source(
+        Some("A"),
+        &[
+            (Some("w.wav"), coupe.clone()),
+            (Some("x.wav"), double.clone()),
+            (Some("y.wav"), double.clone()),
+            (None, wav_de(8_000, 92)),
+        ],
+        &[],
+    );
+    services
+        .inspecter(&source_a, PLACE_LIBRE)
+        .expect("A s'inspecte");
+    let premier = services
+        .ouvrir_l_import(&source_a, &ouverture(&[]), PLACE_LIBRE, &mut contexte)
+        .expect("l'import de A s'ouvre")
+        .import;
+    for rang in 1..=4 {
+        verser_le_rang(&mut services, &source_a, &premier, rang, &mut contexte);
+    }
+
+    let source_b = paire.source(Some("B"), &[(Some("z.wav"), wav_de(8_000, 93))], &[]);
+    services
+        .inspecter(&source_b, PLACE_LIBRE)
+        .expect("B s'inspecte");
+    services
+        .ouvrir_l_import(&source_b, &ouverture(&[]), PLACE_LIBRE, &mut contexte)
+        .expect("l'import de B s'ouvre");
+
+    let nommes = [coupe.as_slice(), double.as_slice(), double.as_slice()];
+    assert_eq!(
+        services.lire_un_rapport(&commandes::LireUnRapport {
+            import: premier.clone(),
+        }),
+        Ok(RapportDImport {
+            import: premier.clone(),
+            vus: compte_des(&nommes),
+            verses: compte_des(&[coupe.as_slice(), double.as_slice()]),
+            dedoublonnes: compte_des(&[double.as_slice()]),
+            illisibles: compte_des(&[coupe.as_slice()]),
+            ignores: compte(0, 0),
+            sans_nom: compte(0, 0),
+            origines_changees: 0,
+            fichiers_sans_nom: Vec::new(),
+        })
+    );
+}
+
+/// Un fonds en lecture seule (la migration qui attend ses dépendances) : l'inspection est refusée
+/// du refus de `lecture_seule()`, sans lire un octet du dossier, comme l'ouverture ; aucune
+/// captation n'est versée.
+pub fn en_lecture_seule_l_import_est_refuse_avant_toute_captation<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    services
+        .noter(
+            &une_note("Un refrain qui monte, en ré"),
+            &mut contexte_de_test(&mut alea),
+        )
+        .expect("la note fait naître le fonds");
+    let migration = migration_sur_une_autre_genese();
+    let mut services = paire.rouvrir(services, &migrations_de_test(&migration));
+    let refus = services
+        .documents()
+        .lecture_seule()
+        .expect("le fonds se lit sans écrire");
+    let source = paire.source(
+        Some(DOSSIER_VERSE),
+        &[(Some("a.wav"), wav_de(8_000, 81))],
+        &[],
+    );
+
+    assert_eq!(services.inspecter(&source, PLACE_LIBRE), Err(refus.clone()));
+    assert_eq!(source.octets_lus(1), 0);
+    assert_eq!(
+        services.ouvrir_l_import(
+            &source,
+            &ouverture(&[]),
+            PLACE_LIBRE,
+            &mut contexte_de_test(&mut alea)
+        ),
+        Err(refus)
+    );
+    assert_eq!(services.captations().tailles(), Ok(BTreeSet::new()));
+}
+
+/// Question 2 : un import ouvert, un fichier versé ; tant que ces services le conduisent, l'état
+/// du fonds ne dit aucun import resté ouvert ; rouverts, ils le disent, une fois (« Un import est
+/// resté ouvert : rechoisir son dossier le reprend. ») ; repris, plus ; clos, ni avant ni après
+/// une nouvelle réouverture.
+pub fn l_etat_du_fonds_dit_qu_un_import_est_reste_ouvert<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let source = paire.source(
+        Some(DOSSIER_VERSE),
+        &[
+            (Some("a.wav"), wav_de(8_000, 31)),
+            (Some("b.wav"), wav_de(8_000, 32)),
+        ],
+        &[],
+    );
+    services
+        .inspecter(&source, PLACE_LIBRE)
+        .expect("le dossier s'inspecte");
+    let import = services
+        .ouvrir_l_import(&source, &ouverture(&[]), PLACE_LIBRE, &mut contexte)
+        .expect("l'import s'ouvre")
+        .import;
+    verser_le_rang(&mut services, &source, &import, 1, &mut contexte);
+    assert_eq!(avertit_d_un_import_reste_ouvert(&services), 0);
+
+    let mut services = paire.rouvrir(services, &[]);
+    assert_eq!(avertit_d_un_import_reste_ouvert(&services), 1);
+    services
+        .inspecter(&source, PLACE_LIBRE)
+        .expect("le dossier s'inspecte de nouveau");
+    let reprise = services
+        .ouvrir_l_import(&source, &ouverture(&[]), PLACE_LIBRE, &mut contexte)
+        .expect("l'import se reprend");
+    assert!(reprise.repris, "l'ouverture ne dit pas la reprise");
+    assert_eq!(avertit_d_un_import_reste_ouvert(&services), 0);
+    verser_le_rang(&mut services, &source, &import, 2, &mut contexte);
+    services
+        .clore_l_import(&source, &cloture(&import), &mut contexte)
+        .expect("l'import repris se clôt");
+    assert_eq!(avertit_d_un_import_reste_ouvert(&services), 0);
+
+    let services = paire.rouvrir(services, &[]);
+    assert_eq!(avertit_d_un_import_reste_ouvert(&services), 0);
+}
+
+/// Question 35 : un import ouvert sur `A`, deux noms posés (`a.wav`, `b.wav`) ; un dossier `B`
+/// sans ces noms, puis un dossier qui porte `a.wav` sans `b.wav` : l'inspection de chacun ne dit
+/// aucune reprise, et dit l'import ouvert ailleurs ; l'import de `A` reste ouvert, sans rapport,
+/// tant qu'aucun autre ne s'ouvre, et rechoisir `A` le reprend encore.
+pub fn rechoisir_un_autre_dossier_ne_reprend_pas_l_import_ouvert<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let a = wav_de(8_000, 41);
+    let source_a = paire.source(
+        Some("A"),
+        &[
+            (Some("a.wav"), a.clone()),
+            (Some("b.wav"), wav_de(8_000, 42)),
+            (Some("c.wav"), wav_de(8_000, 43)),
+        ],
+        &[],
+    );
+    services
+        .inspecter(&source_a, PLACE_LIBRE)
+        .expect("A s'inspecte");
+    let import = services
+        .ouvrir_l_import(&source_a, &ouverture(&[]), PLACE_LIBRE, &mut contexte)
+        .expect("l'import de A s'ouvre")
+        .import;
+    for rang in [1, 2] {
+        verser_le_rang(&mut services, &source_a, &import, rang, &mut contexte);
+    }
+
+    let source_b = paire.source(
+        Some("B"),
+        &[
+            (Some("x.wav"), wav_de(8_000, 44)),
+            (Some("y.wav"), wav_de(8_000, 45)),
+        ],
+        &[],
+    );
+    let partielle = paire.source(
+        Some("A"),
+        &[(Some("a.wav"), a), (Some("x.wav"), wav_de(8_000, 44))],
+        &[],
+    );
+    for autre in [&source_b, &partielle] {
+        let inspection = services
+            .inspecter(autre, PLACE_LIBRE)
+            .expect("l'autre dossier s'inspecte");
+        assert_eq!(inspection.reprise, None);
+        assert!(
+            inspection.ouvert_ailleurs,
+            "l'import de A n'est pas dit ouvert ailleurs"
+        );
+        assert_eq!(import_lu(&services, &import).rapport, None);
+    }
+
+    let inspection = services
+        .inspecter(&source_a, PLACE_LIBRE)
+        .expect("A s'inspecte de nouveau");
+    assert_eq!(inspection.reprise.as_deref(), Some(import.as_str()));
+    assert!(
+        !inspection.ouvert_ailleurs,
+        "l'import repris est dit ouvert ailleurs"
     );
 }

@@ -581,6 +581,64 @@ fn les_generateurs_du_fonds_chacun_une_fois() {
     suite::les_generateurs_du_fonds_chacun_une_fois(&mut PaireEnMemoire);
 }
 
+#[test]
+fn une_reprise_rend_le_rapport_d_une_traite() {
+    suite::une_reprise_rend_le_rapport_d_une_traite(&mut PaireEnMemoire, &mut PaireEnMemoire);
+}
+
+#[test]
+fn un_import_coupe_apres_une_prise_en_stems_se_reprend() {
+    suite::un_import_coupe_apres_une_prise_en_stems_se_reprend(
+        &mut PaireEnMemoire,
+        &mut PaireEnMemoire,
+    );
+}
+
+#[test]
+fn un_import_ouvert_sans_nom_ne_se_reprend_pas() {
+    suite::un_import_ouvert_sans_nom_ne_se_reprend_pas(&mut PaireEnMemoire);
+}
+
+#[test]
+fn une_reprise_garde_les_declarations_de_l_ouverture() {
+    suite::une_reprise_garde_les_declarations_de_l_ouverture(&mut PaireEnMemoire);
+}
+
+#[test]
+fn un_fichier_change_depuis_l_inspection_arrete_l_import() {
+    suite::un_fichier_change_depuis_l_inspection_arrete_l_import(&mut PaireEnMemoire);
+}
+
+#[test]
+fn un_contenu_change_a_taille_egale_arrete_l_import() {
+    suite::un_contenu_change_a_taille_egale_arrete_l_import(&mut PaireEnMemoire);
+}
+
+#[test]
+fn un_import_ouvert_ailleurs_se_clot_a_l_ouverture_du_suivant() {
+    suite::un_import_ouvert_ailleurs_se_clot_a_l_ouverture_du_suivant(&mut PaireEnMemoire);
+}
+
+#[test]
+fn un_import_clos_ailleurs_se_compte_par_la_regle_du_noyau() {
+    suite::un_import_clos_ailleurs_se_compte_par_la_regle_du_noyau(&mut PaireEnMemoire);
+}
+
+#[test]
+fn en_lecture_seule_l_import_est_refuse_avant_toute_captation() {
+    suite::en_lecture_seule_l_import_est_refuse_avant_toute_captation(&mut PaireEnMemoire);
+}
+
+#[test]
+fn l_etat_du_fonds_dit_qu_un_import_est_reste_ouvert() {
+    suite::l_etat_du_fonds_dit_qu_un_import_est_reste_ouvert(&mut PaireEnMemoire);
+}
+
+#[test]
+fn rechoisir_un_autre_dossier_ne_reprend_pas_l_import_ouvert() {
+    suite::rechoisir_un_autre_dossier_ne_reprend_pas_l_import_ouvert(&mut PaireEnMemoire);
+}
+
 /// Les services en mémoire de la paire.
 type ServicesEnMemoire = Services<DocumentsEnMemoire, CaptationsEnMemoire>;
 
