@@ -19,10 +19,11 @@ use automerge::iter::MapRangeItem;
 use automerge::{Automerge, ChangeHash, ObjId, ObjType, ROOT, ReadDoc, ScalarValue, Value};
 use noyau::donnees::changement::Simple;
 use noyau::donnees::fonds::{
-    CAPTEE, CONTENEURS_NOMMANT_UNE_CAPTATION, DECLARATION, DEPUIS, DUREE, ETIQUETTES, FORMAT,
-    GENEREE, IDEE, IDEES, IMPORTEE, IMPORTS, JEU, LE, LIENS, MAIN, MANIFESTE, MIDI, MIDI_VERSES,
-    NOM, ORIGINES_DECLAREES, OUVERT, PAR, PHOTOS, PRISES, PROVENANCE, RAPPORT,
-    REQUETES_ENREGISTREES, RETIREE, SAISIE, STEM, TEXTE, TYPE, VERSION_DE_SCHEMA,
+    BITS, CANAUX, CAPTEE, CODAGE, CONTENEURS_NOMMANT_UNE_CAPTATION, DECLARATION, DEPUIS, DIVISION,
+    DUREE, ETIQUETTES, FORMAT, FREQUENCE, GENEREE, IDEE, IDEES, IMPORTEE, IMPORTS, JEU, LE, LIENS,
+    MAIN, MANIFESTE, MIDI, MIDI_VERSES, NOM, ORIGINES_DECLAREES, OUVERT, PAR, PHOTOS, PRISES,
+    PROVENANCE, RAPPORT, REQUETES_ENREGISTREES, RETIREE, SAISIE, STEM, TEXTE, TYPE,
+    VERSION_DE_SCHEMA,
 };
 use noyau::donnees::gestes::{Appareil, CaptationLue, IdeeLue, Provenance, Sorte};
 use noyau::donnees::idee;
@@ -86,6 +87,46 @@ pub fn lire_la_captation(doc: &Automerge, sorte: Sorte, empreinte: &str) -> Opti
     let idee = valeur(doc, &conteneur, &format!("{empreinte}/{IDEE}"), chaine)??;
     let duree = valeur(doc, &conteneur, &format!("{empreinte}/{DUREE}"), naturel).flatten();
     Some(captation(sorte, empreinte.to_string(), idee, duree))
+}
+
+/// Les faits que porte le contenu `empreinte` sous `conteneur`, chacun sous `<empreinte>/<fait>` :
+/// son format, sa durée, son codage, ses canaux, sa fréquence, ses bits et sa division. Un fait
+/// absent, d'un autre type que celui du schéma, ou qui ne tient pas dans le sien, se lit `None` ;
+/// un conteneur absent, aucun. La durée d'une prise en stems n'est pas sous son manifeste : elle
+/// vient de ses stems (`captations_de`).
+pub fn faits_de(doc: &Automerge, conteneur: &str, empreinte: &str) -> Faits {
+    let Some(objet) = objet(doc, &ROOT, conteneur) else {
+        return Faits::default();
+    };
+    let naturel_de =
+        |fait: &str| valeur(doc, &objet, &format!("{empreinte}/{fait}"), naturel).flatten();
+    Faits {
+        format: valeur(doc, &objet, &format!("{empreinte}/{FORMAT}"), chaine).flatten(),
+        duree_ms: naturel_de(DUREE),
+        codage: naturel_de(CODAGE).and_then(|n| u16::try_from(n).ok()),
+        canaux: naturel_de(CANAUX).and_then(|n| u16::try_from(n).ok()),
+        frequence: naturel_de(FREQUENCE).and_then(|n| u32::try_from(n).ok()),
+        bits: naturel_de(BITS).and_then(|n| u16::try_from(n).ok()),
+        division: naturel_de(DIVISION).and_then(|n| u16::try_from(n).ok()),
+    }
+}
+
+/// La tête de l'ouverture de l'import `import` : le hash de la modification qui a posé
+/// `imports/<i>/ouvert`, et de chacune, si la clé est en conflit (`get_all`, puis
+/// `Automerge::hash_for_opid`, d'après l'identifiant de chaque valeur). Aucun si la clé ne se lit
+/// pas.
+pub fn tete_de_l_ouverture(doc: &Automerge, import: &str) -> Vec<ChangeHash> {
+    let Some(imports) = objet(doc, &ROOT, IMPORTS) else {
+        return Vec::new();
+    };
+    doc.get_all(&imports, format!("{import}/{OUVERT}").as_str())
+        .map(|valeurs| {
+            valeurs
+                .iter()
+                .filter_map(|(_, id)| doc.hash_for_opid(id))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// Les captations dont `<empreinte>/idee` vaut `id`, dans les trois conteneurs, ordre (sorte,

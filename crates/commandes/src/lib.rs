@@ -645,8 +645,9 @@ pub enum NatureDuFichier {
 /// Un fichier du dossier, tel que l'inspection le voit.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FichierInspecte {
-    /// Son rang dans la liste de l'inspection, que l'import reprend pour le verser : un entier
-    /// sous `ENTIER_SUR`, le nombre de fichiers d'un dossier en restant très loin.
+    /// Son rang dans la liste de l'inspection, que l'import reprend pour le verser : un rang de
+    /// `Source::entrees`, sous `ENTIER_SUR`, le nombre de fichiers d'un dossier en restant très
+    /// loin.
     pub rang: u64,
     /// Son chemin dans le dossier versé, sans `/` initial ; `None` si son nom ne se lit pas.
     pub chemin: Option<String>,
@@ -734,7 +735,7 @@ pub struct OuvrirLImport {
 pub struct JeuAVerser {
     /// Le chemin du dossier du jeu.
     pub dossier: String,
-    /// Les rangs de ses fichiers, chacun sous `ENTIER_SUR`.
+    /// Les rangs de ses fichiers, des rangs de `Source::entrees`, chacun sous `ENTIER_SUR`.
     pub rangs: Vec<u64>,
 }
 
@@ -745,7 +746,8 @@ pub struct ImportOuvert {
     pub import: String,
     /// Il reprend un import resté ouvert.
     pub repris: bool,
-    /// Les rangs des fichiers à verser un à un, chacun sous `ENTIER_SUR`.
+    /// Les rangs des fichiers à verser un à un, des rangs de `Source::entrees`, chacun sous
+    /// `ENTIER_SUR`.
     pub rangs: Vec<u64>,
     /// Les jeux à verser en prises en stems.
     pub jeux: Vec<JeuAVerser>,
@@ -836,7 +838,8 @@ pub struct RapportDImport {
     pub sans_nom: Compte,
     /// Le nombre d'origines que l'import a changées, tenu sous `ENTIER_SUR` par sa source.
     pub origines_changees: u64,
-    /// Les rangs des fichiers sans nom, chacun sous `ENTIER_SUR`.
+    /// Les rangs des fichiers sans nom, des rangs de `Source::entrees`, chacun sous
+    /// `ENTIER_SUR`.
     pub fichiers_sans_nom: Vec<u64>,
 }
 

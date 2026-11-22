@@ -6064,8 +6064,16 @@ fn compte(fichiers: u64, octets: u64) -> commandes::Compte {
     commandes::Compte { fichiers, octets }
 }
 
+/// Les contenus de `fichiers`, (chemin, contenu).
+fn contenus(fichiers: &[(String, Vec<u8>)]) -> Vec<&[u8]> {
+    fichiers
+        .iter()
+        .map(|(_, contenu)| contenu.as_slice())
+        .collect()
+}
+
 /// Le compte des contenus de `contenus`.
-fn compte_des(contenus: &[&Vec<u8>]) -> commandes::Compte {
+fn compte_des(contenus: &[&[u8]]) -> commandes::Compte {
     compte(
         contenus.len() as u64,
         contenus.iter().map(|contenu| contenu.len() as u64).sum(),
@@ -6093,14 +6101,19 @@ fn rapport_de(
     }
 }
 
+/// Les clés du conteneur `conteneur` de la racine du fonds ; un conteneur absent, aucune.
+fn cles_du_conteneur(fonds: &Automerge, conteneur: &str) -> Vec<String> {
+    let Ok(Some((Value::Object(ObjType::Map), objet))) = fonds.get(ROOT, conteneur) else {
+        return Vec::new();
+    };
+    fonds.keys(&objet).collect()
+}
+
 /// Le premier segment de chaque clé du conteneur `conteneur` de la racine du fonds : sous
 /// `prises`, chaque prise, une prise en stems comprise, sans ses stems.
 fn premiers_segments(fonds: &Automerge, conteneur: &str) -> BTreeSet<String> {
-    let Ok(Some((Value::Object(ObjType::Map), objet))) = fonds.get(ROOT, conteneur) else {
-        return BTreeSet::new();
-    };
-    fonds
-        .keys(&objet)
+    cles_du_conteneur(fonds, conteneur)
+        .into_iter()
         .filter_map(|cle| cle.split_once('/').map(|(premier, _)| premier.to_string()))
         .collect()
 }
@@ -6167,9 +6180,6 @@ pub fn cap03_1_quatre_vingts_fichiers_dont_trois_doublons_donnent_soixante_dix_s
         );
     }
     assert_eq!(lecture::empreintes_nommees(fonds_de(&services)).len(), 78);
-    let contenus = |fichiers: &[(String, Vec<u8>)]| -> Vec<&Vec<u8>> {
-        fichiers.iter().map(|(_, contenu)| contenu).collect()
-    };
     assert_eq!(
         conduit.clos.rapport,
         rapport_de(
@@ -6225,7 +6235,7 @@ pub fn cap03_2_le_meme_dossier_importe_deux_fois_n_ajoute_que_son_rapport<P: Pai
             );
         }
     }
-    let tout = compte_des(&tous.iter().map(|(_, contenu)| contenu).collect::<Vec<_>>());
+    let tout = compte_des(&contenus(&tous));
     assert_eq!(
         second.clos.rapport,
         rapport_de(&second.ouvert.import, tout.clone(), compte(0, 0), tout)
@@ -6298,8 +6308,8 @@ pub fn cap03_4_des_noms_semblables_ne_creent_ni_lien_ni_regroupement<P: Paire>(p
         );
     }
     assert_eq!(
-        premiers_segments(fonds_de(&services), LIENS),
-        BTreeSet::new()
+        cles_du_conteneur(fonds_de(&services), LIENS),
+        Vec::<String>::new()
     );
 }
 
@@ -6736,12 +6746,12 @@ pub fn deux_copies_d_un_contenu_versees_dans_le_desordre_comptent_un_verse<P: Pa
 
     assert_eq!(deuxieme.issue, Issue::Verse);
     assert_eq!(premier.issue, Issue::Dedoublonne);
-    let un = compte_des(&[&contenu]);
+    let un = compte_des(&[contenu.as_slice()]);
     assert_eq!(
         clos.rapport,
         rapport_de(
             &ouvert.import,
-            compte_des(&[&contenu, &contenu]),
+            compte_des(&[contenu.as_slice(), contenu.as_slice()]),
             un.clone(),
             un
         )
@@ -6830,8 +6840,11 @@ pub fn un_stem_deja_prise_reste_la_prise_de_son_idee<P: Paire>(paire: &mut P) {
         stem_voix.noms,
         noms_lus(&[("Jeu A/voix.wav", conduit.ouvert.import.as_str())])
     );
-    assert_eq!(conduit.clos.rapport.dedoublonnes, compte_des(&[&voix]));
-    assert_eq!(conduit.clos.rapport.verses, compte_des(&[&basse]));
+    assert_eq!(
+        conduit.clos.rapport.dedoublonnes,
+        compte_des(&[voix.as_slice()])
+    );
+    assert_eq!(conduit.clos.rapport.verses, compte_des(&[basse.as_slice()]));
 
     let nappe = wav_de(8_000, 13);
     let pad = wav_de(8_000, 14);
@@ -6980,8 +6993,11 @@ pub fn un_texte_illisible_est_verse_et_compte_a_part<P: Paire>(paire: &mut P) {
         "le texte n'est pas versé"
     );
     assert_eq!(format_de(fonds, TEXTES_VERSES, &e), None);
-    assert_eq!(conduit.clos.rapport.verses, compte_des(&[&texte]));
-    assert_eq!(conduit.clos.rapport.illisibles, compte_des(&[&texte]));
+    assert_eq!(conduit.clos.rapport.verses, compte_des(&[texte.as_slice()]));
+    assert_eq!(
+        conduit.clos.rapport.illisibles,
+        compte_des(&[texte.as_slice()])
+    );
 }
 
 /// R23 : un WAV sans nom en UTF-8 se verse, sans clé `nom` ; le rapport compte un fichier sans
@@ -7009,7 +7025,10 @@ pub fn un_fichier_sans_nom_est_verse_et_compte_a_part<P: Paire>(paire: &mut P) {
         lecture::noms_de(fonds, PRISES, &e, None),
         Vec::<(String, String)>::new()
     );
-    assert_eq!(conduit.clos.rapport.sans_nom, compte_des(&[&contenu]));
+    assert_eq!(
+        conduit.clos.rapport.sans_nom,
+        compte_des(&[contenu.as_slice()])
+    );
     assert_eq!(conduit.clos.rapport.fichiers_sans_nom, vec![1]);
     let rapport_du_fonds = lecture::imports(fonds)
         .into_iter()
