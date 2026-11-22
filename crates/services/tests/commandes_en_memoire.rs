@@ -4,7 +4,7 @@
 //! deux répliques, les requêtes enregistrées d'une version plus récente, une idée illisible dans
 //! l'assiette de la boîte, la requête des photos, le générateur du fonds de mesure, une copie en
 //! flux qui ne donne pas l'empreinte attendue ou dont le flux est refusé, et la source à verser en
-//! mémoire.
+//! mémoire. La source à verser de la paire est `SourceEnMemoire`.
 
 mod suite;
 
@@ -36,6 +36,7 @@ struct PaireEnMemoire;
 impl Paire for PaireEnMemoire {
     type D = DocumentsEnMemoire;
     type C = CaptationsEnMemoire;
+    type S = SourceEnMemoire;
 
     fn neufs(&mut self) -> Services<DocumentsEnMemoire, CaptationsEnMemoire> {
         Services::new(
@@ -58,6 +59,30 @@ impl Paire for PaireEnMemoire {
             None => DocumentsEnMemoire::neuf(),
         };
         Services::new(documents, captations, gestes::Appareil::Etabli)
+    }
+
+    fn source(
+        &mut self,
+        nom_du_dossier: Option<&str>,
+        fichiers: &[(Option<&str>, Vec<u8>)],
+        liens: &[&str],
+    ) -> SourceEnMemoire {
+        SourceEnMemoire::new(
+            nom_du_dossier,
+            fichiers
+                .iter()
+                .map(|(chemin, contenu)| (chemin.map(str::to_string), contenu.clone()))
+                .collect(),
+            liens.iter().map(|lien| lien.to_string()).collect(),
+        )
+    }
+
+    fn changer(&mut self, source: &mut SourceEnMemoire, rang: u64, contenu: &[u8]) {
+        source.changer(rang, contenu.to_vec());
+    }
+
+    fn refuser_la_lecture(&mut self, source: &mut SourceEnMemoire, rang: u64, refusee: bool) {
+        source.refuser(rang, refusee);
     }
 }
 
@@ -395,6 +420,121 @@ fn les_noms_poses_par_un_import() {
 #[test]
 fn un_nom_pose_hors_du_jeu_n_est_pas_parmi_ceux_du_stem() {
     suite::un_nom_pose_hors_du_jeu_n_est_pas_parmi_ceux_du_stem(&mut PaireEnMemoire);
+}
+
+#[test]
+fn cap03_1_quatre_vingts_fichiers_dont_trois_doublons_donnent_soixante_dix_sept_captations() {
+    suite::cap03_1_quatre_vingts_fichiers_dont_trois_doublons_donnent_soixante_dix_sept_captations(
+        &mut PaireEnMemoire,
+    );
+}
+
+#[test]
+fn cap03_2_le_meme_dossier_importe_deux_fois_n_ajoute_que_son_rapport() {
+    suite::cap03_2_le_meme_dossier_importe_deux_fois_n_ajoute_que_son_rapport(&mut PaireEnMemoire);
+}
+
+#[test]
+fn cap03_3_un_nom_d_origine_se_relit_intact() {
+    suite::cap03_3_un_nom_d_origine_se_relit_intact(&mut PaireEnMemoire);
+}
+
+#[test]
+fn cap03_4_des_noms_semblables_ne_creent_ni_lien_ni_regroupement() {
+    suite::cap03_4_des_noms_semblables_ne_creent_ni_lien_ni_regroupement(&mut PaireEnMemoire);
+}
+
+#[test]
+fn cap03_7_un_jeu_de_dix_wav_et_neuf_midi_donne_une_prise_en_stems() {
+    suite::cap03_7_un_jeu_de_dix_wav_et_neuf_midi_donne_une_prise_en_stems(&mut PaireEnMemoire);
+}
+
+#[test]
+fn cap03_8_trois_wav_de_meme_duree_proposent_un_jeu_et_sans_declaration_trois_prises() {
+    suite::cap03_8_trois_wav_de_meme_duree_proposent_un_jeu_et_sans_declaration_trois_prises(
+        &mut PaireEnMemoire,
+    );
+}
+
+#[test]
+fn un_premier_import_ne_lit_que_signatures_et_en_tetes() {
+    suite::un_premier_import_ne_lit_que_signatures_et_en_tetes(&mut PaireEnMemoire);
+}
+
+#[test]
+fn un_fichier_qui_ne_se_lit_pas_arrete_l_inspection() {
+    suite::un_fichier_qui_ne_se_lit_pas_arrete_l_inspection(&mut PaireEnMemoire);
+}
+
+#[test]
+fn un_jeu_d_un_seul_contenu_donne_une_prise_en_stems_distincte() {
+    suite::un_jeu_d_un_seul_contenu_donne_une_prise_en_stems_distincte(&mut PaireEnMemoire);
+}
+
+#[test]
+fn cap03_10_un_contenu_sous_deux_noms_dans_deux_sous_dossiers_est_un_objet_a_deux_noms() {
+    suite::cap03_10_un_contenu_sous_deux_noms_dans_deux_sous_dossiers_est_un_objet_a_deux_noms(
+        &mut PaireEnMemoire,
+    );
+}
+
+#[test]
+fn cap03_11_une_archive_et_un_pdf_sont_ignores_sans_etre_ouverts() {
+    suite::cap03_11_une_archive_et_un_pdf_sont_ignores_sans_etre_ouverts(&mut PaireEnMemoire);
+}
+
+#[test]
+fn cap03_13_une_taille_a_verser_plus_grande_que_la_place_libre_ne_verse_rien() {
+    suite::cap03_13_une_taille_a_verser_plus_grande_que_la_place_libre_ne_verse_rien(
+        &mut PaireEnMemoire,
+    );
+}
+
+#[test]
+fn deux_copies_d_un_contenu_versees_dans_le_desordre_comptent_un_verse() {
+    suite::deux_copies_d_un_contenu_versees_dans_le_desordre_comptent_un_verse(&mut PaireEnMemoire);
+}
+
+#[test]
+fn un_zip_nomme_wav_est_ignore_et_lu_de_seize_octets() {
+    suite::un_zip_nomme_wav_est_ignore_et_lu_de_seize_octets(&mut PaireEnMemoire);
+}
+
+#[test]
+fn un_stem_deja_prise_reste_la_prise_de_son_idee() {
+    suite::un_stem_deja_prise_reste_la_prise_de_son_idee(&mut PaireEnMemoire);
+}
+
+#[test]
+fn un_jeu_declare_genere_porte_son_origine() {
+    suite::un_jeu_declare_genere_porte_son_origine(&mut PaireEnMemoire);
+}
+
+#[test]
+fn la_place_libre_rendue_se_borne_a_entier_sur() {
+    suite::la_place_libre_rendue_se_borne_a_entier_sur(&mut PaireEnMemoire);
+}
+
+#[test]
+fn un_texte_illisible_est_verse_et_compte_a_part() {
+    suite::un_texte_illisible_est_verse_et_compte_a_part(&mut PaireEnMemoire);
+}
+
+#[test]
+fn un_fichier_sans_nom_est_verse_et_compte_a_part() {
+    suite::un_fichier_sans_nom_est_verse_et_compte_a_part(&mut PaireEnMemoire);
+}
+
+#[test]
+fn la_place_compte_deux_fois_le_poids_du_fonds() {
+    suite::la_place_compte_deux_fois_le_poids_du_fonds(&mut PaireEnMemoire);
+}
+
+#[test]
+fn l_import_dans_un_pupitre_neuf_fait_naitre_le_fonds_par_son_ouverture() {
+    suite::l_import_dans_un_pupitre_neuf_fait_naitre_le_fonds_par_son_ouverture(
+        &mut PaireEnMemoire,
+    );
 }
 
 /// Un fonds où « Ponts lents » est enregistrée (le texte « pont », l'étiquette `lent`, plus d'une

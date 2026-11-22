@@ -7,19 +7,29 @@
 //! fichier d'ajout altéré et une captation coupée, chaque refus ou avertissement disant ses
 //! chemins relatifs à la racine des données, l'état du fonds qui dit sa lecture seule et
 //! l'avertissement de sa naissance, de même, la boîte qui se lit en lecture seule, et la migration
-//! de test, la même dans la suite et dans les aides du stockage.
+//! de test, la même dans la suite et dans les aides du stockage. La source à verser de la paire
+//! est un dossier jetable, écrit par le test, puis parcouru (`SourceDeTest`).
 
 #[path = "../../services/tests/suite/mod.rs"]
 mod suite;
 
 mod commun;
 
+use std::collections::BTreeMap;
+use std::ffi::OsString;
+use std::fs::{self, File};
+use std::io;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Duration;
+
 use commandes::{Appareil, EntreeDuJournal, Faite, LigneDeLaBoite, Notee, Provenance};
 use noyau::donnees::acces::Acces;
 use noyau::donnees::gestes;
 use noyau::donnees::version::Migration;
-use services::{Documents, Raison, Refus, Services};
+use services::{Documents, Entree, Raison, Refus, Services, Source};
 use stockage::pannes::{Etape, couper};
+use stockage::source::SourceSurFichiers;
 use stockage::{Captations, Document, FondsSurFichiers, LectureSeule, RacineDesDonnees};
 use suite::{AleaDeTest, IDEE, Paire, SECONDE_IDEE, contexte_de_test, une_note};
 
@@ -47,6 +57,7 @@ impl<'r> PaireSurFichiers<'r> {
 impl<'r> Paire for PaireSurFichiers<'r> {
     type D = FondsSurFichiers<'r>;
     type C = Captations<'r>;
+    type S = SourceDeTest;
 
     fn neufs(&mut self) -> Services<FondsSurFichiers<'r>, Captations<'r>> {
         let documents = FondsSurFichiers::ouvrir(self.racine).expect("ouvrir le fonds");
@@ -65,6 +76,224 @@ impl<'r> Paire for PaireSurFichiers<'r> {
             FondsSurFichiers::ouvrir_selon(self.racine, migrations).expect("rouvrir le fonds");
         self.services(documents)
     }
+
+    /// Écrit le dossier dans son propre dossier jetable, chaque fichier à son chemin, un chemin
+    /// `None` sous un nom sans forme UTF-8 (`nom_sans_forme_utf8`), chaque lien vers un fichier
+    /// absent ; puis le parcourt (`SourceSurFichiers::parcourir`).
+    fn source(
+        &mut self,
+        nom_du_dossier: Option<&str>,
+        fichiers: &[(Option<&str>, Vec<u8>)],
+        liens: &[&str],
+    ) -> SourceDeTest {
+        let rang = SOURCES.fetch_add(1, Ordering::Relaxed);
+        let jetable = commun::dossier_jetable(&format!("commandes-source-{rang}"));
+        let dossier = match nom_du_dossier {
+            Some(nom) => jetable.join(nom),
+            None => jetable.join(nom_sans_forme_utf8(0)),
+        };
+        fs::create_dir_all(&dossier)
+            .unwrap_or_else(|e| panic!("créer {} : {e}", dossier.display()));
+        let mut sans_nom = Vec::new();
+        for (chemin, contenu) in fichiers {
+            let ecrit = match chemin {
+                Some(chemin) => dossier.join(chemin),
+                None => {
+                    let rang = u8::try_from(sans_nom.len()).expect("peu de fichiers sans nom");
+                    let ecrit = dossier.join(nom_sans_forme_utf8(rang));
+                    sans_nom.push(ecrit.clone());
+                    ecrit
+                }
+            };
+            creer_le_parent(&ecrit);
+            fs::write(&ecrit, contenu)
+                .unwrap_or_else(|e| panic!("écrire {} : {e}", ecrit.display()));
+        }
+        for lien in liens {
+            let chemin = dossier.join(lien);
+            creer_le_parent(&chemin);
+            lier(&dossier.join("cible absente"), &chemin);
+        }
+        let source = SourceSurFichiers::parcourir(&dossier).expect("parcourir la source à verser");
+        let mut sans_nom = sans_nom.into_iter();
+        let chemins = source
+            .entrees()
+            .iter()
+            .map(|entree| match &entree.chemin {
+                Some(chemin) => dossier.join(chemin),
+                None => sans_nom
+                    .next()
+                    .expect("chaque entrée sans nom est un fichier écrit sans nom"),
+            })
+            .collect();
+        SourceDeTest {
+            source,
+            chemins,
+            ouverts: BTreeMap::new(),
+        }
+    }
+
+    /// Récrit le fichier, puis le date d'une seconde après sa marque de dernière écriture d'avant
+    /// (`File::set_modified`, dans le test seul) : le changement ne dépend pas de la finesse de
+    /// l'horloge du système de fichiers.
+    fn changer(&mut self, source: &mut SourceDeTest, rang: u64, contenu: &[u8]) {
+        let chemin = source.chemin(rang).to_path_buf();
+        let avant = fs::metadata(&chemin)
+            .and_then(|metadonnees| metadonnees.modified())
+            .unwrap_or_else(|e| panic!("lire la date de {} : {e}", chemin.display()));
+        fs::write(&chemin, contenu)
+            .unwrap_or_else(|e| panic!("récrire {} : {e}", chemin.display()));
+        File::options()
+            .write(true)
+            .open(&chemin)
+            .and_then(|fichier| fichier.set_modified(avant + Duration::from_secs(1)))
+            .unwrap_or_else(|e| panic!("dater {} : {e}", chemin.display()));
+    }
+
+    /// Refuse la lecture du fichier (`refuser`), puis vérifie qu'il ne s'ouvre plus, et sinon
+    /// panique en le disant (V14) ; ou la rend (`rendre`).
+    fn refuser_la_lecture(&mut self, source: &mut SourceDeTest, rang: u64, refusee: bool) {
+        let chemin = source.chemin(rang).to_path_buf();
+        if refusee {
+            if let Some(ouvert) = refuser(&chemin) {
+                source.ouverts.insert(rang, ouvert);
+            }
+            if File::open(&chemin).is_ok() {
+                panic!(
+                    "les droits ôtés ne refusent pas la lecture : le test tourne-t-il sous root ?"
+                );
+            }
+        } else {
+            source.ouverts.remove(&rang);
+            rendre(&chemin);
+        }
+    }
+}
+
+/// Le rang de la prochaine source à verser des tests sur fichiers : chacune a son dossier jetable.
+static SOURCES: AtomicU64 = AtomicU64::new(0);
+
+/// La source à verser des tests sur fichiers : le dossier écrit par le test, parcouru par
+/// `SourceSurFichiers`, à qui chaque lecture est confiée ; le chemin de chaque entrée, dans l'ordre
+/// des rangs, pour la changer ou en refuser la lecture ; et chaque fichier gardé ouvert sans
+/// partage, sous Windows, dont la lecture est refusée.
+struct SourceDeTest {
+    source: SourceSurFichiers,
+    chemins: Vec<PathBuf>,
+    ouverts: BTreeMap<u64, File>,
+}
+
+impl SourceDeTest {
+    /// Le chemin de l'entrée `rang` ; un rang sans entrée est une faute du test.
+    fn chemin(&self, rang: u64) -> &Path {
+        let indice = rang
+            .checked_sub(1)
+            .and_then(|indice| usize::try_from(indice).ok())
+            .expect("un rang compté dès 1");
+        &self.chemins[indice]
+    }
+}
+
+impl Source for SourceDeTest {
+    fn nom_du_dossier(&self) -> Option<&str> {
+        self.source.nom_du_dossier()
+    }
+
+    fn entrees(&self) -> &[Entree] {
+        self.source.entrees()
+    }
+
+    fn lire(&self, rang: u64, debut: u64, longueur: usize) -> Result<Vec<u8>, Refus> {
+        self.source.lire(rang, debut, longueur)
+    }
+
+    fn lire_en_flux(&self, rang: u64) -> Result<Box<dyn io::Read + '_>, Refus> {
+        self.source.lire_en_flux(rang)
+    }
+
+    fn octets_actuels(&self, rang: u64) -> Result<u64, Refus> {
+        self.source.octets_actuels(rang)
+    }
+
+    fn marque_actuelle(&self, rang: u64) -> Result<Option<u64>, Refus> {
+        self.source.marque_actuelle(rang)
+    }
+
+    fn octets_lus(&self, rang: u64) -> u64 {
+        self.source.octets_lus(rang)
+    }
+}
+
+/// Crée le dossier parent de `chemin`, et chacun des siens.
+fn creer_le_parent(chemin: &Path) {
+    if let Some(parent) = chemin.parent() {
+        fs::create_dir_all(parent).unwrap_or_else(|e| panic!("créer {} : {e}", parent.display()));
+    }
+}
+
+/// Un nom sans forme UTF-8, distinct pour chaque `rang` : une demi-paire de substitution seule
+/// (`OsString::from_wide`), suivie d'un caractère qui dit le rang.
+#[cfg(windows)]
+fn nom_sans_forme_utf8(rang: u8) -> OsString {
+    use std::os::windows::ffi::OsStringExt;
+    OsString::from_wide(&[0xD800, u16::from(b'0' + rang)])
+}
+
+/// Un nom sans forme UTF-8, distinct pour chaque `rang` : l'octet `0xFF` (`OsStr::from_bytes`),
+/// suivi d'un caractère qui dit le rang.
+#[cfg(unix)]
+fn nom_sans_forme_utf8(rang: u8) -> OsString {
+    use std::os::unix::ffi::OsStrExt;
+    std::ffi::OsStr::from_bytes(&[0xFF, b'0' + rang]).to_os_string()
+}
+
+/// Un lien symbolique `chemin` vers `cible`.
+#[cfg(windows)]
+fn lier(cible: &Path, chemin: &Path) {
+    std::os::windows::fs::symlink_file(cible, chemin)
+        .unwrap_or_else(|e| panic!("créer le lien {} : {e}", chemin.display()));
+}
+
+/// Un lien symbolique `chemin` vers `cible`.
+#[cfg(unix)]
+fn lier(cible: &Path, chemin: &Path) {
+    std::os::unix::fs::symlink(cible, chemin)
+        .unwrap_or_else(|e| panic!("créer le lien {} : {e}", chemin.display()));
+}
+
+/// Refuse la lecture de `chemin` : le fichier ouvert sans partage (`OpenOptionsExt::share_mode`),
+/// rendu pour être gardé ; tant qu'il l'est, nulle autre ouverture ne réussit.
+#[cfg(windows)]
+fn refuser(chemin: &Path) -> Option<File> {
+    use std::os::windows::fs::OpenOptionsExt;
+    Some(
+        File::options()
+            .read(true)
+            .share_mode(0)
+            .open(chemin)
+            .unwrap_or_else(|e| panic!("ouvrir {} sans partage : {e}", chemin.display())),
+    )
+}
+
+/// Rend la lecture de `chemin` : le fichier gardé ouvert sans partage s'est refermé.
+#[cfg(windows)]
+fn rendre(_chemin: &Path) {}
+
+/// Refuse la lecture de `chemin` : ses droits ôtés (`0o000`).
+#[cfg(unix)]
+fn refuser(chemin: &Path) -> Option<File> {
+    use std::os::unix::fs::PermissionsExt;
+    fs::set_permissions(chemin, fs::Permissions::from_mode(0o000))
+        .unwrap_or_else(|e| panic!("ôter les droits de {} : {e}", chemin.display()));
+    None
+}
+
+/// Rend la lecture de `chemin` : ses droits rendus (`0o644`).
+#[cfg(unix)]
+fn rendre(chemin: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    fs::set_permissions(chemin, fs::Permissions::from_mode(0o644))
+        .unwrap_or_else(|e| panic!("rendre les droits de {} : {e}", chemin.display()));
 }
 
 /// La racine des données du test `nom`, ouverte dans son dossier jetable.
@@ -512,6 +741,162 @@ fn un_nom_pose_hors_du_jeu_n_est_pas_parmi_ceux_du_stem() {
     suite::un_nom_pose_hors_du_jeu_n_est_pas_parmi_ceux_du_stem(&mut PaireSurFichiers {
         racine: &racine,
     });
+}
+
+#[test]
+fn cap03_1_quatre_vingts_fichiers_dont_trois_doublons_donnent_soixante_dix_sept_captations() {
+    let racine = racine_jetable("commandes-cap03-1");
+    suite::cap03_1_quatre_vingts_fichiers_dont_trois_doublons_donnent_soixante_dix_sept_captations(
+        &mut PaireSurFichiers { racine: &racine },
+    );
+}
+
+#[test]
+fn cap03_2_le_meme_dossier_importe_deux_fois_n_ajoute_que_son_rapport() {
+    let racine = racine_jetable("commandes-cap03-2");
+    suite::cap03_2_le_meme_dossier_importe_deux_fois_n_ajoute_que_son_rapport(
+        &mut PaireSurFichiers { racine: &racine },
+    );
+}
+
+#[test]
+fn cap03_3_un_nom_d_origine_se_relit_intact() {
+    let racine = racine_jetable("commandes-cap03-3");
+    suite::cap03_3_un_nom_d_origine_se_relit_intact(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn cap03_4_des_noms_semblables_ne_creent_ni_lien_ni_regroupement() {
+    let racine = racine_jetable("commandes-cap03-4");
+    suite::cap03_4_des_noms_semblables_ne_creent_ni_lien_ni_regroupement(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn cap03_7_un_jeu_de_dix_wav_et_neuf_midi_donne_une_prise_en_stems() {
+    let racine = racine_jetable("commandes-cap03-7");
+    suite::cap03_7_un_jeu_de_dix_wav_et_neuf_midi_donne_une_prise_en_stems(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn cap03_8_trois_wav_de_meme_duree_proposent_un_jeu_et_sans_declaration_trois_prises() {
+    let racine = racine_jetable("commandes-cap03-8");
+    suite::cap03_8_trois_wav_de_meme_duree_proposent_un_jeu_et_sans_declaration_trois_prises(
+        &mut PaireSurFichiers { racine: &racine },
+    );
+}
+
+#[test]
+fn un_premier_import_ne_lit_que_signatures_et_en_tetes() {
+    let racine = racine_jetable("commandes-import-en-tetes");
+    suite::un_premier_import_ne_lit_que_signatures_et_en_tetes(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn un_fichier_qui_ne_se_lit_pas_arrete_l_inspection() {
+    let racine = racine_jetable("commandes-import-illisible");
+    suite::un_fichier_qui_ne_se_lit_pas_arrete_l_inspection(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn un_jeu_d_un_seul_contenu_donne_une_prise_en_stems_distincte() {
+    let racine = racine_jetable("commandes-import-jeu-seul");
+    suite::un_jeu_d_un_seul_contenu_donne_une_prise_en_stems_distincte(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn cap03_10_un_contenu_sous_deux_noms_dans_deux_sous_dossiers_est_un_objet_a_deux_noms() {
+    let racine = racine_jetable("commandes-cap03-10");
+    suite::cap03_10_un_contenu_sous_deux_noms_dans_deux_sous_dossiers_est_un_objet_a_deux_noms(
+        &mut PaireSurFichiers { racine: &racine },
+    );
+}
+
+#[test]
+fn cap03_11_une_archive_et_un_pdf_sont_ignores_sans_etre_ouverts() {
+    let racine = racine_jetable("commandes-cap03-11");
+    suite::cap03_11_une_archive_et_un_pdf_sont_ignores_sans_etre_ouverts(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn cap03_13_une_taille_a_verser_plus_grande_que_la_place_libre_ne_verse_rien() {
+    let racine = racine_jetable("commandes-cap03-13");
+    suite::cap03_13_une_taille_a_verser_plus_grande_que_la_place_libre_ne_verse_rien(
+        &mut PaireSurFichiers { racine: &racine },
+    );
+}
+
+#[test]
+fn deux_copies_d_un_contenu_versees_dans_le_desordre_comptent_un_verse() {
+    let racine = racine_jetable("commandes-import-desordre");
+    suite::deux_copies_d_un_contenu_versees_dans_le_desordre_comptent_un_verse(
+        &mut PaireSurFichiers { racine: &racine },
+    );
+}
+
+#[test]
+fn un_zip_nomme_wav_est_ignore_et_lu_de_seize_octets() {
+    let racine = racine_jetable("commandes-import-zip");
+    suite::un_zip_nomme_wav_est_ignore_et_lu_de_seize_octets(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn un_stem_deja_prise_reste_la_prise_de_son_idee() {
+    let racine = racine_jetable("commandes-import-stem-prise");
+    suite::un_stem_deja_prise_reste_la_prise_de_son_idee(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn un_jeu_declare_genere_porte_son_origine() {
+    let racine = racine_jetable("commandes-import-genere");
+    suite::un_jeu_declare_genere_porte_son_origine(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn la_place_libre_rendue_se_borne_a_entier_sur() {
+    let racine = racine_jetable("commandes-import-entier-sur");
+    suite::la_place_libre_rendue_se_borne_a_entier_sur(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn un_texte_illisible_est_verse_et_compte_a_part() {
+    let racine = racine_jetable("commandes-import-texte");
+    suite::un_texte_illisible_est_verse_et_compte_a_part(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn un_fichier_sans_nom_est_verse_et_compte_a_part() {
+    let racine = racine_jetable("commandes-import-sans-nom");
+    suite::un_fichier_sans_nom_est_verse_et_compte_a_part(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn la_place_compte_deux_fois_le_poids_du_fonds() {
+    let racine = racine_jetable("commandes-import-poids");
+    suite::la_place_compte_deux_fois_le_poids_du_fonds(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn l_import_dans_un_pupitre_neuf_fait_naitre_le_fonds_par_son_ouverture() {
+    let racine = racine_jetable("commandes-import-naissance");
+    suite::l_import_dans_un_pupitre_neuf_fait_naitre_le_fonds_par_son_ouverture(
+        &mut PaireSurFichiers { racine: &racine },
+    );
 }
 
 #[test]
