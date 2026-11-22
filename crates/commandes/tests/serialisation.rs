@@ -6,12 +6,19 @@ use std::collections::BTreeSet;
 use std::fmt::Debug;
 
 use commandes::{
-    Appareil, Assiette, BOITE, Boite, Bornes, Captation, Completer, Contenu,
+    Appareil, Assiette, BOITE, Boite, Bornes, CHOISIR_LE_TYPE_D_UN_STEM, CLORE_L_IMPORT, Captation,
+    CaptationVue, ChoisirLeType, ChoixDuType, CloreLImport, Completer, Compte, Contenu,
+    DECLARER_UNE_ORIGINE, Declaration, DeclarationDUnDossier, DeclarerUneOrigine, DossierInspecte,
     ENREGISTRER_UNE_REQUETE, ENTIER_SUR, ETAT_DU_FONDS, EXPORTER_CAHIER, Enregistrer,
-    EntreeDuJournal, Etat, EtatDuFonds, Etiqueter, FENETRE_MAX, Faite, Fenetre, Jour,
-    LigneDeLaBoite, NOMS, Notee, Noter, Ordre, Provenance, ProvenanceDeLIdee, RENOMMER_UNE_REQUETE,
-    REQUETES_ENREGISTREES, RETIREES, Raison, Refus, Regrouper, Relier, Renommer, Reponse, Requete,
-    RequeteEnregistree, SUPPRIMER_UNE_REQUETE, Sans, Sorte, Supprimer, Viser, VueDUneIdee,
+    EntreeDuJournal, Etat, EtatDuFonds, Etiqueter, FENETRE_MAX, Faite, FaitsDUneCaptation, Fenetre,
+    FichierInspecte, FichierVerse, GENERATEURS, INSPECTER_UN_DOSSIER, ImportClos, ImportOuvert,
+    Inspection, Issue, JeuAVerser, Jour, LIRE_UN_RAPPORT, LIRE_UN_TEXTE_VERSE, LigneDeLaBoite,
+    LireUnRapport, MidiVu, NOMS, NatureDuFichier, Notee, Noter, OUVRIR_L_IMPORT, Ordre,
+    OrigineADeclarer, OrigineDeclaree, OuvrirLImport, Portee, Provenance, ProvenanceDeLIdee,
+    RENOMMER_UNE_REQUETE, REQUETES_ENREGISTREES, RETIREES, Raison, RapportDImport, Refus,
+    Regrouper, Relier, Renommer, Reponse, Requete, RequeteEnregistree, SUPPRIMER_UNE_REQUETE, Sans,
+    Sorte, StemVu, Supprimer, TexteLu, TypeDeStem, TypeVu, VERSER_UN_FICHIER,
+    VERSER_UNE_PRISE_EN_STEMS, VerserUnFichier, VerserUnePriseEnStems, Viser, VueDUneIdee,
     VueDeLaBoite, VueDesRetirees, VueDuJournal,
 };
 use serde::Serialize;
@@ -385,7 +392,7 @@ fn cap01_4_noter_ne_demande_aucun_titre() {
 
 #[test]
 fn les_noms_sont_uniques_et_en_snake_case() {
-    assert_eq!(NOMS.len(), 21);
+    assert_eq!(NOMS.len(), 31);
     assert_eq!(
         [BOITE, RETIREES, ETAT_DU_FONDS],
         ["boite", "retirees", "etat_du_fonds"]
@@ -417,6 +424,16 @@ fn les_noms_sont_uniques_et_en_snake_case() {
             ENREGISTRER_UNE_REQUETE,
             RENOMMER_UNE_REQUETE,
             SUPPRIMER_UNE_REQUETE,
+            INSPECTER_UN_DOSSIER,
+            OUVRIR_L_IMPORT,
+            VERSER_UN_FICHIER,
+            VERSER_UNE_PRISE_EN_STEMS,
+            CLORE_L_IMPORT,
+            DECLARER_UNE_ORIGINE,
+            CHOISIR_LE_TYPE_D_UN_STEM,
+            LIRE_UN_TEXTE_VERSE,
+            LIRE_UN_RAPPORT,
+            GENERATEURS,
             EXPORTER_CAHIER,
         ]
     );
@@ -533,4 +550,443 @@ fn les_entiers_d_une_reponse_restent_sous_2_puissance_53() {
     assert_eq!(entier_sur(&json["lignes"][0]["le"]), 4_102_444_800);
     assert_eq!(entier_sur(&json["lignes"][0]["duree_ms"]), 86_400_000);
     assert_eq!(entier_sur(&json["lignes"][0]["retiree"]), 4_102_444_800);
+}
+
+/// Des faits dont chaque champ est posé.
+fn faits_complets() -> FaitsDUneCaptation {
+    FaitsDUneCaptation {
+        format: Some("wav".to_string()),
+        duree_ms: Some(215_000),
+        codage: Some(1),
+        canaux: Some(2),
+        frequence: Some(44_100),
+        bits: Some(24),
+        division: Some(480),
+    }
+}
+
+/// Un compte dont chaque champ vaut `n`.
+fn compte_de(n: u64) -> Compte {
+    Compte {
+        fichiers: n,
+        octets: n,
+    }
+}
+
+/// Un rapport dont chaque compte vaut `n`.
+fn rapport_de(n: u64) -> RapportDImport {
+    RapportDImport {
+        import: IMPORT.to_string(),
+        vus: compte_de(n),
+        verses: compte_de(n),
+        dedoublonnes: compte_de(n),
+        illisibles: compte_de(n),
+        ignores: compte_de(n),
+        sans_nom: compte_de(n),
+        origines_changees: n,
+        fichiers_sans_nom: vec![n],
+    }
+}
+
+#[test]
+fn les_types_de_l_import_font_l_aller_retour() {
+    let declaration = Declaration {
+        stems: true,
+        origine: OrigineADeclarer::Generee {
+            nom: "Atelier inventé".to_string(),
+        },
+    };
+    aller_retour(declaration.clone());
+    aller_retour(Declaration {
+        stems: false,
+        origine: OrigineADeclarer::Aucune,
+    });
+    aller_retour(Declaration {
+        stems: false,
+        origine: OrigineADeclarer::Main,
+    });
+    for nature in [
+        NatureDuFichier::Audio {
+            format: "wav".to_string(),
+        },
+        NatureDuFichier::Midi,
+        NatureDuFichier::Texte {
+            format: "txt".to_string(),
+        },
+        NatureDuFichier::Ignore,
+    ] {
+        aller_retour(nature);
+    }
+    aller_retour(FichierInspecte {
+        rang: 0,
+        chemin: None,
+        octets: 12,
+        nature: NatureDuFichier::Ignore,
+        connu: false,
+    });
+    aller_retour(FichierInspecte {
+        rang: 3,
+        chemin: Some("jeu/basse.wav".to_string()),
+        octets: 4_096,
+        nature: NatureDuFichier::Audio {
+            format: "wav".to_string(),
+        },
+        connu: true,
+    });
+    aller_retour(DossierInspecte {
+        chemin: String::new(),
+        audio: 4,
+        jeu_propose: true,
+        reproposee: Some(declaration.clone()),
+    });
+    aller_retour(DossierInspecte {
+        chemin: "jeu".to_string(),
+        audio: 0,
+        jeu_propose: false,
+        reproposee: None,
+    });
+    let declaree = DeclarationDUnDossier {
+        chemin: "jeu".to_string(),
+        declaration: declaration.clone(),
+    };
+    aller_retour(declaree.clone());
+    aller_retour(Inspection {
+        reprise: Some(IMPORT.to_string()),
+        nom_du_dossier: Some("l'atelier".to_string()),
+        fichiers: vec![FichierInspecte {
+            rang: 1,
+            chemin: Some("a.wav".to_string()),
+            octets: 10,
+            nature: NatureDuFichier::Midi,
+            connu: false,
+        }],
+        dossiers: vec![DossierInspecte {
+            chemin: String::new(),
+            audio: 1,
+            jeu_propose: false,
+            reproposee: None,
+        }],
+        a_verser: 10,
+        libre: 1_000_000,
+        manque: Some("La place manque.".to_string()),
+        generateurs: vec!["Atelier d'essai".to_string(), "Générateur".to_string()],
+        declarations_reprises: vec![declaree.clone()],
+        ouvert_ailleurs: true,
+    });
+    aller_retour(Inspection {
+        reprise: None,
+        nom_du_dossier: None,
+        fichiers: Vec::new(),
+        dossiers: Vec::new(),
+        a_verser: 0,
+        libre: 0,
+        manque: None,
+        generateurs: Vec::new(),
+        declarations_reprises: Vec::new(),
+        ouvert_ailleurs: false,
+    });
+    aller_retour(OuvrirLImport {
+        declarations: vec![declaree],
+        decalage_minutes: -60,
+    });
+    aller_retour(ImportOuvert {
+        import: IMPORT.to_string(),
+        repris: true,
+        rangs: vec![0, 2],
+        jeux: vec![JeuAVerser {
+            dossier: "jeu".to_string(),
+            rangs: vec![3, 4],
+        }],
+        avertissement: Some("Un fichier a changé.".to_string()),
+    });
+    aller_retour(VerserUnFichier {
+        import: IMPORT.to_string(),
+        rang: 2,
+        decalage_minutes: 120,
+    });
+    for issue in [
+        Issue::Verse,
+        Issue::Dedoublonne,
+        Issue::Stem,
+        Issue::DejaFait,
+    ] {
+        aller_retour(FichierVerse {
+            rang: 2,
+            issue,
+            avertissement: None,
+        });
+    }
+    aller_retour(FichierVerse {
+        rang: 2,
+        issue: Issue::Verse,
+        avertissement: Some("Un avertissement.".to_string()),
+    });
+    aller_retour(VerserUnePriseEnStems {
+        import: IMPORT.to_string(),
+        dossier: "jeu".to_string(),
+        decalage_minutes: 0,
+    });
+    aller_retour(CloreLImport {
+        import: IMPORT.to_string(),
+        decalage_minutes: 60,
+    });
+    aller_retour(compte_de(3));
+    aller_retour(rapport_de(5));
+    aller_retour(ImportClos {
+        rapport: rapport_de(1),
+        avertissement: Some("Le rapport est resté court.".to_string()),
+    });
+    aller_retour(DeclarerUneOrigine {
+        portee: Portee::Captation(Captation {
+            sorte: Sorte::Prise,
+            empreinte: EMPREINTE.to_string(),
+        }),
+        origine: OrigineADeclarer::Main,
+    });
+    aller_retour(DeclarerUneOrigine {
+        portee: Portee::Prefixe {
+            import: IMPORT.to_string(),
+            prefixe: "jeu".to_string(),
+        },
+        origine: OrigineADeclarer::Generee {
+            nom: "L'atelier".to_string(),
+        },
+    });
+    for type_de_stem in [
+        TypeDeStem::Voix,
+        TypeDeStem::Choeurs,
+        TypeDeStem::Batterie,
+        TypeDeStem::Percussions,
+        TypeDeStem::Basse,
+        TypeDeStem::Guitare,
+        TypeDeStem::Clavier,
+        TypeDeStem::Cordes,
+        TypeDeStem::Cuivres,
+        TypeDeStem::Synthe,
+        TypeDeStem::Effets,
+        TypeDeStem::Autre,
+    ] {
+        aller_retour(ChoisirLeType {
+            prise: EMPREINTE.to_string(),
+            stem: AUTRE_EMPREINTE.to_string(),
+            choix: ChoixDuType::Choisir(type_de_stem),
+        });
+    }
+    aller_retour(ChoisirLeType {
+        prise: EMPREINTE.to_string(),
+        stem: AUTRE_EMPREINTE.to_string(),
+        choix: ChoixDuType::Garder,
+    });
+    aller_retour(TexteLu {
+        texte: Some("Un couplet, puis un refrain.".to_string()),
+    });
+    aller_retour(TexteLu { texte: None });
+    aller_retour(LireUnRapport {
+        import: IMPORT.to_string(),
+    });
+    for origine in [
+        OrigineDeclaree::Aucune,
+        OrigineDeclaree::Main,
+        OrigineDeclaree::Generee {
+            noms: vec!["Atelier d'essai".to_string(), "Un autre".to_string()],
+        },
+    ] {
+        aller_retour(origine);
+    }
+    aller_retour(faits_complets());
+    aller_retour(FaitsDUneCaptation {
+        format: None,
+        duree_ms: None,
+        codage: None,
+        canaux: None,
+        frequence: None,
+        bits: None,
+        division: None,
+    });
+    let midi = MidiVu {
+        empreinte: AUTRE_EMPREINTE.to_string(),
+        faits: faits_complets(),
+        noms: vec!["basse.mid".to_string()],
+    };
+    aller_retour(midi.clone());
+    for type_vu in [
+        TypeVu::Propose(TypeDeStem::Choeurs),
+        TypeVu::Garde(TypeDeStem::Basse),
+        TypeVu::Choisi(TypeDeStem::Autre),
+    ] {
+        aller_retour(StemVu {
+            empreinte: EMPREINTE.to_string(),
+            faits: faits_complets(),
+            noms: vec!["basse.wav".to_string(), "basse (2).wav".to_string()],
+            type_de_stem: type_vu,
+            midi: Some(midi.clone()),
+        });
+    }
+    let stem = StemVu {
+        empreinte: EMPREINTE.to_string(),
+        faits: faits_complets(),
+        noms: Vec::new(),
+        type_de_stem: TypeVu::Propose(TypeDeStem::Choeurs),
+        midi: None,
+    };
+    aller_retour(stem.clone());
+    aller_retour(CaptationVue {
+        captation: Captation {
+            sorte: Sorte::Prise,
+            empreinte: EMPREINTE.to_string(),
+        },
+        faits: faits_complets(),
+        noms: vec!["prise.wav".to_string()],
+        origine: OrigineDeclaree::Generee {
+            noms: vec!["Atelier inventé".to_string()],
+        },
+        stems: vec![stem],
+    });
+    // Les deux champs neufs des vues d'une idée et de la boîte.
+    aller_retour(VueDUneIdee {
+        captations_vues: vec![CaptationVue {
+            captation: Captation {
+                sorte: Sorte::Prise,
+                empreinte: EMPREINTE.to_string(),
+            },
+            faits: faits_complets(),
+            noms: vec!["prise.wav".to_string()],
+            origine: OrigineDeclaree::Main,
+            stems: Vec::new(),
+        }],
+        ..vue(HEURE, None, None)
+    });
+    aller_retour(LigneDeLaBoite {
+        nom_de_fichier: Some("prise.wav".to_string()),
+        ..ligne(HEURE, None, None)
+    });
+}
+
+#[test]
+fn les_noms_de_l_import_sont_ceux_du_plan() {
+    assert_eq!(
+        [
+            INSPECTER_UN_DOSSIER,
+            OUVRIR_L_IMPORT,
+            VERSER_UN_FICHIER,
+            VERSER_UNE_PRISE_EN_STEMS,
+            CLORE_L_IMPORT,
+            DECLARER_UNE_ORIGINE,
+            CHOISIR_LE_TYPE_D_UN_STEM,
+            LIRE_UN_TEXTE_VERSE,
+            LIRE_UN_RAPPORT,
+            GENERATEURS,
+        ],
+        [
+            "inspecter_un_dossier",
+            "ouvrir_l_import",
+            "verser_un_fichier",
+            "verser_une_prise_en_stems",
+            "clore_l_import",
+            "declarer_une_origine",
+            "choisir_le_type_d_un_stem",
+            "lire_un_texte_verse",
+            "lire_un_rapport",
+            "generateurs",
+        ]
+    );
+}
+
+#[test]
+fn les_entiers_de_l_import_restent_sous_2_puissance_53() {
+    let borne = i128::from(ENTIER_SUR);
+
+    let json = en_json(&FichierInspecte {
+        rang: ENTIER_SUR,
+        chemin: None,
+        octets: ENTIER_SUR,
+        nature: NatureDuFichier::Ignore,
+        connu: false,
+    });
+    assert_eq!(entier_sur(&json["rang"]), borne);
+    assert_eq!(entier_sur(&json["octets"]), borne);
+
+    let json = en_json(&Inspection {
+        reprise: None,
+        nom_du_dossier: None,
+        fichiers: Vec::new(),
+        dossiers: vec![DossierInspecte {
+            chemin: String::new(),
+            audio: ENTIER_SUR,
+            jeu_propose: false,
+            reproposee: None,
+        }],
+        a_verser: ENTIER_SUR,
+        libre: ENTIER_SUR,
+        manque: None,
+        generateurs: Vec::new(),
+        declarations_reprises: Vec::new(),
+        ouvert_ailleurs: false,
+    });
+    assert_eq!(entier_sur(&json["a_verser"]), borne);
+    assert_eq!(entier_sur(&json["libre"]), borne);
+    assert_eq!(entier_sur(&json["dossiers"][0]["audio"]), borne);
+
+    let json = en_json(&ImportOuvert {
+        import: IMPORT.to_string(),
+        repris: false,
+        rangs: vec![ENTIER_SUR],
+        jeux: vec![JeuAVerser {
+            dossier: "jeu".to_string(),
+            rangs: vec![ENTIER_SUR],
+        }],
+        avertissement: None,
+    });
+    assert_eq!(entier_sur(&json["rangs"][0]), borne);
+    assert_eq!(entier_sur(&json["jeux"][0]["rangs"][0]), borne);
+
+    let json = en_json(&FichierVerse {
+        rang: ENTIER_SUR,
+        issue: Issue::Verse,
+        avertissement: None,
+    });
+    assert_eq!(entier_sur(&json["rang"]), borne);
+
+    let json = en_json(&compte_de(ENTIER_SUR));
+    assert_eq!(entier_sur(&json["fichiers"]), borne);
+    assert_eq!(entier_sur(&json["octets"]), borne);
+
+    let json = en_json(&ImportClos {
+        rapport: rapport_de(ENTIER_SUR),
+        avertissement: None,
+    });
+    for cle in [
+        "vus",
+        "verses",
+        "dedoublonnes",
+        "illisibles",
+        "ignores",
+        "sans_nom",
+    ] {
+        for champ in ["fichiers", "octets"] {
+            assert_eq!(
+                entier_sur(&json["rapport"][cle][champ]),
+                borne,
+                "{cle}.{champ}"
+            );
+        }
+    }
+    assert_eq!(entier_sur(&json["rapport"]["origines_changees"]), borne);
+    assert_eq!(entier_sur(&json["rapport"]["fichiers_sans_nom"][0]), borne);
+
+    let json = en_json(&FaitsDUneCaptation {
+        duree_ms: Some(ENTIER_SUR),
+        codage: Some(u16::MAX),
+        canaux: Some(u16::MAX),
+        frequence: Some(u32::MAX),
+        bits: Some(u16::MAX),
+        division: Some(u16::MAX),
+        ..faits_complets()
+    });
+    assert_eq!(entier_sur(&json["duree_ms"]), borne);
+    assert_eq!(entier_sur(&json["codage"]), i128::from(u16::MAX));
+    assert_eq!(entier_sur(&json["canaux"]), i128::from(u16::MAX));
+    assert_eq!(entier_sur(&json["frequence"]), i128::from(u32::MAX));
+    assert_eq!(entier_sur(&json["bits"]), i128::from(u16::MAX));
+    assert_eq!(entier_sur(&json["division"]), i128::from(u16::MAX));
 }
