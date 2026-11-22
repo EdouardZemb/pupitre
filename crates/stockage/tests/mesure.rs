@@ -143,10 +143,8 @@ fn le_fonds_de_mesure_pese_moins_de_4_500_000_octets() {
     // d'ajout compris, est celle d'une compaction de 101 fichiers d'ajout.
     let ajouts = dossier.join("ajouts");
     let mut alea = AleaDuGenerateur::de(GRAINE + 2);
-    let mut heure = commun::HEURE + 1_000_000;
     let mut compaction = Duration::ZERO;
-    for rang in 1..=AJOUTS_AU_PLUS + 1 {
-        heure += 1;
+    for (heure, rang) in (commun::HEURE + 1_000_001..).zip(1..=AJOUTS_AU_PLUS + 1) {
         let note = Noter {
             texte: format!("Une note de mesure, la {rang}e"),
             decalage_minutes: 0,
