@@ -13,7 +13,7 @@ mod suite;
 use std::collections::BTreeSet;
 use std::io::{self, Read};
 
-use automerge::{Automerge, ROOT, ReadDoc};
+use automerge::{ActorId, Automerge, ROOT, ReadDoc};
 use commandes::Assiette;
 use noyau::donnees::fonds::{NOM, PRISES, REQUETES_ENREGISTREES};
 use noyau::donnees::gestes;
@@ -25,10 +25,10 @@ use noyau::donnees::requete::{
 };
 use noyau::donnees::version::Migration;
 use services::en_memoire::{CaptationsEnMemoire, DocumentsEnMemoire};
-use services::mesure::{Engendre, engendrer_le_fonds_de_mesure_selon};
+use services::mesure::{AleaDuGenerateur, Engendre, GRAINE, engendrer_le_fonds_de_mesure_selon};
 use services::source_en_memoire::SourceEnMemoire;
 use services::{
-    Captations, Contexte, Documents, Raison, Refus, Services, Source, Versement, application,
+    Alea, Captations, Contexte, Documents, Raison, Refus, Services, Source, Versement, application,
     lecture,
 };
 use suite::{AleaDeTest, HEURE, IDEE, LENDEMAIN, Paire, SECONDE_IDEE, contexte_de_test, une_note};
@@ -1110,8 +1110,11 @@ fn une_idee_illisible_compte_a_part_dans_l_assiette() {
 }
 
 /// Le générateur du fonds de mesure, sur deux groupes de trois prises, deux fois, chaque fois sur
-/// une paire neuve : les mêmes comptes, deux idées visibles et quatre retirées en 23 opérations,
-/// et la même teneur ; chaque texte des deux idées visibles fait au moins 200 octets.
+/// une paire neuve : les mêmes comptes, deux idées visibles et quatre retirées en 26 opérations
+/// (balayage Q10 : un import, son ouverture, cinq versements de prises, une prise en stems et sa
+/// clôture, une déclaration d'origine, 4 regroupements, 6 textes, 6 étiquettes et un lien ; les
+/// copies des stems et de leurs MIDI ne font aucune opération), et la même teneur ; chaque texte
+/// des deux idées visibles fait au moins 200 octets.
 #[test]
 fn le_generateur_est_deterministe() {
     let engendrer = || {
@@ -1129,7 +1132,7 @@ fn le_generateur_est_deterministe() {
         Engendre {
             idees_visibles: 2,
             idees_retirees: 4,
-            operations: 23,
+            operations: 26,
         }
     );
     assert_eq!(autre, engendre);
@@ -1148,6 +1151,55 @@ fn le_generateur_est_deterministe() {
             texte.len()
         );
     }
+}
+
+/// Question 29 : les documents en mémoire changent d'acteur après chaque série de `n` opérations
+/// appliquées, l'acteur fait de seize octets tirés de l'aléa reçu. Avec `n` = 2, cinq notes : la
+/// première fait naître le fonds, une opération, sous l'acteur de la naissance, comme la deuxième ;
+/// la troisième et la quatrième ont l'acteur des seize premiers octets de l'aléa, la cinquième
+/// celui des seize suivants. La genèse garde le sien.
+#[test]
+fn les_documents_en_memoire_changent_d_acteur_toutes_les_n_operations() {
+    let mut documents = DocumentsEnMemoire::neuf();
+    documents.changer_d_acteur_tous_les(2, Box::new(AleaDuGenerateur::de(GRAINE)));
+    let mut services = Services::new(
+        documents,
+        CaptationsEnMemoire::default(),
+        gestes::Appareil::Etabli,
+    );
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    for rang in 1..=5 {
+        services
+            .noter(
+                &une_note(&format!("La note n° {rang}")),
+                &mut contexte_de_test(&mut alea),
+            )
+            .expect("la note s'écrit");
+    }
+    let fonds = services.documents().fonds().expect("le fonds est né");
+    let acteurs: Vec<ActorId> = fonds
+        .get_changes(&[])
+        .iter()
+        .map(|modification| modification.actor_id().clone())
+        .collect();
+    // La genèse, la naissance, puis les cinq notes.
+    let [genese, naissance, note_1, note_2, note_3, note_4, note_5] = acteurs.as_slice() else {
+        panic!("sept modifications attendues : {acteurs:?}");
+    };
+    let mut tirage = AleaDuGenerateur::de(GRAINE);
+    let mut premier = [0u8; 16];
+    tirage.remplir(&mut premier);
+    let mut second = [0u8; 16];
+    tirage.remplir(&mut second);
+    assert_eq!([note_1, note_2], [naissance, naissance]);
+    assert_eq!([note_3, note_4], [&ActorId::from(premier); 2]);
+    assert_eq!(note_5, &ActorId::from(second));
+    assert_ne!(naissance, note_3);
+    assert_ne!(genese, naissance);
+    assert_ne!(genese, note_3);
 }
 
 /// V7, R20 : une copie en flux dont l'empreinte n'est pas celle qu'attend l'import (un fichier
