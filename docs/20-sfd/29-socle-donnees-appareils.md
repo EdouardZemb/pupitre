@@ -239,7 +239,7 @@ accords suivants avec INC-4 ([§ 40 · 9](../40-architecture.md#9-trajectoire-de
 | **Échelle · moment** | É4, É5 · M6 |
 | **Appareils** | 💻 conçu pour · 📱 ✅ · 📖 — |
 | **Besoins** | B13 |
-| **Lit · écrit** | Lit ; un import écrit des **propositions** |
+| **Lit · écrit** | Lit ; un import n'écrit aucune décision musicale |
 
 **Règles**
 
@@ -256,9 +256,11 @@ accords suivants avec INC-4 ([§ 40 · 9](../40-architecture.md#9-trajectoire-de
 
 - Un export **avec perte** dit, avant de partir, ce qui sera perdu.
 - Les exports emploient les variantes **retenues**.
-- Un import écrit des **propositions**, jamais des décisions
-  ([CAP-03](21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)) ; ce que Sacha y
-  déclare, un jeu de stems ou une origine, est son geste.
+- Un import n'écrit aucune décision musicale. Celui d'un MusicXML, d'un MIDI ou d'un
+  ChordPro écrit des **propositions**. Celui d'un fonds existant
+  ([CAP-03](21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)) écrit des
+  captations, des idées importées et ce que Sacha déclare, un jeu de stems ou une origine,
+  qui est son geste ; ses propositions s'engendrent en INC-2.
 - L'**archive complète** fait exception : réimportée dans un Pupitre neuf, elle restitue les
   documents tels qu'ils étaient, décisions et historique compris. C'est une reprise après
   sinistre, pas un import

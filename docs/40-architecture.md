@@ -145,6 +145,7 @@ flowchart TB
     direction LR
     A1["Documents<br/>Automerge · fichiers"]
     A2["Captations<br/>fichiers + HTTP"]
+    A8["Source à verser<br/>dossier choisi"]
     A3["Audio<br/>enregistreur · lecture"]
     A4["Rendu<br/>Verovio · SVG"]
     A5["Analyse légère<br/>Rust, hors du fil de l'interface"]
@@ -161,15 +162,17 @@ flowchart TB
 l'interface, ni du stockage, ni du réseau). C'est ce qui le rend testable seul, utilisable
 sur le nœud, et remplaçable couche par couche.
 
-**La frontière des commandes** : les services d'application, et les adaptateurs `Documents`
-et `Captations`, vivent du côté natif. L'interface n'atteint les services que par des
+**La frontière des commandes** : les services d'application, et les adaptateurs de leurs trois
+contrats, `Documents`, `Captations` et `Source`, la source à verser d'un import
+([CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)), vivent du côté
+natif. L'interface n'atteint les services que par des
 commandes, permises par leur nom ; elle en reçoit des vues, jamais un document. Elle
 garde le noyau en WebAssembly pour dessiner ce qu'elle reçoit
 ([ADR-022](adr/adr-022-documents-cote-natif.md) ;
 [§ 7.5](#75-linterface-la-csp-et-les-commandes)).
 
-**Hors d'`etabli`.** Les services d'application, les adaptateurs `Documents` et `Captations`
-et le cœur de la couche de synchronisation vivent hors de la crate Tauri. Les services et les
+**Hors d'`etabli`.** Les services d'application, les adaptateurs de leurs trois contrats et le
+cœur de la couche de synchronisation vivent hors de la crate Tauri. Les services et les
 adaptateurs en mémoire se compileront en WebAssembly, avec la fonction `wasm` d'`automerge`,
 pour la construction navigateur, à la ligne 5 des portes
 ([ADR-022](adr/adr-022-documents-cote-natif.md) ;
@@ -181,8 +184,11 @@ ils sortent d'`etabli` pour que l'essai H07 les éprouve en CI, sans application
 l'interface, ne tirent ni `automerge` ni les services.
 
 La crate `stockage` (`crates/stockage`) porte la racine des données et son verrou, puis les
-adaptateurs `Documents` et `Captations` sur fichiers, au format de
-l'[ADR-023](adr/adr-023-stockage-des-documents.md) ; elle ne vit que côté natif, et dépend du
+adaptateurs des trois contrats sur fichiers : `Documents` et `Captations`, au format de
+l'[ADR-023](adr/adr-023-stockage-des-documents.md), la copie en flux d'un fichier versé
+comprise ([§ 31 · 6.1](31-persistance-et-synchronisation.md#61-adressage-par-contenu)), et la
+source à verser, `SourceSurFichiers`, qui reçoit le dossier choisi, le parcourt une fois, sans
+suivre un lien, et en lit chaque fichier en flux ; elle ne vit que côté natif, et dépend du
 noyau, de `synchro`, de `services` et d'`automerge`. Sa fonction de Cargo `pannes`, que seuls
 ses tests activent, coupe une écriture à l'étape voulue, ouvre le fonds selon les migrations
 qu'un test lui donne (`fonds_selon`, `ouvrir_selon`), et garde pour les tests l'écriture et la
@@ -193,7 +199,9 @@ relever, selon la règle du noyau ([§ 70 · 1](70-qualite-et-verification.md#1-
 dépend du noyau et d'`automerge`. Le transport du lot 3, WebSocket en TLS, se branche sur
 elle : sa PR de conception dit s'il y entre ou s'il vit à côté. La crate `services`
 (`crates/services`) porte les services d'application, les opérations nommées et les
-requêtes, et les adaptateurs en mémoire ; elle dépend du noyau, de `commandes` et
+requêtes, les trois contrats des adaptateurs, et les adaptateurs en mémoire ; sa source à
+verser en mémoire (`SourceEnMemoire`), qu'emploie le générateur du fonds de mesure, se compile
+hors d'`en-memoire`. Elle dépend du noyau, de `commandes` et
 d'`automerge`. Sa fonction de Cargo `en-memoire`, que seuls les tests activent, les siens et
 ceux du stockage, compile la paire d'adaptateurs en mémoire (`DocumentsEnMemoire`,
 `CaptationsEnMemoire`) ; l'établi ne la demande jamais. Pour le navigateur

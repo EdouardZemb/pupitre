@@ -42,9 +42,13 @@ trouve=$(suivis | xargs -0r grep -nIE \
   2>/dev/null || true)
 [ -n "$trouve" ] && signale "secret ou jeton" "$trouve"
 
-# 4. Fichiers de matiere musicale versionnes par erreur.
+# 4. Fichiers de matiere musicale versionnes par erreur : les extensions audio, MIDI et texte
+#    de chansons que l'import reconnait (CAP-03), et les partitions. L'extension `pro` d'un
+#    ChordPro n'y est pas : trop commune, elle nomme bien d'autres fichiers.
+musique='mp3|m4a|wav|wave|bwf|aif|aiff|aifc|flac|ogg|oga|opus|m4b|caf|wma'
+musique="$musique|mid|midi|smf|kar|rmi|cho|crd|chopro|chord|chordpro|musicxml|mxl"
 trouve=$(git ls-files -z \
-  | grep -ziE '\.(mp3|m4a|wav|aif|aiff|flac|ogg|mid|midi|musicxml|mxl)$' | tr '\0' '\n' || true)
+  | grep -ziE "\\.($musique)\$" | tr '\0' '\n' || true)
 [ -n "$trouve" ] && signale "fichier audio, MIDI ou partition versionne" "$trouve"
 
 # 5. Chemins absolus d'une machine personnelle : ils deviennent faux des que la

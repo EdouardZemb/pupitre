@@ -249,29 +249,33 @@ impl Captations<'_> {
     }
 
     /// Range sous son empreinte chaque nom provisoire que `a_ranger` désigne (§ 31 · 6.1) ; rend
-    /// ceux qui n'ont pu l'être. `nommees` : les empreintes que le fonds nomme par les clés
-    /// `<empreinte>/<clé>` des trois conteneurs qui nomment une captation, les prises, les MIDI
-    /// versés seuls et les textes versés (`services::lecture::empreintes_nommees`), telles qu'elles
-    /// se lisent, même en lecture seule.
+    /// ceux qui n'ont pu l'être. `nommees` : les empreintes que le fonds nomme
+    /// (`services::lecture::empreintes_nommees`), telles qu'elles se lisent, même en lecture
+    /// seule : par les clés `<empreinte>/<clé>` des trois conteneurs qui nomment une captation,
+    /// les prises, le manifeste d'une prise en stems compris, les MIDI versés seuls et les textes
+    /// versés, avec les stems d'une prise en stems et leurs MIDI ; et par les rapports d'import
+    /// (`imports/<i>/rapport`).
     ///
     /// Les noms provisoires sont les fichiers de `captations/` même, triés par nom, chacun lu en
     /// flux par `lire_un_nom_provisoire`, sans le tenir en mémoire : son nom, l'empreinte de son
-    /// contenu, et si une captation de cette empreinte est déjà rangée (`try_exists`). Une copie
-    /// en flux d'un import, entière et nommée, se range ainsi, comme la copie d'une capture ; une
-    /// copie coupée entre deux tronçons ne donne pas l'empreinte que le fonds nomme, et reste
-    /// (question 31). Un nom qui n'est pas de l'UTF-8 n'en est pas un, `voisin` n'en formant
-    /// aucun : il n'est pas lu. Pour chaque nom provisoire que `a_ranger` désigne, le sous-dossier
-    /// de l'empreinte se crée au besoin (et, hors de Windows, `captations/` se synchronise alors),
-    /// le nom provisoire est renommé à l'empreinte (`fichier::renommer`), puis le renommage est
-    /// rendu durable (`rendre_durable_apres_le_renommage`).
+    /// contenu, et si une captation de cette empreinte est déjà rangée (`try_exists`). Une copie en
+    /// flux d'un import, `import-<ULID>-<rang>.<processus>.partiel`, entière et nommée, se range
+    /// ainsi, comme la copie d'une capture ; une copie coupée entre deux tronçons ne donne pas
+    /// l'empreinte que le fonds nomme, et reste (question 31). Un nom qui n'est pas de l'UTF-8 n'en
+    /// est pas un, `voisin` n'en formant aucun : il n'est pas lu. Pour chaque nom provisoire que
+    /// `a_ranger` désigne, le sous-dossier de l'empreinte se crée au besoin (et, hors de Windows,
+    /// `captations/` se synchronise alors), le nom provisoire est renommé à l'empreinte
+    /// (`fichier::renommer`), puis le renommage est rendu durable
+    /// (`rendre_durable_apres_le_renommage`).
     ///
-    /// Rien n'y fait échouer l'ouverture, et aucun nom provisoire n'est retiré : une captation se
-    /// verse toujours. Un nom provisoire qui ne se lit pas, ou dont la captation rangée ne se
-    /// cherche pas, n'entre pas dans `a_ranger`, reste intact, et donne
-    /// [`Avertissement::NomProvisoireRestant`], comme un sous-dossier qui ne se crée pas ou un
-    /// renommage refusé ; un dossier `captations/` qui ne se liste pas en donne un, sur ce
-    /// dossier, et rien ne se range. Un renommage non rendu durable laisse la captation rangée,
-    /// avec [`Avertissement::NonDurable`].
+    /// Rien n'y fait échouer l'ouverture, et le démarrage ne retire aucun nom provisoire : celui
+    /// d'une capture interrompue en garde l'audio ; seules la reprise et la clôture d'un import
+    /// retirent les copies de cet import (`retirer_une_copie`). Un nom provisoire qui ne se lit
+    /// pas, ou dont la captation rangée ne se cherche pas, n'entre pas dans `a_ranger`, reste
+    /// intact, et donne [`Avertissement::NomProvisoireRestant`], comme un sous-dossier qui ne se
+    /// crée pas ou un renommage refusé ; un dossier `captations/` qui ne se liste pas en donne un,
+    /// sur ce dossier, et rien ne se range. Un renommage non rendu durable laisse la captation
+    /// rangée, avec [`Avertissement::NonDurable`].
     pub(crate) fn ranger_les_noms_provisoires(
         &self,
         nommees: &BTreeSet<String>,

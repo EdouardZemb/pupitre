@@ -402,9 +402,11 @@ Nées de la relecture, et tranchées par la maîtrise d'ouvrage le 2026-11-21, c
     quand l'inspection ne propose pas de reprise et qu'un import est ouvert, le volet le dit (« Un import est resté
     ouvert, que ce dossier ne reprend pas : verser celui-ci le clôt, avec ce qu'il a versé. »), le même dossier
     rechoisi compris, quand l'import ouvert n'a posé aucun nom (V12), et l'ouverture du nouvel import
-    clôt d'abord l'ancien ; son rapport compte ce que le fonds sait de lui (les fichiers nommés à son ULID, leurs
-    octets ; dédoublonnés et ignorés à zéro), au format de la question 25 ; son message est « Import du … clos ».
-    Aucune commande de plus.
+    clôt d'abord l'ancien ; son rapport se compte comme sa propre clôture l'aurait fait, par la règle du noyau
+    (`rapport::comptes`), sur chaque fichier nommé à son ULID, avec les connues lues à la tête de son ouverture,
+    comme une reprise (R7) : ses ignorés et ses sans nom à zéro, l'état qui les disait étant perdu, et aucune ligne
+    `origine=` (révisé par la session à la tâche 14), au format de la question 25 ; son message est « Import du …
+    clos ». Aucune commande de plus.
 36. **Les photos prises pour du M4A** : les codes de format d'image
     (`heic`, `heix`, `hevc`, `mif1`, `msf1`, `avif`, aux octets 8 à 11 d'un `ftyp`) sont ignorés ; les autres codes
     restent `m4a`, une vidéo comprise.
@@ -2754,10 +2756,12 @@ impl<D: Documents, C: Captations> Services<D, C> {
     /// déclaration vide (`stems` faux, `Aucune`) n'écrit rien, et s'ôte avant de comparer les
     /// déclarations d'un import repris ; deux entrées du même chemin, la dernière l'emporte
     /// (balayage Q3). Un import ouvert que la source ne
-    /// reprend pas se clôt d'abord (question 35) : son rapport compte les fichiers nommés à son ULID
-    /// (`noms_poses_par`), vus et versés, leurs octets ceux de leurs captations
-    /// (`Captations::taille`), les illisibles parmi eux, dédoublonnés, ignorés et sans nom à zéro, sans
-    /// ligne `origine=` ; « Import du <jour de son ouverture> clos » ; ses copies retirées. Neuf :
+    /// reprend pas se clôt d'abord (question 35) : son rapport se compte par `rapport::comptes`, sur
+    /// chaque fichier nommé à son ULID (`noms_poses_par`), ses octets ceux de sa captation
+    /// (`Captations::taille`), illisible si elle n'a pas de `format`, avec les connues lues à la tête
+    /// de son ouverture, comme une reprise (R7) : vus, versés, dédoublonnés et illisibles comptés,
+    /// ignorés et sans nom à zéro, sans ligne `origine=` ; « Import du <jour de son ouverture>
+    /// clos » ; ses copies retirées. Neuf :
     /// l'ULID tiré, puis `import::ouvrir`, par `faire_naitre` dans un Pupitre neuf (la naissance tirée
     /// d'abord, comme `noter`), sinon `appliquer` ; la tête qui suit, gardée. Repris : rien ne s'écrit ;
     /// les déclarations sont celles de l'ouverture, et une commande qui en porte d'autres est refusée,

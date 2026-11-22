@@ -187,6 +187,7 @@ numéro de mesure ou d'une position. Les numéros que l'interface affiche (« me
 |---|---|---|---|
 | Morceau, album, idée, motif, requête enregistrée | ULID (`01J…`) | **Oui, à vie** | Un titre change ; un morceau peut ne pas en avoir |
 | Document du fonds, document de réglages | ULID, écrit à sa naissance ([§ 31 · 2.3](31-persistance-et-synchronisation.md#23-la-genèse-et-le-point-de-départ-du-fonds)) | **Oui, à vie** | La synchronisation n'apparie que des copies d'un même document, et deux fonds nés chacun de son côté ne se mêlent jamais |
+| Import d'un fonds ([CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)) | ULID, tiré à son ouverture ; repris, il garde le sien | **Oui, à vie** | Les idées qu'il crée le portent en `depuis`, chaque nom d'origine qu'il voit le premier aussi, et son rapport le nomme ; l'heure de l'ULID range les noms d'origine, le premier vu d'abord (§ 9.2) |
 | Bloc, occurrence, mesure, phrase | ULID | **Oui** | Insérer une mesure ne doit réécrire aucun autre élément |
 | Événement d'accord, note | ULID | **Oui** | Une syllabe s'aligne sur une note précise ; un écart cible un élément précis |
 | Ligne de texte | ULID | **Oui, à vie** | La provenance et la chaîne des retouches en dépendent |
@@ -717,12 +718,18 @@ et celui d'un MIDI, et contrôle un texte ([ADR-024](adr/adr-024-import-d-un-fon
   `chordpro`, d'après son extension.
 
 **Un fichier versé illisible.** Un fichier versé est **illisible** quand l'établi ne lit pas
-ce qu'il doit lire : un WAV dont les 65 536 premiers octets ne portent pas `fmt `, de
-16 octets au moins, puis l'en-tête de `data`, dont la fréquence ou l'alignement vaut 0, ou
-dont la durée passe 2⁵³ − 1 millisecondes, et un RF64 dont la taille de `data` renvoie à un
-`ds64` absent, ou de moins de 16 octets ; un MIDI de moins de 14 octets, d'un format au-delà
-de 2, ou de format 0 qui n'a pas une seule piste ; un texte ni en UTF-8, ni en UTF-16 avec sa
-marque. Il est versé quand même, en captation, mais sans aucun fait, son format compris : ses
+ce qu'il doit lire :
+
+- un WAV dont les 65 536 premiers octets ne portent pas `fmt `, de 16 octets au moins, puis
+  l'en-tête de `data` ; dont la fréquence ou l'alignement vaut 0 ; dont la durée passe
+  2⁵³ − 1 millisecondes ; ou qui, RF64, n'a pas de `ds64` avant `data` quand la taille de
+  `data` y renvoie, ou porte avant `data` un `ds64` de moins de 16 octets, que `data` y
+  renvoie ou non ;
+- un MIDI de moins de 14 octets, d'un format au-delà de 2, ou de format 0 qui n'a pas une
+  seule piste ;
+- un texte ni en UTF-8, ni en UTF-16 avec sa marque.
+
+Il est versé quand même, en captation, mais sans aucun fait, son format compris : ses
 faits valent `—`, et le rapport d'import le compte à part parmi les versés, une fois par
 contenu. Sans format, il ne s'écoute pas : le protocole des captations ne le sert pas
 ([§ 40 · 7.5](40-architecture.md#75-linterface-la-csp-et-les-commandes)), même un WAV que
@@ -774,7 +781,12 @@ Les comptes : vus = versés + dédoublonnés + ignorés ; les illisibles et les 
 parts des versés. Un fichier lu est versé si son contenu n'était pas une captation du fonds à
 l'ouverture de l'import, et qu'aucun fichier lu de rang plus petit n'a le même contenu ; il
 est dédoublonné sinon. Un import repris compte ainsi comme un import fait d'une traite. Un
-fichier ignoré, un lien compris, compte parmi les ignorés, avec ses octets.
+fichier ignoré, un lien compris, compte parmi les ignorés, avec ses octets. Un import resté
+ouvert, que l'ouverture d'un autre clôt
+([CAP-03](20-sfd/21-capter-et-organiser.md#cap-03--importer-un-fonds-existant)), compte son
+rapport comme sa propre clôture l'aurait fait, sur chaque fichier nommé à son identifiant,
+contre les captations du fonds à son ouverture, comme une reprise ; ses ignorés et ses sans
+nom valent zéro, ce qui les disait étant perdu, et il n'a aucune ligne `origine=`.
 Le rapport n'est pas un message montré : il nomme l'identifiant de l'import et des
 empreintes, que l'écran ne montre pas. Un rapport d'une autre version, ou dont une ligne
 manque ou est mal formée, ne se relit pas. Le témoin, l'import

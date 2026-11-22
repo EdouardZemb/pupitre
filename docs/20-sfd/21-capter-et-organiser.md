@@ -105,9 +105,9 @@ la notice qu'Android impose pendant un enregistrement au premier plan (I29).
   rétablir. À côté, **promouvoir** en motif ou en morceau.
 - Une relation, un mécanisme
   ([§ 30 · 9.3](../30-modele-de-domaine.md#93-regrouper-et-relier)) :
-  - **regrouper** verse des prises, des photos, des MIDI versés seuls ou des textes versés
-    dans une autre idée, qui les contient désormais : rien n'est copié, et chaque captation
-    reste distincte. Une idée que le geste laisse sans rien est retirée avec lui ;
+  - **regrouper** rassemble des prises, des photos, des MIDI versés seuls ou des textes
+    versés dans une autre idée, qui les contient désormais : rien n'est copié, et chaque
+    captation reste distincte. Une idée que le geste laisse sans rien est retirée avec lui ;
   - **relier** pose un lien « apparenté à ». Une idée est **reliée** quand elle porte au
     moins un lien vers ce qui n'est pas une idée retirée ;
   - « versions d'une même idée » n'est pas un lien, et un lien ne regroupe rien.
@@ -123,7 +123,7 @@ la notice qu'Android impose pendant un enregistrement au premier plan (I29).
   annulation faite, un second « annuler » est refusé, et le dit. Un geste refusé ne change
   pas ce qu'annuler vise, et une clé en conflit avant le geste revient à sa seule valeur
   présentée. Une capture faite par erreur ne s'annule pas : elle se retire.
-- Promouvoir crée l'objet, y verse la matière de l'idée (sa prise devient la première
+- Promouvoir crée l'objet, y rassemble la matière de l'idée (sa prise devient la première
   prise), et **garde l'idée**, reliée à ce qu'elle est devenue.
 - La boîte se range par date, étiquette, durée, état (reliée ou non) et provenance (captée ou
   importée, [§ 30 · 8.1](../30-modele-de-domaine.md#81-la-provenance)) ; par défaut, par date,
@@ -137,6 +137,8 @@ la notice qu'Android impose pendant un enregistrement au premier plan (I29).
   est celle de sa prise la plus longue, et `—` dès qu'une de ses prises n'a pas encore la
   sienne ([§ 30 · 9.2](../30-modele-de-domaine.md#92-prises-photos-et-analyses)) ; une idée
   sans durée se range à part, jamais exclue.
+- Une idée importée sans texte se montre « Fichier : » suivi du premier nom vu de sa
+  première captation, écrit comme texte ; la recherche ne lit pas ce nom.
 
 **Ne fait pas** — ne relance pas, ne compte pas les jours, ne propose pas de « vider la
 boîte », ne regroupe ni ne relie rien d'office, ne supprime jamais une prise sans opération
@@ -185,23 +187,37 @@ destructrice explicite.
 | **Échelle · moment** | Fonds · M1 |
 | **Appareils** | 💻 conçu pour · 📱 — · 📖 — |
 | **Besoins** | B02, B04, B10 |
-| **Lit · écrit** | Écrit des **captations**, des **idées** et des **propositions** importées, et ce que Sacha déclare à l'import ; aucune décision musicale |
+| **Lit · écrit** | Écrit des **captations**, des **idées** importées et ce que Sacha déclare ; ses **propositions** s'engendrent en INC-2 |
 
 **Règles**
-- Tout format audio que le nœud sait décoder est accepté, et **versé tel quel**. À l'import,
-  un fichier se reconnaît audio ou MIDI à sa signature, texte à son extension ; l'établi lit
-  seul l'en-tête d'un WAV et celui d'un MIDI, et les autres faits valent `—` jusqu'à ce que
-  le nœud sache les décoder ([ADR-024](../adr/adr-024-import-d-un-fonds.md)).
+- Un fichier se reconnaît audio ou MIDI à sa signature, texte à son extension, et est
+  **versé tel quel**
+  ([§ 30 · 9.2](../30-modele-de-domaine.md#92-prises-photos-et-analyses)). L'établi lit seul
+  l'en-tête d'un WAV et celui d'un MIDI ; les autres faits valent `—` jusqu'à ce que le nœud
+  sache les décoder ([ADR-024](../adr/adr-024-import-d-un-fonds.md)).
 - Le **nom d'origine est conservé** exactement, espaces et apostrophes compris : c'est
   souvent la seule clé qui relie un fichier à d'autres traces. Un fichier versé garde tous
   ses noms d'origine, chacun avec son chemin dans le dossier versé ; le premier vu
   s'affiche. Le nom d'origine d'une prise en stems est celui de son dossier.
 - **Dédoublonnage par empreinte** : un même contenu sous deux noms donne un objet et deux
-  noms d'origine. Un contenu déjà connu garde ce qu'il était, et prend en plus son rôle
-  nouveau : un WAV versé en prise, puis comme stem d'un jeu de stems, reste la prise de son
-  idée.
+  noms d'origine. Un contenu déjà connu garde ce qu'il était. Sans déclaration, il ne prend
+  aucun rôle ; seule une déclaration lui en donne un nouveau : un WAV versé en prise, puis
+  dans un dossier déclaré jeu de stems, reste la prise de son idée, et devient aussi stem de
+  ce jeu. L'inspection repropose, sans les appliquer, les déclarations d'un import
+  précédent : chacune porte le jeu de stems, l'origine, ou les deux, et suit le seul chemin
+  relatif de son dossier, celle du dossier versé lui-même, ou d'un dossier au nom courant
+  (« Démos »), venue d'un import sans rapport avec le dossier choisi, comprise ; elle ne
+  s'applique jamais seule.
 - **Avant de rien verser**, Sacha fait ses déclarations, dossier par dossier, et Pupitre
   compare la taille à verser à la place libre.
+- Un fonds en **lecture seule** refuse l'import entier, dès l'inspection, avant toute
+  captation. Une captation se verse toujours : c'est la règle d'une capture
+  ([CAP-01](#cap-01--capter-en-un-geste)), non d'un import.
+- Un fichier qui ne se lit pas arrête l'inspection, qui le nomme (« « Essais/pont.wav » ne
+  se lit pas : … », son chemin dans le dossier versé) ; rechoisir le dossier la relance.
+- Un import resté ouvert, que le dossier choisi ne reprend pas, se clôt à l'ouverture du
+  suivant, avec ce qu'il a versé, et l'écran le dit : « Un import est resté ouvert, que ce
+  dossier ne reprend pas : verser celui-ci le clôt, avec ce qu'il a versé. »
 - Un dossier que Sacha déclare **jeu de stems** devient une seule prise, la
   **prise en stems** : chaque fichier audio en est un stem, et le MIDI qui porte son nom
   l'accompagne. Pupitre propose de déclarer ainsi un dossier dont au moins deux fichiers WAV
@@ -209,8 +225,12 @@ destructrice explicite.
   basse…) se propose d'après son nom, et se décide d'un geste.
 - Sacha peut déclarer l'**origine** d'un dossier versé, à l'import ou plus tard : de sa
   main, ou produite par un générateur externe, qu'il nomme. Elle vaut pour ses
-  sous-dossiers, sauf ceux qu'il déclare à part ; plus tard, elle porte aussi sur une prise,
-  un MIDI versé seul ou un texte versé. Non déclarée, elle vaut `—`. Elle se range par
+  sous-dossiers, sauf ceux qu'il déclare à part. Plus tard, elle porte sur une prise, un
+  MIDI versé seul, un texte versé, ou sur tous les fichiers versés dont un chemin d'origine
+  commence par un dossier donné, par segments entiers, octet pour octet, parmi les chemins
+  qu'a vus le dernier import clos, jusqu'à l'inspection suivante : un dossier déclaré jeu de
+  stems y prend sa prise en stems avec ses stems, et un jeu posé à même le dossier versé ne
+  s'y prend que par le dossier versé lui-même. Non déclarée, elle vaut `—`. Elle se range par
   empreinte : un même contenu n'en a qu'une, la plus forte de celles qu'il a reçues, à
   quelque rôle que ce soit (générée, puis de la main de Sacha, puis `—`), et le rapport dit
   chaque origine qu'un import change. Déclarée générée, elle se garde à vie : elle ne se
@@ -227,13 +247,15 @@ destructrice explicite.
   **propositions**, avec leurs confiances si elles en portent, selon un mappage de colonnes
   déclaré par Sacha. Elles entrent en INC-2 ; avant, un tableau est ignoré.
 - Ce qui n'est ni audio, ni MIDI, ni texte (une archive, un PDF, une image, les métadonnées
-  d'un générateur) est **ignoré** : rien n'en est ouvert, aucune archive n'est dépliée.
+  d'un générateur) est **ignoré** : il n'est lu que de sa signature, ses 16 premiers octets
+  au plus ; rien n'en est ouvert, aucune archive n'est dépliée.
 - **Aucun rattachement automatique** : l'import crée une idée par prise, par MIDI versé seul
   et par texte versé, n'en regroupe aucune d'office, même d'un même dossier, et ne crée
   jamais de liens vers des morceaux, même quand les noms se ressemblent. Les rapprochements
   se demandent ([CAP-05](#cap-05--rapprocher-des-idées-et-des-prises)).
 - Un **rapport d'import** compte les fichiers vus, versés, dédoublonnés, illisibles et
-  ignorés, avec leurs octets, et se fige en captation à la fin de l'import ; l'opération
+  ignorés, avec leurs octets, et, parmi les versés, les fichiers sans nom, dont le nom ne
+  s'écrit pas en UTF-8 ; il se fige en captation à la fin de l'import, et l'opération
   nommée qui clôt l'import le nomme. On vérifie un import par la comparaison des comptes,
   jamais par l'absence de message d'erreur.
 - Une prise versée s'écoute par la **lecture simple** de l'appareil, stem par stem pour une
@@ -245,10 +267,23 @@ aucune valeur ; ne déplie aucune archive, ne lit aucune métadonnée de génér
 aucune origine.
 
 **Cas limites**
-- Fichier illisible : versé quand même comme captation, marqué « non décodable ». On ne
-  jette pas une prise parce qu'un décodeur a échoué.
-- Arborescence profonde, noms longs ou en Unicode : acceptés.
-- Import interrompu : reprenable, sous le même identifiant ; l'import est idempotent.
+- Fichier illisible, un WAV ou un MIDI dont l'établi ne lit pas l'en-tête, un texte ni en
+  UTF-8 ni en UTF-16 avec sa marque : versé quand même, en captation, sans aucun fait, son
+  format compris, et compté à part parmi les versés. On ne jette pas une prise parce qu'un
+  en-tête ne se lit pas. Sans format, un fichier illisible ne s'écoute pas. « Non
+  décodable » reste la marque du nœud, pour ce qu'il ne saura pas décoder
+  ([ADR-024](../adr/adr-024-import-d-un-fonds.md)).
+- Arborescence profonde, noms longs ou en Unicode : acceptés. Un nom qui ne s'écrit pas en
+  UTF-8, que seul Windows sait écrire, est versé sans nom d'origine, et compté parmi les
+  sans nom.
+- Un lien ou une jonction compte parmi les ignorés, sans être suivi ni lu. Le dossier de
+  Pupitre, un dossier qui le contient ou qui s'y trouve, ne se verse pas. Un fichier changé
+  depuis l'inspection, que disent sa taille ou sa marque de dernière écriture, arrête
+  l'import, qui le nomme.
+- Import interrompu : à l'ouverture suivante, le bandeau dit qu'un import est resté ouvert ;
+  rechoisir le même dossier le reprend, sous le même identifiant, dès qu'il a posé un nom
+  d'origine, et son rapport est celui d'un import fait d'une traite. L'import est
+  idempotent.
 - Stem sans MIDI : un état normal ([ADR-006](../adr/adr-006-le-partiel-est-normal.md)), que
   le rapport ne compte pas comme une erreur.
 - Place insuffisante : rien n'est versé, et Pupitre dit la taille à verser et ce qui manque.
@@ -287,8 +322,9 @@ aucune origine.
 12. *Étant donné* une prise que la lecture simple de l'appareil ne sait pas jouer, *quand*
     Sacha l'écoute, *alors* l'établi montre ses faits et « lecture impossible sur cet
     appareil », et aucune erreur.
-13. *Étant donné* un dossier plus lourd que la place libre, *quand* Sacha l'importe, *alors*
-    rien n'est versé, et Pupitre dit la taille à verser et ce qui manque.
+13. *Étant donné* une taille à verser plus grande que la place libre, *quand* Sacha importe
+    le dossier, *alors* rien n'est versé, et Pupitre dit la taille à verser et ce qui
+    manque.
 
 ---
 
@@ -526,16 +562,17 @@ aujourd'hui ».
   montre la même page. Elle dit, par des constats, jamais par des ordres
   ([§ 50 · 5](../50-interfaces-et-appareils.md#5-les-textes-de-linterface)), que la boîte
   d'idées est vide, ce qui reste vrai quand toutes les idées sont retirées, puisque le
-  fonds les garde, et les premiers gestes : noter ou capter une idée, sauf en lecture
-  seule, où elle renvoie au bandeau, qui dit pourquoi ; importer un fonds
-  ([CAP-03](#cap-03--importer-un-fonds-existant)) ; créer un morceau ; et, dans un Pupitre
+  fonds les garde, et les premiers gestes : noter ou capter une idée, et importer un fonds
+  ([CAP-03](#cap-03--importer-un-fonds-existant)), sauf en lecture seule, qui les refuse,
+  et où elle renvoie au bandeau, qui dit pourquoi ; créer un morceau ; et, dans un Pupitre
   neuf, réimporter une archive complète
   ([SYN-07](29-socle-donnees-appareils.md#syn-07--exporter-et-importer) · 4). Au lot 1
-  d'INC-1, elle dit noter ; importer et réimporter y viennent aux tranches 5 et 6 du lot,
-  créer un morceau avec INC-2. Le champ « Noter une idée » reste présent, lecture seule
-  comprise : le geste y est refusé, et le bandeau le dit (I29). Les idées retirées restent à
-  un geste. Une requête qui ne trouve rien n'est pas un fonds vide : ses idées sont
-  interrogées, la liste est vide, et la réponse le dit (« 0 idée · 12 interrogées »).
+  d'INC-1, elle dit noter, et importer, ce dernier depuis la tranche 5 du lot ; réimporter
+  y vient à la tranche 6, créer un morceau avec INC-2. Le champ « Noter une idée » reste
+  présent, lecture seule comprise : le geste y est refusé, et le bandeau le dit (I29). Les
+  idées retirées restent à un geste. Une requête qui ne trouve rien n'est pas un fonds
+  vide : ses idées sont interrogées, la liste est vide, et la réponse le dit (« 0 idée ·
+  12 interrogées »).
 - Morceau à identité seule : une ligne lisible, avec des `—`.
 
 **Critères d'acceptation**

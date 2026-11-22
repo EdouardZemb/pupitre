@@ -35,8 +35,8 @@ const OCTETS_D_UN_TEXTE: usize = 200;
 /// Les documents en mémoire changent d'acteur après chaque série de ces opérations (question 29).
 const OPERATIONS_PAR_ACTEUR: usize = 7;
 
-/// Les acteurs que porte au moins le fonds de mesure : « un acteur par ouverture, 3 000 en tout »
-/// (§ 31 · 10, test 13).
+/// Les acteurs que porte au moins le fonds de mesure : « un acteur toutes les sept opérations,
+/// 3 000 au moins » (§ 31 · 10, test 13).
 const ACTEURS_AU_MOINS: usize = 3_000;
 
 /// Les entrées `prises/<p>/stem/<s>` du fonds de mesure : douze stems dans chacune de ses 100
