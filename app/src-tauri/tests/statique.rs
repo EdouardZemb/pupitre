@@ -1,8 +1,8 @@
 //! Contrôle statique d'I30 (§ 70 · 3) : hors du module `systeme` de l'établi, aucun code ne devine
 //! un chemin, ne lit l'horloge, ne tire l'aléa, ne lit la place libre du disque ni n'est non sûr
 //! (`unsafe`) ; l'acteur d'Automerge ne naît et ne change que dans les fichiers que le contrôle
-//! admet (`ACTEUR_ADMIS`). Le test lit sur le disque chaque `src/` de `crates/` et celui de l'établi ;
-//! une racine dont aucune source n'est lue est une faute. L'interface a sa propre règle.
+//! admet (`ACTEUR_ADMIS`). Le test lit sur le disque chaque `src/` de `crates/` et celui de
+//! l'établi ; une racine dont aucune source n'est lue est une faute. L'interface a sa propre règle.
 
 use std::fs;
 use std::path::{Path, PathBuf};

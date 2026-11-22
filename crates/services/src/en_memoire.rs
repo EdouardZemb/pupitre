@@ -1,13 +1,15 @@
 //! La paire d'adaptateurs en mémoire (§ 40 · 3), sous la fonction `en-memoire` : les documents
 //! et les captations sans fichier, que la suite des commandes éprouve comme ceux du stockage. Le
 //! fonds s'y écrit par `application`, comme sur fichiers, et s'ouvre de ses octets selon les
-//! mêmes règles de la version de schéma (§ 31 · 2.4).
+//! mêmes règles de la version de schéma (§ 31 · 2.4). Les documents peuvent changer d'acteur
+//! toutes les quelques opérations (`changer_d_acteur_tous_les`) : le test 13 y trouve ses 3 000
+//! acteurs, sans 3 000 réouvertures (question 29).
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::io;
 
-use automerge::{Automerge, AutomergeError};
+use automerge::{ActorId, Automerge, AutomergeError};
 use noyau::donnees::changement::Operation;
 use noyau::donnees::demarrage::Provisoire;
 use noyau::donnees::identifiants::Hacheur;
@@ -17,7 +19,7 @@ use crate::application::{self, Inapplicable};
 use crate::contrats::plage;
 use crate::lecture;
 use crate::source_en_memoire::FICHIER_A_VERSER_REFUSE;
-use crate::{Captations, Documents, Ecriture, FONDS_NON_NE, Raison, Refus, Versement};
+use crate::{Alea, Captations, Documents, Ecriture, FONDS_NON_NE, Raison, Refus, Versement};
 
 /// Le message d'une captation qu'aucune ne porte, sans son empreinte (question 26), comme sur
 /// fichiers.
@@ -33,10 +35,21 @@ const VERSION_ILLISIBLE: &str =
 const MIGRATION_REFUSEE: &str =
     "Une migration de ce fonds ne s'applique pas : il se lit sans écrire ni échanger.";
 
-/// Les documents en mémoire : le fonds, s'il est né, et pourquoi il n'écrit pas.
+/// Les documents en mémoire : le fonds, s'il est né, pourquoi il n'écrit pas, et ses acteurs
+/// tournants, s'il en a.
 pub struct DocumentsEnMemoire {
     automerge: Option<Automerge>,
     lecture_seule: Option<Refus>,
+    acteurs: Option<ActeursTournants>,
+}
+
+/// Les acteurs tournants (question 29) : un acteur neuf après chaque série de `pas` opérations
+/// appliquées, fait de seize octets tirés d'`alea` ; `appliquees`, les opérations appliquées
+/// depuis le dernier acteur neuf, ou depuis le premier.
+struct ActeursTournants {
+    pas: usize,
+    alea: Box<dyn Alea>,
+    appliquees: usize,
 }
 
 impl DocumentsEnMemoire {
@@ -45,6 +58,37 @@ impl DocumentsEnMemoire {
         DocumentsEnMemoire {
             automerge: None,
             lecture_seule: None,
+            acteurs: None,
+        }
+    }
+
+    /// Change d'acteur après chaque série de `operations` opérations appliquées, une au moins,
+    /// l'acteur fait de seize octets tirés de `alea` (`set_actor`, `ActorId::from`) (question 29).
+    /// Compte, comme une opération, chaque naissance faite (`faire_naitre`, la genèse et la
+    /// naissance venant avec son geste) et chaque `appliquer` fait ; une opération refusée ne
+    /// compte pas. Le compte part de zéro à chaque appel. Rouverts de leurs octets (`de`), les
+    /// documents ne changent plus d'acteur.
+    pub fn changer_d_acteur_tous_les(&mut self, operations: usize, alea: Box<dyn Alea>) {
+        self.acteurs = Some(ActeursTournants {
+            pas: operations.max(1),
+            alea,
+            appliquees: 0,
+        });
+    }
+
+    /// Une opération appliquée : avec des acteurs tournants, elle compte, et la dernière d'une
+    /// série fait changer d'acteur ; sans eux, ou sans fonds, rien.
+    fn compter_une_operation(&mut self) {
+        let (Some(automerge), Some(acteurs)) = (self.automerge.as_mut(), self.acteurs.as_mut())
+        else {
+            return;
+        };
+        acteurs.appliquees += 1;
+        if acteurs.appliquees >= acteurs.pas {
+            acteurs.appliquees = 0;
+            let mut octets = [0u8; 16];
+            acteurs.alea.remplir(&mut octets);
+            automerge.set_actor(ActorId::from(octets));
         }
     }
 
@@ -81,6 +125,7 @@ impl DocumentsEnMemoire {
         Ok(DocumentsEnMemoire {
             automerge: Some(automerge),
             lecture_seule,
+            acteurs: None,
         })
     }
 
@@ -104,7 +149,8 @@ impl Documents for DocumentsEnMemoire {
         Vec::new()
     }
 
-    /// Le fonds ne naît qu'une fois : déjà né, `Raison::Impossible`, et rien ne change.
+    /// Le fonds ne naît qu'une fois : déjà né, `Raison::Impossible`, et rien ne change. Née, une
+    /// opération qui compte pour les acteurs tournants.
     fn faire_naitre(&mut self, naissance: &Operation, geste: &Operation) -> Ecriture {
         if self.automerge.is_some() {
             return Err(Refus {
@@ -114,10 +160,12 @@ impl Documents for DocumentsEnMemoire {
         }
         let automerge = application::faire_naitre(naissance, geste).map_err(refus_inapplicable)?;
         self.automerge = Some(automerge);
+        self.compter_une_operation();
         Ok(None)
     }
 
     /// En lecture seule, le refus de `lecture_seule()` ; sans fonds, `Raison::Impossible`.
+    /// Appliquée, une opération qui compte pour les acteurs tournants.
     fn appliquer(&mut self, operation: &Operation) -> Ecriture {
         if let Some(refus) = &self.lecture_seule {
             return Err(refus.clone());
@@ -129,6 +177,7 @@ impl Documents for DocumentsEnMemoire {
             });
         };
         application::appliquer(automerge, operation).map_err(refus_inapplicable)?;
+        self.compter_une_operation();
         Ok(None)
     }
 }

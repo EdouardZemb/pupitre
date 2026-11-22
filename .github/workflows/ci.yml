@@ -155,14 +155,19 @@ jobs:
         run: cargo clippy -p interface --target wasm32-unknown-unknown -- -D warnings
       - name: Tests
         run: cargo test -p noyau -p cahier -p interface -p stockage -p synchro -p commandes -p services
-      # Une part du test 13 du § 31 · 10, une borne basse : le fonds de mesure, engendré par les
-      # opérations nommées puis rouvert sur fichiers, pèse moins de 4 500 000 octets ; il y manque
-      # encore les stems et leurs MIDI, les noms d'origine, les origines déclarées, la date,
-      # l'appareil et le diapason mesuré de chaque prise, et un acteur par ouverture. L'étape
-      # imprime son poids et la durée. Le test est ignoré : « Tests » le saute, et seule cette
-      # étape le lance, ici, hors du job windows ; en --release, pour tenir dans le délai de
-      # verifier.
-      - name: Le fonds de mesure
+      # Le test 13 du § 31 · 10, entier : le fonds de mesure, engendré par les opérations nommées,
+      # celles de l'import comprises (vingt imports, 20 ouvertures et 20 clôtures, 5 900 prises
+      # versées seules et 100 prises en stems de douze WAV et de douze MIDI, leurs noms d'origine
+      # et leurs origines déclarées ; 50 déclarations après l'import ; 4 000 regroupements,
+      # 6 000 textes, 6 000 étiquettes et 1 000 liens : 23 090 opérations), sur des documents en
+      # mémoire qui changent d'acteur toutes les sept opérations (3 000 acteurs au moins), puis
+      # rouvert sur fichiers, pèse moins de 4 500 000 octets ; sur le fonds rouvert, la 101e de
+      # 101 notes compacte ses 101 fichiers d'ajout en 2 s au plus. La date, l'appareil et le
+      # diapason mesuré de chaque prise restent absents. L'étape imprime le poids, les acteurs, la
+      # durée d'une compaction et celle des 59 compactions d'un import du fonds visé (6 002
+      # opérations). Le test est ignoré : « Tests » le saute, et seule cette étape le lance, ici,
+      # hors du job windows ; en --release, pour tenir dans le délai de verifier.
+      - name: Le fonds de mesure (test 13)
         run: cargo test -p stockage --release --test mesure -- --ignored --nocapture
 
   # H10, la partie automatique : l'établi se construit en installateur Windows (NSIS), que

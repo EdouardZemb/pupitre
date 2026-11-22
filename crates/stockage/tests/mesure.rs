@@ -196,7 +196,7 @@ fn le_fonds_de_mesure_pese_moins_de_4_500_000_octets() {
     );
     assert!(
         compaction <= COMPACTION_AU_PLUS,
-        "une compaction de {} fichiers d'ajout dure {compaction:.1?}, plus de {COMPACTION_AU_PLUS:?}",
+        "une compaction de {} fichiers d'ajout : {compaction:.1?}, plus de {COMPACTION_AU_PLUS:?}",
         AJOUTS_AU_PLUS + 1
     );
 }
