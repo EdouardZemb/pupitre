@@ -209,6 +209,8 @@ pub async fn supprimer_une_requete(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Mutex;
+
     use commandes::{Notee, Raison, Refus, VueDUneIdee};
     use serde_json::json;
     use tauri::ipc::{CallbackFn, InvokeBody, InvokeResponseBody};
@@ -284,5 +286,66 @@ mod tests {
         let rejet = invoquer(&fenetre, "annuler", json!({})).expect_err("annuler est rejetée");
         let refus: Refus = serde_json::from_value(rejet).expect("un Refus");
         assert_eq!(refus.raison, Raison::RienAAnnuler);
+    }
+
+    #[test]
+    fn les_commandes_de_l_import_passent_par_l_ipc_de_tauri() {
+        let dossier = dossier_jetable("ipc-import");
+        let app = mock_builder()
+            .invoke_handler(crate::gestionnaire())
+            .manage(fil::ouvrir(dossier.join("donnees")))
+            .manage(crate::DossierChoisi(Mutex::new(None)))
+            .manage(crate::systeme::DossierDeLApplication(dossier))
+            .build(mock_context(noop_assets()))
+            .expect("l'application simulée se construit");
+        let fenetre = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .expect("la fenêtre main se construit");
+
+        // Sans dossier choisi, l'import ne s'ouvre, ne verse ni ne se clôt ; chaque argument se
+        // lit sous `commande`.
+        let aucun = Refus {
+            raison: Raison::Impossible,
+            message: "Aucun dossier n'est choisi.".to_string(),
+        };
+        let import = "01JD0000000000000000000000";
+        for (nom, corps) in [
+            (
+                "ouvrir_l_import",
+                json!({"commande": {"declarations": [], "decalage_minutes": 60}}),
+            ),
+            (
+                "verser_un_fichier",
+                json!({"commande": {"import": import, "rang": 1, "decalage_minutes": 60}}),
+            ),
+            (
+                "verser_une_prise_en_stems",
+                json!({"commande": {"import": import, "dossier": "Démos", "decalage_minutes": 60}}),
+            ),
+            (
+                "clore_l_import",
+                json!({"commande": {"import": import, "decalage_minutes": 60}}),
+            ),
+        ] {
+            let rejet = invoquer(&fenetre, nom, corps).expect_err(nom);
+            let refus: Refus = serde_json::from_value(rejet).expect("un Refus");
+            assert_eq!(refus, aucun, "{nom}");
+        }
+
+        // Les lectures passent au fil : aucun générateur, et aucun rapport, dans un fonds qui
+        // n'est pas né.
+        let generateurs: Vec<String> = invoquer(&fenetre, "generateurs", json!({}))
+            .expect("generateurs répond")
+            .deserialize()
+            .expect("des noms");
+        assert!(generateurs.is_empty(), "{generateurs:?}");
+        let rejet = invoquer(
+            &fenetre,
+            "lire_un_rapport",
+            json!({"commande": {"import": import}}),
+        )
+        .expect_err("lire_un_rapport est rejetée");
+        let refus: Refus = serde_json::from_value(rejet).expect("un Refus");
+        assert_eq!(refus.message, "Cet import n'a pas de rapport.");
     }
 }

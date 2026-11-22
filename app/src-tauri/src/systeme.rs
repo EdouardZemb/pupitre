@@ -73,6 +73,73 @@ mod tests {
         assert_eq!(racine_des_donnees(&dossier), dossier.join("donnees"));
     }
 
+    /// Le refus d'un dossier que `admettre_le_dossier` ne verse pas.
+    const DANS_PUPITRE: &str =
+        "Ce dossier est celui de Pupitre, le contient ou s'y trouve : il ne se verse pas.";
+
+    #[cfg(windows)]
+    #[test]
+    fn la_place_libre_se_lit_sur_un_chemin_long() {
+        // GetDiskFreeSpaceExW refuse un chemin de plus de 260 unités sans `\\?\` : le chemin
+        // canonique le porte.
+        let mut long = crate::tests::dossier_jetable("place-libre-long");
+        let mut etage = 0;
+        while long.to_string_lossy().encode_utf16().count() <= 300 {
+            etage += 1;
+            long.push(format!("étage-{etage}-{}", "ô".repeat(40)));
+        }
+        std::fs::create_dir_all(&long).unwrap_or_else(|e| panic!("créer {} : {e}", long.display()));
+        let place = place_libre(&long)
+            .unwrap_or_else(|e| panic!("la place libre de {} : {e}", long.display()));
+        assert!(
+            place > 0,
+            "aucune place offerte sur le volume du dossier jetable"
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn la_place_libre_d_un_dossier_absent_est_refusee() {
+        let absent = crate::tests::dossier_jetable("place-libre-absent").join("absent");
+        assert!(
+            place_libre(&absent).is_err(),
+            "un dossier absent rend une place"
+        );
+    }
+
+    #[test]
+    fn un_dossier_dans_celui_de_l_application_est_refuse() {
+        let jetable = crate::tests::dossier_jetable("dossier-admis");
+        let application = jetable.join("app");
+        let dedans = application.join("x");
+        let autre = jetable.join("autre");
+        // Un voisin dont le nom commence par celui de l'application : les segments se comparent
+        // entiers.
+        let voisin = jetable.join("app-voisin");
+        for dossier in [&dedans, &autre, &voisin] {
+            std::fs::create_dir_all(dossier)
+                .unwrap_or_else(|e| panic!("créer {} : {e}", dossier.display()));
+        }
+        // Le dossier de l'application, un dossier qui s'y trouve, sous une forme qui n'est pas
+        // canonique aussi, et le dossier qui le contient.
+        for refuse in [&application, &dedans, &dedans.join(".."), &jetable] {
+            assert_eq!(
+                admettre_le_dossier(refuse, &application),
+                Err(DANS_PUPITRE.to_string()),
+                "{}",
+                refuse.display()
+            );
+        }
+        for admis in [&autre, &voisin] {
+            assert_eq!(
+                admettre_le_dossier(admis, &application),
+                Ok(admis.clone()),
+                "{}",
+                admis.display()
+            );
+        }
+    }
+
     /// L'identifiant de l'application, lu dans `tauri.conf.json`.
     fn identifiant_de_tauri_conf() -> String {
         let conf: serde_json::Value = serde_json::from_str(include_str!(concat!(

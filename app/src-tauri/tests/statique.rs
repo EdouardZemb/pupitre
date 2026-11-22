@@ -347,6 +347,22 @@ fn i30_chaque_controle_refuse_ce_qu_on_y_plante() {
         controler(&[source(documents, "let doc = Automerge::new();\n")]).is_empty(),
         "documents.rs refuse l'acteur"
     );
+    // La place libre et le code non sûr : refusés hors de `systeme`, chacun sur sa ligne ; admis
+    // dans `systeme`.
+    let place_libre = "    fn GetDiskFreeSpaceExW(dossier: *const u16) -> i32;\n";
+    let non_sur = "unsafe extern \"system\" {}\n";
+    refuse(
+        &[source(lib, place_libre)],
+        "app/src-tauri/src/lib.rs:1 contient « GetDiskFreeSpaceEx »",
+    );
+    refuse(
+        &[source(stockage, non_sur)],
+        "crates/stockage/src/lib.rs:1 contient « unsafe »",
+    );
+    assert!(
+        controler(&[source(systeme, &format!("{non_sur}{place_libre}"))]).is_empty(),
+        "systeme refuse la place libre ou le code non sûr"
+    );
     // Un mot dans un commentaire ou une doc ne compte pas.
     assert!(
         controler(&[source(

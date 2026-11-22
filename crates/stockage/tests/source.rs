@@ -1,10 +1,13 @@
 //! La source à verser sur fichiers (§ 40 · 3, le troisième contrat) : un dossier parcouru une
 //! fois, sans suivre un lien, ses entrées rangées par leurs segments, les octets lus de chacune
 //! comptés, et la marque de dernière écriture que tient le système de fichiers ; un rang sans
-//! entrée, un lien et un fichier retiré ne se lisent pas.
+//! entrée, un lien et un fichier retiré ne se lisent pas. Les noms que seul Windows sait écrire
+//! (balayage Q20) : un chemin de plus de 300 unités UTF-16, les deux formes Unicode d'un nom, une
+//! jonction, un nom sans forme UTF-8, et un fichier tenu ouvert sans partage.
 
 mod commun;
 
+use std::ffi::OsString;
 use std::fs;
 use std::io::Read;
 use std::path::Path;
@@ -23,6 +26,25 @@ fn dater(chemin: &Path, quand: SystemTime) {
         .unwrap_or_else(|e| panic!("ouvrir {} : {e}", chemin.display()))
         .set_modified(quand)
         .unwrap_or_else(|e| panic!("dater {} : {e}", chemin.display()));
+}
+
+/// Un nom sans forme UTF-8 : une demi-paire de substitution seule (`OsString::from_wide`), suivie
+/// de `a.wav`.
+#[cfg(windows)]
+fn nom_sans_forme_utf8() -> OsString {
+    use std::os::windows::ffi::OsStringExt;
+    let mut nom = OsString::from_wide(&[0xD800]);
+    nom.push("a.wav");
+    nom
+}
+
+/// Un nom sans forme UTF-8 : l'octet `0xFF` (`OsStr::from_bytes`), suivi de `a.wav`.
+#[cfg(unix)]
+fn nom_sans_forme_utf8() -> OsString {
+    use std::os::unix::ffi::OsStrExt;
+    let mut nom = std::ffi::OsStr::from_bytes(&[0xFF]).to_os_string();
+    nom.push("a.wav");
+    nom
 }
 
 #[test]
@@ -210,4 +232,190 @@ fn la_marque_suit_la_derniere_ecriture() {
         actuelle, marque,
         "la marque n'a pas suivi la dernière écriture"
     );
+}
+
+// Balayage Q20 : `std::fs` pose seul le préfixe `\\?\` d'un chemin de plus de 260 unités
+#[test]
+fn un_chemin_de_300_unites_utf16_se_parcourt_et_garde_son_nom() {
+    let dossier = commun::dossier_jetable("source-chemin-long").join("verse");
+    let segments: Vec<String> = (1..=6)
+        .map(|n| format!("étage-{n}-{}", "ô".repeat(50)))
+        .collect();
+    let attendu = format!("{}/prise.wav", segments.join("/"));
+    let unites = attendu.encode_utf16().count();
+    assert!(
+        unites > 300,
+        "le chemin relatif ne fait que {unites} unités"
+    );
+    let parent = segments
+        .iter()
+        .fold(dossier.clone(), |chemin, segment| chemin.join(segment));
+    fs::create_dir_all(&parent).expect("créer les dossiers imbriqués");
+    let contenu = commun::octets(10, 700);
+    fs::write(parent.join("prise.wav"), &contenu).expect("écrire prise.wav");
+
+    let source = SourceSurFichiers::parcourir(&dossier).expect("parcourir le dossier");
+
+    let vues: Vec<_> = source
+        .entrees()
+        .iter()
+        .map(|entree| {
+            (
+                entree.rang,
+                entree.chemin.clone(),
+                entree.octets,
+                entree.sorte,
+            )
+        })
+        .collect();
+    assert_eq!(vues, [(1, Some(attendu), 700, SorteDEntree::Fichier)]);
+    let mut lu = Vec::new();
+    source
+        .lire_en_flux(1)
+        .expect("ouvrir prise.wav en flux")
+        .read_to_end(&mut lu)
+        .expect("lire prise.wav en flux");
+    assert_eq!(lu, contenu);
+}
+
+// Balayage Q20 : NTFS garde comme deux noms deux fichiers qui ne diffèrent que par la forme
+// Unicode, composée ou décomposée
+#[test]
+fn les_formes_composee_et_decomposee_d_un_nom_restent_deux_noms() {
+    let dossier = commun::dossier_jetable("source-formes").join("verse");
+    fs::create_dir_all(&dossier).expect("créer le dossier à verser");
+    let composee = "\u{e9}t\u{e9}.txt";
+    let decomposee = "e\u{301}te\u{301}.txt";
+    let de_la_composee = commun::octets(11, 30);
+    let de_la_decomposee = commun::octets(12, 40);
+    fs::write(dossier.join(composee), &de_la_composee).expect("écrire la forme composée");
+    fs::write(dossier.join(decomposee), &de_la_decomposee).expect("écrire la forme décomposée");
+
+    let source = SourceSurFichiers::parcourir(&dossier).expect("parcourir le dossier");
+
+    // Rangées par les octets de leurs segments : `e` (0x65) précède `é` (0xC3 0xA9).
+    let vues: Vec<_> = source
+        .entrees()
+        .iter()
+        .map(|entree| (entree.rang, entree.chemin.as_deref(), entree.octets))
+        .collect();
+    assert_eq!(vues, [(1, Some(decomposee), 40), (2, Some(composee), 30)]);
+    assert_eq!(source.lire(1, 0, 100), Ok(de_la_decomposee));
+    assert_eq!(source.lire(2, 0, 100), Ok(de_la_composee));
+}
+
+// Balayage Q20 : une jonction est un point d'analyse que `FileType::is_symlink` dit lien, quand
+// `metadata` et `read_dir` la suivraient
+#[cfg(windows)]
+#[test]
+fn une_jonction_compte_parmi_les_ignores_sans_etre_suivie() {
+    let dossier = commun::dossier_jetable("source-jonction").join("verse");
+    let cible = dossier.join("cible");
+    fs::create_dir_all(&cible).expect("créer la cible");
+    fs::write(cible.join("porte.wav"), commun::octets(13, 120)).expect("écrire cible/porte.wav");
+    let lien = dossier.join("lien");
+    let sortie = std::process::Command::new("cmd")
+        .args(["/C", "mklink", "/J"])
+        .arg(&lien)
+        .arg(&cible)
+        .output()
+        .expect("lancer mklink");
+    assert!(
+        sortie.status.success(),
+        "mklink /J : {}{}",
+        String::from_utf8_lossy(&sortie.stdout),
+        String::from_utf8_lossy(&sortie.stderr)
+    );
+    assert!(
+        lien.join("porte.wav").is_file(),
+        "la jonction ne mène pas à sa cible"
+    );
+
+    let source = SourceSurFichiers::parcourir(&dossier).expect("parcourir le dossier");
+
+    let vues: Vec<_> = source
+        .entrees()
+        .iter()
+        .map(|entree| {
+            (
+                entree.rang,
+                entree.chemin.as_deref(),
+                entree.octets,
+                entree.sorte,
+            )
+        })
+        .collect();
+    assert_eq!(
+        vues,
+        [
+            (1, Some("cible/porte.wav"), 120, SorteDEntree::Fichier),
+            (2, Some("lien"), 0, SorteDEntree::Lien),
+        ],
+        "la jonction est suivie, ou n'est pas une entrée"
+    );
+    assert_eq!(
+        source.lire(2, 0, 16),
+        Err(Refus {
+            raison: Raison::Impossible,
+            message: "L'entrée n° 2 du dossier versé n'est pas un fichier : elle ne se lit pas."
+                .to_string(),
+        }),
+        "la jonction se lit comme un fichier"
+    );
+}
+
+// Balayage Q20 : `OsStr::to_str` rend `None` pour un nom sans forme UTF-8, et `Path::extension`
+// le lit encore
+#[test]
+fn un_nom_sans_forme_utf8_se_parcourt_sans_chemin() {
+    let dossier = commun::dossier_jetable("source-sans-forme").join("verse");
+    fs::create_dir_all(&dossier).expect("créer le dossier à verser");
+    let contenu = commun::octets(14, 90);
+    fs::write(dossier.join(nom_sans_forme_utf8()), &contenu)
+        .expect("écrire le fichier au nom sans forme UTF-8");
+
+    let source = SourceSurFichiers::parcourir(&dossier).expect("parcourir le dossier");
+
+    let vues: Vec<_> = source
+        .entrees()
+        .iter()
+        .map(|entree| {
+            (
+                entree.rang,
+                entree.chemin.as_deref(),
+                entree.extension.as_deref(),
+                entree.octets,
+                entree.sorte,
+            )
+        })
+        .collect();
+    assert_eq!(vues, [(1, None, Some("wav"), 90, SorteDEntree::Fichier)]);
+    assert_eq!(source.lire(1, 0, 100), Ok(contenu));
+}
+
+// Question 38 : un fichier qu'un autre tient ouvert sans partage ne se lit pas, puis se lit une
+// fois refermé
+#[cfg(windows)]
+#[test]
+fn un_fichier_ouvert_sans_partage_ne_se_lit_pas() {
+    use std::os::windows::fs::OpenOptionsExt;
+    let dossier = commun::dossier_jetable("source-sans-partage").join("verse");
+    fs::create_dir_all(&dossier).expect("créer le dossier à verser");
+    let chemin = dossier.join("prise.wav");
+    let contenu = commun::octets(15, 200);
+    fs::write(&chemin, &contenu).expect("écrire prise.wav");
+    let source = SourceSurFichiers::parcourir(&dossier).expect("parcourir le dossier");
+
+    let tenu = fs::File::options()
+        .read(true)
+        .share_mode(0)
+        .open(&chemin)
+        .expect("ouvrir prise.wav sans partage");
+    let refus = source
+        .lire(1, 0, 16)
+        .expect_err("un fichier tenu sans partage se lit");
+    assert_eq!(refus.raison, Raison::Disque, "{}", refus.message);
+    drop(tenu);
+
+    assert_eq!(source.lire(1, 0, 16), Ok(contenu[..16].to_vec()));
 }
