@@ -23,6 +23,7 @@ pub mod source_en_memoire;
 pub use commandes::{Raison, Refus};
 pub use contrats::{
     Alea, Captations, Documents, Ecriture, Entree, FONDS_NON_NE, SorteDEntree, Source, Versement,
+    l_entree, le_fichier,
 };
 
 use std::cell::RefCell;

@@ -16,8 +16,8 @@ use std::path::{Path, PathBuf};
 use noyau::donnees::demarrage::voisin_libre;
 use noyau::donnees::identifiants::Hacheur;
 
-use crate::constat_du_disque;
 use crate::pannes::{self, Etape};
+use crate::{Accord, constat_du_disque};
 
 /// Les octets d'un tronçon d'une copie en flux, au plus.
 pub(crate) const TRONCON: usize = 1_048_576;
@@ -39,7 +39,7 @@ impl fmt::Display for Echec {
             Echec::Refusee(erreur) => write!(
                 f,
                 "{} : celui qu'il devait remplacer n'a pas changé.",
-                constat_du_disque("Le fichier écrit à côté", erreur.kind())
+                constat_du_disque("Le fichier écrit à côté", Accord::Masculin, erreur.kind())
             ),
             Echec::NonDurable(_) => {
                 f.write_str("Le fichier est en place, mais son renommage n'est pas rendu durable.")

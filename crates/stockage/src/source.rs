@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use noyau::donnees::signature;
-use services::{Entree, Raison, Refus, SorteDEntree, Source};
+use services::{Entree, Raison, Refus, SorteDEntree, Source, l_entree, le_fichier};
 
 use crate::{Erreur, disque};
 
@@ -103,35 +103,10 @@ impl SourceSurFichiers {
         })
     }
 
-    /// L'indice de l'entrée `rang` ; un rang sans entrée est refusé.
-    fn indice(&self, rang: u64) -> Result<usize, Refus> {
-        rang.checked_sub(1)
-            .and_then(|indice| usize::try_from(indice).ok())
-            .filter(|indice| *indice < self.entrees.len())
-            .ok_or_else(|| Refus {
-                raison: Raison::Impossible,
-                message: format!("Le dossier versé n'a pas d'entrée n° {rang}."),
-            })
-    }
-
-    /// L'indice du fichier `rang`, qui se lit : un rang sans entrée, ou une entrée qui n'est pas un
-    /// fichier, est refusé (`Raison::Impossible`) ; un lien ne s'ouvre jamais.
-    fn fichier(&self, rang: u64) -> Result<usize, Refus> {
-        let indice = self.indice(rang)?;
-        if self.entrees[indice].sorte != SorteDEntree::Fichier {
-            return Err(Refus {
-                raison: Raison::Impossible,
-                message: format!(
-                    "L'entrée n° {rang} du dossier versé n'est pas un fichier : elle ne se lit pas."
-                ),
-            });
-        }
-        Ok(indice)
-    }
-
-    /// Les métadonnées de l'entrée `rang` à cet instant, sans suivre un lien.
+    /// Les métadonnées de l'entrée `rang` à cet instant, sans suivre un lien ; un rang sans entrée
+    /// est refusé ([`l_entree`]).
     fn metadonnees(&self, rang: u64) -> Result<Metadata, Refus> {
-        let indice = self.indice(rang)?;
+        let indice = l_entree(&self.entrees, rang)?;
         fs::symlink_metadata(&self.chemins[indice]).map_err(refus_du_fichier)
     }
 }
@@ -146,9 +121,10 @@ impl Source for SourceSurFichiers {
     }
 
     /// `seek` à `debut`, puis `take` de `longueur` octets ; le fichier refermé au retour. Les
-    /// octets lus s'ajoutent à ceux de l'entrée.
+    /// octets lus s'ajoutent à ceux de l'entrée. Un rang sans entrée, ou une entrée qui n'est pas
+    /// un fichier, est refusé ([`le_fichier`]) : un lien ne s'ouvre jamais.
     fn lire(&self, rang: u64, debut: u64, longueur: usize) -> Result<Vec<u8>, Refus> {
-        let indice = self.fichier(rang)?;
+        let indice = le_fichier(&self.entrees, rang)?;
         let mut fichier = File::open(&self.chemins[indice]).map_err(refus_du_fichier)?;
         fichier
             .seek(SeekFrom::Start(debut))
@@ -164,7 +140,7 @@ impl Source for SourceSurFichiers {
 
     /// Le fichier ouvert, en flux ; chaque lecture du flux ajoute ses octets à ceux de l'entrée.
     fn lire_en_flux(&self, rang: u64) -> Result<Box<dyn io::Read + '_>, Refus> {
-        let indice = self.fichier(rang)?;
+        let indice = le_fichier(&self.entrees, rang)?;
         let fichier = File::open(&self.chemins[indice]).map_err(refus_du_fichier)?;
         Ok(Box::new(FluxCompte {
             fichier,
@@ -184,8 +160,7 @@ impl Source for SourceSurFichiers {
 
     /// Un rang sans entrée n'a rien lu : 0.
     fn octets_lus(&self, rang: u64) -> u64 {
-        self.indice(rang)
-            .map_or(0, |indice| self.lus[indice].load(Ordering::Relaxed))
+        l_entree(&self.entrees, rang).map_or(0, |indice| self.lus[indice].load(Ordering::Relaxed))
     }
 }
 

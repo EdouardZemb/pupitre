@@ -14,6 +14,7 @@ use noyau::donnees::identifiants::Hacheur;
 use noyau::donnees::version::{self, Lecture, Migration};
 
 use crate::application::{self, Inapplicable};
+use crate::contrats::plage;
 use crate::lecture;
 use crate::source_en_memoire::FICHIER_A_VERSER_REFUSE;
 use crate::{Captations, Documents, Ecriture, FONDS_NON_NE, Raison, Refus, Versement};
@@ -191,12 +192,7 @@ impl Captations for CaptationsEnMemoire {
     ) -> Result<Vec<u8>, Refus> {
         let objets = self.objets.borrow();
         let octets = objets.get(empreinte).ok_or_else(captation_absente)?;
-        let de = usize::try_from(debut)
-            .unwrap_or(usize::MAX)
-            .min(octets.len());
-        let longueur = usize::try_from(longueur).unwrap_or(usize::MAX);
-        let a = de.saturating_add(longueur).min(octets.len());
-        Ok(octets[de..a].to_vec())
+        Ok(plage(octets, debut, longueur).to_vec())
     }
 
     fn taille(&self, empreinte: &str) -> Result<Option<u64>, Refus> {

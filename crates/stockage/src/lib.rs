@@ -24,6 +24,7 @@ mod pannes;
 mod racine_des_donnees;
 pub mod source;
 
+use std::ffi::OsStr;
 use std::fmt;
 use std::io;
 use std::path::{Component, Path, PathBuf};
@@ -49,7 +50,9 @@ pub enum Erreur {
     RacineDesDonneesTenue,
     /// Le disque a refusé un geste sur `chemin` (lecture, écriture, création, renommage, retrait,
     /// ou le renommage rendu durable), ou, relu, il ne rend pas les octets écrits
-    /// (`io::ErrorKind::InvalidData`).
+    /// (`io::ErrorKind::InvalidData`). Le message nomme le chemin, sauf sous `captations/`, où il
+    /// dit « Une captation » : un nom provisoire ou une captation rangée porterait un identifiant
+    /// d'import ou une empreinte (question 26).
     Disque {
         chemin: PathBuf,
         erreur: std::io::Error,
@@ -230,8 +233,12 @@ impl Erreur {
                 f.write_str("Un autre processus tient la racine des données.")
             }
             Erreur::Disque { chemin, erreur } => {
-                let sujet = chemin_dit(chemin, racine);
-                write!(f, "{}.", constat_du_disque(&sujet, erreur.kind()))
+                let constat = if sous_les_captations(chemin, racine) {
+                    constat_du_disque("Une captation", Accord::Feminin, erreur.kind())
+                } else {
+                    constat_du_disque(&chemin_dit(chemin, racine), Accord::Masculin, erreur.kind())
+                };
+                write!(f, "{constat}.")
             }
             Erreur::CaptationAlteree { .. } => {
                 f.write_str("Une captation relue ne donne pas son empreinte.")
@@ -242,7 +249,7 @@ impl Erreur {
             Erreur::FichierAVerser { erreur } => write!(
                 f,
                 "{}.",
-                constat_du_disque("Le fichier à verser", erreur.kind())
+                constat_du_disque("Le fichier à verser", Accord::Masculin, erreur.kind())
             ),
             Erreur::FondsDejaOuvert => f.write_str("Le fonds est déjà ouvert dans ce processus."),
             Erreur::FondsDejaNe => f.write_str("Le fonds est déjà né : il ne naît qu'une fois."),
@@ -346,19 +353,46 @@ impl Avertissement {
     }
 }
 
-/// Le constat du disque sur `sujet`, un chemin, « Le fichier écrit à côté » ou « Le fichier à
-/// verser », selon le genre de son erreur ; le texte de l'erreur, celui du système, n'est jamais
-/// recopié. Le constat d'un
-/// autre genre est neutre quant au geste : le disque a pu refuser une lecture, une écriture, une
-/// création, un renommage, un retrait, ou le renommage rendu durable.
-pub(crate) fn constat_du_disque(sujet: &str, genre: io::ErrorKind) -> String {
+/// L'accord du constat du disque avec son sujet : un chemin, « Le fichier écrit à côté » ou « Le
+/// fichier à verser », au masculin ; « Une captation », au féminin.
+#[derive(Clone, Copy)]
+pub(crate) enum Accord {
+    Masculin,
+    Feminin,
+}
+
+/// Le constat du disque sur `sujet`, un chemin, « Le fichier écrit à côté », « Le fichier à
+/// verser » ou « Une captation », accordé selon `accord`, selon le genre de son erreur ; le texte
+/// de l'erreur, celui du système, n'est jamais recopié. Le constat d'un autre genre est neutre
+/// quant au geste : le disque a pu refuser une lecture, une écriture, une création, un renommage,
+/// un retrait, ou le renommage rendu durable.
+pub(crate) fn constat_du_disque(sujet: &str, accord: Accord, genre: io::ErrorKind) -> String {
+    let (absent, refuse, tel_qu_il) = match accord {
+        Accord::Masculin => ("absent", "refusé", "tel qu'il"),
+        Accord::Feminin => ("absente", "refusée", "telle qu'elle"),
+    };
     match genre {
-        io::ErrorKind::NotFound => format!("{sujet} est absent"),
-        io::ErrorKind::PermissionDenied => format!("{sujet} est refusé par le système"),
+        io::ErrorKind::NotFound => format!("{sujet} est {absent}"),
+        io::ErrorKind::PermissionDenied => format!("{sujet} est {refuse} par le système"),
         io::ErrorKind::StorageFull => format!("{sujet} ne tient plus sur le disque"),
-        io::ErrorKind::InvalidData => format!("{sujet} ne se relit pas tel qu'il a été écrit"),
-        _ => format!("{sujet}, le disque l'a refusé"),
+        io::ErrorKind::InvalidData => format!("{sujet} ne se relit pas {tel_qu_il} a été écrit"),
+        _ => format!("{sujet}, le disque l'a {refuse}"),
     }
+}
+
+/// `chemin` est-il sous `captations/` de la racine des données, sans être `captations/` même : un
+/// nom provisoire, un sous-dossier ou une captation rangée, dont le nom porterait un identifiant
+/// d'import ou une empreinte, qu'un message ne nomme jamais (question 26) ? Le chemin se lit
+/// relatif à `racine`, s'il en est une et qu'il commence par elle (`Path::strip_prefix`), sinon
+/// tel quel : son premier composant est `captations`, et un autre le suit. Un chemin absolu que
+/// `racine` ne préfixe pas commence par sa racine, jamais par `captations`.
+fn sous_les_captations(chemin: &Path, racine: Option<&Path>) -> bool {
+    let relatif = racine
+        .and_then(|racine| chemin.strip_prefix(racine).ok())
+        .unwrap_or(chemin);
+    let mut composants = relatif.components();
+    composants.next() == Some(Component::Normal(OsStr::new("captations")))
+        && composants.next().is_some()
 }
 
 /// `chemin`, relatif à `racine` s'il en est une et qu'il commence par elle, ses composants joints

@@ -10,7 +10,7 @@ use noyau::donnees::changement::Operation;
 use noyau::donnees::demarrage::Provisoire;
 use noyau::donnees::identifiants::empreinte;
 
-use crate::Refus;
+use crate::{Raison, Refus};
 
 /// Ce que rend une écriture : faite, sans avertissement (`None`) ou avec un avertissement, en
 /// français ; ou refusée.
@@ -90,6 +90,45 @@ pub trait Source {
     /// Les octets lus de l'entrée `rang` depuis le parcours, par `lire` et `lire_en_flux`
     /// (décision 19).
     fn octets_lus(&self, rang: u64) -> u64;
+}
+
+/// L'indice, dans `entrees`, de l'entrée `rang` d'une source à verser, sur fichiers comme en
+/// mémoire : `rang - 1`. Un rang sans entrée, 0 compris, est refusé (`Raison::Impossible`).
+pub fn l_entree(entrees: &[Entree], rang: u64) -> Result<usize, Refus> {
+    rang.checked_sub(1)
+        .and_then(|indice| usize::try_from(indice).ok())
+        .filter(|indice| *indice < entrees.len())
+        .ok_or_else(|| Refus {
+            raison: Raison::Impossible,
+            message: format!("Le dossier versé n'a pas d'entrée n° {rang}."),
+        })
+}
+
+/// L'indice, dans `entrees`, du fichier `rang` d'une source à verser, qui seul se lit : un rang
+/// sans entrée ([`l_entree`]), ou une entrée qui n'est pas un fichier (un lien ne s'ouvre jamais),
+/// est refusé (`Raison::Impossible`).
+pub fn le_fichier(entrees: &[Entree], rang: u64) -> Result<usize, Refus> {
+    let indice = l_entree(entrees, rang)?;
+    if entrees[indice].sorte != SorteDEntree::Fichier {
+        return Err(Refus {
+            raison: Raison::Impossible,
+            message: format!(
+                "L'entrée n° {rang} du dossier versé n'est pas un fichier : elle ne se lit pas."
+            ),
+        });
+    }
+    Ok(indice)
+}
+
+/// Au plus `longueur` octets de `contenu`, depuis `debut`, bornés à lui : une plage qui commence
+/// à la fin, ou après, n'en rend aucun.
+pub(crate) fn plage(contenu: &[u8], debut: u64, longueur: u64) -> &[u8] {
+    let de = usize::try_from(debut)
+        .unwrap_or(usize::MAX)
+        .min(contenu.len());
+    let longueur = usize::try_from(longueur).unwrap_or(usize::MAX);
+    let a = de.saturating_add(longueur).min(contenu.len());
+    &contenu[de..a]
 }
 
 /// Ce que rend une copie en flux : l'empreinte calculée, les octets copiés, si une captation la

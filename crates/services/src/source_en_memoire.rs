@@ -8,7 +8,8 @@ use std::io;
 
 use noyau::donnees::signature;
 
-use crate::{Entree, Raison, Refus, SorteDEntree, Source};
+use crate::contrats::plage;
+use crate::{Entree, Raison, Refus, SorteDEntree, Source, l_entree, le_fichier};
 
 /// Le constat d'une lecture refusée du fichier à verser, en mémoire : celui de la source refusée
 /// (`SourceEnMemoire::refuser`) et d'un flux qui ne se lit plus (`CaptationsEnMemoire`).
@@ -99,34 +100,14 @@ impl SourceEnMemoire {
 
     /// L'indice de l'entrée `rang`, pour un geste du test ; un rang sans entrée panique.
     fn indice_du_test(&self, rang: u64) -> usize {
-        self.indice(rang)
-            .unwrap_or_else(|refus| panic!("{}", refus.message))
+        l_entree(&self.entrees, rang).unwrap_or_else(|refus| panic!("{}", refus.message))
     }
 
-    /// L'indice de l'entrée `rang` ; un rang sans entrée est refusé.
-    fn indice(&self, rang: u64) -> Result<usize, Refus> {
-        rang.checked_sub(1)
-            .and_then(|indice| usize::try_from(indice).ok())
-            .filter(|indice| *indice < self.entrees.len())
-            .ok_or_else(|| Refus {
-                raison: Raison::Impossible,
-                message: format!("Le dossier versé n'a pas d'entrée n° {rang}."),
-            })
-    }
-
-    /// L'indice du fichier `rang`, qui se lit : un rang sans entrée, une entrée qui n'est pas un
-    /// fichier (`Raison::Impossible`) ou dont la lecture est refusée (`Raison::Disque`) ne se lit
-    /// pas.
+    /// L'indice du fichier `rang`, qui se lit : un rang sans entrée ou une entrée qui n'est pas un
+    /// fichier ([`le_fichier`] : `Raison::Impossible`), ou dont la lecture est refusée
+    /// (`Raison::Disque`), ne se lit pas.
     fn fichier_lisible(&self, rang: u64) -> Result<usize, Refus> {
-        let indice = self.indice(rang)?;
-        if self.entrees[indice].sorte != SorteDEntree::Fichier {
-            return Err(Refus {
-                raison: Raison::Impossible,
-                message: format!(
-                    "L'entrée n° {rang} du dossier versé n'est pas un fichier : elle ne se lit pas."
-                ),
-            });
-        }
+        let indice = le_fichier(&self.entrees, rang)?;
         if self.refusees[indice] {
             return Err(Refus {
                 raison: Raison::Disque,
@@ -148,13 +129,9 @@ impl Source for SourceEnMemoire {
 
     fn lire(&self, rang: u64, debut: u64, longueur: usize) -> Result<Vec<u8>, Refus> {
         let indice = self.fichier_lisible(rang)?;
-        let contenu = &self.contenus[indice];
-        let de = usize::try_from(debut)
-            .unwrap_or(usize::MAX)
-            .min(contenu.len());
-        let a = de.saturating_add(longueur).min(contenu.len());
-        self.lus.borrow_mut()[indice] += (a - de) as u64;
-        Ok(contenu[de..a].to_vec())
+        let octets = plage(&self.contenus[indice], debut, longueur as u64);
+        self.lus.borrow_mut()[indice] += octets.len() as u64;
+        Ok(octets.to_vec())
     }
 
     fn lire_en_flux(&self, rang: u64) -> Result<Box<dyn io::Read + '_>, Refus> {
@@ -167,19 +144,18 @@ impl Source for SourceEnMemoire {
     }
 
     fn octets_actuels(&self, rang: u64) -> Result<u64, Refus> {
-        let indice = self.indice(rang)?;
+        let indice = l_entree(&self.entrees, rang)?;
         Ok(self.contenus[indice].len() as u64)
     }
 
     fn marque_actuelle(&self, rang: u64) -> Result<Option<u64>, Refus> {
-        let indice = self.indice(rang)?;
+        let indice = l_entree(&self.entrees, rang)?;
         Ok(Some(self.marques[indice]))
     }
 
     /// Un rang sans entrée n'a rien lu : 0.
     fn octets_lus(&self, rang: u64) -> u64 {
-        self.indice(rang)
-            .map_or(0, |indice| self.lus.borrow()[indice])
+        l_entree(&self.entrees, rang).map_or(0, |indice| self.lus.borrow()[indice])
     }
 }
 
