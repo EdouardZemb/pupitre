@@ -94,6 +94,9 @@ fn le_fonds_de_mesure_pese_moins_de_4_500_000_octets() {
     fs::create_dir_all(&dossier).expect("créer documents/fonds/");
     let complet = dossier.join("complet.automerge");
     fs::write(&complet, &octets).expect("écrire le fichier complet");
+    // Le poids du fonds de mesure, celui que borne `POIDS_MAX` : le fichier complet tel qu'écrit,
+    // avant toute note, puisque la compaction de la 101e le réécrit.
+    let poids = commun::poids(&complet);
 
     let debut = Instant::now();
     let fonds = FondsSurFichiers::ouvrir(&racine).expect("rouvrir le fonds");
@@ -168,8 +171,10 @@ fn le_fonds_de_mesure_pese_moins_de_4_500_000_octets() {
     }
     let compactions = OPERATIONS_D_UN_IMPORT_VISE / (AJOUTS_AU_PLUS + 1);
     let pour_un_import = compaction * u32::try_from(compactions).expect("un compte de compactions");
+    // Le fichier complet que la compaction a réécrit, les 101 notes comprises : imprimé à part,
+    // jamais borné.
+    let apres_la_compaction = commun::poids(&complet);
 
-    let poids = commun::poids(&complet);
     println!(
         "Le fonds de mesure : {poids} octets ; {acteurs} acteurs ; une compaction de {} fichiers \
          d'ajout : {compaction:.1?} ; {compactions} compactions pour un import du fonds visé : \
@@ -178,7 +183,8 @@ fn le_fonds_de_mesure_pese_moins_de_4_500_000_octets() {
     );
     println!(
         "Il porte {stems} entrées de stems et {moyenne:.1} octets de texte en moyenne ; engendré \
-         en {generation:.1?}, rouvert en {reouverture:.1?}."
+         en {generation:.1?}, rouvert en {reouverture:.1?} ; après les 101 notes et la compaction, \
+         son fichier complet pèse {apres_la_compaction} octets."
     );
     assert!(
         acteurs >= ACTEURS_AU_MOINS,
