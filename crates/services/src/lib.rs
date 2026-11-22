@@ -36,10 +36,9 @@ use commandes::{
     Captation, CaptationVue, ChoisirLeType, CloreLImport, Completer, DeclarerUneOrigine,
     ENTIER_SUR, Enregistrer, EntreeDuJournal, EtatDuFonds, Etiqueter, FENETRE_MAX, Faite, Fenetre,
     FichierVerse, ImportClos, Inspection, Issue, LONGUEUR_D_UNE_LIGNE, LigneDeLaBoite,
-    LireUnRapport, MidiVu, Notee, Noter, OrigineADeclarer, OuvrirLImport, Portee, RapportDImport,
-    Regrouper, Relier, Renommer, Reponse, RequeteEnregistree, StemVu, Supprimer, TexteLu, TypeVu,
-    VerserUnFichier, VerserUnePriseEnStems, Viser, VueDUneIdee, VueDeLaBoite, VueDesRetirees,
-    VueDuJournal,
+    LireUnRapport, MidiVu, Notee, Noter, OuvrirLImport, Portee, RapportDImport, Regrouper, Relier,
+    Renommer, Reponse, RequeteEnregistree, StemVu, Supprimer, TexteLu, TypeVu, VerserUnFichier,
+    VerserUnePriseEnStems, Viser, VueDUneIdee, VueDeLaBoite, VueDesRetirees, VueDuJournal,
 };
 use noyau::donnees::boite::{self, EnBoite};
 use noyau::donnees::changement::Operation;
@@ -123,9 +122,10 @@ pub struct Services<D: Documents, C: Captations> {
     inspection: Option<InspectionGardee>,
     /// L'import ouvert par ces services ; `None` hors d'un import.
     import: Option<EtatDeLImport>,
-    /// Le dernier import clos, son ULID et sa table (chemin → empreinte) de chaque fichier versé
-    /// ou dédoublonné, oubliés à l'inspection suivante (R6) : `Portee::Prefixe` se résout sur
-    /// elle, à la déclaration d'une origine, s'il nomme cet import.
+    /// Le dernier import clos, son ULID et sa table (`EtatDeLImport::table` : chemin → empreinte
+    /// de chaque fichier versé ou dédoublonné, et de la prise en stems de chaque jeu versé, sous
+    /// le chemin de son dossier), oubliés à l'inspection suivante (R6) : `Portee::Prefixe` se
+    /// résout sur elle, à la déclaration d'une origine, s'il nomme cet import.
     dernier_clos: Option<(String, BTreeMap<String, String>)>,
 }
 
@@ -848,8 +848,9 @@ impl<D: Documents, C: Captations> Services<D, C> {
     /// (`rapport::lire_le_rapport`), il donne le rapport rendu, ses octets bornés à `ENTIER_SUR` ;
     /// versé par `Captations::verser` ; `import::clore` ; chaque copie de l'import retirée
     /// (`copies_a_retirer`, à la clôture). L'état de l'import oublié, les services gardent son
-    /// ULID et la table (chemin → empreinte) de chaque fichier versé ou dédoublonné de l'import
-    /// clos, jusqu'à l'inspection suivante : `Portee::Prefixe` se résout sur elle (R6 ;
+    /// ULID et sa table (`EtatDeLImport::table` : chemin → empreinte de chaque fichier versé ou
+    /// dédoublonné, et de la prise en stems de chaque jeu, sous le chemin de son dossier),
+    /// jusqu'à l'inspection suivante : `Portee::Prefixe` se résout sur elle (R6 ;
     /// `declarer_une_origine`). La source n'est pas relue. Refusé avant d'écrire, l'import reste
     /// ouvert.
     pub fn clore_l_import<S: Source>(
@@ -874,7 +875,8 @@ impl<D: Documents, C: Captations> Services<D, C> {
     /// Déclare une origine après l'import (question 22) : sur la captation de
     /// `Portee::Captation`, que le fonds porte sous sa sorte ; ou sur les captations dont un chemin
     /// de la table du dernier import clos (chemin → empreinte, gardée par `clore_l_import`
-    /// jusqu'à l'inspection suivante ; R6) est sous le préfixe de `Portee::Prefixe`
+    /// jusqu'à l'inspection suivante ; R6), la prise en stems d'un jeu sous le chemin de son
+    /// dossier (CAP-03 ; ADR-024, § 3), est sous le préfixe de `Portee::Prefixe`
     /// (`origine::sous_le_prefixe`, par segments entiers ; balayage Q13), l'import qu'il nomme
     /// étant celui de la table, sinon « Ce dossier n'est plus inspecté. ». En lecture seule, le
     /// refus de `lecture_seule()`, tel quel ; sans cible, `Impossible::CaptationAbsente`. Chaque
@@ -912,7 +914,7 @@ impl<D: Documents, C: Captations> Services<D, C> {
             .collect();
         let declaree = import::declarer_une_origine(
             &cibles_du_noyau,
-            ajout_du_noyau(&commande.origine).as_ref(),
+            etat_de_l_import::ajout_du_noyau(&commande.origine).as_ref(),
             &portee,
             contexte.heure,
         )
@@ -1027,10 +1029,10 @@ impl<D: Documents, C: Captations> Services<D, C> {
 
     /// Les cibles d'une déclaration d'origine de portée `portee`, chacune une fois, sous son
     /// empreinte, avec ce qui la nomme, et la portée du message (voir `declarer_une_origine`) :
-    /// une captation, nommée par `captation_nommee` ; les fichiers de la table du dernier import
-    /// clos sous le préfixe, chacun nommé par le premier de ses chemins, entre guillemets. Les
-    /// refus : un préfixe d'un autre import que le dernier clos, ou sans lui, « Ce dossier n'est
-    /// plus inspecté. » ; sans cible, `Impossible::CaptationAbsente`.
+    /// une captation, nommée par `captation_nommee` ; les captations de la table du dernier import
+    /// clos sous le préfixe, fichiers et prises en stems, chacune nommée par le premier de ses
+    /// chemins, entre guillemets. Les refus : un préfixe d'un autre import que le dernier clos, ou
+    /// sans lui, « Ce dossier n'est plus inspecté. » ; sans cible, `Impossible::CaptationAbsente`.
     fn cibles_de(&self, portee: &Portee) -> Result<(BTreeMap<String, String>, String), Refus> {
         let (cibles, dite) = match portee {
             Portee::Captation(captation) => {
@@ -1687,17 +1689,6 @@ fn joindre(premier: Option<String>, second: Option<String>) -> Option<String> {
     match (premier, second) {
         (Some(premier), Some(second)) => Some(format!("{premier} {second}")),
         (premier, second) => premier.or(second),
-    }
-}
-
-/// L'élément d'origine du noyau qui répond à l'origine à déclarer des commandes, comme pour les
-/// déclarations d'un import : `Aucune` en `None`, `Main` en `Some(origine::Ajout::Main)`,
-/// `Generee { nom }` en `Some(origine::Ajout::Generee(nom))`.
-fn ajout_du_noyau(declaree: &OrigineADeclarer) -> Option<origine::Ajout> {
-    match declaree {
-        OrigineADeclarer::Aucune => None,
-        OrigineADeclarer::Main => Some(origine::Ajout::Main),
-        OrigineADeclarer::Generee { nom } => Some(origine::Ajout::Generee(nom.clone())),
     }
 }
 

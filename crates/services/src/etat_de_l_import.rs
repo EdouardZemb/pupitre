@@ -591,30 +591,42 @@ impl EtatDeLImport {
             .values()
             .map(|donne| donne.empreinte().to_string())
             .collect();
-        for jeu in self.jeux.values() {
-            let stems: Vec<&str> = jeu
-                .audio
-                .iter()
-                .filter_map(|rang| self.donnes.get(rang))
-                .map(Donne::empreinte)
-                .collect();
-            if stems.len() == jeu.audio.len() {
-                versees.insert(empreinte(&rapport::manifeste(&stems)));
-            }
-        }
+        versees.extend(
+            self.jeux
+                .values()
+                .filter_map(|jeu| self.manifeste_du_jeu(jeu)),
+        );
         versees
     }
 
     /// La table de l'import (R6) : le chemin de chaque fichier qui a donné quelque chose, versé ou
-    /// dédoublonné, vers l'empreinte de son contenu.
+    /// dédoublonné, vers l'empreinte de son contenu ; et, pour chaque jeu versé, le chemin de son
+    /// dossier, le nom de sa prise en stems, vers l'empreinte de son manifeste (CAP-03 ;
+    /// ADR-024, § 3) : la déclaration d'un dossier porte sur sa prise en stems comme sur ses
+    /// stems. Le jeu du dossier versé lui-même est au chemin vide, comme ses stems sont à sa
+    /// racine : seul le préfixe vide le prend.
     pub(crate) fn table(&self) -> BTreeMap<String, String> {
-        self.fichiers
+        let fichiers = self.fichiers.iter().filter_map(|fichier| {
+            let donne = self.donnes.get(&fichier.rang)?;
+            Some((fichier.chemin.clone()?, donne.empreinte().to_string()))
+        });
+        let prises = self
+            .jeux
             .iter()
-            .filter_map(|fichier| {
-                let donne = self.donnes.get(&fichier.rang)?;
-                Some((fichier.chemin.clone()?, donne.empreinte().to_string()))
-            })
-            .collect()
+            .filter(|(_, jeu)| jeu.verse)
+            .filter_map(|(dossier, jeu)| Some((dossier.clone(), self.manifeste_du_jeu(jeu)?)));
+        fichiers.chain(prises).collect()
+    }
+
+    /// L'empreinte du manifeste du jeu `jeu` (`rapport::manifeste` des empreintes de ses stems),
+    /// chacun de ses stems copié ou compté ; sinon `None`.
+    fn manifeste_du_jeu(&self, jeu: &JeuOuvert) -> Option<String> {
+        let stems: Vec<&str> = jeu
+            .audio
+            .iter()
+            .map(|rang| self.donnes.get(rang).map(Donne::empreinte))
+            .collect::<Option<_>>()?;
+        Some(empreinte(&rapport::manifeste(&stems)))
     }
 }
 
@@ -674,10 +686,21 @@ impl io::Read for FluxControle<'_> {
     }
 }
 
+/// L'élément d'origine du noyau qui répond à l'origine à déclarer des commandes : `Aucune` en
+/// `None`, `Main` en `Some(Ajout::Main)`, `Generee { nom }` en `Some(Ajout::Generee(nom))`. La
+/// seule traduction, que prennent les déclarations d'un import (`declarations_du_noyau`) et la
+/// déclaration d'une origine après lui (`Services::declarer_une_origine`).
+pub(crate) fn ajout_du_noyau(origine: &OrigineADeclarer) -> Option<Ajout> {
+    match origine {
+        OrigineADeclarer::Aucune => None,
+        OrigineADeclarer::Main => Some(Ajout::Main),
+        OrigineADeclarer::Generee { nom } => Some(Ajout::Generee(nom.clone())),
+    }
+}
+
 /// Les déclarations des commandes, traduites pour le noyau (balayage Q3) : `stems` tel quel ;
-/// `Aucune` en `None`, `Main` en `Some(Ajout::Main)`, `Generee { nom }` en
-/// `Some(Ajout::Generee(nom))`. Une déclaration vide (`stems` faux, `Aucune`) ne s'y garde pas ;
-/// de deux entrées du même chemin, la dernière l'emporte, vide comprise.
+/// l'origine par `ajout_du_noyau`. Une déclaration vide (`stems` faux, `Aucune`) ne s'y garde
+/// pas ; de deux entrées du même chemin, la dernière l'emporte, vide comprise.
 pub(crate) fn declarations_du_noyau(
     declarations: &[DeclarationDUnDossier],
 ) -> BTreeMap<String, origine::Declaration> {
@@ -689,11 +712,7 @@ pub(crate) fn declarations_du_noyau(
     {
         let traduite = origine::Declaration {
             stems: declaration.stems,
-            origine: match &declaration.origine {
-                OrigineADeclarer::Aucune => None,
-                OrigineADeclarer::Main => Some(Ajout::Main),
-                OrigineADeclarer::Generee { nom } => Some(Ajout::Generee(nom.clone())),
-            },
+            origine: ajout_du_noyau(&declaration.origine),
         };
         if traduite == origine::Declaration::default() {
             traduites.remove(chemin);
