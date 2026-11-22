@@ -455,29 +455,29 @@ Et des limites, sans test, que les PR disent dans leur corps :
 - `crates/noyau/src/donnees/fonds.rs:48` — `CONTENEURS_NOMMANT_UNE_CAPTATION: [&str; 3]` — les trois conteneurs dont la clé nomme une captation par son premier segment ; `imports` n'y entre pas, ses clés commençant par un ULID (tâche 7)
 - `crates/noyau/src/donnees/fonds.rs:27` — `pub const IMPORTS: &str = "imports";` — conteneur de la genèse, vide : `ouvert`, `rapport` et `declaration` s'y écrivent sans migration (tâche 6)
 - `crates/noyau/src/donnees/fonds.rs:30` — `ORIGINES_DECLAREES` — conteneur de la genèse, vide : l'ensemble des origines s'y écrit sans migration (tâche 6)
-- `crates/noyau/src/donnees/fonds.rs:123` — `pub const MIGRATIONS: &[Migration<'static>] = &[];` — aucune migration : la genèse ne change pas, ni son empreinte de référence (tâches 6, 8)
-- `crates/stockage/tests/references.rs:26` — `const GENESE_DU_FONDS` — l'empreinte de la genèse, inchangée ; le manifeste et le rapport témoins s'y ajoutent (tâche 3)
-- `crates/noyau/src/donnees/gestes.rs:674` — `pub fn verser(` — refuse une captation déjà versée (`existante`) et écrit toujours `format` : l'import ne l'appelle pas, et partage avec elle la naissance de l'idée, que la tâche 6 en extrait (balayage P8)
-- `crates/noyau/src/donnees/gestes.rs:704` — `let mut changements = vec![` — le bloc de la naissance d'une idée (son objet, `provenance`, `par`, `le`, `depuis`), que la tâche 6 extrait en `naissance_de_l_idee` (balayage P8)
-- `crates/noyau/src/donnees/gestes.rs:673` — `#[allow(clippy::too_many_arguments)]` — le précédent, avec sa raison en commentaire, des deux versements de l'import (tâche 6 ; balayage P9)
-- `crates/noyau/tests/gestes.rs:838` — `fn une_captation_absente_se_dit_par_son_empreinte() {` — lit l'ancien message, que la tâche 6 récrit, et se renomme (balayage P20)
+- `crates/noyau/src/donnees/fonds.rs:178` — `pub const MIGRATIONS: &[Migration<'static>] = &[];` — aucune migration : la genèse ne change pas, ni son empreinte de référence (tâches 6, 8)
+- `crates/stockage/tests/references.rs:29` — `const GENESE_DU_FONDS` — l'empreinte de la genèse, inchangée ; le manifeste et le rapport témoins s'y ajoutent (tâche 3)
+- `crates/noyau/src/donnees/gestes.rs:747` — `pub fn verser(` — refuse une captation déjà versée (`existante`) et écrit toujours `format` : l'import ne l'appelle pas, et partage avec elle la naissance de l'idée, que la tâche 6 en extrait (balayage P8)
+- `crates/noyau/src/donnees/gestes.rs:713` — `let mut changements = vec![` — le bloc de la naissance d'une idée (son objet, `provenance`, `par`, `le`, `depuis`), extrait en `naissance_de_l_idee` (balayage P8)
+- `crates/noyau/src/donnees/gestes.rs:746` — `#[allow(clippy::too_many_arguments)]` — le précédent, avec sa raison en commentaire, des deux versements de l'import (tâche 6 ; balayage P9)
+- `crates/noyau/tests/gestes.rs:838` — `fn une_captation_absente_ne_nomme_pas_son_empreinte() {` — lit le message de `CaptationAbsente`, qui ne nomme plus l'empreinte (balayage P20)
 - `crates/services/tests/suite/mod.rs:2154` — `"Cette captation est déjà versée."` — le message de `CaptationDejaVersee` que la suite attend, sur les deux paires : la tâche 6 le récrit (balayage P1)
 - `crates/services/tests/suite/mod.rs:2236` — `"Cette captation n'est pas dans le fonds."` — le message de `CaptationAbsente` que la suite attend : la tâche 6 le récrit (balayage P1)
 - `crates/stockage/tests/messages.rs:391` — `fn aucun_message_n_est_un_ordre() {` — énumère chaque variante d'`Impossible` : la tâche 6 y ajoute les siennes (balayage P7)
-- `crates/stockage/tests/h07.rs:146` — `empreintes_nommees(cles_des_prises.iter().map(String::as_str))` — un appelant de la règle du noyau, à un argument : la tâche 7 lui donne `[]` (balayage P2)
-- `crates/stockage/tests/references.rs:6` — `Ce fichier est le seul des empreintes de référence` — le manifeste et le rapport témoins n'ont leurs empreintes qu'ici (tâche 3 ; balayage P17)
+- `crates/stockage/tests/h07.rs:146` — `empreintes_nommees(cles_des_prises.iter().map(String::as_str), [])` — un appelant de la règle du noyau, à deux arguments : `[]` pour les rapports (balayage P2)
+- `crates/stockage/tests/references.rs:7` — `Ce fichier est le seul des empreintes de référence` — le manifeste et le rapport témoins n'ont leurs empreintes qu'ici (tâche 3 ; balayage P17)
 - `crates/noyau/tests/statique.rs:35` — `"io::",` — cherché en sous-chaîne dans `crates/noyau/src` : `FormatAudio::` le contiendrait, d'où `FormatSonore` (tâches 1, 6 ; balayage P4)
-- `crates/noyau/src/donnees/gestes.rs:693` — `if sorte != Sorte::Prise && depuis.is_none() {` — un MIDI versé ou un texte versé n'entre que par l'import (tâche 6)
-- `crates/noyau/src/donnees/gestes.rs:215` — `Aucune captation ne porte l'empreinte {empreinte}.` — un message montré qui nomme une empreinte : la tâche 6 le récrit (question 26)
-- `crates/noyau/src/donnees/gestes.rs:219` — `La captation {empreinte} est déjà versée.` — de même (tâche 6)
-- `crates/stockage/src/lib.rs:244` — `Une captation relue ne donne pas son empreinte.` — de même (tâche 9)
-- `crates/services/src/en_memoire.rs:26` — `Cette captation n'est pas dans le fonds.` — de même (tâche 9)
+- `crates/noyau/src/donnees/gestes.rs:766` — `if sorte != Sorte::Prise && depuis.is_none() {` — un MIDI versé ou un texte versé n'entre que par l'import (tâche 6)
+- `crates/noyau/src/donnees/gestes.rs:234` — `Cette captation n'est pas dans le fonds.` — le message de `CaptationAbsente` ne nomme pas l'empreinte (question 26)
+- `crates/noyau/src/donnees/gestes.rs:238` — `Cette captation est déjà versée.` — le message de `CaptationDejaVersee` ne nomme pas l'empreinte (question 26)
+- `crates/stockage/src/lib.rs:244` — `Une captation relue ne donne pas son empreinte.` — le message de `CaptationAlteree` ne nomme pas l'empreinte (question 26)
+- `crates/services/src/en_memoire.rs:26` — `Cette captation n'est pas dans le fonds.` — le refus des captations en mémoire ne nomme pas l'empreinte (question 26)
 - `crates/noyau/src/donnees/gestes.rs:71` — `pub const TOUTES: [Sorte; 3]` — les sortes d'une captation d'une idée ; la tranche n'en ajoute pas : un stem et le MIDI d'un stem ne sont la captation d'aucune idée (tâche 10)
 - `crates/noyau/src/donnees/idee.rs:72` — `pub fn duree(prises: &[Option<u64>]) -> Option<u64> {` — la durée d'une idée, `None` dès qu'une prise n'a pas la sienne ; celle d'une prise en stems lui arrive de ses stems (tâches 5, 10)
-- `crates/noyau/src/donnees/identifiants.rs:46` — `let condense = Sha256::digest(octets);` — l'empreinte en un seul appel ; `Hacheur` la calcule par tronçons, et la donne égale (tâche 2)
+- `crates/noyau/src/donnees/identifiants.rs:75` — `let mut h = Hacheur::nouveau();` — l'empreinte en un seul appel passe par `Hacheur`, qui la calcule par tronçons : les deux sont égales (tâche 2)
 - `crates/noyau/src/donnees/demarrage.rs:16` — `pub fn voisin_libre(` — `<nom>.<processus>.partiel`, puis `-2`, `-3` : la copie en flux prend pour nom `import-<ULID>-<rang>` (tâches 7, 9)
 - `crates/noyau/src/donnees/demarrage.rs:127` — `pub fn a_ranger(` — range un nom provisoire par l'empreinte de son contenu, quel que soit son nom : une copie en flux entière et nommée se range au démarrage (tâche 9)
-- `crates/stockage/tests/messages.rs:213` — `ne donne pas son empreinte.` — l'ancien message de `CaptationAlteree`, que la tâche 9 récrit avec lui (balayage Q1)
+- `crates/stockage/tests/messages.rs:213` — `ne donne pas son empreinte.` — le message de `CaptationAlteree`, qui ne nomme pas l'empreinte (balayage Q1)
 - `crates/stockage/tests/messages.rs:220` — `Cette captation n'est pas dans le fonds.` — le message de `CaptationAbsente` du stockage, que la tâche 9 récrit avec lui (balayage Q1)
 - `crates/services/tests/application.rs:430` — `Cette captation n'est pas dans le fonds.` — le refus de `CaptationsEnMemoire::relire`, que la tâche 9 récrit avec lui (balayage Q1)
 - `crates/stockage/src/lib.rs:384` — `pub(crate) fn constat_du_disque(` — le constat du disque par le genre de l'erreur, jamais son texte : celui d'`Erreur::FichierAVerser` (tâche 9 ; balayage Q8)
@@ -3390,7 +3390,8 @@ Les parts, d'après les éléments de `boite.rs` à `fe918aa` (l'élément nomm�
   devient `pub(super)` ; rien ne devient plus visible hors de `boite/` qu'avant. Chaque test va au pied de la part qui
   porte la première fonction qu'il éprouve, dans un `#[cfg(test)] mod tests` qui commence par `use super::*;` ; ses
   aides le suivent ; une aide que deux parts emploient (`ligne`, `ligne_de`, `ecran`…) va dans `mod.rs`, en
-  `pub(super)`, sous `#[cfg(test)]`.
+  `pub(super)`, sous `#[cfg(test)]`. Chaque `impl` va avec son type : `impl Etalon` à `fenetre.rs`, `impl Demandes` à
+  `etat.rs`, `impl Commande` à `focus.rs`.
 
 - [ ] **Étape 1 : relever avant.** Depuis le worktree de la branche, à jour d'`origin/main` :
   `git show origin/main:app/ui/src/boite.rs | grep -A1 '#\[test\]' | grep -o 'fn [a-z0-9_]*' | sort` dans
