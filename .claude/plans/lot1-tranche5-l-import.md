@@ -561,7 +561,7 @@ Et des limites, sans test, que les PR disent dans leur corps :
 - `OsStr::to_str` — rend `None`, sans erreur, pour un nom Windows qui porte une demi-paire de substitution, et `Path::extension` peut alors rester lisible — `un_nom_sans_forme_utf8_se_parcourt_sans_chemin` (tâche 15)
 - NTFS — garde comme deux noms deux fichiers qui ne diffèrent que par la forme Unicode, composée ou décomposée — `les_formes_composee_et_decomposee_d_un_nom_restent_deux_noms` (tâche 15)
 - `std::fs` sous Windows — pose seul le préfixe `\\?\` d'un chemin de plus de 260 caractères, quand un appel nu de l'API ne le pose pas — `un_chemin_de_300_unites_utf16_se_parcourt_et_garde_son_nom` (tâche 15)
-- `GetDiskFreeSpaceExW` — refuse un chemin long sans `\\?\`, échoue sur un dossier absent, et rend trois nombres dont seul `lpFreeBytesAvailableToCaller` est la place offerte à l'appelant — `la_place_libre_se_lit_sur_un_chemin_long` et `la_place_libre_d_un_dossier_absent_est_refusee` (tâche 15)
+- `GetDiskFreeSpaceExW` — refuse un chemin long sans `\\?\`, échoue sur un dossier absent (un retour nul, l'erreur dans `GetLastError`, que `place_libre` doit rendre, jamais 0), et rend trois nombres dont seul `lpFreeBytesAvailableToCaller` est la place offerte à l'appelant — `la_place_libre_se_lit_sur_un_chemin_long`, et `l_echec_de_l_appel_rend_l_erreur_du_systeme_jamais_zero`, qui passe un chemin `\\?\…\absent` à l'appel lui-même (`place_offerte`) ; `la_place_libre_d_un_dossier_absent_est_refusee` n'atteint pas l'appel : `fs::canonicalize` refuse le dossier absent avant lui (tâche 15)
 - `fs::canonicalize` sous Windows — rend un chemin `\\?\`, qui ne se compare qu'à un autre chemin canonique — `un_dossier_dans_celui_de_l_application_est_refuse` (tâche 15)
 - `Path::extension` — ne voit aucune extension à `.txt`, et une vide à `a.` : `signature::extension` rend les mêmes, pour la source en mémoire — `l_extension_suit_path_extension` (tâche 1)
 - `str::from_utf8` sur un tronçon — refuse un caractère coupé à la frontière de deux tronçons, que le contrôle du texte doit porter au tronçon suivant — `un_texte_coupe_au_milieu_d_un_caractere_reste_lisible` (tâche 2)
@@ -3131,7 +3131,11 @@ pub async fn generateurs(ouverture: tauri::State<'_, Ouverture>) -> Reponse<Vec<
 - [ ] **Étape 1 : écrire les tests.** Dans `app/src-tauri/src/systeme.rs` (`mod tests`, `windows`) :
   - `la_place_libre_se_lit_sur_un_chemin_long` (`#[cfg(windows)]`) : un dossier jetable, imbriqué jusqu'à plus de 300
     unités UTF-16, rend une place non nulle ;
-  - `la_place_libre_d_un_dossier_absent_est_refusee` (`#[cfg(windows)]`) : une erreur ;
+  - `la_place_libre_d_un_dossier_absent_est_refusee` (`#[cfg(windows)]`) : une erreur, celle de `fs::canonicalize`,
+    qui refuse le dossier absent avant l'appel ;
+  - `l_echec_de_l_appel_rend_l_erreur_du_systeme_jamais_zero` (`#[cfg(windows)]`) : l'appel, séparé de `place_libre`
+    dans `place_offerte`, qui reçoit un chemin déjà canonique, sur un chemin `\\?\…\absent` sous un dossier jetable ;
+    une erreur du système, `ERROR_PATH_NOT_FOUND`, jamais `Ok(0)` ;
   - `un_dossier_dans_celui_de_l_application_est_refuse` : sous un dossier jetable, `app/` pour l'application ;
     `app/`, `app/x` et le dossier jetable lui-même sont refusés, du message ; `autre/` est admis.
   Dans `app/src-tauri/tests/statique.rs`, `i30_chaque_controle_refuse_ce_qu_on_y_plante` gagne deux plantations : un

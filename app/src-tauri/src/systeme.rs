@@ -60,8 +60,16 @@ pub struct DossierDeLApplication(pub PathBuf);
 /// que Windows pour cible (balayage Q12).
 #[cfg(windows)]
 pub fn place_libre(dossier: &Path) -> io::Result<u64> {
+    place_offerte(&fs::canonicalize(dossier)?)
+}
+
+/// L'appel de `GetDiskFreeSpaceExW` sur `canonique`, un chemin déjà canonique, passé tel quel en
+/// UTF-16 fini par un zéro : `lpFreeBytesAvailableToCaller` ; un retour nul rend l'erreur du
+/// système (`io::Error::last_os_error`), jamais 0. Séparé de `place_libre` pour que l'échec de
+/// l'appel lui-même s'éprouve : sur un dossier absent, `fs::canonicalize` refuse avant lui.
+#[cfg(windows)]
+fn place_offerte(canonique: &Path) -> io::Result<u64> {
     use std::os::windows::ffi::OsStrExt;
-    let canonique = fs::canonicalize(dossier)?;
     let nom: Vec<u16> = canonique
         .as_os_str()
         .encode_wide()
@@ -182,6 +190,24 @@ mod tests {
             place_libre(&absent).is_err(),
             "un dossier absent rend une place"
         );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn l_echec_de_l_appel_rend_l_erreur_du_systeme_jamais_zero() {
+        // `fs::canonicalize` refuse un dossier absent avant l'appel : le chemin `\\?\…\absent`,
+        // canonique jusqu'à son parent, va ici tel quel à `GetDiskFreeSpaceExW`, qui échoue.
+        let absent = std::fs::canonicalize(crate::tests::dossier_jetable("place-libre-appel"))
+            .expect("le dossier jetable se rend canonique")
+            .join("absent");
+        assert!(
+            absent.to_string_lossy().starts_with(r"\\?\"),
+            "{}",
+            absent.display()
+        );
+        let erreur = place_offerte(&absent).expect_err("un dossier absent rend une place");
+        // ERROR_PATH_NOT_FOUND : l'erreur que l'appel laisse au système (`GetLastError`).
+        assert_eq!(erreur.raw_os_error(), Some(3), "{erreur}");
     }
 
     #[test]
