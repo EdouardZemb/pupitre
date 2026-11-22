@@ -815,9 +815,78 @@ fn est_une_operation_sur_une_requete(message: &str) -> bool {
         .is_some_and(|(ancien, nouveau)| !ancien.is_empty() && !nouveau.is_empty())
 }
 
+/// Les ajouts d'un versement de l'import qui ne fait naître aucune idée, dans l'ordre où le message
+/// les dit (`noyau::donnees::import`, `message_des_ajouts`).
+const AJOUTS_DE_L_IMPORT: [&str; 3] = [
+    "nom d'origine ajouté",
+    "MIDI d'un stem ajouté",
+    "origine déclarée",
+];
+
+/// Les portées sans guillemets d'une origine déclarée après l'import : une captation sans nom,
+/// selon sa sorte (`captation_nommee`, dans les services).
+const PORTEES_SANS_NOM: [&str; 3] = ["cette prise", "ce MIDI versé seul", "ce texte versé"];
+
+/// Ce que le message dit après le nom entre guillemets qui ouvre `reste`, « « <nom> » : », le nom
+/// non vide ; sinon `None`.
+fn apres_un_nom(reste: &str) -> Option<&str> {
+    let (nom, apres) = reste.strip_prefix("« ")?.split_once(" » : ")?;
+    (!nom.is_empty()).then_some(apres)
+}
+
+/// `message` est celui d'une opération de l'import, à l'une de ses formes fermées
+/// (`noyau::donnees::import`) : « Import du <date> ouvert » ou « … clos » ; « Import du <date> : »
+/// suivi d'au moins un de `AJOUTS_DE_L_IMPORT`, dans leur ordre, chacun une fois, séparés par une
+/// virgule ; « Idée du <date> : prise en stems versée » ; « Origine déclarée pour <portée> : de la
+/// main de Sacha » ou « … : générée par <nom> », le nom non vide, la portée un nom ou un préfixe
+/// entre guillemets, non vide, ou l'une de `PORTEES_SANS_NOM` ; « Type de « <nom> » : <type> » ou
+/// « Type de ce stem : <type> », le type l'un des libellés de `TypeDeStem`. Le versement d'un
+/// fichier qui fait naître son idée a le message d'un versement (`est_une_note_ou_un_versement`).
+fn est_une_operation_de_l_import(message: &str) -> bool {
+    if let Some(reste) = message.strip_prefix("Import du ").and_then(apres_une_date) {
+        if matches!(reste, " ouvert" | " clos") {
+            return true;
+        }
+        let Some(ajouts) = reste.strip_prefix(" : ") else {
+            return false;
+        };
+        let mut suivants = AJOUTS_DE_L_IMPORT.into_iter();
+        return ajouts
+            .split(", ")
+            .all(|ajout| suivants.any(|connu| connu == ajout));
+    }
+    if let Some(reste) = message.strip_prefix("Idée du ").and_then(apres_une_date) {
+        return reste == " : prise en stems versée";
+    }
+    if let Some(reste) = message.strip_prefix("Origine déclarée pour ") {
+        let origine = PORTEES_SANS_NOM
+            .into_iter()
+            .find_map(|portee| reste.strip_prefix(portee)?.strip_prefix(" : "))
+            .or_else(|| apres_un_nom(reste));
+        return origine.is_some_and(|origine| {
+            origine == "de la main de Sacha"
+                || origine
+                    .strip_prefix("générée par ")
+                    .is_some_and(|nom| !nom.is_empty())
+        });
+    }
+    if let Some(reste) = message.strip_prefix("Type de ") {
+        let libelle = reste
+            .strip_prefix("ce stem : ")
+            .or_else(|| apres_un_nom(reste));
+        return libelle.is_some_and(|libelle| {
+            TypeDeStem::TOUS
+                .into_iter()
+                .any(|type_de_stem| type_de_stem.libelle() == libelle)
+        });
+    }
+    false
+}
+
 /// I28 (§ 70 · 3) : `message` est celui d'une opération connue : la genèse, la naissance, une
-/// migration, ou l'une des formes fermées d'une note, d'un versement, d'un geste de tri ou d'une
-/// opération sur une requête enregistrée, ou « Annulé : » suivi d'une forme d'un geste de tri.
+/// migration, ou l'une des formes fermées d'une note, d'un versement, d'un geste de tri, d'une
+/// opération sur une requête enregistrée ou d'une opération de l'import, ou « Annulé : » suivi
+/// d'une forme d'un geste de tri.
 pub fn message_connu(message: &str) -> bool {
     message == MESSAGE_DE_LA_GENESE
         || message == MESSAGE_DE_LA_NAISSANCE
@@ -825,6 +894,7 @@ pub fn message_connu(message: &str) -> bool {
         || est_une_note_ou_un_versement(message)
         || est_un_geste_de_tri(message)
         || est_une_operation_sur_une_requete(message)
+        || est_une_operation_de_l_import(message)
         || message
             .strip_prefix("Annulé : ")
             .is_some_and(est_un_geste_de_tri)
@@ -5006,8 +5076,8 @@ pub fn le_journal_se_lit_en_fenetre<P: Paire>(paire: &mut P) {
     );
 }
 
-/// Le second import des tests de la lecture du fonds importé : `ulid(LENDEMAIN, [0x22; 10])`, ouvert
-/// au lendemain, après `IMPORT`.
+/// Le second import des tests de la lecture du fonds importé : `ulid(LENDEMAIN, [0x22; 10])`,
+/// ouvert au lendemain, après `IMPORT`.
 fn second_import() -> String {
     ulid(LENDEMAIN, [0x22; 10])
 }

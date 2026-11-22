@@ -150,7 +150,7 @@ fn lire_le_fichier<S: Source>(
     let lire = |debut: u64, longueur: usize| {
         source
             .lire(entree.rang, debut, longueur)
-            .map_err(|refus| ne_se_lit_pas(entree, &refus.message))
+            .map_err(|refus| ne_se_lit_pas(entree.chemin.as_deref(), entree.rang, &refus.message))
     };
     let debut = lire(0, SIGNATURE_AU_PLUS)?;
     vu.nature = match signature::reconnaitre(&debut, entree.extension.as_deref()) {
@@ -186,7 +186,7 @@ fn lire_le_fichier<S: Source>(
 fn empreinte_en_flux<S: Source>(source: &S, entree: &Entree) -> Result<String, Refus> {
     let mut flux = source
         .lire_en_flux(entree.rang)
-        .map_err(|refus| ne_se_lit_pas(entree, &refus.message))?;
+        .map_err(|refus| ne_se_lit_pas(entree.chemin.as_deref(), entree.rang, &refus.message))?;
     let mut hacheur = Hacheur::nouveau();
     let mut tampon = vec![0u8; TAMPON];
     loop {
@@ -194,24 +194,31 @@ fn empreinte_en_flux<S: Source>(source: &S, entree: &Entree) -> Result<String, R
             Ok(0) => return Ok(hacheur.finir()),
             Ok(lus) => hacheur.ajouter(&tampon[..lus]),
             Err(erreur) if erreur.kind() == io::ErrorKind::Interrupted => {}
-            Err(_) => return Err(ne_se_lit_pas(entree, FLUX_REFUSE)),
+            Err(_) => {
+                return Err(ne_se_lit_pas(
+                    entree.chemin.as_deref(),
+                    entree.rang,
+                    FLUX_REFUSE,
+                ));
+            }
         }
     }
 }
 
-/// Le refus d'une lecture de l'inspection (question 38) : `Raison::Disque`, « « x.wav » ne se lit
-/// pas : <erreur>. », sans nom en UTF-8 « Le fichier n° <rang> ne se lit pas : <erreur>. ».
-/// L'erreur est le constat de la source, son initiale en minuscule et son point final ôté.
-fn ne_se_lit_pas(entree: &Entree, erreur: &str) -> Refus {
+/// Le refus d'une lecture du fichier `chemin`, de rang `rang`, à l'inspection comme au versement
+/// (question 38) : `Raison::Disque`, « « x.wav » ne se lit pas : <erreur>. », sans nom en UTF-8
+/// « Le fichier n° <rang> ne se lit pas : <erreur>. ». L'erreur est le constat de la source, son
+/// initiale en minuscule et son point final ôté.
+pub(crate) fn ne_se_lit_pas(chemin: Option<&str>, rang: u64, erreur: &str) -> Refus {
     let erreur = erreur.strip_suffix('.').unwrap_or(erreur);
     let mut caracteres = erreur.chars();
     let erreur: String = match caracteres.next() {
         Some(initiale) => initiale.to_lowercase().chain(caracteres).collect(),
         None => String::new(),
     };
-    let message = match &entree.chemin {
+    let message = match chemin {
         Some(chemin) => format!("« {chemin} » ne se lit pas : {erreur}."),
-        None => format!("Le fichier n° {} ne se lit pas : {erreur}.", entree.rang),
+        None => format!("Le fichier n° {rang} ne se lit pas : {erreur}."),
     };
     Refus {
         raison: Raison::Disque,

@@ -322,9 +322,16 @@ impl LectureSeule {
 }
 
 impl Avertissement {
-    /// Le texte de l'avertissement, chaque chemin dit relatif à `racine`, s'il en est une.
+    /// Le texte de l'avertissement, chaque chemin dit relatif à `racine`, s'il en est une. Sous
+    /// `captations/` (`sous_les_captations`), un nom provisoire, une copie d'import ou une
+    /// captation rangée se dit « Une captation », comme dans `Erreur::Disque` : son chemin
+    /// nommerait l'import ou l'empreinte (question 26).
     fn ecrire(&self, f: &mut fmt::Formatter<'_>, racine: Option<&Path>) -> fmt::Result {
         match self {
+            Avertissement::NonDurable { chemin, .. } if sous_les_captations(chemin, racine) => f
+                .write_str(
+                    "Une captation est en place, mais son renommage n'est pas rendu durable.",
+                ),
             Avertissement::NonDurable { chemin, .. } => write!(
                 f,
                 "{} est en place, mais son renommage n'est pas rendu durable.",
@@ -343,6 +350,14 @@ impl Avertissement {
                  prend à l'ouverture suivante.",
                 chemin_dit(chemin, racine)
             ),
+            Avertissement::NomProvisoireRestant { chemin, .. }
+                if sous_les_captations(chemin, racine) =>
+            {
+                f.write_str(
+                    "Une captation n'a pas pu se lire, ou prendre le nom de son empreinte : elle \
+                     reste, et l'ouverture suivante la relit.",
+                )
+            }
             Avertissement::NomProvisoireRestant { chemin, .. } => write!(
                 f,
                 "{} n'a pas pu se lire, ou prendre le nom de son empreinte : il reste, et \

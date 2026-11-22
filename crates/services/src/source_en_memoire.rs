@@ -33,10 +33,9 @@ impl SourceEnMemoire {
     /// des chemins ; rangés par leurs segments, puis numérotés dès 1.
     ///
     /// Les segments se comparent un à un, octet pour octet ; une entrée sans chemin vient après
-    /// celles qui en ont un, dans l'ordre reçu, comme un nom sans forme UTF-8 sur le disque. Un
-    /// fichier a pour octets ceux de son contenu ; un lien, 0, rien ne s'en lit. L'extension est
-    /// celle du dernier segment (`signature::extension`). Chaque entrée naît avec la marque de
-    /// dernière écriture 1.
+    /// celles qui en ont un, dans l'ordre reçu. Un fichier a pour octets ceux de son contenu ; un
+    /// lien, 0, rien ne s'en lit. L'extension est celle du dernier segment
+    /// (`signature::extension`). Chaque entrée naît avec la marque de dernière écriture 1.
     pub fn new(
         nom_du_dossier: Option<&str>,
         fichiers: Vec<(Option<String>, Vec<u8>)>,

@@ -716,30 +716,55 @@ pub fn noms_de(
 /// Le premier nom vu d'un contenu, d'après `origine::premier_nom_vu` (question 20), parmi tous ses
 /// noms : sous les trois conteneurs (`noms_de`), puis sous l'entrée de chaque stem
 /// (`<p>/stem/<empreinte>/nom/<chemin>`, cherchée dans toutes les prises) ; aucun nom, `None`.
+/// C'est `premiers_noms_vus` d'un seul contenu.
 pub fn premier_nom_vu(doc: &Automerge, empreinte: &str) -> Option<String> {
+    premiers_noms_vus(doc, &BTreeSet::from([empreinte.to_string()])).remove(empreinte)
+}
+
+/// Le premier nom vu de chaque contenu de `empreintes`, comme `premier_nom_vu`, en un seul passage
+/// sur `prises` pour les noms de leurs stems, quel que soit leur nombre : la fenêtre de la boîte
+/// d'un fonds juste importé, dont aucune idée n'a de texte, en nomme chaque ligne sans parcourir
+/// `prises` une fois par ligne (C1 de la revue de la PR (b)). Les noms sous les trois conteneurs
+/// se lisent par `noms_de`, chacun depuis son préfixe ; un contenu sans aucun nom n'a pas
+/// d'entrée.
+pub fn premiers_noms_vus(
+    doc: &Automerge,
+    empreintes: &BTreeSet<String>,
+) -> BTreeMap<String, String> {
     let lecture = Lecture::courante(doc);
-    let mut noms: Vec<(String, String)> = CONTENEURS_NOMMANT_UNE_CAPTATION
-        .into_iter()
-        .flat_map(|conteneur| noms_de(doc, conteneur, empreinte, None))
+    let mut noms: BTreeMap<&str, Vec<(String, String)>> = empreintes
+        .iter()
+        .map(|empreinte| {
+            let siens = CONTENEURS_NOMMANT_UNE_CAPTATION
+                .into_iter()
+                .flat_map(|conteneur| noms_de(doc, conteneur, empreinte, None))
+                .collect();
+            (empreinte.as_str(), siens)
+        })
         .collect();
     if let Some(prises) = lecture.conteneur(PRISES) {
         for element in lecture.sous(&prises, "") {
-            let valeur = element.value.into_value();
             let cle: &str = &element.key;
             if let CleDeCaptation::NomDuStem { stem, chemin } = lire_la_cle(cle)
-                && stem == empreinte
+                && let Some(siens) = noms.get_mut(stem)
             {
+                let valeur = element.value.into_value();
                 for ulid in chaines(lecture, &prises, cle, valeur, element.conflict) {
-                    noms.push((chemin.to_string(), ulid));
+                    siens.push((chemin.to_string(), ulid));
                 }
             }
         }
     }
-    origine::premier_nom_vu(
-        noms.iter()
-            .map(|(chemin, ulid)| (chemin.as_str(), ulid.as_str())),
-    )
-    .map(str::to_string)
+    noms.into_iter()
+        .filter_map(|(empreinte, siens)| {
+            let premier = origine::premier_nom_vu(
+                siens
+                    .iter()
+                    .map(|(chemin, ulid)| (chemin.as_str(), ulid.as_str())),
+            )?;
+            Some((empreinte.to_string(), premier.to_string()))
+        })
+        .collect()
 }
 
 /// L'ensemble des origines du contenu `empreinte`, sous `origines_declarees` : `<e>/main`, et
@@ -993,8 +1018,8 @@ pub struct TypeLu {
 pub struct StemLu {
     /// Son empreinte.
     pub empreinte: String,
-    /// Ses faits : son format (`…/format`) et sa durée (`…/duree`), les seuls qu'un stem porte ; les
-    /// autres à `None`.
+    /// Ses faits : son format (`…/format`) et sa durée (`…/duree`), les seuls qu'un stem porte ;
+    /// les autres à `None`.
     pub faits: Faits,
     /// Ses noms d'origine, ceux de `<p>/stem/<s>/nom/…` seuls : chaque couple (chemin, ULID), dans
     /// l'ordre des chemins (`noms_de`).

@@ -272,17 +272,20 @@ fn refus_du_parcours(erreur: stockage::Erreur) -> Refus {
 /// dossier », attend sa réponse hors du fil de l'IPC (`spawn_blocking`) ; fermée sans choix :
 /// `Ok(None)`, et rien ne change. Le dossier choisi, admis par `systeme::admettre_le_dossier`
 /// (son refus, de `Raison::Impossible`), puis parcouru par `SourceSurFichiers::parcourir` (son
-/// refus, de `Raison::Disque`), hors du fil du fonds ; la source, gardée dans `DossierChoisi` ;
-/// puis, au fil, la place libre, lue sur le volume du dossier de l'application, où vit la racine
-/// des données, que la commande ne connaît pas (R19), et l'inspection.
+/// refus, de `Raison::Disque`), hors du fil du fonds ; puis, au fil, la place libre, lue sur le
+/// volume du dossier de l'application, où vit la racine des données, que la commande ne connaît
+/// pas (R19), et l'inspection. Réussie, et seulement alors, la source se garde dans
+/// `DossierChoisi`, au fil même, qui ordonne ainsi la garde et l'inspection : une inspection
+/// refusée laisse le dossier choisi d'avant avec l'inspection et l'import que les services
+/// gardent (C5 de la revue de la PR (b)).
 #[tauri::command]
 pub async fn inspecter_un_dossier<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     ouverture: tauri::State<'_, Ouverture>,
-    choisi: tauri::State<'_, DossierChoisi>,
     application: tauri::State<'_, DossierDeLApplication>,
 ) -> Reponse<Option<Inspection>> {
     let dossier_de_l_application = application.0.clone();
+    let au_fil = app.clone();
     let parcouru = tauri::async_runtime::spawn_blocking(
         move || -> Result<Option<SourceSurFichiers>, Refus> {
             let boite = app.dialog().file().set_title("Importer un dossier");
@@ -310,12 +313,17 @@ pub async fn inspecter_un_dossier<R: tauri::Runtime>(
         return Ok(None);
     };
     let source = Arc::new(source);
-    *choisi.0.lock().unwrap_or_else(PoisonError::into_inner) = Some(Arc::clone(&source));
     let application = application.0.clone();
     ouverture
         .demander(move |services, _| {
             let place_libre = lire_la_place_libre(&application)?;
-            services.inspecter(&*source, place_libre)
+            let inspection = services.inspecter(&*source, place_libre)?;
+            *au_fil
+                .state::<DossierChoisi>()
+                .0
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner) = Some(source);
+            Ok(inspection)
         })
         .await
         .map(Some)

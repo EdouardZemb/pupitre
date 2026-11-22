@@ -652,23 +652,24 @@ impl<D: Documents, C: Captations> Services<D, C> {
         })
     }
 
-    /// Inspecte `source` sans rien écrire : refusée en lecture seule, du refus de `lecture_seule()`.
-    /// Chaque fichier lu de `SIGNATURE_AU_PLUS` octets (`signature::reconnaitre`) ; une étiquette
-    /// ID3, de quatre de plus à sa suite (`signature::apres_id3`) ; un WAV, de `ENTETE_AU_PLUS`
-    /// (`entete::faits_wav`) ; un lien, un ignoré, jamais au-delà
-    /// (`etat_de_l_import::lire_les_fichiers`). Une lecture refusée arrête l'inspection et nomme le
-    /// fichier, de `Raison::Disque` : « « x.wav » ne se lit pas : <erreur>. », sans nom « Le fichier
-    /// n° <rang> ne se lit pas : <erreur>. » (question 38). L'empreinte d'un fichier audio, MIDI ou
-    /// texte ne se calcule que si sa taille est dans `Captations::tailles` (question 8) ; connu, si
-    /// le fonds le nomme. La taille à verser, ses fichiers, le poids du fichier complet
-    /// (`Automerge::save`, 0 sans fonds) et `place_libre` : `rapport::place`, en entiers ; le
-    /// manque, son texte (`rapport::ManqueDePlace`) ; la taille à verser et la place libre rendues,
-    /// bornées à `ENTIER_SUR` (balayage Q6). Chaque dossier : ses fichiers audio, le jeu proposé
-    /// (`stems::jeu_propose`, sur les tailles et les en-têtes lus, sans empreinte ; question 37), la
-    /// déclaration reproposée (`lecture::dernieres_declarations`). La reprise (question 2 ; R2) :
-    /// l'import ouvert dont au moins un nom de fichier est posé (`lecture::noms_poses_par`), dont
-    /// chaque nom de fichier est le chemin d'une entrée de la source, et chaque nom de prise en
-    /// stems le préfixe, par segments entiers (`<nom>/`), d'une entrée, ou `nom_du_dossier`
+    /// Inspecte `source` sans rien écrire : refusée en lecture seule, du refus de
+    /// `lecture_seule()`. Chaque fichier lu de `SIGNATURE_AU_PLUS` octets
+    /// (`signature::reconnaitre`) ; une étiquette ID3, de quatre de plus à sa suite
+    /// (`signature::apres_id3`) ; un WAV, de `ENTETE_AU_PLUS` (`entete::faits_wav`) ; un lien, un
+    /// ignoré, jamais au-delà (`etat_de_l_import::lire_les_fichiers`). Une lecture refusée arrête
+    /// l'inspection et nomme le fichier, de `Raison::Disque` : « « x.wav » ne se lit pas :
+    /// <erreur>. », sans nom « Le fichier n° <rang> ne se lit pas : <erreur>. » (question 38).
+    /// L'empreinte d'un fichier audio, MIDI ou texte ne se calcule que si sa taille est dans
+    /// `Captations::tailles` (question 8) ; connu, si le fonds le nomme. La taille à verser, ses
+    /// fichiers, le poids du fichier complet (`Automerge::save`, 0 sans fonds) et `place_libre` :
+    /// `rapport::place`, en entiers ; le manque, son texte (`rapport::ManqueDePlace`) ; la taille à
+    /// verser et la place libre rendues, bornées à `ENTIER_SUR` (balayage Q6). Chaque dossier : ses
+    /// fichiers audio, le jeu proposé (`stems::jeu_propose`, sur les tailles et les en-têtes lus,
+    /// sans empreinte ; question 37), la déclaration reproposée
+    /// (`lecture::dernieres_declarations`). La reprise (question 2 ; R2) : l'import ouvert dont au
+    /// moins un nom de fichier est posé (`lecture::noms_poses_par`), dont chaque nom de fichier est
+    /// le chemin d'une entrée de la source, et chaque nom de prise en stems le préfixe, par
+    /// segments entiers (`<nom>/`), d'une entrée, ou `nom_du_dossier`
     /// (`etat_de_l_import::reprend`) ; elle rend les déclarations de son ouverture
     /// (`lecture::declarations_de`). Un import ouvert que la source ne reprend pas :
     /// `ouvert_ailleurs` (question 35). L'inspection se garde dans les services, avec la marque de
@@ -893,13 +894,16 @@ impl<D: Documents, C: Captations> Services<D, C> {
     /// copiés autres que ceux de l'inspection, ou son empreinte autre que celle qu'a calculée
     /// l'inspection (passée en `attendue` à `verser_en_flux`, qui ne range rien en désaccord ;
     /// R20) : `FichierChange` (question 14 ; R8). Une marque de dernière écriture absente ne
-    /// compare rien. La copie en flux, sous `import::nom_de_la_copie`, le flux contrôlé (ses octets
-    /// comptés, un texte par `ControleDuTexte` : `FluxControle`) ; ses faits, ceux de l'en-tête lu
-    /// à l'inspection, ou aucun (illisible : un en-tête qui ne se lit pas, un texte que le contrôle
-    /// refuse). Un fichier audio d'un jeu, et le MIDI d'un de ses stems (`stem_du_midi`) : la
-    /// captation seule, `Issue::Stem`. Sinon `import::verser_un_fichier`, son origine celle des
-    /// déclarations (`origine::declaration_du_fichier`), ce que le fonds en porte lu par
-    /// `lecture::deja_lu`, l'ULID de l'idée tiré pour un contenu neuf seulement ; `Issue::Verse` ou
+    /// compare rien. Une lecture que la source refuse (`octets_actuels`, `marque_actuelle`,
+    /// `lire_en_flux`), un fichier déplacé ou tenu depuis l'inspection : le refus nomme le fichier,
+    /// comme à l'inspection (`etat_de_l_import::ne_se_lit_pas` ; question 38). La copie en flux,
+    /// sous `import::nom_de_la_copie`, le flux contrôlé (ses octets comptés, un texte par
+    /// `ControleDuTexte` : `FluxControle`) ; ses faits, ceux de l'en-tête lu à l'inspection, ou
+    /// aucun (illisible : un en-tête qui ne se lit pas, un texte que le contrôle refuse). Un
+    /// fichier audio d'un jeu, et le MIDI d'un de ses stems (`stem_du_midi`) : la captation seule,
+    /// `Issue::Stem`. Sinon `import::verser_un_fichier`, son origine celle des déclarations
+    /// (`origine::declaration_du_fichier`), ce que le fonds en porte lu par `lecture::deja_lu`,
+    /// l'ULID de l'idée tiré pour un contenu neuf seulement ; `Issue::Verse` ou
     /// `Issue::Dedoublonne` ; les empreintes nommées de l'état, tenues à jour.
     pub fn verser_un_fichier<S: Source>(
         &mut self,
@@ -920,8 +924,8 @@ impl<D: Documents, C: Captations> Services<D, C> {
     /// `import::verser_une_prise_en_stems`, son nom le chemin du dossier, ou
     /// `Source::nom_du_dossier` pour le dossier versé ; sans nom en UTF-8, aucun, et aucune ligne
     /// `fichier-sans-nom` au rapport, qui ne nomme que le rang d'un fichier (R23) ; son origine,
-    /// celle que les déclarations donnent à ses stems. Ce que le fonds porte déjà de la prise se lit
-    /// par `lecture::deja_de_la_prise`, les liens `prises/<p>/stem/<s>/midi/<m>` déjà posés
+    /// celle que les déclarations donnent à ses stems. Ce que le fonds porte déjà de la prise se
+    /// lit par `lecture::deja_de_la_prise`, les liens `prises/<p>/stem/<s>/midi/<m>` déjà posés
     /// compris : une prise connue, réimportée avec un MIDI nouveau d'un stem, reçoit son lien et
     /// ses faits (revue de la tâche 6). L'ULID de l'idée, tiré pour une prise neuve seulement.
     pub fn verser_une_prise_en_stems<S: Source>(
@@ -981,11 +985,13 @@ impl<D: Documents, C: Captations> Services<D, C> {
     /// dossier (CAP-03 ; ADR-024, § 3), est sous le préfixe de `Portee::Prefixe`
     /// (`origine::sous_le_prefixe`, par segments entiers ; balayage Q13), l'import qu'il nomme
     /// étant celui de la table, sinon « Ce dossier n'est plus inspecté. ». En lecture seule, le
-    /// refus de `lecture_seule()`, tel quel ; sans cible, `Impossible::CaptationAbsente`. Chaque
-    /// cible, une fois, avec ses origines (`lecture::origines_de`), passe à
-    /// `import::declarer_une_origine`, à l'heure du contexte ; la portée du message, la captation
-    /// nommée par `captation_nommee`, ou le préfixe suivi d'une barre `/`, qu'il en porte une ou
-    /// non (« « Démos/ » »). L'opération, s'il y en a une, par `Documents::appliquer`.
+    /// refus de `lecture_seule()`, tel quel ; une captation que le fonds ne porte pas,
+    /// `Impossible::CaptationAbsente` ; un préfixe sans cible, « Ce dossier n'a aucune captation
+    /// versée par cet import. ». Chaque cible, une fois, avec ses origines
+    /// (`lecture::origines_de`), passe à `import::declarer_une_origine`, à l'heure du contexte ; la
+    /// portée du message, la captation nommée par `captation_nommee`, ou le préfixe suivi d'une
+    /// barre `/`, qu'il en porte une ou non (« « Démos/ » »). L'opération, s'il y en a une, par
+    /// `Documents::appliquer`.
     /// L'avertissement « L'origine reste générée : une origine déclarée ne se retire pas. » dès
     /// qu'une cible générée est gardée (`generees_gardees` > 0), l'opération faite pour les autres
     /// cibles, s'il y en a (V9), suivi de celui de l'écriture, s'il y en a un (`joindre`) ; une
@@ -1133,10 +1139,13 @@ impl<D: Documents, C: Captations> Services<D, C> {
     /// empreinte, avec ce qui la nomme, et la portée du message (voir `declarer_une_origine`) :
     /// une captation, nommée par `captation_nommee` ; les captations de la table du dernier import
     /// clos sous le préfixe, fichiers et prises en stems, chacune nommée par le premier de ses
-    /// chemins, entre guillemets. Les refus : un préfixe d'un autre import que le dernier clos, ou
-    /// sans lui, « Ce dossier n'est plus inspecté. » ; sans cible, `Impossible::CaptationAbsente`.
+    /// chemins, entre guillemets. Les refus : une captation que le fonds ne porte pas,
+    /// `Impossible::CaptationAbsente` ; un préfixe d'un autre import que le dernier clos, ou sans
+    /// lui, « Ce dossier n'est plus inspecté. » ; un préfixe qui ne prend aucune captation de la
+    /// table, un dossier de fichiers tous ignorés compris, « Ce dossier n'a aucune captation versée
+    /// par cet import. » (C8 de la revue de la PR (b)).
     fn cibles_de(&self, portee: &Portee) -> Result<(BTreeMap<String, String>, String), Refus> {
-        let (cibles, dite) = match portee {
+        match portee {
             Portee::Captation(captation) => {
                 let sorte = sorte_du_noyau(&captation.sorte);
                 let empreinte = &captation.empreinte;
@@ -1147,7 +1156,7 @@ impl<D: Documents, C: Captations> Services<D, C> {
                     .ok_or_else(|| captation_absente(empreinte))?;
                 let nommee = captation_nommee(fonds, sorte, empreinte);
                 let cible = BTreeMap::from([(empreinte.clone(), nommee.clone())]);
-                (cible, nommee)
+                Ok((cible, nommee))
             }
             Portee::Prefixe { import, prefixe } => {
                 let (_, table) = self
@@ -1163,18 +1172,17 @@ impl<D: Documents, C: Captations> Services<D, C> {
                             .or_insert_with(|| format!("« {chemin} »"));
                     }
                 }
+                if cibles.is_empty() {
+                    return Err(refus_de_l_import(DOSSIER_SANS_CAPTATION));
+                }
                 let dite = if prefixe.ends_with('/') {
                     format!("« {prefixe} »")
                 } else {
                     format!("« {prefixe}/ »")
                 };
-                (cibles, dite)
+                Ok((cibles, dite))
             }
-        };
-        if cibles.is_empty() {
-            return Err(captation_absente(""));
         }
-        Ok((cibles, dite))
     }
 
     /// L'état de l'import `import`, pris aux services, qui le reprennent après la commande ; un
@@ -1222,12 +1230,19 @@ impl<D: Documents, C: Captations> Services<D, C> {
                 rang,
             })
         };
-        if source.octets_actuels(rang)? != fichier.octets
-            || autre_marque(fichier.marque, source.marque_actuelle(rang)?)
+        let illisible_ici = |refus: Refus| {
+            etat_de_l_import::ne_se_lit_pas(fichier.chemin.as_deref(), rang, &refus.message)
+        };
+        if source.octets_actuels(rang).map_err(illisible_ici)? != fichier.octets
+            || autre_marque(
+                fichier.marque,
+                source.marque_actuelle(rang).map_err(illisible_ici)?,
+            )
         {
             return Err(change());
         }
-        let mut flux = FluxControle::de(source.lire_en_flux(rang)?, fichier.texte());
+        let lu = source.lire_en_flux(rang).map_err(illisible_ici)?;
+        let mut flux = FluxControle::de(lu, fichier.texte());
         let versement = self.captations.verser_en_flux(
             &import::nom_de_la_copie(&etat.import, rang),
             &mut flux,
@@ -1237,7 +1252,10 @@ impl<D: Documents, C: Captations> Services<D, C> {
         drop(flux);
         if !versement.rangee
             || versement.octets != fichier.octets
-            || autre_marque(fichier.marque, source.marque_actuelle(rang)?)
+            || autre_marque(
+                fichier.marque,
+                source.marque_actuelle(rang).map_err(illisible_ici)?,
+            )
         {
             return Err(change());
         }
@@ -1680,9 +1698,8 @@ fn dans_la_fenetre<T>(rangees: Vec<T>, debut: u32, nombre: u32) -> impl Iterator
 
 /// Les lignes de la fenêtre qui commence au rang `debut` de `rangees` et en prend `nombre`, borné
 /// à `FENETRE_MAX` (`dans_la_fenetre`). Chaque ligne sans texte reçoit le premier nom vu de sa
-/// première captation (`lecture::premier_nom_vu`), les captations des idées lues de `fonds` en un
-/// passage (`lecture::captations_par_idee`), et seulement si une ligne de la fenêtre est sans
-/// texte ; sans fonds, aucun.
+/// première captation (`noms_des_lignes_sans_texte`) ; une ligne qui a un texte, ou sans fonds,
+/// aucun.
 fn fenetre(
     rangees: Vec<EnBoite>,
     debut: u32,
@@ -1690,24 +1707,46 @@ fn fenetre(
     fonds: Option<&Automerge>,
 ) -> Vec<LigneDeLaBoite> {
     let lignes: Vec<EnBoite> = dans_la_fenetre(rangees, debut, nombre).collect();
-    let captations = match fonds {
-        Some(fonds) if lignes.iter().any(|ligne| ligne.idee.texte.is_none()) => {
-            lecture::captations_par_idee(fonds)
-        }
-        _ => BTreeMap::new(),
+    let mut noms = match fonds {
+        Some(fonds) => noms_des_lignes_sans_texte(fonds, &lignes),
+        None => BTreeMap::new(),
     };
     lignes
         .into_iter()
         .map(|dans_la_boite| {
-            let nom_de_fichier = match (fonds, &dans_la_boite.idee.texte) {
-                (Some(fonds), None) => captations
-                    .get(&dans_la_boite.idee.id)
-                    .and_then(|siennes| siennes.first())
-                    .and_then(|premiere| lecture::premier_nom_vu(fonds, &premiere.empreinte)),
-                _ => None,
-            };
+            let nom_de_fichier = noms.remove(&dans_la_boite.idee.id);
             ligne(dans_la_boite, nom_de_fichier)
         })
+        .collect()
+}
+
+/// Le nom de fichier de chaque ligne sans texte de `lignes`, sous l'identifiant de son idée : le
+/// premier nom vu de sa première captation. En un seul passage par fenêtre (C1 de la revue de la
+/// PR (b)) : les premières empreintes des lignes sans texte d'abord, des captations des idées lues
+/// de `fonds` en un passage (`lecture::captations_par_idee`) ; puis leurs premiers noms vus, en un
+/// passage sur `prises` (`lecture::premiers_noms_vus`). Aucune ligne sans texte : rien ne se lit.
+/// Une idée sans captation, ou dont la première n'a aucun nom, n'a pas d'entrée.
+fn noms_des_lignes_sans_texte(fonds: &Automerge, lignes: &[EnBoite]) -> BTreeMap<String, String> {
+    let sans_texte: Vec<&str> = lignes
+        .iter()
+        .filter(|ligne| ligne.idee.texte.is_none())
+        .map(|ligne| ligne.idee.id.as_str())
+        .collect();
+    if sans_texte.is_empty() {
+        return BTreeMap::new();
+    }
+    let mut captations = lecture::captations_par_idee(fonds);
+    let premieres: BTreeMap<&str, String> = sans_texte
+        .into_iter()
+        .filter_map(|idee| {
+            let premiere = captations.remove(idee)?.into_iter().next()?;
+            Some((idee, premiere.empreinte))
+        })
+        .collect();
+    let noms = lecture::premiers_noms_vus(fonds, &premieres.values().cloned().collect());
+    premieres
+        .into_iter()
+        .filter_map(|(idee, empreinte)| Some((idee.to_string(), noms.get(&empreinte)?.clone())))
         .collect()
 }
 
@@ -1840,6 +1879,12 @@ const ORIGINE_GARDEE: &str = "L'origine reste générée : une origine déclaré
 /// Le refus d'une déclaration par préfixe qui ne nomme pas le dernier import clos, ou qui suit
 /// une inspection (R6).
 const PLUS_INSPECTE: &str = "Ce dossier n'est plus inspecté.";
+
+/// Le refus d'une déclaration par un préfixe qui ne prend aucune captation de la table du dernier
+/// import clos : un dossier de fichiers tous ignorés, ou un préfixe qui n'est pas un segment entier
+/// (C8 de la revue de la PR (b)). Une captation unique absente garde
+/// `Impossible::CaptationAbsente`.
+const DOSSIER_SANS_CAPTATION: &str = "Ce dossier n'a aucune captation versée par cet import.";
 
 /// L'avertissement de l'état du fonds quand le fonds porte un import ouvert que les services ne
 /// conduisent pas (question 2).

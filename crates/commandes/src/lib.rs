@@ -680,7 +680,8 @@ pub struct DossierInspecte {
     pub audio: u64,
     /// L'inspection propose de le verser comme un jeu de stems.
     pub jeu_propose: bool,
-    /// La déclaration qu'un import repris a déjà reçue pour lui, proposée de nouveau.
+    /// La déclaration de l'import le plus récent qui a déclaré ce chemin, reproposée sans être
+    /// appliquée (question 9).
     pub reproposee: Option<Declaration>,
 }
 
@@ -706,8 +707,8 @@ pub struct Inspection {
     /// Les déclarations de l'import repris, que l'écran montre sans choix (R2).
     pub declarations_reprises: Vec<DeclarationDUnDossier>,
     /// Un import est ouvert, que ce dossier ne reprend pas : l'écran le dit (« Un import est resté
-    /// ouvert, que ce dossier ne reprend pas : verser celui-ci le clôt, avec ce qu'il a versé. »), et
-    /// l'ouverture le clora (question 35 ; V12).
+    /// ouvert, que ce dossier ne reprend pas : verser celui-ci le clôt, avec ce qu'il a versé. »),
+    /// et l'ouverture le clora (question 35 ; V12).
     pub ouvert_ailleurs: bool,
 }
 
