@@ -737,6 +737,14 @@ fn les_noms_d_un_contenu_et_son_premier_nom_vu() {
 }
 
 #[test]
+fn la_fenetre_nomme_chaque_ligne_sans_texte_comme_ligne_par_ligne() {
+    let racine = racine_jetable("commandes-fenetre-noms");
+    suite::la_fenetre_nomme_chaque_ligne_sans_texte_comme_ligne_par_ligne(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
 fn les_noms_poses_par_un_import() {
     let racine = racine_jetable("commandes-noms-poses");
     suite::les_noms_poses_par_un_import(&mut PaireSurFichiers { racine: &racine });
@@ -810,6 +818,12 @@ fn un_fichier_qui_ne_se_lit_pas_arrete_l_inspection() {
     suite::un_fichier_qui_ne_se_lit_pas_arrete_l_inspection(&mut PaireSurFichiers {
         racine: &racine,
     });
+}
+
+#[test]
+fn un_fichier_refuse_au_versement_se_nomme() {
+    let racine = racine_jetable("commandes-import-refuse-au-versement");
+    suite::un_fichier_refuse_au_versement_se_nomme(&mut PaireSurFichiers { racine: &racine });
 }
 
 #[test]
@@ -932,6 +946,14 @@ fn declarer_par_prefixe_apres_un_import_rejoue() {
 fn declarer_par_prefixe_prend_la_prise_en_stems_de_son_dossier() {
     let racine = racine_jetable("commandes-import-prefixe-jeu");
     suite::declarer_par_prefixe_prend_la_prise_en_stems_de_son_dossier(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn declarer_par_le_prefixe_d_un_dossier_sans_captation_est_refuse() {
+    let racine = racine_jetable("commandes-import-prefixe-sans-captation");
+    suite::declarer_par_le_prefixe_d_un_dossier_sans_captation_est_refuse(&mut PaireSurFichiers {
         racine: &racine,
     });
 }

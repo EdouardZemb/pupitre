@@ -417,6 +417,11 @@ fn les_noms_d_un_contenu_et_son_premier_nom_vu() {
 }
 
 #[test]
+fn la_fenetre_nomme_chaque_ligne_sans_texte_comme_ligne_par_ligne() {
+    suite::la_fenetre_nomme_chaque_ligne_sans_texte_comme_ligne_par_ligne(&mut PaireEnMemoire);
+}
+
+#[test]
 fn les_noms_poses_par_un_import() {
     suite::les_noms_poses_par_un_import(&mut PaireEnMemoire);
 }
@@ -468,6 +473,11 @@ fn un_premier_import_ne_lit_que_signatures_et_en_tetes() {
 #[test]
 fn un_fichier_qui_ne_se_lit_pas_arrete_l_inspection() {
     suite::un_fichier_qui_ne_se_lit_pas_arrete_l_inspection(&mut PaireEnMemoire);
+}
+
+#[test]
+fn un_fichier_refuse_au_versement_se_nomme() {
+    suite::un_fichier_refuse_au_versement_se_nomme(&mut PaireEnMemoire);
 }
 
 #[test]
@@ -559,6 +569,11 @@ fn declarer_par_prefixe_apres_un_import_rejoue() {
 #[test]
 fn declarer_par_prefixe_prend_la_prise_en_stems_de_son_dossier() {
     suite::declarer_par_prefixe_prend_la_prise_en_stems_de_son_dossier(&mut PaireEnMemoire);
+}
+
+#[test]
+fn declarer_par_le_prefixe_d_un_dossier_sans_captation_est_refuse() {
+    suite::declarer_par_le_prefixe_d_un_dossier_sans_captation_est_refuse(&mut PaireEnMemoire);
 }
 
 #[test]

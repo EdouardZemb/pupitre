@@ -2702,22 +2702,89 @@ fn les_operations_sur_une_requete<D: Documents, C: Captations>(services: &mut Se
     );
 }
 
+/// Sur `services`, dont le fonds est né, à `LENDEMAIN`, sous un aléa de graine 2 : un import entier
+/// de `Démos/a.wav` et du jeu de stems `Jeu A` (`basse.wav`, `voix.wav`), conduit par `importer`
+/// (son ouverture, la prise versée, les deux stems copiés, la prise en stems, sa clôture) ; puis
+/// l'origine de la prise déclarée de la main de Sacha, et le type de la basse gardé, chacun fait
+/// sans avertissement.
+fn les_operations_de_l_import<P: Paire>(paire: &mut P, services: &mut Services<P::D, P::C>) {
+    let mut alea = AleaDeTest {
+        graine: 2,
+        appels: 0,
+    };
+    let mut contexte = Contexte {
+        heure: LENDEMAIN,
+        alea: &mut alea,
+    };
+    let a = wav_de(8_000, 121);
+    let basse = wav_de(8_000, 122);
+    let voix = wav_de(8_000, 123);
+    let source = paire.source(
+        Some(DOSSIER_VERSE),
+        &[
+            (Some("Démos/a.wav"), a.clone()),
+            (Some("Jeu A/basse.wav"), basse.clone()),
+            (Some("Jeu A/voix.wav"), voix.clone()),
+        ],
+        &[],
+    );
+    importer(
+        services,
+        &source,
+        &[("Jeu A", jeu_de_stems())],
+        &mut contexte,
+    );
+    let fait = || -> Reponse<Faite> {
+        Ok(Faite {
+            avertissement: None,
+        })
+    };
+    assert_eq!(
+        services.declarer_une_origine(
+            &declaration_sur_la_prise(&a, OrigineADeclarer::Main),
+            &mut contexte
+        ),
+        fait()
+    );
+    let e_basse = empreinte(&basse);
+    let e_voix = empreinte(&voix);
+    let prise = empreinte(&rapport::manifeste(&[e_basse.as_str(), e_voix.as_str()]));
+    assert_eq!(
+        services.choisir_le_type_d_un_stem(
+            &commandes::ChoisirLeType {
+                prise,
+                stem: e_basse,
+                choix: commandes::ChoixDuType::Garder,
+            },
+            &mut contexte
+        ),
+        fait()
+    );
+}
+
 /// I28 sur l'historique (§ 70 · 3) : sur le fonds de chaque geste, où une requête est aussi
-/// enregistrée, renommée et supprimée (`les_operations_sur_une_requete`), chaque message du
-/// journal est celui d'une opération connue (`message_connu`). `message_connu` refuse « Idée du
+/// enregistrée, renommée et supprimée (`les_operations_sur_une_requete`), puis un import entier
+/// conduit, une origine déclarée et un type gardé (`les_operations_de_l_import`), chaque message
+/// du journal est celui d'une opération connue (`message_connu`). `message_connu` refuse « Idée du
 /// 3 novembre : autre chose », une forme qu'aucune opération n'écrit, « Annulé : Idée du
 /// 3 novembre notée », une note, qu'annuler ne vise pas, des messages bien formés hors d'une date
 /// que le noyau n'écrit pas (un jour 0, 1, 01, 03 ou 32, un mois inconnu) ou d'une étiquette vide,
-/// et, d'une requête enregistrée, un nom vide, une autre forme, ou « Annulé : » suivi d'une
-/// opération sur elle, qu'annuler ne vise pas ; il reconnaît la genèse, la naissance, une
-/// migration, un exemple de chaque forme d'une note, d'un versement, d'un geste de tri et d'une
-/// opération sur une requête enregistrée, et « Annulé : » suivi de chaque forme d'un geste de tri.
+/// d'une requête enregistrée, un nom vide, une autre forme, ou « Annulé : » suivi d'une opération
+/// sur elle, qu'annuler ne vise pas, et, de l'import, une autre forme, des ajouts hors de leur
+/// ordre ou en double, une portée ou un nom de générateur vides, un type qui n'est pas un libellé,
+/// ou « Annulé : » suivi d'une opération de l'import ; il reconnaît la genèse, la naissance, une
+/// migration, un exemple de chaque forme d'une note, d'un versement, d'un geste de tri, d'une
+/// opération sur une requête enregistrée et d'une opération de l'import, et « Annulé : » suivi de
+/// chaque forme d'un geste de tri.
 pub fn l_historique_ne_porte_que_des_operations_connues<P: Paire>(paire: &mut P) {
     let mut services = le_fonds_de_chaque_geste(paire, &mut |_, _, _| {});
     les_operations_sur_une_requete(&mut services);
+    les_operations_de_l_import(paire, &mut services);
     let journal = services.journal().expect("le journal se lit");
-    // Les dix-neuf modifications du fonds de chaque geste, puis les trois de la requête.
-    assert_eq!(journal.len(), 19 + 3, "{journal:?}");
+    // Les dix-neuf modifications du fonds de chaque geste, les trois de la requête, puis les six
+    // de l'import : son ouverture, la prise versée, la prise en stems, sa clôture, l'origine
+    // déclarée et le type gardé.
+    assert_eq!(journal.len(), 19 + 3 + 6, "{journal:?}");
     for entree_du_journal in &journal {
         assert!(
             message_connu(&entree_du_journal.message),
@@ -2748,6 +2815,21 @@ pub fn l_historique_ne_porte_que_des_operations_connues<P: Paire>(paire: &mut P)
         "Requête « Ponts lents » enregistrée hier",
         "Requête Ponts lents enregistrée",
         "Annulé : Requête « Ponts lents » enregistrée",
+        "Import du 3 novembre fermé",
+        "Import du 32 novembre ouvert",
+        "Import du 3 novembre : ",
+        "Import du 3 novembre : autre chose",
+        "Import du 3 novembre : origine déclarée, nom d'origine ajouté",
+        "Import du 3 novembre : nom d'origine ajouté, nom d'origine ajouté",
+        "Idée du 3 novembre : prise en stems",
+        "Origine déclarée pour «  » : de la main de Sacha",
+        "Origine déclarée pour ce dossier : de la main de Sacha",
+        "Origine déclarée pour « Démos/ » : générée par ",
+        "Origine déclarée pour « Démos/ » : inventée",
+        "Type de «  » : voix",
+        "Type de ce stem : choeurs",
+        "Type de ce stem : triangle",
+        "Annulé : Import du 3 novembre ouvert",
     ] {
         assert!(!message_connu(inconnu), "« {inconnu} » est reconnu");
     }
@@ -2777,6 +2859,23 @@ pub fn l_historique_ne_porte_que_des_operations_connues<P: Paire>(paire: &mut P)
         "Requête « Ponts lents » renommée « Ponts du soir »",
         "Requête « Ponts du soir » supprimée",
     ];
+    let operations_de_l_import = [
+        "Import du 3 novembre ouvert",
+        "Import du 3 novembre clos",
+        "Import du 3 novembre : nom d'origine ajouté",
+        "Import du 3 novembre : MIDI d'un stem ajouté",
+        "Import du 3 novembre : origine déclarée",
+        "Import du 3 novembre : nom d'origine ajouté, origine déclarée",
+        "Import du 1er décembre : nom d'origine ajouté, MIDI d'un stem ajouté, origine déclarée",
+        "Idée du 3 novembre : prise en stems versée",
+        "Origine déclarée pour « Démos/a.wav » : de la main de Sacha",
+        "Origine déclarée pour « Démos/ » : générée par Forge inventée",
+        "Origine déclarée pour cette prise : de la main de Sacha",
+        "Origine déclarée pour ce MIDI versé seul : générée par Forge inventée",
+        "Origine déclarée pour ce texte versé : de la main de Sacha",
+        "Type de « Jeu A/voix.wav » : voix",
+        "Type de ce stem : chœurs",
+    ];
     let migration = message_de_la_migration(2);
     let connus = [
         MESSAGE_DE_LA_GENESE,
@@ -2788,6 +2887,7 @@ pub fn l_historique_ne_porte_que_des_operations_connues<P: Paire>(paire: &mut P)
         .chain(notes_et_versements)
         .chain(gestes_de_tri)
         .chain(operations_sur_une_requete)
+        .chain(operations_de_l_import)
     {
         assert!(message_connu(connu), "« {connu} » n'est pas reconnu");
     }
@@ -5495,6 +5595,131 @@ pub fn les_noms_d_un_contenu_et_son_premier_nom_vu<P: Paire>(paire: &mut P) {
     );
 }
 
+/// La fenêtre de la boîte d'un fonds juste importé (C1 de la revue de la PR (b)) : chaque ligne
+/// sans texte reçoit le nom que rend la lecture ligne par ligne, `lecture::premier_nom_vu` de sa
+/// première captation. Un import verse un WAV seul sous `Démos/b.wav` puis `Démos/a.wav`, un MIDI
+/// seul sous `Démos/c.mid`, un WAV sans nom en UTF-8, puis le jeu `Jeu A` de deux stems, dont ce
+/// WAV, sous `Jeu A/voix.wav` ; une note a son texte. Les lignes : le WAV seul, `Démos/a.wav`, le
+/// plus petit chemin ; le MIDI, `Démos/c.mid` ; le WAV sans nom, `Jeu A/voix.wav`, le nom de son
+/// stem ; la prise en stems, `Jeu A`, le nom de son dossier ; la note, aucun.
+pub fn la_fenetre_nomme_chaque_ligne_sans_texte_comme_ligne_par_ligne<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let ouvert = ouvert_a(IMPORT, HEURE);
+    ouvrir_l_import(&mut services, &ouvert, &[]);
+    let du_wav = faits_d_un_wav(8_000);
+    let seul = empreinte(b"un WAV verse seul");
+    for chemin in ["Démos/b.wav", "Démos/a.wav"] {
+        assert!(
+            verser_le_fichier(
+                &mut services,
+                &ouvert,
+                gestes::Sorte::Prise,
+                &seul,
+                &du_wav,
+                chemin,
+                None,
+                &idee_importee(81),
+            ),
+            "« {chemin} » ne s'écrit pas"
+        );
+    }
+    let midi = empreinte(b"un MIDI verse seul");
+    assert!(verser_le_fichier(
+        &mut services,
+        &ouvert,
+        gestes::Sorte::MidiVerseSeul,
+        &midi,
+        &faits_d_un_midi(),
+        "Démos/c.mid",
+        None,
+        &idee_importee(82),
+    ));
+    let sans_nom = empreinte(b"un WAV sans nom");
+    let fonds = fonds_de(&services);
+    let deja = lecture::deja_lu(
+        fonds,
+        gestes::Sorte::Prise,
+        &sans_nom,
+        &lecture::empreintes_nommees(fonds),
+    );
+    let versement = import::verser_un_fichier(
+        &ouvert,
+        gestes::Sorte::Prise,
+        &sans_nom,
+        &du_wav,
+        None,
+        None,
+        &deja,
+        &idee_importee(83),
+        HEURE,
+        0,
+    )
+    .expect("le WAV sans nom se verse")
+    .expect("le WAV sans nom s'écrit");
+    ecrire_l_operation(&mut services, &versement);
+    let basse = empreinte(b"une basse du jeu");
+    let (_, ecrit) = verser_le_jeu(
+        &mut services,
+        &ouvert,
+        "Jeu A",
+        &[
+            StemAVerser {
+                empreinte: &basse,
+                faits: &du_wav,
+                chemin: Some("Jeu A/basse.wav"),
+                midi: None,
+            },
+            StemAVerser {
+                empreinte: &sans_nom,
+                faits: &du_wav,
+                chemin: Some("Jeu A/voix.wav"),
+                midi: None,
+            },
+        ],
+        None,
+        &idee_importee(84),
+    );
+    assert!(ecrit, "le jeu ne s'écrit pas");
+    let mut alea = AleaDeTest {
+        graine: 1,
+        appels: 0,
+    };
+    let notee = services
+        .noter(
+            &une_note("Un pont qui hésite"),
+            &mut contexte_de_test(&mut alea),
+        )
+        .expect("la note se fait");
+
+    let vue = la_boite(&services);
+
+    let fonds = fonds_de(&services);
+    for ligne in &vue.lignes {
+        let ligne_par_ligne = match ligne.texte {
+            Some(_) => None,
+            None => lecture::captations_de(fonds, &ligne.idee)
+                .first()
+                .and_then(|premiere| lecture::premier_nom_vu(fonds, &premiere.empreinte)),
+        };
+        assert_eq!(ligne.nom_de_fichier, ligne_par_ligne, "{}", ligne.idee);
+    }
+    let noms: BTreeMap<String, Option<String>> = vue
+        .lignes
+        .iter()
+        .map(|ligne| (ligne.idee.clone(), ligne.nom_de_fichier.clone()))
+        .collect();
+    assert_eq!(
+        noms,
+        BTreeMap::from([
+            (idee_importee(81), Some("Démos/a.wav".to_string())),
+            (idee_importee(82), Some("Démos/c.mid".to_string())),
+            (idee_importee(83), Some("Jeu A/voix.wav".to_string())),
+            (idee_importee(84), Some("Jeu A".to_string())),
+            (notee.idee, None),
+        ])
+    );
+}
+
 /// Les noms qu'a posés un import (R2, R7 ; question 9 ; balayage Q3) : le premier, ouvert sur
 /// `Démos`, de la main de Sacha, et `Jeu A`, jeu de stems généré par « Atelier inventé », verse de
 /// `Démos/` un WAV, un WAV illisible et un texte, puis le jeu `Jeu A`, une voix que suit un MIDI et
@@ -6349,10 +6574,13 @@ const STEMS_DU_JEU: [(&str, commandes::TypeDeStem); 10] = [
 ];
 
 /// CAP-03 · 7 : `Jeu A` déclaré jeu de stems, dix WAV de 8 000 trames à 8 000 Hz aux contenus
-/// distincts, neuf MIDI aux noms de neuf d'entre eux : une prise, une idée, dix stems dont neuf
-/// avec leur MIDI, chaque type proposé (`TypeVu::Propose`), aucune clé `type` ; 21 captations,
-/// les dix, les neuf, le manifeste et le rapport ; le rapport compte 19 versés ; un second import
-/// ne verse que son rapport.
+/// distincts, neuf MIDI aux noms de neuf d'entre eux, de format 1, de deux pistes, leur division
+/// 96 fois leur rang : une prise, une idée, dix stems dont neuf avec leur MIDI, chaque type proposé
+/// (`TypeVu::Propose`), aucune clé `type`, chaque MIDI vu de sa division. Hors du jeu,
+/// `Ambiance.wav`, stéréo, 16 bits, à 44 100 Hz, 44 100 trames, se verse seul : sa prise est vue de
+/// son codage, de ses canaux, de sa fréquence, de ses bits et de sa durée, aucun n'en valant un
+/// autre (C9 de la revue de la PR (b)). 22 captations, les dix, les neuf, le manifeste, le WAV
+/// seul et le rapport ; le rapport compte 20 versés ; un second import ne verse que son rapport.
 pub fn cap03_7_un_jeu_de_dix_wav_et_neuf_midi_donne_une_prise_en_stems<P: Paire>(paire: &mut P) {
     let mut services = paire.neufs();
     let mut alea = AleaDeTest {
@@ -6367,6 +6595,8 @@ pub fn cap03_7_un_jeu_de_dix_wav_et_neuf_midi_donne_une_prise_en_stems<P: Paire>
             fichiers.push((format!("Jeu A/{nom}.mid"), midi(1, 2, 96 * u16::from(rang))));
         }
     }
+    let ambiance = rempli(wav(44_100, 2, 16, 44_100), 7);
+    fichiers.push(("Ambiance.wav".to_string(), ambiance.clone()));
     let source = paire.source(Some(DOSSIER_VERSE), &nommes(&fichiers), &[]);
 
     let conduit = importer(
@@ -6376,7 +6606,33 @@ pub fn cap03_7_un_jeu_de_dix_wav_et_neuf_midi_donne_une_prise_en_stems<P: Paire>
         &mut contexte,
     );
 
-    let vue = la_seule_idee(&services);
+    let vues: Vec<VueDUneIdee> = services
+        .idees()
+        .expect("les idées se lisent")
+        .iter()
+        .map(|idee| services.vue_d_une_idee(idee).expect("l'idée se lit"))
+        .collect();
+    assert_eq!(vues.len(), 2);
+    let e_ambiance = empreinte(&ambiance);
+    let (seules, du_jeu): (Vec<&VueDUneIdee>, Vec<&VueDUneIdee>) = vues
+        .iter()
+        .partition(|vue| vue.captations_vues[0].captation.empreinte == e_ambiance);
+    assert_eq!(seules.len(), 1);
+    assert_eq!(seules[0].captations_vues.len(), 1);
+    assert_eq!(
+        seules[0].captations_vues[0].faits,
+        FaitsDUneCaptation {
+            format: Some(FormatSonore::Wav.nom().to_string()),
+            duree_ms: Some(1_000),
+            codage: Some(1),
+            canaux: Some(2),
+            frequence: Some(44_100),
+            bits: Some(16),
+            division: None,
+        }
+    );
+    assert_eq!(du_jeu.len(), 1);
+    let vue = du_jeu[0];
     assert_eq!(vue.captations_vues.len(), 1);
     let prise = &vue.captations_vues[0];
     assert_eq!(prise.stems.len(), 10);
@@ -6386,14 +6642,27 @@ pub fn cap03_7_un_jeu_de_dix_wav_et_neuf_midi_donne_une_prise_en_stems<P: Paire>
             .strip_prefix("Jeu A/")
             .and_then(|nom| nom.strip_suffix(".wav"))
             .expect("le nom d'un stem du jeu");
-        let (_, propose) = STEMS_DU_JEU
-            .iter()
-            .find(|(mot, _)| *mot == nom)
+        let (rang, (_, propose)) = (1..)
+            .zip(STEMS_DU_JEU.iter())
+            .find(|(_, (mot, _))| *mot == nom)
             .expect("un stem du jeu");
         assert_eq!(stem.type_de_stem, TypeVu::Propose(propose.clone()), "{nom}");
         if let Some(midi) = &stem.midi {
             avec_un_midi += 1;
             assert_eq!(midi.noms, vec![format!("Jeu A/{nom}.mid")]);
+            assert_eq!(
+                midi.faits,
+                FaitsDUneCaptation {
+                    format: Some("smf1".to_string()),
+                    duree_ms: None,
+                    codage: None,
+                    canaux: None,
+                    frequence: None,
+                    bits: None,
+                    division: Some(96 * rang),
+                },
+                "{nom}"
+            );
         }
     }
     assert_eq!(avec_un_midi, 9);
@@ -6408,8 +6677,8 @@ pub fn cap03_7_un_jeu_de_dix_wav_et_neuf_midi_donne_une_prise_en_stems<P: Paire>
             "une clé de type : {chemin:?}"
         );
     }
-    assert_eq!(lecture::empreintes_nommees(fonds).len(), 21);
-    assert_eq!(conduit.clos.rapport.verses.fichiers, 19);
+    assert_eq!(lecture::empreintes_nommees(fonds).len(), 22);
+    assert_eq!(conduit.clos.rapport.verses.fichiers, 20);
 
     importer(
         &mut services,
@@ -6418,8 +6687,8 @@ pub fn cap03_7_un_jeu_de_dix_wav_et_neuf_midi_donne_une_prise_en_stems<P: Paire>
         &mut contexte,
     );
 
-    assert_eq!(services.idees().map(|idees| idees.len()), Ok(1));
-    assert_eq!(lecture::empreintes_nommees(fonds_de(&services)).len(), 22);
+    assert_eq!(services.idees().map(|idees| idees.len()), Ok(2));
+    assert_eq!(lecture::empreintes_nommees(fonds_de(&services)).len(), 23);
 }
 
 /// CAP-03 · 8, livré en part : trois WAV de même durée, aux contenus distincts, dans `Trio/` ;
@@ -6559,6 +6828,57 @@ pub fn un_fichier_qui_ne_se_lit_pas_arrete_l_inspection<P: Paire>(paire: &mut P)
     assert!(
         services.inspecter(&source, PLACE_LIBRE).is_ok(),
         "la lecture rendue, l'inspection est refusée"
+    );
+}
+
+/// Question 38 ; C6 de la revue de la PR (b) : `Démos/a.wav`, inspecté, puis l'import ouvert ; sa
+/// lecture refusée après l'inspection, son versement rend `Raison::Disque`, et son message nomme le
+/// fichier, comme à l'inspection ; la lecture rendue, le même versement le verse.
+pub fn un_fichier_refuse_au_versement_se_nomme<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let mut source = paire.source(
+        Some(DOSSIER_VERSE),
+        &[(Some("Démos/a.wav"), wav_de(8_000, 1))],
+        &[],
+    );
+    services
+        .inspecter(&source, PLACE_LIBRE)
+        .expect("le dossier s'inspecte");
+    let import = services
+        .ouvrir_l_import(&source, &ouverture(&[]), PLACE_LIBRE, &mut contexte)
+        .expect("l'import s'ouvre")
+        .import;
+    paire.refuser_la_lecture(&mut source, 1, true);
+
+    let refus = services
+        .verser_un_fichier(
+            &source,
+            &VerserUnFichier {
+                import: import.clone(),
+                rang: 1,
+                decalage_minutes: 0,
+            },
+            &mut contexte,
+        )
+        .expect_err("le versement d'un fichier refusé est refusé");
+
+    assert_eq!(refus.raison, Raison::Disque);
+    assert!(
+        refus
+            .message
+            .starts_with("« Démos/a.wav » ne se lit pas : "),
+        "{}",
+        refus.message
+    );
+    paire.refuser_la_lecture(&mut source, 1, false);
+    assert_eq!(
+        verser_le_rang(&mut services, &source, &import, 1, &mut contexte).issue,
+        Issue::Verse
     );
 }
 
@@ -7429,7 +7749,7 @@ pub fn declarer_une_origine_par_prefixe_ne_prend_que_les_segments_entiers<P: Pai
         ),
         Err(Refus {
             raison: Raison::Impossible,
-            message: "Cette captation n'est pas dans le fonds.".to_string(),
+            message: "Ce dossier n'a aucune captation versée par cet import.".to_string(),
         })
     );
     assert_eq!(messages_du_journal(&services), avant);
@@ -7602,7 +7922,7 @@ pub fn declarer_par_prefixe_prend_la_prise_en_stems_de_son_dossier<P: Paire>(pai
         ),
         Err(Refus {
             raison: Raison::Impossible,
-            message: "Cette captation n'est pas dans le fonds.".to_string(),
+            message: "Ce dossier n'a aucune captation versée par cet import.".to_string(),
         })
     );
     assert_eq!(messages_du_journal(&services), avant);
@@ -7634,6 +7954,60 @@ pub fn declarer_par_prefixe_prend_la_prise_en_stems_de_son_dossier<P: Paire>(pai
         );
     }
     assert_eq!(origine_vue_de(&services, &prise), OrigineDeclaree::Main);
+}
+
+/// C8 de la revue de la PR (b) : `Démos/a.wav` et `Archives/vieux.zip`, une archive ignorée ;
+/// l'inspection montre le dossier `Archives`, dont aucun fichier ne se verse. Après l'import, la
+/// déclaration par le préfixe `Archives` est refusée, de `Raison::Impossible`, « Ce dossier n'a
+/// aucune captation versée par cet import. » ; celle d'une captation que le fonds ne porte pas
+/// garde son refus, « Cette captation n'est pas dans le fonds. » ; ni l'une ni l'autre n'écrit.
+pub fn declarer_par_le_prefixe_d_un_dossier_sans_captation_est_refuse<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let source = paire.source(
+        Some(DOSSIER_VERSE),
+        &[
+            (Some("Archives/vieux.zip"), zip(16)),
+            (Some("Démos/a.wav"), wav_de(8_000, 131)),
+        ],
+        &[],
+    );
+    let conduit = importer(&mut services, &source, &[], &mut contexte);
+    assert!(
+        conduit
+            .inspection
+            .dossiers
+            .iter()
+            .any(|dossier| dossier.chemin == "Archives"),
+        "l'inspection ne montre pas « Archives »"
+    );
+    let avant = messages_du_journal(&services);
+
+    assert_eq!(
+        services.declarer_une_origine(
+            &declaration_par_prefixe(&conduit.ouvert.import, "Archives", OrigineADeclarer::Main),
+            &mut contexte
+        ),
+        Err(Refus {
+            raison: Raison::Impossible,
+            message: "Ce dossier n'a aucune captation versée par cet import.".to_string(),
+        })
+    );
+    assert_eq!(
+        services.declarer_une_origine(
+            &declaration_sur_la_prise(b"une prise jamais versee", OrigineADeclarer::Main),
+            &mut contexte
+        ),
+        Err(Refus {
+            raison: Raison::Impossible,
+            message: "Cette captation n'est pas dans le fonds.".to_string(),
+        })
+    );
+    assert_eq!(messages_du_journal(&services), avant);
 }
 
 /// Le type d'un stem de la seule prise du fonds de `services`, tel que la vue le montre.
