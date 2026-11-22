@@ -66,6 +66,7 @@ fn vue(le: i64, duree_ms: Option<u64>, retiree: Option<i64>) -> VueDUneIdee {
         reliee: true,
         duree_ms,
         retiree,
+        captations_vues: Vec::new(),
     }
 }
 
@@ -89,6 +90,7 @@ fn ligne(le: i64, duree_ms: Option<u64>, retiree: Option<i64>) -> LigneDeLaBoite
             depuis: IMPORT.to_string(),
         },
         retiree,
+        nom_de_fichier: None,
     }
 }
 

@@ -1245,6 +1245,7 @@ pub fn une_idee_notee_est_captee_datee_sans_prise_ni_duree<P: Paire>(paire: &mut
         reliee: false,
         duree_ms: None,
         retiree: None,
+        captations_vues: Vec::new(),
     };
     assert_eq!(services.vue_d_une_idee(IDEE), Ok(vue.clone()));
 
@@ -1921,6 +1922,7 @@ pub fn une_idee_retiree_quitte_la_liste_et_se_retablit_telle_qu_elle_etait<P: Pa
         reliee: true,
         duree_ms: Some(30_000),
         retiree: None,
+        captations_vues: Vec::new(),
     };
     assert_eq!(
         services.vue_d_une_idee(&v.idee),
@@ -3068,6 +3070,7 @@ pub fn aucun_compteur_d_anciennete<P: Paire>(paire: &mut P) {
             reliee,
             provenance,
             retiree,
+            nom_de_fichier,
         } = ligne;
         assert_eq!(le, EN_2020, "la date de l'idée {idee}");
         assert!(
@@ -3086,6 +3089,7 @@ pub fn aucun_compteur_d_anciennete<P: Paire>(paire: &mut P) {
             }
         );
         assert_eq!(retiree, None);
+        assert_eq!(nom_de_fichier, None);
         montrees.insert(idee);
     }
     assert_eq!(montrees, notees);
@@ -3211,6 +3215,7 @@ pub fn retirer_ote_l_idee_de_la_boite_et_retablir_l_y_rend<P: Paire>(paire: &mut
             depuis: IMPORT.to_string(),
         },
         retiree: None,
+        nom_de_fichier: None,
     };
     assert_eq!(avant.lignes[1], ligne_de_x);
 

@@ -56,6 +56,26 @@ pub const ENREGISTRER_UNE_REQUETE: &str = "enregistrer_une_requete";
 pub const RENOMMER_UNE_REQUETE: &str = "renommer_une_requete";
 /// Supprimer une requête enregistrée (`Supprimer`).
 pub const SUPPRIMER_UNE_REQUETE: &str = "supprimer_une_requete";
+/// Inspecter un dossier à verser (`Inspection`).
+pub const INSPECTER_UN_DOSSIER: &str = "inspecter_un_dossier";
+/// Ouvrir l'import, ou le reprendre (`OuvrirLImport`, `ImportOuvert`).
+pub const OUVRIR_L_IMPORT: &str = "ouvrir_l_import";
+/// Verser un fichier de l'import (`VerserUnFichier`, `FichierVerse`).
+pub const VERSER_UN_FICHIER: &str = "verser_un_fichier";
+/// Verser une prise en stems (`VerserUnePriseEnStems`).
+pub const VERSER_UNE_PRISE_EN_STEMS: &str = "verser_une_prise_en_stems";
+/// Clore l'import et rendre son rapport (`CloreLImport`, `ImportClos`).
+pub const CLORE_L_IMPORT: &str = "clore_l_import";
+/// Déclarer l'origine d'une captation ou d'un dossier versé (`DeclarerUneOrigine`).
+pub const DECLARER_UNE_ORIGINE: &str = "declarer_une_origine";
+/// Choisir le type d'un stem, ou garder celui qui est proposé (`ChoisirLeType`).
+pub const CHOISIR_LE_TYPE_D_UN_STEM: &str = "choisir_le_type_d_un_stem";
+/// Lire un texte versé (`TexteLu`).
+pub const LIRE_UN_TEXTE_VERSE: &str = "lire_un_texte_verse";
+/// Lire le rapport d'un import (`LireUnRapport`, `RapportDImport`).
+pub const LIRE_UN_RAPPORT: &str = "lire_un_rapport";
+/// Lire les noms des générateurs déclarés du fonds.
+pub const GENERATEURS: &str = "generateurs";
 /// Exporter le cahier des tables, la commande de l'établi depuis INC-0.
 pub const EXPORTER_CAHIER: &str = "exporter_cahier";
 
@@ -84,6 +104,16 @@ pub const NOMS: &[&str] = &[
     ENREGISTRER_UNE_REQUETE,
     RENOMMER_UNE_REQUETE,
     SUPPRIMER_UNE_REQUETE,
+    INSPECTER_UN_DOSSIER,
+    OUVRIR_L_IMPORT,
+    VERSER_UN_FICHIER,
+    VERSER_UNE_PRISE_EN_STEMS,
+    CLORE_L_IMPORT,
+    DECLARER_UNE_ORIGINE,
+    CHOISIR_LE_TYPE_D_UN_STEM,
+    LIRE_UN_TEXTE_VERSE,
+    LIRE_UN_RAPPORT,
+    GENERATEURS,
     EXPORTER_CAHIER,
 ];
 
@@ -296,6 +326,8 @@ pub struct VueDUneIdee {
     /// La date de son retrait, en secondes depuis 1970, si elle est retirée : l'heure d'une
     /// opération (`Operation::heure`), bornée comme `le`.
     pub retiree: Option<i64>,
+    /// Ce que la vue montre de chaque captation, une par captation, dans l'ordre de `captations`.
+    pub captations_vues: Vec<CaptationVue>,
 }
 
 /// Une entrée du journal : le message d'une opération, et son heure.
@@ -539,6 +571,8 @@ pub struct LigneDeLaBoite {
     /// La date de son retrait, en secondes depuis 1970, si elle est retirée, bornée comme
     /// `VueDUneIdee::retiree`.
     pub retiree: Option<i64>,
+    /// Sans texte, le premier nom vu de sa première captation, s'il y en a un (question 4).
+    pub nom_de_fichier: Option<String>,
 }
 
 /// La vue de la boîte, réponse de la requête en cours : le compte des non reliées et son assiette,
@@ -587,4 +621,416 @@ pub struct EtatDuFonds {
     pub avertissements: Vec<String>,
     /// Le message du dernier geste de tri, celui qu'annuler défait ; `None` sans geste à annuler.
     pub a_annuler: Option<String>,
+}
+
+/// La nature d'un fichier du dossier à verser, que l'inspection lit.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NatureDuFichier {
+    /// Un son : son format (`wav`, `m4a`, …).
+    Audio {
+        /// Le format, en minuscules.
+        format: String,
+    },
+    /// Un fichier MIDI.
+    Midi,
+    /// Un texte : son format.
+    Texte {
+        /// Le format, en minuscules.
+        format: String,
+    },
+    /// Un fichier que l'import ne verse pas.
+    Ignore,
+}
+
+/// Un fichier du dossier, tel que l'inspection le voit.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FichierInspecte {
+    /// Son rang dans la liste de l'inspection, que l'import reprend pour le verser : un entier
+    /// sous `ENTIER_SUR`, le nombre de fichiers d'un dossier en restant très loin.
+    pub rang: u64,
+    /// Son chemin dans le dossier versé, sans `/` initial ; `None` si son nom ne se lit pas.
+    pub chemin: Option<String>,
+    /// Sa taille en octets, tenue sous `ENTIER_SUR` par sa source.
+    pub octets: u64,
+    /// Sa nature.
+    pub nature: NatureDuFichier,
+    /// Il a déjà été versé, par un import qu'on reprend ou par un autre.
+    pub connu: bool,
+}
+
+/// La déclaration d'un dossier (balayage Q3) : jeu de stems (`stems`), son origine, l'un, l'autre
+/// ou les deux. À l'import, `OrigineADeclarer::Aucune` veut dire « aucune origine déclarée » ;
+/// après l'import, elle reste refusée, « Une origine déclarée ne se retire pas. ».
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Declaration {
+    /// Le dossier est un jeu de stems.
+    pub stems: bool,
+    /// L'origine déclarée.
+    pub origine: OrigineADeclarer,
+}
+
+/// Un dossier du dossier versé, tel que l'inspection le voit.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DossierInspecte {
+    /// Le chemin du dossier dans le dossier versé, sans `/` final, `""` pour le dossier versé
+    /// lui-même (balayage Q13).
+    pub chemin: String,
+    /// Le nombre de ses fichiers audio, tenu sous `ENTIER_SUR` par sa source.
+    pub audio: u64,
+    /// L'inspection propose de le verser comme un jeu de stems.
+    pub jeu_propose: bool,
+    /// La déclaration qu'un import repris a déjà reçue pour lui, proposée de nouveau.
+    pub reproposee: Option<Declaration>,
+}
+
+/// L'inspection d'un dossier à verser.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Inspection {
+    /// L'import que ce dossier reprend, un ULID.
+    pub reprise: Option<String>,
+    /// Le nom du dossier versé, s'il se lit.
+    pub nom_du_dossier: Option<String>,
+    /// Ses fichiers.
+    pub fichiers: Vec<FichierInspecte>,
+    /// Ses dossiers.
+    pub dossiers: Vec<DossierInspecte>,
+    /// Les octets à verser, tenus sous `ENTIER_SUR` par leur source.
+    pub a_verser: u64,
+    /// La place libre, en octets, tenue sous `ENTIER_SUR` par sa source.
+    pub libre: u64,
+    /// Pourquoi l'import ne peut pas se faire (place, droits) ; `None` s'il le peut.
+    pub manque: Option<String>,
+    /// Les noms des générateurs déclarés du fonds.
+    pub generateurs: Vec<String>,
+    /// Les déclarations de l'import repris, que l'écran montre sans choix (R2).
+    pub declarations_reprises: Vec<DeclarationDUnDossier>,
+    /// Un import est ouvert, que ce dossier ne reprend pas : l'écran le dit (« Un import est resté
+    /// ouvert, que ce dossier ne reprend pas : verser celui-ci le clôt, avec ce qu'il a versé. »), et
+    /// l'ouverture le clora (question 35 ; V12).
+    pub ouvert_ailleurs: bool,
+}
+
+/// La déclaration d'un dossier. `chemin` : comme celui de `DossierInspecte`, sans `/` final, `""`
+/// pour le dossier versé ; aucune normalisation aux services (balayage Q13).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DeclarationDUnDossier {
+    /// Le chemin du dossier.
+    pub chemin: String,
+    /// Sa déclaration.
+    pub declaration: Declaration,
+}
+
+/// Ouvrir l'import, ou le reprendre.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OuvrirLImport {
+    /// Les déclarations des dossiers.
+    pub declarations: Vec<DeclarationDUnDossier>,
+    /// Le décalage local du geste, en minutes ; un `i32`, borné par son type.
+    pub decalage_minutes: i32,
+}
+
+/// Les fichiers d'un jeu à verser, par dossier.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct JeuAVerser {
+    /// Le chemin du dossier du jeu.
+    pub dossier: String,
+    /// Les rangs de ses fichiers, chacun sous `ENTIER_SUR`.
+    pub rangs: Vec<u64>,
+}
+
+/// L'import ouvert.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ImportOuvert {
+    /// Son identifiant, un ULID.
+    pub import: String,
+    /// Il reprend un import resté ouvert.
+    pub repris: bool,
+    /// Les rangs des fichiers à verser un à un, chacun sous `ENTIER_SUR`.
+    pub rangs: Vec<u64>,
+    /// Les jeux à verser en prises en stems.
+    pub jeux: Vec<JeuAVerser>,
+    /// Un avertissement lisible, s'il y en a un.
+    pub avertissement: Option<String>,
+}
+
+/// Verser un fichier de l'import.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VerserUnFichier {
+    /// L'import, un ULID.
+    pub import: String,
+    /// Le rang du fichier.
+    pub rang: u64,
+    /// Le décalage local du geste, en minutes.
+    pub decalage_minutes: i32,
+}
+
+/// Ce que le versement d'un fichier a donné.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Issue {
+    /// Versé.
+    Verse,
+    /// Déjà versé : il ne s'ajoute pas une seconde fois.
+    Dedoublonne,
+    /// Rangé dans un jeu de stems.
+    Stem,
+    /// Déjà fait, par une reprise.
+    DejaFait,
+}
+
+/// La réponse au versement d'un fichier.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FichierVerse {
+    /// Son rang, sous `ENTIER_SUR`.
+    pub rang: u64,
+    /// Ce qu'il a donné.
+    pub issue: Issue,
+    /// Un avertissement lisible, s'il y en a un.
+    pub avertissement: Option<String>,
+}
+
+/// Verser une prise en stems.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VerserUnePriseEnStems {
+    /// L'import, un ULID.
+    pub import: String,
+    /// Le chemin du dossier du jeu.
+    pub dossier: String,
+    /// Le décalage local du geste, en minutes.
+    pub decalage_minutes: i32,
+}
+
+/// Clore l'import.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CloreLImport {
+    /// L'import, un ULID.
+    pub import: String,
+    /// Le décalage local du geste, en minutes.
+    pub decalage_minutes: i32,
+}
+
+/// Un nombre de fichiers et leurs octets.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Compte {
+    /// Le nombre de fichiers, tenu sous `ENTIER_SUR` par sa source.
+    pub fichiers: u64,
+    /// Leurs octets, tenus sous `ENTIER_SUR` par leur source.
+    pub octets: u64,
+}
+
+/// Le rapport d'un import.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RapportDImport {
+    /// L'import, un ULID.
+    pub import: String,
+    /// Les fichiers vus.
+    pub vus: Compte,
+    /// Les fichiers versés.
+    pub verses: Compte,
+    /// Les fichiers dédoublonnés.
+    pub dedoublonnes: Compte,
+    /// Les fichiers illisibles.
+    pub illisibles: Compte,
+    /// Les fichiers ignorés.
+    pub ignores: Compte,
+    /// Les fichiers dont le nom ne se lit pas.
+    pub sans_nom: Compte,
+    /// Le nombre d'origines que l'import a changées, tenu sous `ENTIER_SUR` par sa source.
+    pub origines_changees: u64,
+    /// Les rangs des fichiers sans nom, chacun sous `ENTIER_SUR`.
+    pub fichiers_sans_nom: Vec<u64>,
+}
+
+/// L'import clos.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ImportClos {
+    /// Son rapport.
+    pub rapport: RapportDImport,
+    /// Un avertissement lisible, s'il y en a un.
+    pub avertissement: Option<String>,
+}
+
+/// Ce qu'une origine déclarée vise. `Prefixe::prefixe` : une barre `/` finale s'ôte
+/// (`origine::sous_le_prefixe` ; balayage Q13).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Portee {
+    /// Une captation.
+    Captation(Captation),
+    /// Les fichiers d'un import sous un préfixe de chemin.
+    Prefixe {
+        /// L'import, un ULID.
+        import: String,
+        /// Le préfixe.
+        prefixe: String,
+    },
+}
+
+/// Une origine à déclarer.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum OrigineADeclarer {
+    /// Aucune : à l'import, « aucune origine déclarée ».
+    Aucune,
+    /// À la main.
+    Main,
+    /// Par un générateur, nommé.
+    Generee {
+        /// Le nom du générateur.
+        nom: String,
+    },
+}
+
+/// Déclarer une origine.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DeclarerUneOrigine {
+    /// Ce que la déclaration vise.
+    pub portee: Portee,
+    /// L'origine.
+    pub origine: OrigineADeclarer,
+}
+
+/// Le type d'un stem.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TypeDeStem {
+    /// Voix.
+    Voix,
+    /// Chœurs.
+    Choeurs,
+    /// Batterie.
+    Batterie,
+    /// Percussions.
+    Percussions,
+    /// Basse.
+    Basse,
+    /// Guitare.
+    Guitare,
+    /// Clavier.
+    Clavier,
+    /// Cordes.
+    Cordes,
+    /// Cuivres.
+    Cuivres,
+    /// Synthé.
+    Synthe,
+    /// Effets.
+    Effets,
+    /// Autre.
+    Autre,
+}
+
+/// Garder le type proposé, ou en choisir un.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ChoixDuType {
+    /// Garder le type proposé.
+    Garder,
+    /// Choisir ce type.
+    Choisir(TypeDeStem),
+}
+
+/// Choisir le type d'un stem.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChoisirLeType {
+    /// L'empreinte de la prise.
+    pub prise: String,
+    /// L'empreinte du stem.
+    pub stem: String,
+    /// Le choix.
+    pub choix: ChoixDuType,
+}
+
+/// Un texte versé, lu ; `None` pour un texte illisible.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TexteLu {
+    /// Le texte.
+    pub texte: Option<String>,
+}
+
+/// Lire le rapport d'un import.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LireUnRapport {
+    /// L'import, un ULID.
+    pub import: String,
+}
+
+/// L'origine déclarée d'une captation, telle que la vue la montre.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum OrigineDeclaree {
+    /// Aucune.
+    Aucune,
+    /// À la main.
+    Main,
+    /// Par un ou plusieurs générateurs.
+    Generee {
+        /// Les noms des générateurs.
+        noms: Vec<String>,
+    },
+}
+
+/// Les faits qu'une captation porte, lus à l'import.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FaitsDUneCaptation {
+    /// Son format.
+    pub format: Option<String>,
+    /// Sa durée en millisecondes, tenue sous `ENTIER_SUR` par sa source.
+    pub duree_ms: Option<u64>,
+    /// Son codage (un `u16`, borné par son type).
+    pub codage: Option<u16>,
+    /// Ses canaux (un `u16`, borné par son type).
+    pub canaux: Option<u16>,
+    /// Sa fréquence (un `u32`, borné par son type).
+    pub frequence: Option<u32>,
+    /// Ses bits par échantillon (un `u16`, borné par son type).
+    pub bits: Option<u16>,
+    /// Sa division MIDI (un `u16`, borné par son type).
+    pub division: Option<u16>,
+}
+
+/// Le type d'un stem, et d'où il vient.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TypeVu {
+    /// Proposé par l'import.
+    Propose(TypeDeStem),
+    /// Gardé.
+    Garde(TypeDeStem),
+    /// Choisi.
+    Choisi(TypeDeStem),
+}
+
+/// Le MIDI qui accompagne un stem.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MidiVu {
+    /// Son empreinte, 64 caractères hexadécimaux minuscules.
+    pub empreinte: String,
+    /// Ses faits.
+    pub faits: FaitsDUneCaptation,
+    /// Ses noms vus : le premier vu d'abord, puis les autres dans l'ordre de leurs octets.
+    pub noms: Vec<String>,
+}
+
+/// Un stem d'une prise.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StemVu {
+    /// Son empreinte, 64 caractères hexadécimaux minuscules.
+    pub empreinte: String,
+    /// Ses faits.
+    pub faits: FaitsDUneCaptation,
+    /// Ses noms vus : le premier vu d'abord, puis les autres dans l'ordre de leurs octets.
+    pub noms: Vec<String>,
+    /// Son type.
+    pub type_de_stem: TypeVu,
+    /// Son MIDI, s'il en a un.
+    pub midi: Option<MidiVu>,
+}
+
+/// Ce que la vue d'une idée montre d'une captation.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CaptationVue {
+    /// La captation.
+    pub captation: Captation,
+    /// Ses faits.
+    pub faits: FaitsDUneCaptation,
+    /// Ses noms vus : le premier vu d'abord, puis les autres dans l'ordre de leurs octets.
+    pub noms: Vec<String>,
+    /// Son origine déclarée.
+    pub origine: OrigineDeclaree,
+    /// Ses stems, si c'est une prise en stems.
+    pub stems: Vec<StemVu>,
 }

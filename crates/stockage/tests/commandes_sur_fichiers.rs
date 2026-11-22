@@ -1041,6 +1041,7 @@ fn l_etat_du_fonds_dit_la_lecture_seule() {
                 par: Appareil::Etabli,
             },
             retiree: None,
+            nom_de_fichier: None,
         }]
     );
     assert_eq!(vue.non_reliees, 1);

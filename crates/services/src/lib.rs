@@ -481,6 +481,7 @@ impl<D: Documents, C: Captations> Services<D, C> {
             reliee,
             duree_ms,
             retiree: lue.retiree,
+            captations_vues: Vec::new(),
         })
     }
 
@@ -763,6 +764,7 @@ fn ligne(dans_la_boite: EnBoite) -> LigneDeLaBoite {
         reliee: dans_la_boite.reliee,
         provenance: provenance_des_commandes(idee.provenance),
         retiree: idee.retiree,
+        nom_de_fichier: None,
     }
 }
 
