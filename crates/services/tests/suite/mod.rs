@@ -6243,7 +6243,9 @@ pub fn cap03_2_le_meme_dossier_importe_deux_fois_n_ajoute_que_son_rapport<P: Pai
 }
 
 /// CAP-03 · 3 : `Démo d'hiver 2 - 01_06_2015 18.42.m4a`, une boîte `ftyp`, se verse en prise
-/// `m4a` ; son premier nom vu, relu, égale ce nom, octet pour octet.
+/// `m4a` ; son premier nom vu, relu, égale ce nom, octet pour octet. Sa ligne de la boîte, sans
+/// texte, porte ce nom (`nom_de_fichier`, question 4) ; son texte complété, elle ne porte plus que
+/// son texte.
 pub fn cap03_3_un_nom_d_origine_se_relit_intact<P: Paire>(paire: &mut P) {
     let mut services = paire.neufs();
     let mut alea = AleaDeTest {
@@ -6267,6 +6269,20 @@ pub fn cap03_3_un_nom_d_origine_se_relit_intact<P: Paire>(paire: &mut P) {
     let vue = la_seule_idee(&services);
     assert_eq!(vue.captations_vues.len(), 1);
     assert_eq!(vue.captations_vues[0].noms, vec![nom.to_string()]);
+
+    let lignes = la_boite(&services).lignes;
+    assert_eq!(idees_des_lignes(&lignes), vec![vue.idee.clone()]);
+    assert_eq!(lignes[0].texte, None);
+    assert_eq!(lignes[0].nom_de_fichier.as_deref(), Some(nom));
+
+    let texte = "Un refrain qui revient";
+    services
+        .completer(&completion(&vue.idee, texte), &mut contexte)
+        .expect("le texte se complète");
+    let lignes = la_boite(&services).lignes;
+    assert_eq!(idees_des_lignes(&lignes), vec![vue.idee.clone()]);
+    assert_eq!(lignes[0].texte.as_deref(), Some(texte));
+    assert_eq!(lignes[0].nom_de_fichier, None);
 }
 
 /// CAP-03 · 4, en part, sans morceaux : `Pont v1.wav`, `Pont v2.wav`, `Pont.mid` et `Pont.txt`
