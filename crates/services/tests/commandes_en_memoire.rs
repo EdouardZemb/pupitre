@@ -557,6 +557,11 @@ fn declarer_par_prefixe_apres_un_import_rejoue() {
 }
 
 #[test]
+fn declarer_par_prefixe_prend_la_prise_en_stems_de_son_dossier() {
+    suite::declarer_par_prefixe_prend_la_prise_en_stems_de_son_dossier(&mut PaireEnMemoire);
+}
+
+#[test]
 fn garder_puis_choisir_le_type_d_un_stem() {
     suite::garder_puis_choisir_le_type_d_un_stem(&mut PaireEnMemoire);
 }

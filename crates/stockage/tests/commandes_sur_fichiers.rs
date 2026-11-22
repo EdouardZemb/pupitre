@@ -922,6 +922,14 @@ fn declarer_par_prefixe_apres_un_import_rejoue() {
 }
 
 #[test]
+fn declarer_par_prefixe_prend_la_prise_en_stems_de_son_dossier() {
+    let racine = racine_jetable("commandes-import-prefixe-jeu");
+    suite::declarer_par_prefixe_prend_la_prise_en_stems_de_son_dossier(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
 fn garder_puis_choisir_le_type_d_un_stem() {
     let racine = racine_jetable("commandes-import-type");
     suite::garder_puis_choisir_le_type_d_un_stem(&mut PaireSurFichiers { racine: &racine });

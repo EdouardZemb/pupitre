@@ -7190,8 +7190,16 @@ fn origine_vue<D: Documents, C: Captations>(
     services: &Services<D, C>,
     contenu: &[u8],
 ) -> OrigineDeclaree {
-    let e = empreinte(contenu);
-    let idee = lecture::lire_la_captation(fonds_de(services), gestes::Sorte::Prise, &e)
+    origine_vue_de(services, &empreinte(contenu))
+}
+
+/// L'origine déclarée que montre la vue de l'idée de la prise d'empreinte `e`, sur la captation
+/// vue de cette prise : un fichier versé seul, ou le manifeste d'une prise en stems.
+fn origine_vue_de<D: Documents, C: Captations>(
+    services: &Services<D, C>,
+    e: &str,
+) -> OrigineDeclaree {
+    let idee = lecture::lire_la_captation(fonds_de(services), gestes::Sorte::Prise, e)
         .expect("la prise est dans le fonds")
         .idee;
     services
@@ -7484,6 +7492,145 @@ pub fn declarer_par_prefixe_apres_un_import_rejoue<P: Paire>(paire: &mut P) {
         services.declarer_une_origine(&par_le_second, &mut contexte),
         plus_inspecte
     );
+}
+
+/// CAP-03 et ADR-024, § 3 : la déclaration d'un dossier versé porte sur la prise en stems de ce
+/// dossier, dont le nom d'origine est celui du dossier, comme sur ses stems. `Jeu A`, importé jeu
+/// de stems sans origine déclarée, puis `main` par le préfixe `Jeu A` : la prise que montre la vue
+/// et ses deux stems portent `main`, en une seule opération ; `Libre/c.wav`, hors du préfixe,
+/// aucune ; la même déclaration, de nouveau, n'écrit rien (R16). Puis un jeu au niveau du dossier
+/// versé lui-même (`""`) : le préfixe `Jeu A` ne prend rien de ce second import, le préfixe `/`,
+/// le préfixe vide, prend sa prise et ses stems.
+pub fn declarer_par_prefixe_prend_la_prise_en_stems_de_son_dossier<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let basse = wav_de(8_000, 111);
+    let voix = wav_de(8_000, 112);
+    let c = wav_de(8_000, 113);
+    let source = paire.source(
+        Some(DOSSIER_VERSE),
+        &[
+            (Some("Jeu A/basse.wav"), basse.clone()),
+            (Some("Jeu A/voix.wav"), voix.clone()),
+            (Some("Libre/c.wav"), c.clone()),
+        ],
+        &[],
+    );
+    let import = importer(
+        &mut services,
+        &source,
+        &[("Jeu A", jeu_de_stems())],
+        &mut contexte,
+    )
+    .ouvert
+    .import;
+    let e_basse = empreinte(&basse);
+    let e_voix = empreinte(&voix);
+    let prise = empreinte(&rapport::manifeste(&[e_basse.as_str(), e_voix.as_str()]));
+    assert_eq!(origine_vue_de(&services, &prise), OrigineDeclaree::Aucune);
+    let avant = messages_du_journal(&services);
+
+    let par_le_jeu = declaration_par_prefixe(&import, "Jeu A", OrigineADeclarer::Main);
+    assert_eq!(
+        services.declarer_une_origine(&par_le_jeu, &mut contexte),
+        Ok(Faite {
+            avertissement: None
+        })
+    );
+    let apres = messages_du_journal(&services);
+    assert_eq!(apres.len(), avant.len() + 1);
+    assert_eq!(
+        apres.last().map(String::as_str),
+        Some("Origine déclarée pour « Jeu A/ » : de la main de Sacha")
+    );
+    assert_eq!(origine_vue_de(&services, &prise), OrigineDeclaree::Main);
+    let de_la_main = OriginesLues {
+        main: true,
+        generees: BTreeSet::new(),
+    };
+    let fonds = fonds_de(&services);
+    assert_eq!(lecture::origines_de(fonds, &prise), de_la_main);
+    assert_eq!(lecture::origines_de(fonds, &e_basse), de_la_main);
+    assert_eq!(lecture::origines_de(fonds, &e_voix), de_la_main);
+    assert_eq!(origine_vue(&services, &c), OrigineDeclaree::Aucune);
+
+    assert_eq!(
+        services.declarer_une_origine(&par_le_jeu, &mut contexte),
+        Ok(Faite {
+            avertissement: None
+        })
+    );
+    assert_eq!(messages_du_journal(&services), apres);
+
+    let nappe = wav_de(8_000, 114);
+    let pad = wav_de(8_000, 115);
+    let au_niveau_du_dossier = paire.source(
+        Some(DOSSIER_VERSE),
+        &[
+            (Some("nappe.wav"), nappe.clone()),
+            (Some("pad.wav"), pad.clone()),
+        ],
+        &[],
+    );
+    let second = importer(
+        &mut services,
+        &au_niveau_du_dossier,
+        &[("", jeu_de_stems())],
+        &mut contexte,
+    )
+    .ouvert
+    .import;
+    let e_nappe = empreinte(&nappe);
+    let e_pad = empreinte(&pad);
+    let seconde_prise = empreinte(&rapport::manifeste(&[e_nappe.as_str(), e_pad.as_str()]));
+    assert_eq!(
+        origine_vue_de(&services, &seconde_prise),
+        OrigineDeclaree::Aucune
+    );
+    let avant = messages_du_journal(&services);
+    assert_eq!(
+        services.declarer_une_origine(
+            &declaration_par_prefixe(&second, "Jeu A", OrigineADeclarer::Main),
+            &mut contexte
+        ),
+        Err(Refus {
+            raison: Raison::Impossible,
+            message: "Cette captation n'est pas dans le fonds.".to_string(),
+        })
+    );
+    assert_eq!(messages_du_journal(&services), avant);
+
+    assert_eq!(
+        services.declarer_une_origine(
+            &declaration_par_prefixe(&second, "/", generee("Forge inventée")),
+            &mut contexte
+        ),
+        Ok(Faite {
+            avertissement: None
+        })
+    );
+    let apres = messages_du_journal(&services);
+    assert_eq!(apres.len(), avant.len() + 1);
+    assert_eq!(
+        apres.last().map(String::as_str),
+        Some("Origine déclarée pour « / » : générée par Forge inventée")
+    );
+    let de_la_forge = OrigineDeclaree::Generee {
+        noms: vec!["Forge inventée".to_string()],
+    };
+    assert_eq!(origine_vue_de(&services, &seconde_prise), de_la_forge);
+    let fonds = fonds_de(&services);
+    for e in [&e_nappe, &e_pad] {
+        assert_eq!(
+            lecture::origines_de(fonds, e).generees,
+            BTreeSet::from(["Forge inventée".to_string()])
+        );
+    }
+    assert_eq!(origine_vue_de(&services, &prise), OrigineDeclaree::Main);
 }
 
 /// Le type d'un stem de la seule prise du fonds de `services`, tel que la vue le montre.
