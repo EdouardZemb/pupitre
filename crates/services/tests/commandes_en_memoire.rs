@@ -3,20 +3,23 @@
 //! services du carnet, un renommage d'une requête enregistrée concurrent de sa suppression, sur
 //! deux répliques, les requêtes enregistrées d'une version plus récente, une idée illisible dans
 //! l'assiette de la boîte, la requête des photos, le générateur du fonds de mesure, une copie en
-//! flux qui ne donne pas l'empreinte attendue ou dont le flux est refusé, et la source à verser en
-//! mémoire. La source à verser de la paire est `SourceEnMemoire`.
+//! flux qui ne donne pas l'empreinte attendue ou dont le flux est refusé, la source à verser en
+//! mémoire, et, sur deux répliques réunies, le premier nom vu d'un même fichier importé des deux
+//! côtés, l'idée qu'un tel import laisse sans captation, et deux origines déclarées chacune d'un
+//! côté. La source à verser de la paire est `SourceEnMemoire`.
 
 mod suite;
 
 use std::collections::BTreeSet;
 use std::io::{self, Read};
 
-use automerge::{ROOT, ReadDoc};
+use automerge::{Automerge, ROOT, ReadDoc};
 use commandes::Assiette;
-use noyau::donnees::fonds::REQUETES_ENREGISTREES;
+use noyau::donnees::fonds::{NOM, PRISES, REQUETES_ENREGISTREES};
 use noyau::donnees::gestes;
 use noyau::donnees::identifiants::empreinte;
 use noyau::donnees::import::nom_de_la_copie;
+use noyau::donnees::origine::OriginesLues;
 use noyau::donnees::requete::{
     Requete as RequeteDuNoyau, RequeteEnregistreeLue, renommer_une_requete, supprimer_une_requete,
 };
@@ -25,9 +28,10 @@ use services::en_memoire::{CaptationsEnMemoire, DocumentsEnMemoire};
 use services::mesure::{Engendre, engendrer_le_fonds_de_mesure_selon};
 use services::source_en_memoire::SourceEnMemoire;
 use services::{
-    Captations, Documents, Raison, Refus, Services, Source, Versement, application, lecture,
+    Captations, Contexte, Documents, Raison, Refus, Services, Source, Versement, application,
+    lecture,
 };
-use suite::{AleaDeTest, HEURE, IDEE, Paire, SECONDE_IDEE, contexte_de_test, une_note};
+use suite::{AleaDeTest, HEURE, IDEE, LENDEMAIN, Paire, SECONDE_IDEE, contexte_de_test, une_note};
 
 /// La paire en mémoire : sans fonds à sa naissance, sur l'établi ; rouverte des octets de son
 /// fonds, ou neuve sans eux, les captations gardées.
@@ -534,6 +538,288 @@ fn la_place_compte_deux_fois_le_poids_du_fonds() {
 fn l_import_dans_un_pupitre_neuf_fait_naitre_le_fonds_par_son_ouverture() {
     suite::l_import_dans_un_pupitre_neuf_fait_naitre_le_fonds_par_son_ouverture(
         &mut PaireEnMemoire,
+    );
+}
+
+#[test]
+fn cap03_9_une_origine_generee_se_garde_et_ne_se_retire_pas() {
+    suite::cap03_9_une_origine_generee_se_garde_et_ne_se_retire_pas(&mut PaireEnMemoire);
+}
+
+#[test]
+fn declarer_une_origine_par_prefixe_ne_prend_que_les_segments_entiers() {
+    suite::declarer_une_origine_par_prefixe_ne_prend_que_les_segments_entiers(&mut PaireEnMemoire);
+}
+
+#[test]
+fn declarer_par_prefixe_apres_un_import_rejoue() {
+    suite::declarer_par_prefixe_apres_un_import_rejoue(&mut PaireEnMemoire);
+}
+
+#[test]
+fn garder_puis_choisir_le_type_d_un_stem() {
+    suite::garder_puis_choisir_le_type_d_un_stem(&mut PaireEnMemoire);
+}
+
+#[test]
+fn lire_un_texte_verse_le_rend_tel_quel() {
+    suite::lire_un_texte_verse_le_rend_tel_quel(&mut PaireEnMemoire);
+}
+
+#[test]
+fn lire_un_rapport_rend_ses_comptes() {
+    suite::lire_un_rapport_rend_ses_comptes(&mut PaireEnMemoire);
+}
+
+#[test]
+fn les_generateurs_du_fonds_chacun_une_fois() {
+    suite::les_generateurs_du_fonds_chacun_une_fois(&mut PaireEnMemoire);
+}
+
+/// Les services en mémoire de la paire.
+type ServicesEnMemoire = Services<DocumentsEnMemoire, CaptationsEnMemoire>;
+
+/// Une réplique du fonds de `services` : ses octets, rouverts en mémoire sous un autre acteur,
+/// qu'`Automerge::load` tire, sans captation.
+fn une_replique(services: &ServicesEnMemoire) -> ServicesEnMemoire {
+    let octets = services.documents().octets().expect("le fonds est né");
+    Services::new(
+        DocumentsEnMemoire::de(&octets, &[]).expect("la réplique s'ouvre"),
+        CaptationsEnMemoire::default(),
+        gestes::Appareil::Etabli,
+    )
+}
+
+/// Les deux répliques réunies : le fonds de `l_une`, qui reçoit celui de `l_autre`
+/// (`Automerge::merge`), rouvert en mémoire, avec les captations de `l_une`.
+fn reunir(l_une: ServicesEnMemoire, l_autre: &ServicesEnMemoire) -> ServicesEnMemoire {
+    let ouvrir = |services: &ServicesEnMemoire| {
+        let octets = services.documents().octets().expect("le fonds est né");
+        Automerge::load(&octets).expect("le fonds se rouvre")
+    };
+    let mut fonds = ouvrir(&l_une);
+    let mut autre = ouvrir(l_autre);
+    fonds
+        .merge(&mut autre)
+        .expect("les deux répliques se réunissent");
+    let (_, captations) = l_une.en_parties();
+    Services::new(
+        DocumentsEnMemoire::de(&fonds.save(), &[]).expect("le fonds réuni s'ouvre"),
+        captations,
+        gestes::Appareil::Etabli,
+    )
+}
+
+/// La prise des tests à deux répliques : un WAV d'une seconde, 8 000 Hz, mono, 8 bits.
+fn prise_des_repliques() -> Vec<u8> {
+    suite::wav(8_000, 1, 8, 8_000)
+}
+
+/// Deux répliques d'un fonds né d'une note : sur la première, `Essais/pont.wav` importé à
+/// `HEURE` ; sur la seconde, le même contenu importé au lendemain, sous les chemins `autres`
+/// (chacun avec lui), d'un autre aléa. Rend les deux services et les ULID des deux imports.
+fn deux_imports_du_meme_fichier(
+    autres: &[&str],
+) -> (ServicesEnMemoire, ServicesEnMemoire, String, String) {
+    let mut paire = PaireEnMemoire;
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    services
+        .noter(
+            &une_note("Un pont qui attend sa prise"),
+            &mut contexte_de_test(&mut alea),
+        )
+        .expect("la note fait naître le fonds");
+    let mut replique = une_replique(&services);
+    let prise = prise_des_repliques();
+    let ici = paire.source(
+        Some("Démos"),
+        &[(Some("Essais/pont.wav"), prise.clone())],
+        &[],
+    );
+    let ancien = suite::importer(&mut services, &ici, &[], &mut contexte_de_test(&mut alea))
+        .ouvert
+        .import;
+    let fichiers: Vec<(Option<&str>, Vec<u8>)> = autres
+        .iter()
+        .map(|chemin| (Some(*chemin), prise.clone()))
+        .collect();
+    let ailleurs = paire.source(Some("Démos"), &fichiers, &[]);
+    let mut alea_de_la_replique = AleaDeTest {
+        graine: 1,
+        appels: 0,
+    };
+    let recent = suite::importer(
+        &mut replique,
+        &ailleurs,
+        &[],
+        &mut Contexte {
+            heure: LENDEMAIN,
+            alea: &mut alea_de_la_replique,
+        },
+    )
+    .ouvert
+    .import;
+    (services, replique, ancien, recent)
+}
+
+/// Question 20 ; vigilance 1 : le même fichier importé sur deux répliques, à deux heures, puis
+/// réunies ; `get_all` rend deux valeurs de `<e>/nom/Essais/pont.wav`, les ULID des deux imports,
+/// et le premier nom vu est celui de l'import le plus ancien, `Essais/pont.wav`, bien que la
+/// réplique récente porte aussi `A trier/pont.wav`, plus petit dans l'ordre des octets, à son seul
+/// ULID ; la vue montre le premier vu, puis l'autre.
+#[test]
+fn le_premier_nom_vu_de_deux_repliques_est_le_plus_petit() {
+    let (services, replique, ancien, recent) =
+        deux_imports_du_meme_fichier(&["A trier/pont.wav", "Essais/pont.wav"]);
+
+    let services = reunir(services, &replique);
+
+    let fonds = services.documents().fonds().expect("le fonds est né");
+    let e = empreinte(&prise_des_repliques());
+    let (_, prises) = fonds
+        .get(ROOT, PRISES)
+        .expect("lire la racine du document")
+        .expect("le conteneur des prises");
+    let valeurs: BTreeSet<String> = fonds
+        .get_all(&prises, format!("{e}/{NOM}/Essais/pont.wav").as_str())
+        .expect("lire le nom d'origine")
+        .into_iter()
+        .map(|(valeur, _)| {
+            valeur
+                .into_string()
+                .expect("un nom d'origine porte un ULID")
+        })
+        .collect();
+    assert_eq!(valeurs, BTreeSet::from([ancien, recent]));
+    assert_eq!(
+        lecture::premier_nom_vu(fonds, &e).as_deref(),
+        Some("Essais/pont.wav")
+    );
+    let idee = lecture::lire_la_captation(fonds, gestes::Sorte::Prise, &e)
+        .expect("la prise est dans le fonds")
+        .idee;
+    let vue = services.vue_d_une_idee(&idee).expect("l'idée se lit");
+    assert_eq!(
+        vue.captations_vues[0].noms,
+        vec![
+            "Essais/pont.wav".to_string(),
+            "A trier/pont.wav".to_string()
+        ]
+    );
+}
+
+/// Vigilance 1 : le même fichier importé sur deux répliques, puis réunies : deux idées
+/// importées, chacune née sur sa réplique, dont une seule porte la prise, `<e>/idee` ne gardant
+/// qu'une valeur ; l'autre reste sans captation (la piste « Ce que laissent deux regroupements
+/// croisés », tâche 17).
+#[test]
+fn deux_imports_du_meme_fichier_sur_deux_repliques_laissent_une_idee_sans_captation() {
+    let (services, replique, _, _) = deux_imports_du_meme_fichier(&["Essais/pont.wav"]);
+
+    let services = reunir(services, &replique);
+
+    let e = empreinte(&prise_des_repliques());
+    let mut captations_des_importees: Vec<Vec<commandes::Captation>> = services
+        .idees()
+        .expect("les idées se lisent")
+        .iter()
+        .map(|idee| services.vue_d_une_idee(idee).expect("l'idée se lit"))
+        .filter(|vue| matches!(vue.provenance, commandes::Provenance::Importee { .. }))
+        .map(|vue| vue.captations)
+        .collect();
+    captations_des_importees.sort_by_key(Vec::len);
+    assert_eq!(
+        captations_des_importees,
+        vec![
+            Vec::new(),
+            vec![commandes::Captation {
+                sorte: commandes::Sorte::Prise,
+                empreinte: e,
+            }],
+        ]
+    );
+}
+
+/// Vigilance 1 ; question 22 : une prise importée, puis deux répliques ; sur l'une, l'origine
+/// déclarée de la main de Sacha ; sur l'autre, générée par « Atelier ». Réunies, la prise porte
+/// les deux, et la plus forte, générée, est celle que montre la vue.
+#[test]
+fn deux_origines_nees_sur_deux_repliques_se_reunissent() {
+    let mut paire = PaireEnMemoire;
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let prise = prise_des_repliques();
+    let source = paire.source(
+        Some("Démos"),
+        &[(Some("Essais/pont.wav"), prise.clone())],
+        &[],
+    );
+    suite::importer(
+        &mut services,
+        &source,
+        &[],
+        &mut contexte_de_test(&mut alea),
+    );
+    let mut replique = une_replique(&services);
+    let e = empreinte(&prise);
+    let declaration = |origine: commandes::OrigineADeclarer| commandes::DeclarerUneOrigine {
+        portee: commandes::Portee::Captation(commandes::Captation {
+            sorte: commandes::Sorte::Prise,
+            empreinte: e.clone(),
+        }),
+        origine,
+    };
+    services
+        .declarer_une_origine(
+            &declaration(commandes::OrigineADeclarer::Main),
+            &mut contexte_de_test(&mut alea),
+        )
+        .expect("l'origine se déclare sur la première réplique");
+    let mut alea_de_la_replique = AleaDeTest {
+        graine: 1,
+        appels: 0,
+    };
+    replique
+        .declarer_une_origine(
+            &declaration(commandes::OrigineADeclarer::Generee {
+                nom: "Atelier".to_string(),
+            }),
+            &mut Contexte {
+                heure: LENDEMAIN,
+                alea: &mut alea_de_la_replique,
+            },
+        )
+        .expect("l'origine se déclare sur la seconde réplique");
+
+    let services = reunir(services, &replique);
+
+    let fonds = services.documents().fonds().expect("le fonds est né");
+    assert_eq!(
+        lecture::origines_de(fonds, &e),
+        OriginesLues {
+            main: true,
+            generees: BTreeSet::from(["Atelier".to_string()]),
+        }
+    );
+    let idee = lecture::lire_la_captation(fonds, gestes::Sorte::Prise, &e)
+        .expect("la prise est dans le fonds")
+        .idee;
+    assert_eq!(
+        services
+            .vue_d_une_idee(&idee)
+            .expect("l'idée se lit")
+            .captations_vues[0]
+            .origine,
+        commandes::OrigineDeclaree::Generee {
+            noms: vec!["Atelier".to_string()],
+        }
     );
 }
 

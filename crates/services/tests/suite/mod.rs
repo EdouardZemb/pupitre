@@ -11,8 +11,10 @@
 //! de la réponse d'une requête, le jeu de requêtes d'I09 et d'I13, un document dont une idée est
 //! illisible, les commandes des requêtes enregistrées et la requête entière ; et les aides des
 //! tests de la lecture du fonds importé, qui ouvrent un import et y versent par ses opérations
-//! nommées, sans commande ; les octets des fichiers à verser, écrits à l'exécution, et l'import
-//! conduit par les commandes, unité par unité (`importer`). Le fichier s'inclut par `mod suite;`
+//! nommées, sans commande ; les octets des fichiers à verser, écrits à l'exécution, l'import
+//! conduit par les commandes, unité par unité (`importer`), et les aides de ce qui le suit : les
+//! déclarations d'une origine, l'origine que montre la vue d'une prise, le type d'un stem et le
+//! texte versé relu. Le fichier s'inclut par `mod suite;`
 //! dans les tests des services, et par `#[path = "../../services/tests/suite/mod.rs"]` dans ceux
 //! du stockage : il ne nomme que ce que les deux voient, les services, les commandes, le noyau et
 //! `automerge`.
@@ -7130,6 +7132,765 @@ pub fn l_import_dans_un_pupitre_neuf_fait_naitre_le_fonds_par_son_ouverture<P: P
             "Import du 14 novembre ouvert".to_string(),
             "Idée du 14 novembre : prise versée".to_string(),
             "Import du 14 novembre clos".to_string(),
+        ])
+    );
+}
+
+/// L'avertissement d'une déclaration « de la main de Sacha » qu'une cible générée garde
+/// (question 22 ; V9).
+const ORIGINE_GARDEE: &str = "L'origine reste générée : une origine déclarée ne se retire pas.";
+
+/// L'origine générée par le générateur `nom`, à déclarer.
+fn generee(nom: &str) -> OrigineADeclarer {
+    OrigineADeclarer::Generee {
+        nom: nom.to_string(),
+    }
+}
+
+/// La déclaration d'un dossier, sans jeu de stems, à l'origine `origine`.
+fn origine_du_dossier(origine: OrigineADeclarer) -> commandes::Declaration {
+    commandes::Declaration {
+        stems: false,
+        origine,
+    }
+}
+
+/// La déclaration de l'origine `origine` sur la prise de contenu `contenu`.
+fn declaration_sur_la_prise(
+    contenu: &[u8],
+    origine: OrigineADeclarer,
+) -> commandes::DeclarerUneOrigine {
+    commandes::DeclarerUneOrigine {
+        portee: commandes::Portee::Captation(Captation {
+            sorte: commandes::Sorte::Prise,
+            empreinte: empreinte(contenu),
+        }),
+        origine,
+    }
+}
+
+/// La déclaration de l'origine `origine` sur les fichiers de l'import `import` sous `prefixe`.
+fn declaration_par_prefixe(
+    import: &str,
+    prefixe: &str,
+    origine: OrigineADeclarer,
+) -> commandes::DeclarerUneOrigine {
+    commandes::DeclarerUneOrigine {
+        portee: commandes::Portee::Prefixe {
+            import: import.to_string(),
+            prefixe: prefixe.to_string(),
+        },
+        origine,
+    }
+}
+
+/// L'origine déclarée que montre la vue de l'idée de la prise de contenu `contenu`, sur la
+/// captation vue de cette prise.
+fn origine_vue<D: Documents, C: Captations>(
+    services: &Services<D, C>,
+    contenu: &[u8],
+) -> OrigineDeclaree {
+    let e = empreinte(contenu);
+    let idee = lecture::lire_la_captation(fonds_de(services), gestes::Sorte::Prise, &e)
+        .expect("la prise est dans le fonds")
+        .idee;
+    services
+        .vue_d_une_idee(&idee)
+        .expect("l'idée de la prise se lit")
+        .captations_vues
+        .into_iter()
+        .find(|vue| vue.captation.empreinte == e)
+        .expect("la vue montre la prise")
+        .origine
+}
+
+/// Les messages du journal du fonds de `services`, dans l'ordre de l'historique.
+fn messages_du_journal<D: Documents, C: Captations>(services: &Services<D, C>) -> Vec<String> {
+    services
+        .journal()
+        .expect("le journal se lit")
+        .into_iter()
+        .map(|entree| entree.message)
+        .collect()
+}
+
+/// CAP-03 · 9 : un dossier `Atelier` déclaré généré par « Atelier inventé » (balayage Q3) ;
+/// chacune de ses prises porte cette origine ; la déclarer `Aucune` est refusé ; le reverser, le
+/// dossier déclaré de la main de Sacha, la laisse générée ; « de la main de Sacha » déclarée sur
+/// l'une rend l'avertissement, sans rien écrire ; l'origine qu'elle porte déjà, déclarée de
+/// nouveau, est faite sans avertissement ni écriture, comme `main` sur une prise du dossier `Main`
+/// (R16) ; puis `main` déclarée par le préfixe d'un dossier qui porte une prise générée et une
+/// prise sans origine pose `main` sur la seconde, en une opération, et rend l'avertissement (V9) ;
+/// une prise d'un dossier non déclaré n'a aucune origine.
+pub fn cap03_9_une_origine_generee_se_garde_et_ne_se_retire_pas<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let a = wav_de(8_000, 41);
+    let b = wav_de(8_000, 42);
+    let c = wav_de(8_000, 43);
+    let d = wav_de(8_000, 44);
+    let n = wav_de(8_000, 45);
+    let source = paire.source(
+        Some(DOSSIER_VERSE),
+        &[
+            (Some("Atelier/a.wav"), a.clone()),
+            (Some("Atelier/b.wav"), b.clone()),
+            (Some("Libre/d.wav"), d.clone()),
+            (Some("Main/c.wav"), c.clone()),
+        ],
+        &[],
+    );
+    let atelier = OrigineDeclaree::Generee {
+        noms: vec!["Atelier inventé".to_string()],
+    };
+
+    importer(
+        &mut services,
+        &source,
+        &[
+            ("Atelier", origine_du_dossier(generee("Atelier inventé"))),
+            ("Main", origine_du_dossier(OrigineADeclarer::Main)),
+        ],
+        &mut contexte,
+    );
+
+    assert_eq!(origine_vue(&services, &a), atelier);
+    assert_eq!(origine_vue(&services, &b), atelier);
+    assert_eq!(origine_vue(&services, &c), OrigineDeclaree::Main);
+    assert_eq!(origine_vue(&services, &d), OrigineDeclaree::Aucune);
+    assert_eq!(
+        services.declarer_une_origine(
+            &declaration_sur_la_prise(&a, OrigineADeclarer::Aucune),
+            &mut contexte
+        ),
+        Err(Refus {
+            raison: Raison::Impossible,
+            message: "Une origine déclarée ne se retire pas.".to_string(),
+        })
+    );
+
+    importer(
+        &mut services,
+        &source,
+        &[("Atelier", origine_du_dossier(OrigineADeclarer::Main))],
+        &mut contexte,
+    );
+
+    assert_eq!(origine_vue(&services, &a), atelier);
+    assert_eq!(origine_vue(&services, &b), atelier);
+    let avant = messages_du_journal(&services);
+    assert_eq!(
+        services.declarer_une_origine(
+            &declaration_sur_la_prise(&a, OrigineADeclarer::Main),
+            &mut contexte
+        ),
+        Ok(Faite {
+            avertissement: Some(ORIGINE_GARDEE.to_string()),
+        })
+    );
+    assert_eq!(
+        services.declarer_une_origine(
+            &declaration_sur_la_prise(&a, generee("Atelier inventé")),
+            &mut contexte
+        ),
+        Ok(Faite {
+            avertissement: None
+        })
+    );
+    assert_eq!(
+        services.declarer_une_origine(
+            &declaration_sur_la_prise(&c, OrigineADeclarer::Main),
+            &mut contexte
+        ),
+        Ok(Faite {
+            avertissement: None
+        })
+    );
+    assert_eq!(messages_du_journal(&services), avant);
+    assert_eq!(origine_vue(&services, &a), atelier);
+    assert!(
+        !lecture::origines_de(fonds_de(&services), &empreinte(&a)).main,
+        "« de la main de Sacha » s'est écrite sur une prise générée"
+    );
+
+    let melee = paire.source(
+        Some(DOSSIER_VERSE),
+        &[
+            (Some("Mêlé/g.wav"), a.clone()),
+            (Some("Mêlé/n.wav"), n.clone()),
+        ],
+        &[],
+    );
+    let conduit = importer(&mut services, &melee, &[], &mut contexte);
+    let avant = messages_du_journal(&services);
+
+    assert_eq!(
+        services.declarer_une_origine(
+            &declaration_par_prefixe(&conduit.ouvert.import, "Mêlé", OrigineADeclarer::Main),
+            &mut contexte
+        ),
+        Ok(Faite {
+            avertissement: Some(ORIGINE_GARDEE.to_string()),
+        })
+    );
+
+    let apres = messages_du_journal(&services);
+    assert_eq!(apres.len(), avant.len() + 1);
+    assert_eq!(
+        apres.last().map(String::as_str),
+        Some("Origine déclarée pour « Mêlé/ » : de la main de Sacha")
+    );
+    assert_eq!(origine_vue(&services, &n), OrigineDeclaree::Main);
+    assert_eq!(origine_vue(&services, &a), atelier);
+    assert_eq!(origine_vue(&services, &d), OrigineDeclaree::Aucune);
+}
+
+/// Balayage Q13 : `Démos/a.wav` et `Démos 2015/b.wav` ; le préfixe `Démos` ne prend que `a.wav`,
+/// et le préfixe `Démos/`, sa barre finale ôtée, de même, la portée du message dite « « Démos/ » »
+/// dans les deux cas ; le préfixe `Démo`, qui n'est pas un segment entier, ne prend rien.
+pub fn declarer_une_origine_par_prefixe_ne_prend_que_les_segments_entiers<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let a = wav_de(8_000, 51);
+    let b = wav_de(8_000, 52);
+    let source = paire.source(
+        Some(DOSSIER_VERSE),
+        &[
+            (Some("Démos/a.wav"), a.clone()),
+            (Some("Démos 2015/b.wav"), b.clone()),
+        ],
+        &[],
+    );
+    let import = importer(&mut services, &source, &[], &mut contexte)
+        .ouvert
+        .import;
+
+    assert_eq!(
+        services.declarer_une_origine(
+            &declaration_par_prefixe(&import, "Démos", OrigineADeclarer::Main),
+            &mut contexte
+        ),
+        Ok(Faite {
+            avertissement: None
+        })
+    );
+    assert_eq!(
+        messages_du_journal(&services).last().map(String::as_str),
+        Some("Origine déclarée pour « Démos/ » : de la main de Sacha")
+    );
+    assert_eq!(origine_vue(&services, &a), OrigineDeclaree::Main);
+    assert_eq!(origine_vue(&services, &b), OrigineDeclaree::Aucune);
+
+    assert_eq!(
+        services.declarer_une_origine(
+            &declaration_par_prefixe(&import, "Démos/", generee("Forge inventée")),
+            &mut contexte
+        ),
+        Ok(Faite {
+            avertissement: None
+        })
+    );
+    assert_eq!(
+        messages_du_journal(&services).last().map(String::as_str),
+        Some("Origine déclarée pour « Démos/ » : générée par Forge inventée")
+    );
+    assert_eq!(
+        origine_vue(&services, &a),
+        OrigineDeclaree::Generee {
+            noms: vec!["Forge inventée".to_string()],
+        }
+    );
+    assert_eq!(origine_vue(&services, &b), OrigineDeclaree::Aucune);
+
+    let avant = messages_du_journal(&services);
+    assert_eq!(
+        services.declarer_une_origine(
+            &declaration_par_prefixe(&import, "Démo", OrigineADeclarer::Main),
+            &mut contexte
+        ),
+        Err(Refus {
+            raison: Raison::Impossible,
+            message: "Cette captation n'est pas dans le fonds.".to_string(),
+        })
+    );
+    assert_eq!(messages_du_journal(&services), avant);
+}
+
+/// R6 : un dossier `Démos/` de deux WAV, importé deux fois ; le second import ne pose aucun nom,
+/// et sa table est seule gardée : la déclaration par le préfixe `Démos` qui nomme le premier
+/// import est refusée ; celle qui nomme le second prend les deux captations. Après une nouvelle
+/// inspection, la même commande est refusée, « Ce dossier n'est plus inspecté. ».
+pub fn declarer_par_prefixe_apres_un_import_rejoue<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let a = wav_de(8_000, 61);
+    let b = wav_de(8_000, 62);
+    let source = paire.source(
+        Some(DOSSIER_VERSE),
+        &[
+            (Some("Démos/a.wav"), a.clone()),
+            (Some("Démos/b.wav"), b.clone()),
+        ],
+        &[],
+    );
+    let premier = importer(&mut services, &source, &[], &mut contexte);
+    let second = importer(&mut services, &source, &[], &mut contexte);
+    let plus_inspecte = Err(Refus {
+        raison: Raison::Impossible,
+        message: "Ce dossier n'est plus inspecté.".to_string(),
+    });
+
+    assert_eq!(
+        lecture::noms_poses_par(fonds_de(&services), &second.ouvert.import),
+        NomsPoses::default()
+    );
+    assert_eq!(second.clos.rapport.dedoublonnes.fichiers, 2);
+    assert_eq!(
+        services.declarer_une_origine(
+            &declaration_par_prefixe(&premier.ouvert.import, "Démos", OrigineADeclarer::Main),
+            &mut contexte
+        ),
+        plus_inspecte
+    );
+    let par_le_second =
+        declaration_par_prefixe(&second.ouvert.import, "Démos", OrigineADeclarer::Main);
+    assert_eq!(
+        services.declarer_une_origine(&par_le_second, &mut contexte),
+        Ok(Faite {
+            avertissement: None
+        })
+    );
+    let fonds = fonds_de(&services);
+    assert!(lecture::origines_de(fonds, &empreinte(&a)).main);
+    assert!(lecture::origines_de(fonds, &empreinte(&b)).main);
+
+    services
+        .inspecter(&source, PLACE_LIBRE)
+        .expect("le dossier s'inspecte");
+
+    assert_eq!(
+        services.declarer_une_origine(&par_le_second, &mut contexte),
+        plus_inspecte
+    );
+}
+
+/// Le type d'un stem de la seule prise du fonds de `services`, tel que la vue le montre.
+fn type_du_stem<D: Documents, C: Captations>(services: &Services<D, C>, stem: &str) -> TypeVu {
+    la_seule_idee(services).captations_vues[0]
+        .stems
+        .iter()
+        .find(|vu| vu.empreinte == stem)
+        .expect("la prise porte ce stem")
+        .type_de_stem
+        .clone()
+}
+
+/// La chaîne que porte la clé `cle` sous `prises`, lue du fonds : absente, ou d'un autre type,
+/// `None`.
+fn chaine_sous_les_prises(fonds: &Automerge, cle: &str) -> Option<String> {
+    let Ok(Some((Value::Object(ObjType::Map), objet))) = fonds.get(ROOT, PRISES) else {
+        return None;
+    };
+    let (valeur, _) = fonds.get(&objet, cle).ok()??;
+    valeur.into_string().ok()
+}
+
+/// Balayage Q15 : `Jeu A` déclaré jeu de stems, `voix.wav` et `basse.wav`. Le type de la voix,
+/// proposé (`Voix`), puis gardé (`par` à `nom`, `depuis` au stem), puis choisi (`Choeurs`, sans
+/// `par` ni `depuis`) ; la basse, proposée (`Basse`), choisie (`Voix`) sans avoir été gardée :
+/// `choisir_le_type` ôte `type/par` et `type/depuis`, que rien n'a posés. Chaque choix a son
+/// message ; un stem que la prise ne porte pas est refusé.
+pub fn garder_puis_choisir_le_type_d_un_stem<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let voix = wav_de(8_000, 71);
+    let basse = wav_de(8_000, 72);
+    let source = paire.source(
+        Some(DOSSIER_VERSE),
+        &[
+            (Some("Jeu A/basse.wav"), basse.clone()),
+            (Some("Jeu A/voix.wav"), voix.clone()),
+        ],
+        &[],
+    );
+    importer(
+        &mut services,
+        &source,
+        &[("Jeu A", jeu_de_stems())],
+        &mut contexte,
+    );
+    let prise = la_seule_idee(&services).captations_vues[0]
+        .captation
+        .empreinte
+        .clone();
+    let e_voix = empreinte(&voix);
+    let e_basse = empreinte(&basse);
+    let choix = |stem: &str, choix: commandes::ChoixDuType| commandes::ChoisirLeType {
+        prise: prise.clone(),
+        stem: stem.to_string(),
+        choix,
+    };
+    let sous_le_type = |stem: &str, cle: &str| format!("{prise}/{STEM}/{stem}/{TYPE}/{cle}");
+    assert_eq!(
+        type_du_stem(&services, &e_voix),
+        TypeVu::Propose(commandes::TypeDeStem::Voix)
+    );
+    assert_eq!(
+        type_du_stem(&services, &e_basse),
+        TypeVu::Propose(commandes::TypeDeStem::Basse)
+    );
+
+    assert_eq!(
+        services.choisir_le_type_d_un_stem(
+            &choix(&e_voix, commandes::ChoixDuType::Garder),
+            &mut contexte
+        ),
+        Ok(Faite {
+            avertissement: None
+        })
+    );
+    assert_eq!(
+        type_du_stem(&services, &e_voix),
+        TypeVu::Garde(commandes::TypeDeStem::Voix)
+    );
+    let fonds = fonds_de(&services);
+    assert_eq!(
+        chaine_sous_les_prises(fonds, &sous_le_type(&e_voix, PAR)).as_deref(),
+        Some(PAR_LE_NOM)
+    );
+    assert_eq!(
+        chaine_sous_les_prises(fonds, &sous_le_type(&e_voix, DEPUIS)).as_deref(),
+        Some(e_voix.as_str())
+    );
+    assert_eq!(
+        messages_du_journal(&services).last().map(String::as_str),
+        Some("Type de « Jeu A/voix.wav » : voix")
+    );
+
+    assert_eq!(
+        services.choisir_le_type_d_un_stem(
+            &choix(
+                &e_voix,
+                commandes::ChoixDuType::Choisir(commandes::TypeDeStem::Choeurs)
+            ),
+            &mut contexte
+        ),
+        Ok(Faite {
+            avertissement: None
+        })
+    );
+    assert_eq!(
+        type_du_stem(&services, &e_voix),
+        TypeVu::Choisi(commandes::TypeDeStem::Choeurs)
+    );
+    let fonds = fonds_de(&services);
+    assert_eq!(
+        chaine_sous_les_prises(fonds, &sous_le_type(&e_voix, PAR)),
+        None
+    );
+    assert_eq!(
+        chaine_sous_les_prises(fonds, &sous_le_type(&e_voix, DEPUIS)),
+        None
+    );
+    assert_eq!(
+        messages_du_journal(&services).last().map(String::as_str),
+        Some("Type de « Jeu A/voix.wav » : chœurs")
+    );
+
+    assert_eq!(
+        services.choisir_le_type_d_un_stem(
+            &choix(
+                &e_basse,
+                commandes::ChoixDuType::Choisir(commandes::TypeDeStem::Voix)
+            ),
+            &mut contexte
+        ),
+        Ok(Faite {
+            avertissement: None
+        })
+    );
+    assert_eq!(
+        type_du_stem(&services, &e_basse),
+        TypeVu::Choisi(commandes::TypeDeStem::Voix)
+    );
+    let fonds = fonds_de(&services);
+    assert_eq!(
+        chaine_sous_les_prises(fonds, &sous_le_type(&e_basse, PAR)),
+        None
+    );
+    assert_eq!(
+        chaine_sous_les_prises(fonds, &sous_le_type(&e_basse, DEPUIS)),
+        None
+    );
+    assert_eq!(
+        messages_du_journal(&services).last().map(String::as_str),
+        Some("Type de « Jeu A/basse.wav » : voix")
+    );
+
+    let avant = messages_du_journal(&services);
+    assert_eq!(
+        services.choisir_le_type_d_un_stem(
+            &choix(
+                &empreinte(b"un stem d'une autre prise"),
+                commandes::ChoixDuType::Garder
+            ),
+            &mut contexte
+        ),
+        Err(Refus {
+            raison: Raison::Impossible,
+            message: "Ce stem n'est pas dans cette prise.".to_string(),
+        })
+    );
+    assert_eq!(messages_du_journal(&services), avant);
+}
+
+/// Le texte versé de contenu `contenu`, tel que `lire_un_texte_verse` le rend.
+fn texte_lu<D: Documents, C: Captations>(
+    services: &Services<D, C>,
+    contenu: &[u8],
+) -> Reponse<commandes::TexteLu> {
+    services.lire_un_texte_verse(&Captation {
+        sorte: commandes::Sorte::TexteVerse,
+        empreinte: empreinte(contenu),
+    })
+}
+
+/// Balayage P3, Q9 ; I31 : un ChordPro en UTF-8 avec sa marque, un texte en UTF-16
+/// petit-boutiste, que sa marque `FF FE` fait reconnaître en texte, non en prise `mp3`, un texte
+/// en Latin-1, illisible, et un Markdown qui porte `<script>` et `&amp;` ; chacun se relit décodé,
+/// sans sa marque, le dernier octet pour octet ; l'illisible, `None`. Une prise, ou une empreinte
+/// qu'aucun texte versé ne porte, est refusée.
+pub fn lire_un_texte_verse_le_rend_tel_quel<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let accords = "{title: Pont du soir}\n[Am]Un pont qui hésite\n";
+    let chordpro = [b"\xEF\xBB\xBF".as_slice(), accords.as_bytes()].concat();
+    let refrain = "Un refrain, là-bas\n";
+    let mut utf16 = vec![0xFF, 0xFE];
+    for unite in refrain.encode_utf16() {
+        utf16.extend(unite.to_le_bytes());
+    }
+    let latin = b"Un \xe9t\xe9 en r\xe9\n".to_vec();
+    let piege = "<script>alert('x')</script> &amp; &lt;b&gt;\n";
+    let prise = wav_de(8_000, 73);
+    let source = paire.source(
+        Some(DOSSIER_VERSE),
+        &[
+            (Some("Accords.cho"), chordpro.clone()),
+            (Some("Latin.txt"), latin.clone()),
+            (Some("Paroles.txt"), utf16.clone()),
+            (Some("Piege.md"), piege.as_bytes().to_vec()),
+            (Some("pont.wav"), prise.clone()),
+        ],
+        &[],
+    );
+
+    importer(&mut services, &source, &[], &mut contexte);
+
+    let fonds = fonds_de(&services);
+    let e_utf16 = empreinte(&utf16);
+    assert!(
+        lecture::lire_la_captation(fonds, gestes::Sorte::TexteVerse, &e_utf16).is_some(),
+        "le texte UTF-16 n'est pas un texte versé"
+    );
+    assert!(
+        lecture::lire_la_captation(fonds, gestes::Sorte::Prise, &e_utf16).is_none(),
+        "le texte UTF-16 est versé en prise"
+    );
+    assert_eq!(
+        format_de(fonds, TEXTES_VERSES, &e_utf16).as_deref(),
+        Some(FormatTexte::Brut.nom())
+    );
+    assert_eq!(
+        texte_lu(&services, &chordpro),
+        Ok(commandes::TexteLu {
+            texte: Some(accords.to_string()),
+        })
+    );
+    assert_eq!(
+        texte_lu(&services, &utf16),
+        Ok(commandes::TexteLu {
+            texte: Some(refrain.to_string()),
+        })
+    );
+    assert_eq!(
+        texte_lu(&services, &latin),
+        Ok(commandes::TexteLu { texte: None })
+    );
+    let relu = texte_lu(&services, piege.as_bytes())
+        .expect("le Markdown se relit")
+        .texte
+        .expect("le Markdown est lisible");
+    assert_eq!(relu.as_bytes(), piege.as_bytes());
+
+    let absente = Err(Refus {
+        raison: Raison::Impossible,
+        message: "Cette captation n'est pas dans le fonds.".to_string(),
+    });
+    assert_eq!(
+        services.lire_un_texte_verse(&Captation {
+            sorte: commandes::Sorte::Prise,
+            empreinte: empreinte(&prise),
+        }),
+        absente
+    );
+    assert_eq!(
+        texte_lu(&services, b"un texte jamais vers\xc3\xa9"),
+        absente
+    );
+}
+
+/// Les comptes du rapport que `clore_l_import` a rendus, relus par `lire_un_rapport` : un WAV, un
+/// WAV d'un dossier déclaré généré, une archive ignorée et un texte illisible. Un import que le
+/// fonds ne porte pas, puis le même, ouvert sans rapport, sont refusés ; son rapport d'une version
+/// plus récente, refusé de `Raison::Illisible`.
+pub fn lire_un_rapport_rend_ses_comptes<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let source = paire.source(
+        Some(DOSSIER_VERSE),
+        &[
+            (Some("Archives/demos.zip"), zip(100)),
+            (Some("Atelier/nappe.wav"), wav_de(8_000, 81)),
+            (Some("Paroles.txt"), b"Un \xe9t\xe9\n".to_vec()),
+            (Some("pont.wav"), wav_de(8_000, 82)),
+        ],
+        &[],
+    );
+    let conduit = importer(
+        &mut services,
+        &source,
+        &[("Atelier", origine_du_dossier(generee("Atelier inventé")))],
+        &mut contexte,
+    );
+    let rapport = conduit.clos.rapport;
+    assert_eq!(rapport.verses.fichiers, 3);
+    assert_eq!(rapport.ignores.fichiers, 1);
+    assert_eq!(rapport.illisibles.fichiers, 1);
+    assert_eq!(rapport.origines_changees, 1);
+
+    assert_eq!(
+        services.lire_un_rapport(&commandes::LireUnRapport {
+            import: conduit.ouvert.import.clone(),
+        }),
+        Ok(rapport)
+    );
+
+    let sans_rapport = Err(Refus {
+        raison: Raison::Impossible,
+        message: "Cet import n'a pas de rapport.".to_string(),
+    });
+    let lire = commandes::LireUnRapport {
+        import: IMPORT.to_string(),
+    };
+    assert_eq!(services.lire_un_rapport(&lire), sans_rapport);
+    ouvrir_l_import(&mut services, &ouvert_a(IMPORT, HEURE), &[]);
+    assert_eq!(services.lire_un_rapport(&lire), sans_rapport);
+    let plus_recent = services
+        .captations()
+        .verser(format!("pupitre-rapport-d-import 2\n{IMPORT}\n").as_bytes())
+        .expect("le rapport d'une version plus récente se verse");
+    ecrire_l_operation(
+        &mut services,
+        &import::clore(&ouvert_a(IMPORT, HEURE), &plus_recent, HEURE, 0),
+    );
+    assert_eq!(
+        services.lire_un_rapport(&lire),
+        Err(Refus {
+            raison: Raison::Illisible,
+            message: "Ce rapport vient d'une version plus récente.".to_string(),
+        })
+    );
+}
+
+/// Question 22 : les générateurs d'un Pupitre neuf, aucun ; puis ceux d'un fonds où « Atelier
+/// inventé » est déclaré sur un dossier et porté par sa prise, « Forge inventée » déclaré seul, sur
+/// un dossier sans fichier, et « Studio rêvé » porté seul, déclaré après l'import sur une prise :
+/// chacun une fois, dans l'ordre de leurs octets.
+pub fn les_generateurs_du_fonds_chacun_une_fois<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    assert_eq!(services.generateurs(), Ok(Vec::new()));
+    let nappe = wav_de(8_000, 91);
+    let libre = wav_de(8_000, 92);
+    let source = paire.source(
+        Some(DOSSIER_VERSE),
+        &[
+            (Some("Atelier/nappe.wav"), nappe.clone()),
+            (Some("libre.wav"), libre.clone()),
+        ],
+        &[],
+    );
+    let import = importer(
+        &mut services,
+        &source,
+        &[
+            ("Atelier", origine_du_dossier(generee("Atelier inventé"))),
+            ("Vide", origine_du_dossier(generee("Forge inventée"))),
+        ],
+        &mut contexte,
+    )
+    .ouvert
+    .import;
+    services
+        .declarer_une_origine(
+            &declaration_sur_la_prise(&libre, generee("Studio rêvé")),
+            &mut contexte,
+        )
+        .expect("l'origine se déclare");
+
+    let fonds = fonds_de(&services);
+    assert_eq!(
+        lecture::origines_de(fonds, &empreinte(&nappe)).generees,
+        BTreeSet::from(["Atelier inventé".to_string()])
+    );
+    assert_eq!(
+        lecture::declarations_de(fonds, &import)
+            .get("Vide")
+            .and_then(|declaration| declaration.origine.clone()),
+        Some(Ajout::Generee("Forge inventée".to_string()))
+    );
+    assert!(
+        !lecture::declarations_de(fonds, &import)
+            .values()
+            .any(|declaration| declaration.origine
+                == Some(Ajout::Generee("Studio rêvé".to_string()))),
+        "« Studio rêvé » est déclaré sur un dossier"
+    );
+    assert_eq!(
+        services.generateurs(),
+        Ok(vec![
+            "Atelier inventé".to_string(),
+            "Forge inventée".to_string(),
+            "Studio rêvé".to_string(),
         ])
     );
 }

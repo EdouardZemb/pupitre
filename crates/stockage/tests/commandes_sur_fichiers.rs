@@ -900,6 +900,52 @@ fn l_import_dans_un_pupitre_neuf_fait_naitre_le_fonds_par_son_ouverture() {
 }
 
 #[test]
+fn cap03_9_une_origine_generee_se_garde_et_ne_se_retire_pas() {
+    let racine = racine_jetable("commandes-cap03-9");
+    suite::cap03_9_une_origine_generee_se_garde_et_ne_se_retire_pas(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn declarer_une_origine_par_prefixe_ne_prend_que_les_segments_entiers() {
+    let racine = racine_jetable("commandes-import-prefixe");
+    suite::declarer_une_origine_par_prefixe_ne_prend_que_les_segments_entiers(
+        &mut PaireSurFichiers { racine: &racine },
+    );
+}
+
+#[test]
+fn declarer_par_prefixe_apres_un_import_rejoue() {
+    let racine = racine_jetable("commandes-import-prefixe-rejoue");
+    suite::declarer_par_prefixe_apres_un_import_rejoue(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn garder_puis_choisir_le_type_d_un_stem() {
+    let racine = racine_jetable("commandes-import-type");
+    suite::garder_puis_choisir_le_type_d_un_stem(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn lire_un_texte_verse_le_rend_tel_quel() {
+    let racine = racine_jetable("commandes-import-texte-lu");
+    suite::lire_un_texte_verse_le_rend_tel_quel(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn lire_un_rapport_rend_ses_comptes() {
+    let racine = racine_jetable("commandes-import-rapport");
+    suite::lire_un_rapport_rend_ses_comptes(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
+fn les_generateurs_du_fonds_chacun_une_fois() {
+    let racine = racine_jetable("commandes-import-generateurs");
+    suite::les_generateurs_du_fonds_chacun_une_fois(&mut PaireSurFichiers { racine: &racine });
+}
+
+#[test]
 fn la_migration_de_test_est_la_meme_dans_les_deux_crates() {
     assert_eq!(suite::migration_de_test(), commun::migration_de_test());
 }
