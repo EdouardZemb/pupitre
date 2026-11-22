@@ -4,18 +4,32 @@
 //! sa teneur, tirés du document sans y écrire. Une valeur se reconnaît à sa variante, jamais par
 //! conversion : une idée dont une valeur n'a pas le type du schéma ne se lit pas. Un conteneur
 //! absent de la racine du document se lit vide.
+//!
+//! Ce que l'import écrit se lit ici aussi (§ 31 · 2 ; questions 9, 18, 20 à 22) : les noms
+//! d'origine d'un contenu et son premier nom vu, ses origines déclarées, ce que le fonds porte déjà
+//! d'un contenu ou d'une prise en stems, les noms qu'a posés un import, les stems d'une prise, les
+//! imports, leurs déclarations et les générateurs. Les clés d'une captation sont à plat,
+//! `<empreinte>/<clé>` : chacune se coupe à sa place (`lire_la_cle`), et le chemin d'un nom garde
+//! ses `/`. Une clé marque, à `true` (l'entrée d'un stem, `manifeste`, le lien d'un stem à son
+//! MIDI, un jeu déclaré, une origine), se lit à sa seule présence.
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use automerge::{Automerge, ObjId, ObjType, ROOT, ReadDoc, ScalarValue, Value};
+use automerge::iter::MapRangeItem;
+use automerge::{Automerge, ChangeHash, ObjId, ObjType, ROOT, ReadDoc, ScalarValue, Value};
 use noyau::donnees::changement::Simple;
 use noyau::donnees::fonds::{
-    CAPTEE, CONTENEURS_NOMMANT_UNE_CAPTATION, DEPUIS, DUREE, ETIQUETTES, IDEE, IDEES, IMPORTEE, LE,
-    LIENS, PAR, PHOTOS, PROVENANCE, REQUETES_ENREGISTREES, RETIREE, TEXTE, VERSION_DE_SCHEMA,
+    CAPTEE, CONTENEURS_NOMMANT_UNE_CAPTATION, DECLARATION, DEPUIS, DUREE, ETIQUETTES, FORMAT,
+    GENEREE, IDEE, IDEES, IMPORTEE, IMPORTS, JEU, LE, LIENS, MAIN, MANIFESTE, MIDI, MIDI_VERSES,
+    NOM, ORIGINES_DECLAREES, OUVERT, PAR, PHOTOS, PRISES, PROVENANCE, RAPPORT,
+    REQUETES_ENREGISTREES, RETIREE, SAISIE, STEM, TEXTE, TYPE, VERSION_DE_SCHEMA,
 };
 use noyau::donnees::gestes::{Appareil, CaptationLue, IdeeLue, Provenance, Sorte};
 use noyau::donnees::idee;
+use noyau::donnees::import::{DejaDeLaPrise, DejaLu, Faits};
+use noyau::donnees::origine::{self, Ajout, Declaration, OriginesLues};
 use noyau::donnees::requete::{RequeteEnregistreeLue, lire_une_requete};
+use noyau::donnees::stems::{TypeDeStem, duree_de_la_prise_en_stems};
 use noyau::donnees::teneur::{ErreurDeTeneur, Valeur, ecrire_la_teneur};
 
 /// L'idée `id`, telle qu'elle se lit : son identifiant, sa provenance (`provenance`, `par`, et
@@ -203,17 +217,49 @@ pub fn version_de_schema(doc: &Automerge) -> Option<u64> {
 }
 
 /// Les empreintes que nomme le document (§ 31 · 6.1) : les clés `<empreinte>/<clé>` des
-/// `CONTENEURS_NOMMANT_UNE_CAPTATION`, par `idee::empreintes_nommees` ; un conteneur absent de la
-/// racine du document, ou qui n'est pas un objet à clés, se saute.
+/// `CONTENEURS_NOMMANT_UNE_CAPTATION`, et chaque valeur de `imports/<i>/rapport`, celles d'un
+/// conflit comprises, par `idee::empreintes_nommees` ; un conteneur absent de la racine du
+/// document, ou qui n'est pas un objet à clés, se saute.
 pub fn empreintes_nommees(doc: &Automerge) -> BTreeSet<String> {
-    CONTENEURS_NOMMANT_UNE_CAPTATION
+    nommees_selon(Lecture::courante(doc))
+}
+
+/// Les empreintes nommées à la tête `tete` (`keys_at`, `map_range_at`, `get_all_at`), comme
+/// `empreintes_nommees` : les captations connues à l'ouverture d'un import.
+pub fn empreintes_nommees_a(doc: &Automerge, tete: &[ChangeHash]) -> BTreeSet<String> {
+    nommees_selon(Lecture {
+        doc,
+        tete: Some(tete),
+    })
+}
+
+/// Les empreintes nommées, selon `lecture` (`empreintes_nommees`).
+fn nommees_selon(lecture: Lecture<'_>) -> BTreeSet<String> {
+    let mut rapports = Vec::new();
+    if let Some(imports) = lecture.conteneur(IMPORTS) {
+        for element in lecture.sous(&imports, "") {
+            let valeur = element.value.into_value();
+            let cle: &str = &element.key;
+            if cle.split_once('/').is_some_and(|(_, fait)| fait == RAPPORT) {
+                rapports.extend(chaines(lecture, &imports, cle, valeur, element.conflict));
+            }
+        }
+    }
+    let mut nommees = idee::empreintes_nommees(
+        std::iter::empty::<&str>(),
+        rapports.iter().map(String::as_str),
+    );
+    for conteneur in CONTENEURS_NOMMANT_UNE_CAPTATION
         .into_iter()
-        .filter_map(|conteneur| objet(doc, &ROOT, conteneur))
-        .flat_map(|conteneur| {
-            let cles: Vec<String> = doc.keys(&conteneur).collect();
-            idee::empreintes_nommees(cles.iter().map(String::as_str), [])
-        })
-        .collect()
+        .filter_map(|conteneur| lecture.conteneur(conteneur))
+    {
+        let cles = lecture.cles(&conteneur);
+        nommees.extend(idee::empreintes_nommees(
+            cles.iter().map(String::as_str),
+            [],
+        ));
+    }
+    nommees
 }
 
 /// La teneur de `doc` (§ 31 · 2.6) : son arbre, lu sur la valeur que présente Automerge
@@ -379,9 +425,12 @@ fn liens_par_bout(doc: &Automerge) -> BTreeMap<String, BTreeSet<String>> {
 }
 
 /// De chaque empreinte du conteneur de `sorte`, son idée et sa durée, telles qu'elles se lisent :
-/// le conteneur se parcourt par `map_range`, en un passage, chaque clé coupée au premier `/`, et
-/// une valeur qui n'est pas simple se saute. Un conteneur absent de la racine du document,
-/// aucune.
+/// le conteneur se parcourt par `map_range`, en un passage, chaque clé coupée à sa place
+/// (`lire_la_cle`), et une valeur qui n'est pas simple se saute. Une empreinte sans `idee`, le
+/// MIDI d'un stem sous `midi_verses`, n'est la captation d'aucune idée (question 21). D'une prise
+/// en stems (`<p>/manifeste`), la durée est celle de ses stems (`duree_de_la_prise_en_stems`),
+/// énumérés par leur entrée `<p>/stem/<s>`, jamais par leurs clés `…/duree` : un stem sans
+/// `duree` la rend `None` (balayage Q4). Un conteneur absent de la racine du document, aucune.
 fn faits_de_la_sorte(
     doc: &Automerge,
     sorte: Sorte,
@@ -390,19 +439,772 @@ fn faits_de_la_sorte(
     let Some(conteneur) = objet(doc, &ROOT, sorte.conteneur()) else {
         return faits;
     };
+    let mut manifestes: BTreeSet<String> = BTreeSet::new();
+    let mut entrees: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    let mut durees_des_stems: BTreeMap<String, BTreeMap<String, u64>> = BTreeMap::new();
     for element in doc.map_range(&conteneur, ..) {
         let Value::Scalar(simple) = element.value.into_value() else {
             continue;
         };
-        let Some((empreinte, fait)) = element.key.split_once('/') else {
-            continue;
-        };
-        let entree = faits.entry(empreinte.to_string()).or_default();
-        match fait {
-            IDEE => entree.0 = chaine(&simple),
-            DUREE => entree.1 = naturel(&simple),
+        match lire_la_cle(&element.key) {
+            CleDeCaptation::Fait { empreinte, fait } => {
+                let entree = faits.entry(empreinte.to_string()).or_default();
+                match fait {
+                    IDEE => entree.0 = chaine(&simple),
+                    DUREE => entree.1 = naturel(&simple),
+                    MANIFESTE => {
+                        manifestes.insert(empreinte.to_string());
+                    }
+                    _ => {}
+                }
+            }
+            CleDeCaptation::EntreeDuStem { prise, stem } => {
+                entrees
+                    .entry(prise.to_string())
+                    .or_default()
+                    .insert(stem.to_string());
+            }
+            CleDeCaptation::FaitDuStem {
+                prise,
+                stem,
+                fait: DUREE,
+            } => {
+                if let Some(duree) = naturel(&simple) {
+                    durees_des_stems
+                        .entry(prise.to_string())
+                        .or_default()
+                        .insert(stem.to_string(), duree);
+                }
+            }
             _ => {}
         }
     }
+    for prise in manifestes {
+        let durees = durees_des_stems.get(&prise);
+        let des_stems: Vec<Option<u64>> = match entrees.get(&prise) {
+            Some(stems) => stems
+                .iter()
+                .map(|stem| durees.and_then(|durees| durees.get(stem)).copied())
+                .collect(),
+            None => Vec::new(),
+        };
+        faits.entry(prise).or_default().1 = duree_de_la_prise_en_stems(&des_stems);
+    }
     faits
+}
+
+/// Une clé à plat d'un conteneur de captations, coupée à sa place : le chemin d'un nom garde ses
+/// `/`, et un segment ne se lit jamais dans un nom. La prise d'un nom ou d'un MIDI de stem ne
+/// s'y garde pas : aucune lecture ne s'en sert, chacune parcourant une prise à la fois, ou toutes.
+#[derive(Clone, Copy, Debug)]
+enum CleDeCaptation<'c> {
+    /// `<empreinte>/<fait>`, le fait sans `/` : `idee`, `format`, `duree`, `manifeste`…
+    Fait { empreinte: &'c str, fait: &'c str },
+    /// `<empreinte>/nom/<chemin>` : un nom d'origine.
+    Nom { empreinte: &'c str, chemin: &'c str },
+    /// `<p>/stem/<s>` : l'entrée du stem `<s>` dans la prise en stems `<p>`.
+    EntreeDuStem { prise: &'c str, stem: &'c str },
+    /// `<p>/stem/<s>/nom/<chemin>` : un nom d'origine du stem.
+    NomDuStem { stem: &'c str, chemin: &'c str },
+    /// `<p>/stem/<s>/midi/<m>` : le MIDI `<m>` qui accompagne le stem.
+    MidiDuStem { stem: &'c str, midi: &'c str },
+    /// `<p>/stem/<s>/<fait>`, hors d'un nom et d'un MIDI : `format`, `duree`, `type`,
+    /// `type/provenance`…
+    FaitDuStem {
+        prise: &'c str,
+        stem: &'c str,
+        fait: &'c str,
+    },
+    /// Toute autre forme, une clé sans `/` comprise.
+    Autre,
+}
+
+/// La clé `cle` d'un conteneur de captations, coupée à sa place (`CleDeCaptation`) : son premier
+/// segment, l'empreinte ; puis, si le deuxième vaut `nom`, le reste est un chemin ; s'il vaut
+/// `stem`, le troisième est le stem, et ce qui le suit, s'il vaut `nom/<chemin>`, `midi/<m>` ou un
+/// autre fait, se coupe de même.
+fn lire_la_cle(cle: &str) -> CleDeCaptation<'_> {
+    let mut segments = cle.splitn(3, '/');
+    let (Some(empreinte), Some(deuxieme)) = (segments.next(), segments.next()) else {
+        return CleDeCaptation::Autre;
+    };
+    match (deuxieme, segments.next()) {
+        (fait, None) => CleDeCaptation::Fait { empreinte, fait },
+        (NOM, Some(chemin)) => CleDeCaptation::Nom { empreinte, chemin },
+        (STEM, Some(sous_la_prise)) => {
+            let prise = empreinte;
+            let Some((stem, fait)) = sous_la_prise.split_once('/') else {
+                return CleDeCaptation::EntreeDuStem {
+                    prise,
+                    stem: sous_la_prise,
+                };
+            };
+            match fait.split_once('/') {
+                Some((NOM, chemin)) => CleDeCaptation::NomDuStem { stem, chemin },
+                Some((MIDI, midi)) => CleDeCaptation::MidiDuStem { stem, midi },
+                _ => CleDeCaptation::FaitDuStem { prise, stem, fait },
+            }
+        }
+        _ => CleDeCaptation::Autre,
+    }
+}
+
+/// Une lecture du document : à sa tête courante (`tete` à `None`), ou à la tête `tete`, chaque
+/// appel d'Automerge par sa forme `_at` (`get_at`, `keys_at`, `map_range_at`, `get_all_at`).
+#[derive(Clone, Copy)]
+struct Lecture<'d> {
+    doc: &'d Automerge,
+    tete: Option<&'d [ChangeHash]>,
+}
+
+impl<'d> Lecture<'d> {
+    /// La lecture de `doc` à sa tête courante.
+    fn courante(doc: &'d Automerge) -> Self {
+        Lecture { doc, tete: None }
+    }
+
+    /// L'objet à clés que porte `cle` à la racine du document ; absent, ou de tout autre type,
+    /// `None`.
+    fn conteneur(self, cle: &str) -> Option<ObjId> {
+        let lu = match self.tete {
+            None => self.doc.get(ROOT, cle),
+            Some(tete) => self.doc.get_at(ROOT, cle, tete),
+        };
+        match lu {
+            Ok(Some((Value::Object(ObjType::Map), id))) => Some(id),
+            _ => None,
+        }
+    }
+
+    /// Les clés de `objet`, dans leur ordre.
+    fn cles(self, objet: &ObjId) -> Vec<String> {
+        match self.tete {
+            None => self.doc.keys(objet).collect(),
+            Some(tete) => self.doc.keys_at(objet, tete).collect(),
+        }
+    }
+
+    /// Les éléments de `objet` dont la clé commence par `prefixe`, dans l'ordre des clés : un seul
+    /// passage de `map_range`, depuis `prefixe`, arrêté à la première clé qui ne le porte plus ;
+    /// le préfixe vide les prend tous.
+    fn sous(
+        self,
+        objet: &ObjId,
+        prefixe: &str,
+    ) -> impl Iterator<Item = MapRangeItem<'d>> + use<'d> {
+        let depuis = prefixe.to_string();
+        let elements = match self.tete {
+            None => self.doc.map_range(objet, depuis..),
+            Some(tete) => self.doc.map_range_at(objet, depuis.., tete),
+        };
+        let prefixe = prefixe.to_string();
+        elements.take_while(move |element| element.key.starts_with(prefixe.as_str()))
+    }
+
+    /// Chaque valeur de la clé `cle` de `objet`, celles d'un conflit comprises (`get_all`) ; une
+    /// clé qui ne se lit pas n'en a aucune.
+    fn toutes(self, objet: &ObjId, cle: &str) -> Vec<Value<'d>> {
+        let lues = match self.tete {
+            None => self.doc.get_all(objet, cle),
+            Some(tete) => self.doc.get_all_at(objet, cle, tete),
+        };
+        lues.map(|valeurs| valeurs.into_iter().map(|(valeur, _)| valeur).collect())
+            .unwrap_or_default()
+    }
+}
+
+/// Les chaînes de la clé `cle` de `objet`, de valeur `valeur` : elle seule, ou, en conflit
+/// (`conflit`), chacune de ses valeurs (`Lecture::toutes`) ; une valeur d'un autre type se saute.
+fn chaines(
+    lecture: Lecture<'_>,
+    objet: &ObjId,
+    cle: &str,
+    valeur: Value<'_>,
+    conflit: bool,
+) -> Vec<String> {
+    if conflit {
+        lecture
+            .toutes(objet, cle)
+            .iter()
+            .filter_map(|valeur| simple_de(valeur, chaine))
+            .collect()
+    } else {
+        simple_de(&valeur, chaine).into_iter().collect()
+    }
+}
+
+/// La valeur simple que porte `valeur`, telle que `typer` la reconnaît à sa variante ; un objet,
+/// ou une valeur d'un autre type, `None`.
+fn simple_de<T>(valeur: &Value<'_>, typer: fn(&ScalarValue) -> Option<T>) -> Option<T> {
+    match valeur {
+        Value::Scalar(simple) => typer(simple),
+        Value::Object(_) => None,
+    }
+}
+
+/// Les noms d'origine du contenu `empreinte` sous `conteneur` (ou, `stem` donné, sous l'entrée de
+/// ce stem dans la prise `empreinte`) : chaque couple (chemin, ULID), chaque valeur d'une clé lue
+/// par `get_all` (question 20), dans l'ordre des chemins. Un conteneur absent, aucun.
+pub fn noms_de(
+    doc: &Automerge,
+    conteneur: &str,
+    empreinte: &str,
+    stem: Option<&str>,
+) -> Vec<(String, String)> {
+    let lecture = Lecture::courante(doc);
+    let Some(objet) = lecture.conteneur(conteneur) else {
+        return Vec::new();
+    };
+    let prefixe = match stem {
+        None => format!("{empreinte}/{NOM}/"),
+        Some(stem) => format!("{empreinte}/{STEM}/{stem}/{NOM}/"),
+    };
+    let mut noms = Vec::new();
+    for element in lecture.sous(&objet, &prefixe) {
+        let valeur = element.value.into_value();
+        let cle: &str = &element.key;
+        let chemin = &cle[prefixe.len()..];
+        for ulid in chaines(lecture, &objet, cle, valeur, element.conflict) {
+            noms.push((chemin.to_string(), ulid));
+        }
+    }
+    noms
+}
+
+/// Le premier nom vu d'un contenu, d'après `origine::premier_nom_vu` (question 20), parmi tous ses
+/// noms : sous les trois conteneurs (`noms_de`), puis sous l'entrée de chaque stem
+/// (`<p>/stem/<empreinte>/nom/<chemin>`, cherchée dans toutes les prises) ; aucun nom, `None`.
+pub fn premier_nom_vu(doc: &Automerge, empreinte: &str) -> Option<String> {
+    let lecture = Lecture::courante(doc);
+    let mut noms: Vec<(String, String)> = CONTENEURS_NOMMANT_UNE_CAPTATION
+        .into_iter()
+        .flat_map(|conteneur| noms_de(doc, conteneur, empreinte, None))
+        .collect();
+    if let Some(prises) = lecture.conteneur(PRISES) {
+        for element in lecture.sous(&prises, "") {
+            let valeur = element.value.into_value();
+            let cle: &str = &element.key;
+            if let CleDeCaptation::NomDuStem { stem, chemin } = lire_la_cle(cle)
+                && stem == empreinte
+            {
+                for ulid in chaines(lecture, &prises, cle, valeur, element.conflict) {
+                    noms.push((chemin.to_string(), ulid));
+                }
+            }
+        }
+    }
+    origine::premier_nom_vu(
+        noms.iter()
+            .map(|(chemin, ulid)| (chemin.as_str(), ulid.as_str())),
+    )
+    .map(str::to_string)
+}
+
+/// L'ensemble des origines du contenu `empreinte`, sous `origines_declarees` : `<e>/main`, et
+/// chaque `<e>/generee/<nom>`, le nom non vide.
+pub fn origines_de(doc: &Automerge, empreinte: &str) -> OriginesLues {
+    origines_selon(Lecture::courante(doc), empreinte)
+}
+
+/// La même lecture qu'`origines_de`, à la tête `tete` (`get_at`, `map_range_at`).
+pub fn origines_a(doc: &Automerge, empreinte: &str, tete: &[ChangeHash]) -> OriginesLues {
+    origines_selon(
+        Lecture {
+            doc,
+            tete: Some(tete),
+        },
+        empreinte,
+    )
+}
+
+/// Les origines du contenu `empreinte`, selon `lecture` (`origines_de`).
+fn origines_selon(lecture: Lecture<'_>, empreinte: &str) -> OriginesLues {
+    let mut lues = OriginesLues::default();
+    let Some(origines) = lecture.conteneur(ORIGINES_DECLAREES) else {
+        return lues;
+    };
+    let prefixe = format!("{empreinte}/");
+    for element in lecture.sous(&origines, &prefixe) {
+        let element_d_origine = &element.key[prefixe.len()..];
+        if element_d_origine == MAIN {
+            lues.main = true;
+        } else if let Some(nom) = nom_genere(element_d_origine) {
+            lues.generees.insert(nom.to_string());
+        }
+    }
+    lues
+}
+
+/// Le nom de `generee/<nom>`, s'il n'est pas vide.
+fn nom_genere(element_d_origine: &str) -> Option<&str> {
+    element_d_origine
+        .strip_prefix(GENEREE)?
+        .strip_prefix('/')
+        .filter(|nom| !nom.is_empty())
+}
+
+/// Ce que le fonds porte du contenu `empreinte` : nommé par le fonds, d'après `nommees`, les
+/// empreintes nommées que l'état de l'import lit une fois à l'ouverture et tient à jour à chaque
+/// versement (R26) ; ses noms sous le conteneur de `sorte` (les chemins de `noms_de`) ; ses
+/// origines (`origines_de`).
+pub fn deja_lu(
+    doc: &Automerge,
+    sorte: Sorte,
+    empreinte: &str,
+    nommees: &BTreeSet<String>,
+) -> DejaLu {
+    DejaLu {
+        captation: nommees.contains(empreinte),
+        noms: chemins_des_noms(doc, sorte.conteneur(), empreinte),
+        origines: origines_de(doc, empreinte),
+    }
+}
+
+/// Les noms qu'a posés un import (R2, R7).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct NomsPoses {
+    /// Les noms de fichiers que l'import a posés, chacun sous son chemin : l'empreinte du contenu,
+    /// et vrai s'il est illisible, aucun `format` ne se lisant pour ce contenu dans son conteneur,
+    /// ni, sous `prises`, sous l'entrée d'un stem (R7) ; un fichier versé seul et le stem d'un jeu
+    /// du même contenu ont ainsi le même sort.
+    pub fichiers: BTreeMap<String, (String, bool)>,
+    /// Les noms de ses prises en stems (R2) : le chemin de leur dossier, ou le dernier segment
+    /// d'un jeu versé seul.
+    pub jeux: BTreeSet<String>,
+}
+
+/// Les noms qu'a posés l'import `import`, ceux dont une valeur est son ULID, celles d'un conflit
+/// comprises (question 20) : ceux des fichiers, `<e>/nom/<chemin>` sous `prises` (hors d'une prise
+/// marquée `manifeste`), `midi_verses` et `textes_verses`, et `<p>/stem/<s>/nom/<chemin>` ; et, à
+/// part, ceux de ses prises en stems (R2). Chaque nom de fichier va avec son empreinte, et si sa
+/// captation n'a pas de `format` (un illisible, R7 ; `NomsPoses::fichiers`). L'entrée
+/// `<p>/stem/<s>`, à `true`, n'est pas un nom : elle se saute. Chaque conteneur se parcourt une
+/// fois.
+pub fn noms_poses_par(doc: &Automerge, import: &str) -> NomsPoses {
+    let lecture = Lecture::courante(doc);
+    let mut poses = NomsPoses::default();
+    for sorte in Sorte::TOUTES {
+        let Some(objet) = lecture.conteneur(sorte.conteneur()) else {
+            continue;
+        };
+        let mut lisibles: BTreeSet<String> = BTreeSet::new();
+        let mut manifestes: BTreeSet<String> = BTreeSet::new();
+        let mut noms: Vec<(String, String)> = Vec::new();
+        for element in lecture.sous(&objet, "") {
+            let valeur = element.value.into_value();
+            let cle: &str = &element.key;
+            let (empreinte, chemin) = match lire_la_cle(cle) {
+                CleDeCaptation::Fait {
+                    empreinte,
+                    fait: FORMAT,
+                }
+                | CleDeCaptation::FaitDuStem {
+                    stem: empreinte,
+                    fait: FORMAT,
+                    ..
+                } => {
+                    if simple_de(&valeur, chaine).is_some() {
+                        lisibles.insert(empreinte.to_string());
+                    }
+                    continue;
+                }
+                CleDeCaptation::Fait {
+                    empreinte,
+                    fait: MANIFESTE,
+                } => {
+                    manifestes.insert(empreinte.to_string());
+                    continue;
+                }
+                CleDeCaptation::Nom { empreinte, chemin }
+                | CleDeCaptation::NomDuStem {
+                    stem: empreinte,
+                    chemin,
+                } => (empreinte, chemin),
+                _ => continue,
+            };
+            let ulids = chaines(lecture, &objet, cle, valeur, element.conflict);
+            if ulids.iter().any(|ulid| ulid == import) {
+                noms.push((empreinte.to_string(), chemin.to_string()));
+            }
+        }
+        for (empreinte, chemin) in noms {
+            if manifestes.contains(&empreinte) {
+                poses.jeux.insert(chemin);
+            } else {
+                let illisible = !lisibles.contains(&empreinte);
+                poses.fichiers.insert(chemin, (empreinte, illisible));
+            }
+        }
+    }
+    poses
+}
+
+/// Les chemins des noms d'origine du contenu `empreinte` sous `conteneur` (`noms_de`).
+fn chemins_des_noms(doc: &Automerge, conteneur: &str, empreinte: &str) -> BTreeSet<String> {
+    noms_de(doc, conteneur, empreinte, None)
+        .into_iter()
+        .map(|(chemin, _)| chemin)
+        .collect()
+}
+
+/// Ce que le fonds porte d'une prise en stems, de ses stems et de leurs MIDI, et les liens d'un
+/// stem à son MIDI déjà posés sous elle : chaque clé `<p>/stem/<s>/midi/<m>` de `prises`, en
+/// `DejaDeLaPrise::liens_midi` (revue de la tâche 6). Comme la doc d'`import::DejaDeLaPrise` :
+/// `stems[s].origines` et `midis[m].origines` sont les origines du contenu, à quelque rôle que ce
+/// soit ; elles se remplissent pour chaque stem et chaque MIDI du versement, même sous une prise
+/// neuve ; `captation` n'y sert que pour les MIDI (balayage Q14). L'entrée `<p>/stem/<s>`, à
+/// `true`, n'est pas un nom (balayage Q4). La prise est portée (`prise.captation`) dès qu'une clé
+/// de `prises` commence par `<manifeste>/` ; un stem, dès que son entrée est sous elle ; un MIDI,
+/// dès qu'une clé de `midi_verses` commence par `<m>/`. `prises` se parcourt une fois, depuis
+/// `<manifeste>/`.
+pub fn deja_de_la_prise(
+    doc: &Automerge,
+    manifeste: &str,
+    stems: &[&str],
+    midis: &[&str],
+) -> DejaDeLaPrise {
+    let lecture = Lecture::courante(doc);
+    let mut deja = DejaDeLaPrise {
+        prise: DejaLu {
+            origines: origines_de(doc, manifeste),
+            ..DejaLu::default()
+        },
+        ..DejaDeLaPrise::default()
+    };
+    for stem in stems {
+        deja.stems.insert(
+            stem.to_string(),
+            DejaLu {
+                origines: origines_de(doc, stem),
+                ..DejaLu::default()
+            },
+        );
+    }
+    let midi_verses = lecture.conteneur(MIDI_VERSES);
+    for midi in midis {
+        let captation = midi_verses
+            .as_ref()
+            .is_some_and(|objet| lecture.sous(objet, &format!("{midi}/")).next().is_some());
+        deja.midis.insert(
+            midi.to_string(),
+            DejaLu {
+                captation,
+                noms: chemins_des_noms(doc, MIDI_VERSES, midi),
+                origines: origines_de(doc, midi),
+            },
+        );
+    }
+    let Some(prises) = lecture.conteneur(PRISES) else {
+        return deja;
+    };
+    for element in lecture.sous(&prises, &format!("{manifeste}/")) {
+        deja.prise.captation = true;
+        match lire_la_cle(&element.key) {
+            CleDeCaptation::Nom { chemin, .. } => {
+                deja.prise.noms.insert(chemin.to_string());
+            }
+            CleDeCaptation::EntreeDuStem { stem, .. } => {
+                if let Some(du_stem) = deja.stems.get_mut(stem) {
+                    du_stem.captation = true;
+                }
+            }
+            CleDeCaptation::NomDuStem { stem, chemin } => {
+                if let Some(du_stem) = deja.stems.get_mut(stem) {
+                    du_stem.noms.insert(chemin.to_string());
+                }
+            }
+            CleDeCaptation::MidiDuStem { stem, midi } => {
+                deja.liens_midi.insert((stem.to_string(), midi.to_string()));
+            }
+            _ => {}
+        }
+    }
+    deja
+}
+
+/// D'où vient le type d'un stem (question 18 ; § 30 · 8.1), tel que `…/type/provenance` le dit.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ProvenanceDuType {
+    /// Gardé : `importee`, proposé d'après le nom du stem ; `par` (`nom`) et `depuis` (le stem),
+    /// tels qu'ils se lisent sous `…/type/par` et `…/type/depuis`.
+    Garde {
+        par: Option<String>,
+        depuis: Option<String>,
+    },
+    /// Choisi : `saisie`, qui n'a ni `par` ni `depuis`.
+    Choisi,
+}
+
+/// Le type gardé ou choisi d'un stem, sous `prises/<p>/stem/<s>/type…`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TypeLu {
+    /// Le type, `…/type`, lu par `TypeDeStem::lire`.
+    pub type_de_stem: TypeDeStem,
+    /// Sa provenance, `…/type/provenance`.
+    pub provenance: ProvenanceDuType,
+    /// L'heure où il fut gardé ou choisi, `…/type/le`, en secondes.
+    pub le: Option<i64>,
+}
+
+/// Un stem d'une prise en stems, tel qu'il se lit sous son entrée `<p>/stem/<s>`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StemLu {
+    /// Son empreinte.
+    pub empreinte: String,
+    /// Ses faits : son format (`…/format`) et sa durée (`…/duree`), les seuls qu'un stem porte ; les
+    /// autres à `None`.
+    pub faits: Faits,
+    /// Ses noms d'origine, ceux de `<p>/stem/<s>/nom/…` seuls : chaque couple (chemin, ULID), dans
+    /// l'ordre des chemins (`noms_de`).
+    pub noms: Vec<(String, String)>,
+    /// Son type gardé ou choisi ; `None` s'il n'en a pas, ou si `…/type` n'est pas un type, ou
+    /// `…/type/provenance` ni `importee` ni `saisie` : l'écran propose alors un type d'après son
+    /// nom.
+    pub type_de_stem: Option<TypeLu>,
+    /// Les MIDI qui l'accompagnent (`…/midi/<m>`), dans l'ordre de leurs empreintes : un seul par
+    /// import (question 17), d'autres si un import suivant en verse un autre.
+    pub midis: BTreeSet<String>,
+}
+
+/// Ce qui se lit d'un stem sous sa prise, en un passage, avant d'en faire un `StemLu`.
+#[derive(Default)]
+struct StemEnLecture {
+    format: Option<String>,
+    duree: Option<u64>,
+    noms: Vec<(String, String)>,
+    type_de_stem: Option<String>,
+    provenance: Option<String>,
+    par: Option<String>,
+    depuis: Option<String>,
+    le: Option<i64>,
+    midis: BTreeSet<String>,
+}
+
+impl StemEnLecture {
+    /// Le type lu (`StemLu::type_de_stem`).
+    fn type_lu(&self) -> Option<TypeLu> {
+        let type_de_stem = TypeDeStem::lire(self.type_de_stem.as_deref()?)?;
+        let provenance = match self.provenance.as_deref()? {
+            IMPORTEE => ProvenanceDuType::Garde {
+                par: self.par.clone(),
+                depuis: self.depuis.clone(),
+            },
+            SAISIE => ProvenanceDuType::Choisi,
+            _ => return None,
+        };
+        Some(TypeLu {
+            type_de_stem,
+            provenance,
+            le: self.le,
+        })
+    }
+}
+
+/// Les stems de la prise `prise`, énumérés par leur entrée `<p>/stem/<s>` (balayage Q4), dans
+/// l'ordre de leurs empreintes : leurs faits, leurs noms, leur type gardé ou choisi, avec sa
+/// provenance, et leur MIDI. Les noms d'un stem sont ceux de `<p>/stem/<s>/nom/…` : les noms posés
+/// hors du jeu, sur le même contenu versé seul (`prises/<s>/nom/…`), n'y sont pas (balayage Q19).
+/// Une clé `<p>/stem/<s>/…` sans l'entrée de son stem ne fait pas un stem. `prises` se parcourt
+/// une fois, depuis `<p>/stem/`.
+pub fn stems_de(doc: &Automerge, prise: &str) -> Vec<StemLu> {
+    let lecture = Lecture::courante(doc);
+    let Some(prises) = lecture.conteneur(PRISES) else {
+        return Vec::new();
+    };
+    let mut entrees: BTreeSet<String> = BTreeSet::new();
+    let mut lus: BTreeMap<String, StemEnLecture> = BTreeMap::new();
+    for element in lecture.sous(&prises, &format!("{prise}/{STEM}/")) {
+        let valeur = element.value.into_value();
+        let cle: &str = &element.key;
+        match lire_la_cle(cle) {
+            CleDeCaptation::EntreeDuStem { stem, .. } => {
+                entrees.insert(stem.to_string());
+            }
+            CleDeCaptation::NomDuStem { stem, chemin } => {
+                let ulids = chaines(lecture, &prises, cle, valeur, element.conflict);
+                let lu = lus.entry(stem.to_string()).or_default();
+                lu.noms
+                    .extend(ulids.into_iter().map(|ulid| (chemin.to_string(), ulid)));
+            }
+            CleDeCaptation::MidiDuStem { stem, midi } => {
+                lus.entry(stem.to_string())
+                    .or_default()
+                    .midis
+                    .insert(midi.to_string());
+            }
+            CleDeCaptation::FaitDuStem { stem, fait, .. } => {
+                let lu = lus.entry(stem.to_string()).or_default();
+                match fait.split_once('/') {
+                    None => match fait {
+                        FORMAT => lu.format = simple_de(&valeur, chaine),
+                        DUREE => lu.duree = simple_de(&valeur, naturel),
+                        TYPE => lu.type_de_stem = simple_de(&valeur, chaine),
+                        _ => {}
+                    },
+                    Some((TYPE, sous_le_type)) => match sous_le_type {
+                        PROVENANCE => lu.provenance = simple_de(&valeur, chaine),
+                        PAR => lu.par = simple_de(&valeur, chaine),
+                        DEPUIS => lu.depuis = simple_de(&valeur, chaine),
+                        LE => lu.le = simple_de(&valeur, entier),
+                        _ => {}
+                    },
+                    Some(_) => {}
+                }
+            }
+            _ => {}
+        }
+    }
+    entrees
+        .into_iter()
+        .map(|stem| {
+            let lu = lus.remove(&stem).unwrap_or_default();
+            let type_de_stem = lu.type_lu();
+            StemLu {
+                empreinte: stem,
+                faits: Faits {
+                    format: lu.format,
+                    duree_ms: lu.duree,
+                    ..Faits::default()
+                },
+                noms: lu.noms,
+                type_de_stem,
+                midis: lu.midis,
+            }
+        })
+        .collect()
+}
+
+/// Un import, tel qu'il se lit sous `imports/<ULID>/…`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ImportLu {
+    /// Son ULID.
+    pub import: String,
+    /// L'heure de son ouverture, `<i>/ouvert`, en secondes.
+    pub ouvert_le: i64,
+    /// Clos, l'empreinte de son rapport, `<i>/rapport` (question 25).
+    pub rapport: Option<String>,
+}
+
+/// Les imports, chacun avec l'heure de son ouverture et, clos, l'empreinte de son rapport, dans
+/// l'ordre de leurs ULID ; un import dont `ouvert` ne se lit pas en entier ne se lit pas.
+pub fn imports(doc: &Automerge) -> Vec<ImportLu> {
+    let lecture = Lecture::courante(doc);
+    let Some(objet) = lecture.conteneur(IMPORTS) else {
+        return Vec::new();
+    };
+    let mut lus: BTreeMap<String, (Option<i64>, Option<String>)> = BTreeMap::new();
+    for element in lecture.sous(&objet, "") {
+        let valeur = element.value.into_value();
+        let Some((import, fait)) = element.key.split_once('/') else {
+            continue;
+        };
+        match fait {
+            OUVERT => lus.entry(import.to_string()).or_default().0 = simple_de(&valeur, entier),
+            RAPPORT => lus.entry(import.to_string()).or_default().1 = simple_de(&valeur, chaine),
+            _ => {}
+        }
+    }
+    lus.into_iter()
+        .filter_map(|(import, (ouvert_le, rapport))| {
+            Some(ImportLu {
+                import,
+                ouvert_le: ouvert_le?,
+                rapport,
+            })
+        })
+        .collect()
+}
+
+/// Les déclarations des imports dont l'ULID suit `prefixe` (tous, au préfixe vide), rangées par
+/// import puis par chemin : `imports/<i>/declaration/<chemin>`, lu par `Ajout::lire`, et
+/// `imports/<i>/jeu/<chemin>`, réunis par chemin en une `Declaration` (balayage Q3). Une valeur
+/// qui ne se lit pas ne donne pas d'origine, et un chemin dont aucune clé ne se lit n'a pas de
+/// déclaration. `imports` se parcourt une fois, depuis `prefixe`.
+fn declarations_par_import(
+    lecture: Lecture<'_>,
+    prefixe: &str,
+) -> BTreeMap<String, BTreeMap<String, Declaration>> {
+    let mut par_import: BTreeMap<String, BTreeMap<String, Declaration>> = BTreeMap::new();
+    let Some(objet) = lecture.conteneur(IMPORTS) else {
+        return par_import;
+    };
+    for element in lecture.sous(&objet, prefixe) {
+        let valeur = element.value.into_value();
+        let mut segments = element.key.splitn(3, '/');
+        let (Some(import), Some(famille), Some(chemin)) =
+            (segments.next(), segments.next(), segments.next())
+        else {
+            continue;
+        };
+        match famille {
+            DECLARATION => {
+                if let Some(ajout) = simple_de(&valeur, chaine).as_deref().and_then(Ajout::lire) {
+                    declaration_de(&mut par_import, import, chemin).origine = Some(ajout);
+                }
+            }
+            JEU => declaration_de(&mut par_import, import, chemin).stems = true,
+            _ => {}
+        }
+    }
+    par_import
+}
+
+/// La déclaration du chemin `chemin` sous l'import `import`, créée vide s'il n'en a pas encore.
+fn declaration_de<'p>(
+    par_import: &'p mut BTreeMap<String, BTreeMap<String, Declaration>>,
+    import: &str,
+    chemin: &str,
+) -> &'p mut Declaration {
+    par_import
+        .entry(import.to_string())
+        .or_default()
+        .entry(chemin.to_string())
+        .or_default()
+}
+
+/// Les déclarations de l'import `import` : `imports/<i>/declaration/<chemin>`, lu par
+/// `Ajout::lire` (une valeur qui ne se lit pas ne donne pas d'origine), et
+/// `imports/<i>/jeu/<chemin>`, réunis par chemin en une `Declaration` (balayage Q3).
+pub fn declarations_de(doc: &Automerge, import: &str) -> BTreeMap<String, Declaration> {
+    declarations_par_import(Lecture::courante(doc), &format!("{import}/"))
+        .remove(import)
+        .unwrap_or_default()
+}
+
+/// Pour chaque chemin, la `Declaration` entière de l'import le plus récent qui a écrit l'une de ses
+/// deux clés, et non famille par famille (question 9 ; balayage Q3) : les imports se prennent dans
+/// l'ordre de leurs ULID, que leur heure ouvre, chacun remplaçant la déclaration d'un chemin qu'il
+/// déclare.
+pub fn dernieres_declarations(doc: &Automerge) -> BTreeMap<String, Declaration> {
+    let mut dernieres = BTreeMap::new();
+    for declarations in declarations_par_import(Lecture::courante(doc), "").into_values() {
+        dernieres.extend(declarations);
+    }
+    dernieres
+}
+
+/// Les noms de générateurs que porte le fonds, chacun une fois, dans l'ordre de leurs octets : ceux
+/// des origines déclarées (`origines_declarees/<e>/generee/<nom>`) et ceux des déclarations des
+/// imports (`generee:<nom>`).
+pub fn generateurs(doc: &Automerge) -> BTreeSet<String> {
+    let lecture = Lecture::courante(doc);
+    let mut noms = BTreeSet::new();
+    if let Some(origines) = lecture.conteneur(ORIGINES_DECLAREES) {
+        for element in lecture.sous(&origines, "") {
+            if let Some((_, element_d_origine)) = element.key.split_once('/')
+                && let Some(nom) = nom_genere(element_d_origine)
+            {
+                noms.insert(nom.to_string());
+            }
+        }
+    }
+    for declarations in declarations_par_import(lecture, "").into_values() {
+        noms.extend(declarations.into_values().filter_map(
+            |declaration| match declaration.origine {
+                Some(Ajout::Generee(nom)) => Some(nom),
+                _ => None,
+            },
+        ));
+    }
+    noms
 }

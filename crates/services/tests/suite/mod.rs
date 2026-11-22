@@ -5182,7 +5182,7 @@ pub fn un_fonds_importe_ne_garde_ni_compte_ni_total<P: Paire>(paire: &mut P) {
             midis: BTreeSet::from([midi_de_la_basse.clone()]),
         },
     ];
-    stems_lus.sort_by(|a, b| a.empreinte.cmp(&b.empreinte));
+    stems_lus.sort_by_key(|stem| stem.empreinte.clone());
     assert_eq!(lecture::stems_de(fonds, &manifeste), stems_lus);
 
     let mut doc = fonds.clone();
