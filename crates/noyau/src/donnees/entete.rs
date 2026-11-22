@@ -1,6 +1,6 @@
-//! Les en-têtes d'un WAV et d'un MIDI et le contrôle d'un texte versé (§ 30 · 9.2 ; questions 10
-//! et 16), sans entrée-sortie : l'établi lit les premiers octets d'un fichier, le noyau en tire
-//! les faits.
+//! Les en-têtes d'un WAV et d'un MIDI, le contrôle d'un texte versé et son décodage (§ 30 · 9.2 ;
+//! questions 10 et 16 ; balayage Q9), sans entrée-sortie : l'établi lit les premiers octets d'un
+//! fichier, le noyau en tire les faits ; les services relisent un texte versé, le noyau le décode.
 
 use super::gestes::ENTIER_SUR;
 
@@ -286,4 +286,33 @@ impl ControleDuTexte {
     pub fn lisible(&self) -> bool {
         !self.refuse && self.report.is_empty()
     }
+}
+
+/// Le texte d'un texte versé, décodé sur les encodages de `ControleDuTexte` (question 10) : UTF-8,
+/// son BOM `EF BB BF` ôté ; UTF-16 petit-boutiste après `FF FE`, gros-boutiste après `FE FF`, le
+/// BOM ôté. `None` dès que `ControleDuTexte` le dirait illisible : une demi-paire seule, une
+/// longueur impaire, un UTF-8 invalide. Un texte vide, ou fait de sa seule marque, rend `Some("")`.
+/// Un premier octet `FF` ou `FE` qui n'ouvre pas l'une des deux marques n'est jamais de l'UTF-8 :
+/// illisible, comme pour le contrôle, qui le refuse ou le garde reporté.
+pub fn decoder_le_texte(octets: &[u8]) -> Option<String> {
+    match octets {
+        [0xFF, 0xFE, reste @ ..] => decoder_l_utf16(reste, u16::from_le_bytes),
+        [0xFE, 0xFF, reste @ ..] => decoder_l_utf16(reste, u16::from_be_bytes),
+        _ => {
+            let texte = std::str::from_utf8(octets).ok()?;
+            Some(texte.strip_prefix('\u{FEFF}').unwrap_or(texte).to_string())
+        }
+    }
+}
+
+/// Les unités de `octets`, de deux octets chacune, lues par `unite`, puis décodées ; `None` pour
+/// une longueur impaire, ou pour une demi-paire de substitution qui n'a pas son autre moitié.
+fn decoder_l_utf16(octets: &[u8], unite: fn([u8; 2]) -> u16) -> Option<String> {
+    let (paires, impair) = octets.as_chunks::<2>();
+    if !impair.is_empty() {
+        return None;
+    }
+    char::decode_utf16(paires.iter().copied().map(unite))
+        .collect::<Result<String, _>>()
+        .ok()
 }
