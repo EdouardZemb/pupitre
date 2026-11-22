@@ -121,11 +121,8 @@ pub struct Services<D: Documents, C: Captations> {
     /// L'import ouvert par ces services ; `None` hors d'un import.
     import: Option<EtatDeLImport>,
     /// La table (chemin → empreinte) de chaque fichier versé ou dédoublonné du dernier import
-    /// clos, oubliée à l'inspection suivante (R6) : `Portee::Prefixe` se résoudra sur elle.
-    #[expect(
-        dead_code,
-        reason = "lue par la déclaration d'une origine, à la tâche 13"
-    )]
+    /// clos, oubliée à l'inspection suivante (R6) : `Portee::Prefixe` se résoudra sur elle, à la
+    /// déclaration d'une origine (tâche 13).
     dernier_clos: Option<BTreeMap<String, String>>,
 }
 
