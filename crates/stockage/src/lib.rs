@@ -367,15 +367,15 @@ pub(crate) enum Accord {
 /// quant au geste : le disque a pu refuser une lecture, une écriture, une création, un renommage,
 /// un retrait, ou le renommage rendu durable.
 pub(crate) fn constat_du_disque(sujet: &str, accord: Accord, genre: io::ErrorKind) -> String {
-    let (absent, refuse, tel_qu_il) = match accord {
-        Accord::Masculin => ("absent", "refusé", "tel qu'il"),
-        Accord::Feminin => ("absente", "refusée", "telle qu'elle"),
+    let (absent, refuse, tel_qu_ecrit) = match accord {
+        Accord::Masculin => ("absent", "refusé", "tel qu'il a été écrit"),
+        Accord::Feminin => ("absente", "refusée", "telle qu'elle a été écrite"),
     };
     match genre {
         io::ErrorKind::NotFound => format!("{sujet} est {absent}"),
         io::ErrorKind::PermissionDenied => format!("{sujet} est {refuse} par le système"),
         io::ErrorKind::StorageFull => format!("{sujet} ne tient plus sur le disque"),
-        io::ErrorKind::InvalidData => format!("{sujet} ne se relit pas {tel_qu_il} a été écrit"),
+        io::ErrorKind::InvalidData => format!("{sujet} ne se relit pas {tel_qu_ecrit}"),
         _ => format!("{sujet}, le disque l'a {refuse}"),
     }
 }
