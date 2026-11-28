@@ -16,6 +16,7 @@ use tauri_plugin_dialog::DialogExt;
 
 mod commandes_de_l_etabli;
 mod fil;
+mod protocole;
 mod systeme;
 
 /// Le dossier choisi, parcouru, que les commandes de l'import se partagent ; oublié à la clôture.
@@ -210,28 +211,6 @@ pub fn run() {
 pub(crate) mod tests {
     use super::*;
     use std::path::PathBuf;
-
-    #[test]
-    fn le_protocole_des_captations_refuse_toute_requete() {
-        let empreinte = format!("http://captation.localhost/{}", "a".repeat(64));
-        for uri in [
-            "http://captation.localhost/",
-            empreinte.as_str(),
-            "http://captation.localhost/../donnees/verrou",
-        ] {
-            let requete = tauri::http::Request::builder()
-                .uri(uri)
-                .body(Vec::new())
-                .unwrap_or_else(|e| panic!("la requête {uri} se construit : {e}"));
-            let reponse = refuser_la_captation(&requete);
-            assert_eq!(
-                reponse.status(),
-                tauri::http::StatusCode::NOT_FOUND,
-                "{uri}"
-            );
-            assert!(reponse.body().is_empty(), "{uri}");
-        }
-    }
 
     #[test]
     fn lire_les_instruments() {

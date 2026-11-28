@@ -243,6 +243,44 @@ mod tests {
         }
     }
 
+    #[test]
+    fn le_constat_d_une_erreur_dit_le_genre_jamais_le_texte() {
+        assert_eq!(genre_de_l_erreur(io::ErrorKind::NotFound), "absent");
+        assert_eq!(
+            genre_de_l_erreur(io::ErrorKind::PermissionDenied),
+            "refusé par le système"
+        );
+        for autre in [
+            io::ErrorKind::InvalidData,
+            io::ErrorKind::StorageFull,
+            io::ErrorKind::Other,
+        ] {
+            assert_eq!(
+                genre_de_l_erreur(autre),
+                "refusé par le disque",
+                "{autre:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn admettre_un_dossier_absent_dit_son_genre() {
+        let jetable = crate::tests::dossier_jetable("dossier-absent");
+        let absent = jetable.join("absent");
+        let application = jetable.join("app");
+        std::fs::create_dir_all(&application)
+            .unwrap_or_else(|e| panic!("créer {} : {e}", application.display()));
+        // Ni le chemin ni le texte du système : le seul genre de l'erreur.
+        assert_eq!(
+            admettre_le_dossier(&absent, &application),
+            Err("Le dossier choisi ne se lit pas : absent.".to_string())
+        );
+        assert_eq!(
+            admettre_le_dossier(&jetable, &application.join("absente")),
+            Err("Le dossier de Pupitre ne se lit pas : absent.".to_string())
+        );
+    }
+
     /// L'identifiant de l'application, lu dans `tauri.conf.json`.
     fn identifiant_de_tauri_conf() -> String {
         let conf: serde_json::Value = serde_json::from_str(include_str!(concat!(

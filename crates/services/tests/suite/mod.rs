@@ -58,6 +58,7 @@ use noyau::donnees::import::{
 };
 use noyau::donnees::journal::empreinte_du_journal;
 use noyau::donnees::origine::{Ajout, Declaration, OriginesLues};
+use noyau::donnees::protocole::Plage;
 use noyau::donnees::rapport;
 use noyau::donnees::requete::texte_de_la_reponse;
 use noyau::donnees::signature::{FormatSonore, FormatTexte, SIGNATURE_AU_PLUS};
@@ -148,6 +149,9 @@ pub trait Paire {
     /// Refuse toute lecture du fichier `rang` de `source` tant que `refusee` est vrai, puis la
     /// rend (question 38 ; V2).
     fn refuser_la_lecture(&mut self, source: &mut Self::S, rang: u64, refusee: bool);
+    /// Le flux du fichier `rang` de `source` rend ses `octets` premiers octets, puis échoue, de
+    /// `io::ErrorKind::PermissionDenied` : une lecture refusée au milieu de la copie.
+    fn refuser_la_lecture_apres(&mut self, source: &mut Self::S, rang: u64, octets: u64);
 }
 
 /// Le conteneur de la racine du document que crée la migration de test : un objet à clés, où la
@@ -6952,6 +6956,70 @@ pub fn un_fichier_refuse_au_versement_se_nomme<P: Paire>(paire: &mut P) {
     );
 }
 
+/// Question 38 (le report du registre) : `Démos/a.wav` et un WAV sans nom en UTF-8, inspectés,
+/// puis l'import ouvert ; le flux de chacun échoue après ses seize premiers octets, de
+/// `PermissionDenied`. Le refus de chaque versement, de `Raison::Disque`, nomme le fichier par son
+/// chemin, ou par son rang sans nom, et dit le genre de l'erreur, comme à l'inspection : jamais le
+/// seul « Le fichier à verser, le disque l'a refusé. ». Rien ne se range.
+pub fn une_lecture_refusee_au_milieu_de_la_copie_nomme_le_fichier<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let mut source = paire.source(
+        Some(DOSSIER_VERSE),
+        &[
+            (Some("Démos/a.wav"), wav_de(8_000, 71)),
+            (None, wav_de(8_000, 72)),
+        ],
+        &[],
+    );
+    services
+        .inspecter(&source, PLACE_LIBRE)
+        .expect("le dossier s'inspecte");
+    let import = services
+        .ouvrir_l_import(&source, &ouverture(&[]), PLACE_LIBRE, &mut contexte)
+        .expect("l'import s'ouvre")
+        .import;
+    let attendus = [
+        (
+            1,
+            "« Démos/a.wav » ne se lit pas : le fichier à verser est refusé par le système.",
+        ),
+        (
+            2,
+            "Le fichier n° 2 ne se lit pas : le fichier à verser est refusé par le système.",
+        ),
+    ];
+    for (rang, attendu) in attendus {
+        paire.refuser_la_lecture_apres(&mut source, rang, 16);
+
+        let refus = services
+            .verser_un_fichier(
+                &source,
+                &VerserUnFichier {
+                    import: import.clone(),
+                    rang,
+                    decalage_minutes: 0,
+                },
+                &mut contexte,
+            )
+            .expect_err("une copie refusée en chemin est refusée");
+
+        assert_eq!(
+            refus,
+            Refus {
+                raison: Raison::Disque,
+                message: attendu.to_string(),
+            }
+        );
+        assert_ne!(refus.message, "Le fichier à verser, le disque l'a refusé.");
+    }
+    assert_eq!(services.captations().tailles(), Ok(BTreeSet::new()));
+}
+
 /// Question 19 ; R11 : un WAV versé en prise, puis son dossier déclaré jeu de stems, avec ce seul
 /// WAV : deux prises, l'empreinte du manifeste distincte de celle du WAV.
 pub fn un_jeu_d_un_seul_contenu_donne_une_prise_en_stems_distincte<P: Paire>(paire: &mut P) {
@@ -8493,8 +8561,10 @@ pub fn les_generateurs_du_fonds_chacun_une_fois<P: Paire>(paire: &mut P) {
 // sous le même ULID ; un fichier changé depuis l'inspection arrête l'import ; un import ouvert
 // ailleurs se clôt à l'ouverture du suivant ; l'état du fonds dit l'import resté ouvert.
 
-/// L'avertissement de l'état du fonds quand un import est resté ouvert (question 2).
-const IMPORT_RESTE_OUVERT: &str = "Un import est resté ouvert : rechoisir son dossier le reprend.";
+/// L'avertissement de l'état du fonds quand un import est resté ouvert (question 2 ; CAP-03).
+const IMPORT_RESTE_OUVERT: &str = "Un import est resté ouvert : rechoisir son dossier le reprend, \
+                                   s'il a déjà versé un fichier sous son nom ; sinon, le prochain \
+                                   import le clôt.";
 
 /// Le refus d'une reprise qui changerait les déclarations de l'ouverture (R2).
 const DECLARATIONS_REPRISES: &str = "Cet import reprend ses déclarations : elles ne changent pas.";
@@ -9474,9 +9544,8 @@ pub fn en_lecture_seule_l_import_est_refuse_avant_toute_captation<P: Paire>(pair
 }
 
 /// Question 2 : un import ouvert, un fichier versé ; tant que ces services le conduisent, l'état
-/// du fonds ne dit aucun import resté ouvert ; rouverts, ils le disent, une fois (« Un import est
-/// resté ouvert : rechoisir son dossier le reprend. ») ; repris, plus ; clos, ni avant ni après
-/// une nouvelle réouverture.
+/// du fonds ne dit aucun import resté ouvert ; rouverts, ils le disent, une fois
+/// (`IMPORT_RESTE_OUVERT`) ; repris, plus ; clos, ni avant ni après une nouvelle réouverture.
 pub fn l_etat_du_fonds_dit_qu_un_import_est_reste_ouvert<P: Paire>(paire: &mut P) {
     let mut services = paire.neufs();
     let mut alea = AleaDeTest {
@@ -9520,6 +9589,53 @@ pub fn l_etat_du_fonds_dit_qu_un_import_est_reste_ouvert<P: Paire>(paire: &mut P
 
     let services = paire.rouvrir(services, &[]);
     assert_eq!(avertit_d_un_import_reste_ouvert(&services), 0);
+}
+
+/// CAP-03 (le report du registre) : un import ouvert, `a.wav` versé sous son nom, puis les
+/// services rouverts ; l'état du fonds porte le texte de la décision, une fois, et aucun autre
+/// avertissement d'import resté ouvert ; le même fonds rouvert en lecture seule (une migration
+/// qui attend ses dépendances) n'en porte aucun : l'inspection y est refusée, et l'état dit déjà
+/// pourquoi.
+pub fn un_import_reste_ouvert_dit_ce_que_rechoisir_son_dossier_fait<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let source = paire.source(
+        Some(DOSSIER_VERSE),
+        &[
+            (Some("a.wav"), wav_de(8_000, 61)),
+            (Some("b.wav"), wav_de(8_000, 62)),
+        ],
+        &[],
+    );
+    services
+        .inspecter(&source, PLACE_LIBRE)
+        .expect("le dossier s'inspecte");
+    let import = services
+        .ouvrir_l_import(&source, &ouverture(&[]), PLACE_LIBRE, &mut contexte)
+        .expect("l'import s'ouvre")
+        .import;
+    verser_le_rang(&mut services, &source, &import, 1, &mut contexte);
+
+    let services = paire.rouvrir(services, &[]);
+    let reste_ouvert = |etat: &EtatDuFonds| -> Vec<String> {
+        etat.avertissements
+            .iter()
+            .filter(|avertissement| avertissement.starts_with("Un import est resté ouvert"))
+            .cloned()
+            .collect()
+    };
+    let etat = services.etat_du_fonds().expect("l'état du fonds se lit");
+    assert_eq!(reste_ouvert(&etat), vec![IMPORT_RESTE_OUVERT.to_string()]);
+
+    let migration = migration_sur_une_autre_genese();
+    let services = paire.rouvrir(services, &migrations_de_test(&migration));
+    let etat = services.etat_du_fonds().expect("l'état du fonds se lit");
+    assert!(etat.lecture_seule.is_some(), "le fonds écrit");
+    assert_eq!(reste_ouvert(&etat), Vec::<String>::new());
 }
 
 /// Question 35 : un import ouvert sur `A`, deux noms posés (`a.wav`, `b.wav`) ; un dossier `B`
@@ -9587,4 +9703,155 @@ pub fn rechoisir_un_autre_dossier_ne_reprend_pas_l_import_ouvert<P: Paire>(paire
         !inspection.ouvert_ailleurs,
         "l'import repris est dit ouvert ailleurs"
     );
+}
+
+// Le protocole des captations (tâche 21 ; question 27) : ce que les services lui disent servir,
+// l'audio d'une prise ou d'un stem seul, et la plage d'une captation qu'ils lisent.
+
+/// Les octets d'une prise `caf` : une boîte `caff`, sa signature dans la table des formats, puis
+/// douze octets à zéro. Écrits à l'exécution (P12).
+fn caf() -> Vec<u8> {
+    let mut octets = b"caff".to_vec();
+    octets.resize(16, 0);
+    octets
+}
+
+/// L'empreinte de la prise en stems du fonds de `services`, la captation d'une idée qui a des
+/// stems ; il en faut une.
+fn prise_en_stems<D: Documents, C: Captations>(services: &Services<D, C>) -> String {
+    services
+        .idees()
+        .expect("les idées se lisent")
+        .iter()
+        .map(|idee| services.vue_d_une_idee(idee).expect("l'idée se lit"))
+        .find_map(|vue| {
+            vue.captations_vues
+                .iter()
+                .find(|vue| !vue.stems.is_empty())
+                .map(|vue| vue.captation.empreinte.clone())
+        })
+        .expect("le fonds porte une prise en stems")
+}
+
+/// Question 27 ; R3 : un import de `Essai.wav`, un WAV de 8 044 octets ; de `Jeu A`, déclaré jeu de
+/// stems, deux WAV de 4 044 et 6 044 octets et le MIDI du premier ; de `Pont.mid`, un MIDI versé
+/// seul ; de `Paroles.txt`, un texte ; de `Coupe.wav`, un WAV illisible ; et de `Boucle.caf`, une
+/// prise `caf`. La prise rend `("audio/wav", 8 044)`, chaque stem le sien ; le MIDI du stem, le
+/// MIDI versé seul, le texte, le manifeste, le rapport, le WAV illisible, la prise `caf`, une
+/// empreinte inconnue et `../x` rendent `None`, que le protocole sert en 404. La table des stems se
+/// rebâtit à la demande qui suit un changement des têtes : un stem d'un jeu importé après la
+/// première demande se sert. Une lecture : le fonds rouvert en lecture seule sert encore la prise
+/// et un stem.
+pub fn le_protocole_ne_sert_que_l_audio_d_une_prise_ou_d_un_stem<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let essai = wav_de(8_000, 81);
+    let basse = wav_de(4_000, 82);
+    let batterie = wav_de(6_000, 83);
+    let midi_du_stem = midi(1, 2, 96);
+    let pont = midi(0, 1, 480);
+    let paroles = b"Un pont qui hesite\n".to_vec();
+    let coupe = wav_coupe();
+    let boucle = caf();
+    let fichiers = [
+        ("Essai.wav".to_string(), essai.clone()),
+        ("Jeu A/basse.wav".to_string(), basse.clone()),
+        ("Jeu A/basse.mid".to_string(), midi_du_stem.clone()),
+        ("Jeu A/batterie.wav".to_string(), batterie.clone()),
+        ("Pont.mid".to_string(), pont.clone()),
+        ("Paroles.txt".to_string(), paroles.clone()),
+        ("Coupe.wav".to_string(), coupe.clone()),
+        ("Boucle.caf".to_string(), boucle.clone()),
+    ];
+    let source = paire.source(Some(DOSSIER_VERSE), &nommes(&fichiers), &[]);
+    let conduit = importer(
+        &mut services,
+        &source,
+        &[("Jeu A", jeu_de_stems())],
+        &mut contexte,
+    );
+    let wav =
+        |octets: u64| -> Reponse<Option<(&'static str, u64)>> { Ok(Some(("audio/wav", octets))) };
+
+    assert_eq!(services.captation_a_servir(&empreinte(&essai)), wav(8_044));
+    assert_eq!(services.captation_a_servir(&empreinte(&basse)), wav(4_044));
+    assert_eq!(
+        services.captation_a_servir(&empreinte(&batterie)),
+        wav(6_044)
+    );
+    let manifeste = prise_en_stems(&services);
+    let rapport = import_lu(&services, &conduit.ouvert.import)
+        .rapport
+        .expect("l'import a son rapport");
+    for (quoi, autre) in [
+        ("le MIDI du stem", empreinte(&midi_du_stem)),
+        ("le MIDI versé seul", empreinte(&pont)),
+        ("le texte", empreinte(&paroles)),
+        ("le manifeste", manifeste),
+        ("le rapport", rapport),
+        ("le WAV illisible", empreinte(&coupe)),
+        ("la prise caf", empreinte(&boucle)),
+        (
+            "une empreinte inconnue",
+            empreinte(b"une captation inconnue"),
+        ),
+        ("un chemin", "../x".to_string()),
+    ] {
+        assert_eq!(services.captation_a_servir(&autre), Ok(None), "{quoi}");
+    }
+
+    let voix = wav_de(5_000, 84);
+    let source = paire.source(
+        Some("Démos d'hiver"),
+        &[
+            (Some("Jeu B/voix.wav"), voix.clone()),
+            (Some("Jeu B/guitare.wav"), wav_de(5_000, 85)),
+        ],
+        &[],
+    );
+    importer(
+        &mut services,
+        &source,
+        &[("Jeu B", jeu_de_stems())],
+        &mut contexte,
+    );
+    assert_eq!(services.captation_a_servir(&empreinte(&voix)), wav(5_044));
+
+    let migration = migration_sur_une_autre_genese();
+    let mut services = paire.rouvrir(services, &migrations_de_test(&migration));
+    assert!(
+        services.documents().lecture_seule().is_some(),
+        "le fonds écrit"
+    );
+    assert_eq!(services.captation_a_servir(&empreinte(&essai)), wav(8_044));
+    assert_eq!(services.captation_a_servir(&empreinte(&basse)), wav(4_044));
+}
+
+/// Question 27 : la plage (40, 47) d'une prise importée, `Essai.wav`, rend ses octets 40 à 47 : la
+/// taille de ses données, à la fin de l'en-tête, puis leurs quatre premiers octets.
+pub fn la_plage_d_une_captation_rend_ses_octets<P: Paire>(paire: &mut P) {
+    let mut services = paire.neufs();
+    let mut alea = AleaDeTest {
+        graine: 0,
+        appels: 0,
+    };
+    let mut contexte = contexte_de_test(&mut alea);
+    let essai = wav_de(8_000, 91);
+    let source = paire.source(
+        Some(DOSSIER_VERSE),
+        &[(Some("Essai.wav"), essai.clone())],
+        &[],
+    );
+    importer(&mut services, &source, &[], &mut contexte);
+
+    let octets = services
+        .plage_d_une_captation(&empreinte(&essai), Plage { debut: 40, fin: 47 })
+        .expect("la plage se lit");
+
+    assert_eq!(octets, essai[40..=47].to_vec());
+    assert_eq!(octets, [0x40, 0x1F, 0, 0, 91, 91, 91, 91]);
 }
