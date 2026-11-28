@@ -455,29 +455,29 @@ Et des limites, sans test, que les PR disent dans leur corps :
 - `crates/noyau/src/donnees/fonds.rs:48` — `CONTENEURS_NOMMANT_UNE_CAPTATION: [&str; 3]` — les trois conteneurs dont la clé nomme une captation par son premier segment ; `imports` n'y entre pas, ses clés commençant par un ULID (tâche 7)
 - `crates/noyau/src/donnees/fonds.rs:27` — `pub const IMPORTS: &str = "imports";` — conteneur de la genèse, vide : `ouvert`, `rapport` et `declaration` s'y écrivent sans migration (tâche 6)
 - `crates/noyau/src/donnees/fonds.rs:30` — `ORIGINES_DECLAREES` — conteneur de la genèse, vide : l'ensemble des origines s'y écrit sans migration (tâche 6)
-- `crates/noyau/src/donnees/fonds.rs:123` — `pub const MIGRATIONS: &[Migration<'static>] = &[];` — aucune migration : la genèse ne change pas, ni son empreinte de référence (tâches 6, 8)
-- `crates/stockage/tests/references.rs:26` — `const GENESE_DU_FONDS` — l'empreinte de la genèse, inchangée ; le manifeste et le rapport témoins s'y ajoutent (tâche 3)
-- `crates/noyau/src/donnees/gestes.rs:674` — `pub fn verser(` — refuse une captation déjà versée (`existante`) et écrit toujours `format` : l'import ne l'appelle pas, et partage avec elle la naissance de l'idée, que la tâche 6 en extrait (balayage P8)
-- `crates/noyau/src/donnees/gestes.rs:704` — `let mut changements = vec![` — le bloc de la naissance d'une idée (son objet, `provenance`, `par`, `le`, `depuis`), que la tâche 6 extrait en `naissance_de_l_idee` (balayage P8)
-- `crates/noyau/src/donnees/gestes.rs:673` — `#[allow(clippy::too_many_arguments)]` — le précédent, avec sa raison en commentaire, des deux versements de l'import (tâche 6 ; balayage P9)
-- `crates/noyau/tests/gestes.rs:838` — `fn une_captation_absente_se_dit_par_son_empreinte() {` — lit l'ancien message, que la tâche 6 récrit, et se renomme (balayage P20)
+- `crates/noyau/src/donnees/fonds.rs:178` — `pub const MIGRATIONS: &[Migration<'static>] = &[];` — aucune migration : la genèse ne change pas, ni son empreinte de référence (tâches 6, 8)
+- `crates/stockage/tests/references.rs:29` — `const GENESE_DU_FONDS` — l'empreinte de la genèse, inchangée ; le manifeste et le rapport témoins s'y ajoutent (tâche 3)
+- `crates/noyau/src/donnees/gestes.rs:747` — `pub fn verser(` — refuse une captation déjà versée (`existante`) et écrit toujours `format` : l'import ne l'appelle pas, et partage avec elle la naissance de l'idée, que la tâche 6 en extrait (balayage P8)
+- `crates/noyau/src/donnees/gestes.rs:713` — `let mut changements = vec![` — le bloc de la naissance d'une idée (son objet, `provenance`, `par`, `le`, `depuis`), extrait en `naissance_de_l_idee` (balayage P8)
+- `crates/noyau/src/donnees/gestes.rs:746` — `#[allow(clippy::too_many_arguments)]` — le précédent, avec sa raison en commentaire, des deux versements de l'import (tâche 6 ; balayage P9)
+- `crates/noyau/tests/gestes.rs:838` — `fn une_captation_absente_ne_nomme_pas_son_empreinte() {` — lit le message de `CaptationAbsente`, qui ne nomme plus l'empreinte (balayage P20)
 - `crates/services/tests/suite/mod.rs:2154` — `"Cette captation est déjà versée."` — le message de `CaptationDejaVersee` que la suite attend, sur les deux paires : la tâche 6 le récrit (balayage P1)
 - `crates/services/tests/suite/mod.rs:2236` — `"Cette captation n'est pas dans le fonds."` — le message de `CaptationAbsente` que la suite attend : la tâche 6 le récrit (balayage P1)
 - `crates/stockage/tests/messages.rs:391` — `fn aucun_message_n_est_un_ordre() {` — énumère chaque variante d'`Impossible` : la tâche 6 y ajoute les siennes (balayage P7)
-- `crates/stockage/tests/h07.rs:146` — `empreintes_nommees(cles_des_prises.iter().map(String::as_str))` — un appelant de la règle du noyau, à un argument : la tâche 7 lui donne `[]` (balayage P2)
-- `crates/stockage/tests/references.rs:6` — `Ce fichier est le seul des empreintes de référence` — le manifeste et le rapport témoins n'ont leurs empreintes qu'ici (tâche 3 ; balayage P17)
+- `crates/stockage/tests/h07.rs:146` — `empreintes_nommees(cles_des_prises.iter().map(String::as_str), [])` — un appelant de la règle du noyau, à deux arguments : `[]` pour les rapports (balayage P2)
+- `crates/stockage/tests/references.rs:7` — `Ce fichier est le seul des empreintes de référence` — le manifeste et le rapport témoins n'ont leurs empreintes qu'ici (tâche 3 ; balayage P17)
 - `crates/noyau/tests/statique.rs:35` — `"io::",` — cherché en sous-chaîne dans `crates/noyau/src` : `FormatAudio::` le contiendrait, d'où `FormatSonore` (tâches 1, 6 ; balayage P4)
-- `crates/noyau/src/donnees/gestes.rs:693` — `if sorte != Sorte::Prise && depuis.is_none() {` — un MIDI versé ou un texte versé n'entre que par l'import (tâche 6)
-- `crates/noyau/src/donnees/gestes.rs:215` — `Aucune captation ne porte l'empreinte {empreinte}.` — un message montré qui nomme une empreinte : la tâche 6 le récrit (question 26)
-- `crates/noyau/src/donnees/gestes.rs:219` — `La captation {empreinte} est déjà versée.` — de même (tâche 6)
-- `crates/stockage/src/lib.rs:244` — `Une captation relue ne donne pas son empreinte.` — de même (tâche 9)
-- `crates/services/src/en_memoire.rs:26` — `Cette captation n'est pas dans le fonds.` — de même (tâche 9)
+- `crates/noyau/src/donnees/gestes.rs:766` — `if sorte != Sorte::Prise && depuis.is_none() {` — un MIDI versé ou un texte versé n'entre que par l'import (tâche 6)
+- `crates/noyau/src/donnees/gestes.rs:234` — `Cette captation n'est pas dans le fonds.` — le message de `CaptationAbsente` ne nomme pas l'empreinte (question 26)
+- `crates/noyau/src/donnees/gestes.rs:238` — `Cette captation est déjà versée.` — le message de `CaptationDejaVersee` ne nomme pas l'empreinte (question 26)
+- `crates/stockage/src/lib.rs:244` — `Une captation relue ne donne pas son empreinte.` — le message de `CaptationAlteree` ne nomme pas l'empreinte (question 26)
+- `crates/services/src/en_memoire.rs:26` — `Cette captation n'est pas dans le fonds.` — le refus des captations en mémoire ne nomme pas l'empreinte (question 26)
 - `crates/noyau/src/donnees/gestes.rs:71` — `pub const TOUTES: [Sorte; 3]` — les sortes d'une captation d'une idée ; la tranche n'en ajoute pas : un stem et le MIDI d'un stem ne sont la captation d'aucune idée (tâche 10)
 - `crates/noyau/src/donnees/idee.rs:72` — `pub fn duree(prises: &[Option<u64>]) -> Option<u64> {` — la durée d'une idée, `None` dès qu'une prise n'a pas la sienne ; celle d'une prise en stems lui arrive de ses stems (tâches 5, 10)
-- `crates/noyau/src/donnees/identifiants.rs:46` — `let condense = Sha256::digest(octets);` — l'empreinte en un seul appel ; `Hacheur` la calcule par tronçons, et la donne égale (tâche 2)
+- `crates/noyau/src/donnees/identifiants.rs:75` — `let mut h = Hacheur::nouveau();` — l'empreinte en un seul appel passe par `Hacheur`, qui la calcule par tronçons : les deux sont égales (tâche 2)
 - `crates/noyau/src/donnees/demarrage.rs:16` — `pub fn voisin_libre(` — `<nom>.<processus>.partiel`, puis `-2`, `-3` : la copie en flux prend pour nom `import-<ULID>-<rang>` (tâches 7, 9)
 - `crates/noyau/src/donnees/demarrage.rs:127` — `pub fn a_ranger(` — range un nom provisoire par l'empreinte de son contenu, quel que soit son nom : une copie en flux entière et nommée se range au démarrage (tâche 9)
-- `crates/stockage/tests/messages.rs:213` — `ne donne pas son empreinte.` — l'ancien message de `CaptationAlteree`, que la tâche 9 récrit avec lui (balayage Q1)
+- `crates/stockage/tests/messages.rs:213` — `ne donne pas son empreinte.` — le message de `CaptationAlteree`, qui ne nomme pas l'empreinte (balayage Q1)
 - `crates/stockage/tests/messages.rs:220` — `Cette captation n'est pas dans le fonds.` — le message de `CaptationAbsente` du stockage, que la tâche 9 récrit avec lui (balayage Q1)
 - `crates/services/tests/application.rs:430` — `Cette captation n'est pas dans le fonds.` — le refus de `CaptationsEnMemoire::relire`, que la tâche 9 récrit avec lui (balayage Q1)
 - `crates/stockage/src/lib.rs:384` — `pub(crate) fn constat_du_disque(` — le constat du disque par le genre de l'erreur, jamais son texte : celui d'`Erreur::FichierAVerser` (tâche 9 ; balayage Q8)
@@ -537,9 +537,9 @@ Et des limites, sans test, que les PR disent dans leur corps :
 - `app/src-tauri/tests/statique.rs:158` — `fn controler_i29(` — refuse `.message(` dans l'établi : aucune méthode ne se nomme `message` (tâches 15, 21)
 - `app/src-tauri/tauri.conf.json:18` — `img-src 'self' http://captation.localhost;` — la CSP admet déjà le protocole, et ne change pas (tâche 21)
 - `app/ui/src/natif.rs:50` — `pub(crate) async fn invoquer<R: DeserializeOwned>(` — une promesse par commande, sans progression : l'avancée vient des réponses (tâche 22)
-- `app/ui/src/boite.rs:361` — `fn mot_de_la_provenance(` — « importée » en toutes lettres, jamais `⇣` (tâches 18, 24)
-- `app/ui/src/boite.rs:255` — `pub(crate) fn page_du_fonds_vide(` — deux constats ; la page propose aussi d'importer (tâches 18, 22)
-- `app/ui/src/boite.rs:2382` — `<span>"Provenance"</span>` — le titre qui déborde à 200 % (tâches 18, 24)
+- `app/ui/src/boite/textes.rs:77` — `fn mot_de_la_provenance(` — « importée » en toutes lettres, jamais `⇣` (tâches 18, 24)
+- `app/ui/src/boite/textes.rs:49` — `pub(super) fn page_du_fonds_vide(` — deux constats ; la page propose aussi d'importer (tâches 18, 22)
+- `app/ui/src/boite/vue.rs:533` — `<span>"Provenance"</span>` — le titre qui déborde à 200 % (tâches 18, 24)
 - `app/ui/tests/encre_statique.rs:306` — `"animation",` — refusé jusque dans un commentaire de l'interface (tâches 22 à 24)
 - `.github/workflows/ci.yml:91` — `timeout-minutes: 13` — le délai de `verifier`, remesuré (tâches 8, 17, 25)
 - `.github/workflows/ci.yml:175` — `run: cargo test -p stockage --release --test mesure -- --ignored --nocapture` — l'étape du test 13, en `--release` (tâche 16)
@@ -3361,10 +3361,11 @@ impl DocumentsEnMemoire {
 changement de comportement` (87). **Documents :** `docs/pistes.md` ; `CLAUDE.md`. **Fin :** la tâche 19.
 
 Rien ne change de ce que fait l'interface : ni texte, ni signal, ni commande, ni règle de style ; chaque test garde son
-nom et son corps, à ses `use` près. Une limite, que le corps de la PR dit : la fusion par squash fait de la scission un
-seul commit, où aucune part ne ressemble à plus de la moitié de `boite.rs` ; `git log --follow` sur une part s'arrête
-donc à cette PR. L'histoire d'avant se lit par `git log -- app/ui/src/boite.rs`, et celle d'une ligne par
-`git blame -C -C`, qui suit une ligne d'un fichier à l'autre dans un même commit.
+nom et son corps, à ses `use` près et au chemin des trois `include_str!("../style.css")`, devenu `"../../style.css"`.
+Une limite, que le corps de la PR dit : la fusion par squash fait de la scission un seul commit, où aucune part ne
+ressemble à plus de la moitié de `boite.rs` ; `git log --follow` sur une part s'arrête donc à cette PR. L'histoire
+d'avant se lit par `git log -- app/ui/src/boite.rs`, et celle d'une ligne par `git blame -C -C`, qui suit une ligne
+d'un fichier à l'autre dans un même commit.
 
 ### Tâche 18 : la scission de `boite.rs` en `boite/`
 
@@ -3382,7 +3383,7 @@ Les parts, d'après les éléments de `boite.rs` à `fe918aa` (l'élément nomm�
 | `requetes.rs` | `en_usize`, `au_noyau`, `sans_au_noyau`, `pose_un_critere`, `NOTE_D_UNE_REQUETE_PLUS_RECENTE`, `PRECISION_D_UNE_REQUETE_PLUS_RECENTE`, `constat_des_requetes`, `ce_que_dit_la_requete`, `lancer`, `enregistrer_possible`, `texte_de_la_requete`, `commande_de_la_boite`, `requete_en_cours`, `GesteDeRequete` |
 | `etat.rs` | `BoiteLue`, `RetireesLues`, `JournalLu`, `Volet`, `cible_de_fermeture`, `IdeeOuverte`, `Demandes`, `EtatDeLaBoite` et son `impl`, `fonds_vide_dans` |
 | `focus.rs` | `Liste`, `Commande`, `Gardee`, `Actif`, `Rendu`, `focus_a_rendre`, `cible_du_rendu`, `cible_apres_le_volet`, `defilement_a_remettre`, `Offerts`, `ce_que_le_volet_offre`, `prendre`, `actif`, `rendre_le_focus_perdu`, `Defilement`, `Cible`, `cible_repliee`, `cible_quand_le_fonds_se_vide`, `focus_de_la_ligne` |
-| `ecran.rs` | `Ecran` et son `impl` |
+| `ecran.rs` | `Ecran` et son `impl`, dont les six lectures `async` : `lire_la_boite`, `lire_les_retirees`, `lire_le_journal`, `lire_l_idee`, `lire_les_requetes` et `relire` |
 | `vue.rs` | `choix_d_un_critere`, `champ_de_date`, `BoiteDIdees`, `ligne_de_la_boite` |
 | `volets.rs` | `ligne_retiree`, `VoletDeLIdee`, `VoletDesRetirees`, `VoletDuJournal` |
 
@@ -3390,7 +3391,8 @@ Les parts, d'après les éléments de `boite.rs` à `fe918aa` (l'élément nomm�
   devient `pub(super)` ; rien ne devient plus visible hors de `boite/` qu'avant. Chaque test va au pied de la part qui
   porte la première fonction qu'il éprouve, dans un `#[cfg(test)] mod tests` qui commence par `use super::*;` ; ses
   aides le suivent ; une aide que deux parts emploient (`ligne`, `ligne_de`, `ecran`…) va dans `mod.rs`, en
-  `pub(super)`, sous `#[cfg(test)]`.
+  `pub(super)`, sous `#[cfg(test)]`. Chaque `impl` va avec son type : `impl Etalon` à `fenetre.rs`, `impl Demandes` à
+  `etat.rs`, `impl Commande` à `focus.rs`.
 
 - [ ] **Étape 1 : relever avant.** Depuis le worktree de la branche, à jour d'`origin/main` :
   `git show origin/main:app/ui/src/boite.rs | grep -A1 '#\[test\]' | grep -o 'fn [a-z0-9_]*' | sort` dans
@@ -3402,8 +3404,9 @@ Les parts, d'après les éléments de `boite.rs` à `fe918aa` (l'élément nomm�
   et la seule accolade qui le ferme, et les mots `pub(super) ` et `pub(crate) ` : il imprime toute ligne de plus ou de
   moins, et sort en 1 s'il en trouve.
 - [ ] **Étape 2 : scinder.** Les parts, dans l'ordre du tableau ; `rustfmt --edition 2024` sur chaque fichier, hors du
-  dépôt, comme les contraintes le disent ; le script de l'étape 1 sort en 0 ; la même commande `grep` sur
-  `app/ui/src/boite/*.rs` rend un fichier identique à `t5c-tests-avant.txt` (`diff` vide).
+  dépôt, comme les contraintes le disent ; le script de l'étape 1 sort en 0 à son second niveau, qui regroupe les
+  lignes en unités et normalise les blancs, rustfmt repliant les signatures dont la visibilité change ; la même
+  commande `grep` sur `app/ui/src/boite/*.rs` rend un fichier identique à `t5c-tests-avant.txt` (`diff` vide).
 - [ ] **Étape 3 : committer, pousser, voir le vert.** `git add app/ui/src/boite.rs app/ui/src/boite/mod.rs
   app/ui/src/boite/fenetre.rs app/ui/src/boite/textes.rs app/ui/src/boite/gestes.rs app/ui/src/boite/requetes.rs
   app/ui/src/boite/etat.rs app/ui/src/boite/focus.rs app/ui/src/boite/ecran.rs app/ui/src/boite/vue.rs
@@ -3423,10 +3426,11 @@ Les parts, d'après les éléments de `boite.rs` à `fe918aa` (l'élément nomm�
   boîte de l'interface en module, aux pistes et à CLAUDE.md`).
 - [ ] **Étape 2 : la revue de la PR (c).** La revue de la PR entière, sur sa tête : le script de la tâche 18 et la
   liste des 47 tests rejoués sur la tête ; aucun élément plus visible qu'il ne le faut ; aucun texte montré changé
-  (`git diff origin/main -M -- app/ui/src` ne montre que des lignes déplacées, à la visibilité près). Puis les
-  corrections, leur relecture sur la tête qui part. Le corps dit : la limite de `git log --follow` et ses deux
-  détours ; qu'aucun test n'est réécrit ; « Écarts à la spec : Aucun. ». `gh pr ready`, puis la fusion par squash,
-  `--match-head-commit` nommant la tête relue.
+  (`git diff origin/main -M -- app/ui/src` ne montre que des lignes déplacées, à la visibilité près et au chemin
+  des trois `include_str!("../style.css")`, devenu `"../../style.css"`). Puis les corrections, leur relecture sur la
+  tête qui part. Le corps dit : la limite de `git log --follow` et ses deux détours ; qu'aucun test n'est réécrit ;
+  « Écarts à la spec : Aucun. ». `gh pr ready`, puis la fusion par squash, `--match-head-commit` nommant la tête
+  relue.
 
 ## PR (d) · le protocole des captations, la lecture simple et l'écran de l'import
 
