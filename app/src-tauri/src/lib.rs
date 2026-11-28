@@ -1,6 +1,7 @@
 //! L'établi : l'enveloppe Tauri de l'interface ; le fil du fonds, qui possède la racine des
-//! données et sert une à une les commandes que l'interface envoie ; le dossier choisi, que les
-//! commandes de l'import se partagent ; et l'export du cahier des tables.
+//! données et sert une à une les commandes que l'interface envoie, et les requêtes du protocole
+//! des captations ; le dossier choisi, que les commandes de l'import se partagent ; et l'export du
+//! cahier des tables.
 
 use std::fs::File;
 use std::io::Write;
@@ -173,21 +174,14 @@ pub(crate) fn gestionnaire<R: tauri::Runtime>()
     ]
 }
 
-/// Le gestionnaire du protocole `captation` jusqu'à la tranche 5 : toute requête est refusée, 404,
-/// sans corps (question 12). WebView2 le sert à `http://captation.localhost/`.
-pub(crate) fn refuser_la_captation(
-    _requete: &tauri::http::Request<Vec<u8>>,
-) -> tauri::http::Response<Vec<u8>> {
-    tauri::http::Response::builder()
-        .status(tauri::http::StatusCode::NOT_FOUND)
-        .body(Vec::new())
-        .expect("une réponse sans corps se construit")
-}
-
 /// L'établi : au démarrage, la racine des données s'ouvre sous le dossier de l'application, par
 /// le fil du fonds, et Tauri garde dans son état l'ouverture, le dossier de l'application
 /// (`systeme::DossierDeLApplication`) et le dossier choisi, aucun d'abord (`DossierChoisi`) ;
-/// puis le gestionnaire sert les commandes, et le protocole `captation` refuse toute requête.
+/// puis le gestionnaire sert les commandes, et le protocole `captation`, que WebView2 sert à
+/// `http://captation.localhost/`, l'audio d'une prise ou d'un stem : enregistré en asynchrone, son
+/// gestionnaire lance `protocole::servir_une_captation` (`tauri::async_runtime::spawn`), sur
+/// l'ouverture lue dans l'état, et répond une fois, hors du fil de la WebView ; sans ouverture
+/// dans l'état, 500 (`protocole::en_echec`).
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -199,8 +193,15 @@ pub fn run() {
             app.manage(DossierChoisi(Mutex::new(None)));
             Ok(())
         })
-        .register_uri_scheme_protocol("captation", |_contexte, requete| {
-            refuser_la_captation(&requete)
+        .register_asynchronous_uri_scheme_protocol("captation", |contexte, requete, repondeur| {
+            let app = contexte.app_handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let reponse = match app.try_state::<fil::Ouverture>() {
+                    Some(ouverture) => protocole::servir_une_captation(&ouverture, &requete).await,
+                    None => protocole::en_echec(),
+                };
+                repondeur.respond(reponse);
+            });
         })
         .invoke_handler(gestionnaire())
         .run(tauri::generate_context!())

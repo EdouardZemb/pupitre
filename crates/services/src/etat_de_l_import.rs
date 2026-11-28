@@ -743,10 +743,12 @@ pub(crate) fn origines_changees(
 }
 
 /// Le flux d'un fichier à verser, contrôlé en chemin : d'un texte, chaque tronçon lu passe par
-/// `ControleDuTexte` (question 10).
+/// `ControleDuTexte` (question 10) ; une lecture refusée en chemin y laisse le genre de son
+/// erreur, que le refus de la copie dit (question 38).
 pub(crate) struct FluxControle<'f> {
     flux: Box<dyn io::Read + 'f>,
     controle: Option<ControleDuTexte>,
+    refusee: Option<io::ErrorKind>,
 }
 
 impl<'f> FluxControle<'f> {
@@ -755,6 +757,7 @@ impl<'f> FluxControle<'f> {
         FluxControle {
             flux,
             controle: texte.then(ControleDuTexte::nouveau),
+            refusee: None,
         }
     }
 
@@ -762,15 +765,38 @@ impl<'f> FluxControle<'f> {
     pub(crate) fn lisible(&self) -> bool {
         self.controle.as_ref().is_none_or(ControleDuTexte::lisible)
     }
+
+    /// Le genre de la première erreur de lecture du flux, hors d'une lecture interrompue
+    /// (`io::ErrorKind::Interrupted`), qui se reprend ; `None` tant qu'il se lit.
+    pub(crate) fn lecture_refusee(&self) -> Option<io::ErrorKind> {
+        self.refusee
+    }
 }
 
 impl io::Read for FluxControle<'_> {
     fn read(&mut self, tampon: &mut [u8]) -> io::Result<usize> {
-        let lus = self.flux.read(tampon)?;
+        let lus = self.flux.read(tampon).inspect_err(|erreur| {
+            if erreur.kind() != io::ErrorKind::Interrupted && self.refusee.is_none() {
+                self.refusee = Some(erreur.kind());
+            }
+        })?;
         if let Some(controle) = self.controle.as_mut() {
             controle.ajouter(&tampon[..lus]);
         }
         Ok(lus)
+    }
+}
+
+/// Le constat d'une lecture du fichier à verser refusée en chemin, selon le genre de son erreur,
+/// jamais son texte : celui que la source sur fichiers donne à une lecture refusée, que
+/// `ne_se_lit_pas` reprend à l'inspection comme au versement (question 38). Absent, « Le fichier
+/// à verser est absent. » ; refusé par le système, « Le fichier à verser est refusé par le
+/// système. » ; tout autre genre, « Le fichier à verser, le disque l'a refusé. ».
+pub(crate) fn constat_de_la_lecture(genre: io::ErrorKind) -> &'static str {
+    match genre {
+        io::ErrorKind::NotFound => "Le fichier à verser est absent.",
+        io::ErrorKind::PermissionDenied => "Le fichier à verser est refusé par le système.",
+        _ => "Le fichier à verser, le disque l'a refusé.",
     }
 }
 

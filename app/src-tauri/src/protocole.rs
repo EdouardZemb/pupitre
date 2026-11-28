@@ -1,9 +1,109 @@
-//! Le protocole des captations (§ 40 · 7.5 ; question 27).
+//! Le protocole des captations (§ 40 · 7.5 ; question 27) : WebView2 envoie chaque requête de
+//! `http://captation.localhost/<empreinte>` ; elle passe au fil du fonds, une demande courte comme
+//! une unité de l'import, qui dit si l'empreinte est l'audio d'une prise ou d'un stem, puis la
+//! réponse que les règles du noyau en tirent (`noyau::donnees::protocole`), et lit sa plage. La
+//! racine des données reste au fil : ce module ne connaît aucun chemin.
+
+use commandes::Reponse;
+use noyau::donnees::protocole::{self, Servie};
+use tauri::http::header::{self, HeaderName, HeaderValue};
+use tauri::http::{Request, Response, StatusCode};
+
+use crate::fil::Ouverture;
+
+/// L'empreinte que nomme `chemin` : `/` puis 64 chiffres hexadécimaux en minuscules, le seul nom
+/// d'une captation ; tout autre chemin, `None`.
+fn empreinte_du_chemin(chemin: &str) -> Option<&str> {
+    let empreinte = chemin.strip_prefix('/')?;
+    let hexadecimale = empreinte
+        .bytes()
+        .all(|octet| matches!(octet, b'0'..=b'9' | b'a'..=b'f'));
+    (empreinte.len() == 64 && hexadecimale).then_some(empreinte)
+}
+
+/// La réponse de statut `statut`, de corps `corps`, qui porte `entetes`, dans leur ordre.
+fn reponse(
+    statut: StatusCode,
+    entetes: &[(&'static str, String)],
+    corps: Vec<u8>,
+) -> Response<Vec<u8>> {
+    let mut reponse = Response::new(corps);
+    *reponse.status_mut() = statut;
+    for (nom, valeur) in entetes {
+        // Les noms et les valeurs sont ceux des règles du noyau : des mots d'en-tête et des
+        // nombres, que `from_bytes` et `from_str` admettent.
+        if let (Ok(nom), Ok(valeur)) = (
+            HeaderName::from_bytes(nom.as_bytes()),
+            HeaderValue::from_str(valeur),
+        ) {
+            reponse.headers_mut().append(nom, valeur);
+        }
+    }
+    reponse
+}
+
+/// La réponse de `servie`, de corps `corps`, les octets de sa plage, ou aucun.
+fn reponse_servie(servie: &Servie, corps: Vec<u8>) -> Response<Vec<u8>> {
+    match StatusCode::from_u16(servie.statut) {
+        Ok(statut) => reponse(statut, &servie.entetes, corps),
+        Err(_) => en_echec(),
+    }
+}
+
+/// 500, sans corps, avec les deux en-têtes communs (`protocole::introuvable`) : un refus du fil ou
+/// du stockage, que le protocole ne dit pas.
+pub(crate) fn en_echec() -> Response<Vec<u8>> {
+    reponse(
+        StatusCode::INTERNAL_SERVER_ERROR,
+        &protocole::introuvable().entetes,
+        Vec::new(),
+    )
+}
+
+/// Sert une requête du protocole `captation` (§ 40 · 7.5 ; question 27) : le chemin, `/` puis 64
+/// chiffres hexadécimaux en minuscules, nomme l'empreinte, sinon 404 ; au fil, par
+/// `Ouverture::demander`, en une seule demande, `captation_a_servir`, puis `protocole::servir`,
+/// sur la méthode de la requête et son en-tête `Range` (un en-tête qui ne se lit pas en texte
+/// compte pour absent), puis, s'il y a une plage, `plage_d_une_captation`. Une empreinte que les
+/// services ne servent pas : 404 (`protocole::introuvable`). Un refus du fil ou du stockage : 500,
+/// sans corps, les deux en-têtes communs ; jamais un message.
+pub async fn servir_une_captation(
+    ouverture: &Ouverture,
+    requete: &Request<Vec<u8>>,
+) -> Response<Vec<u8>> {
+    let Some(empreinte) = empreinte_du_chemin(requete.uri().path()) else {
+        return reponse_servie(&protocole::introuvable(), Vec::new());
+    };
+    let empreinte = empreinte.to_string();
+    let methode = requete.method().as_str().to_string();
+    let range = requete
+        .headers()
+        .get(header::RANGE)
+        .and_then(|valeur| valeur.to_str().ok())
+        .map(str::to_string);
+    let au_fil = ouverture
+        .demander(move |services, _| -> Reponse<(Servie, Vec<u8>)> {
+            let Some((type_mime, taille)) = services.captation_a_servir(&empreinte)? else {
+                return Ok((protocole::introuvable(), Vec::new()));
+            };
+            let servie = protocole::servir(&methode, range.as_deref(), taille, type_mime);
+            let corps = match servie.plage {
+                Some(plage) => services.plage_d_une_captation(&empreinte, plage)?,
+                None => Vec::new(),
+            };
+            Ok((servie, corps))
+        })
+        .await;
+    match au_fil {
+        Ok((servie, corps)) => reponse_servie(&servie, corps),
+        Err(_) => en_echec(),
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::{Path, PathBuf};
+    use std::path::PathBuf;
     use std::sync::Arc;
 
     use commandes::{CloreLImport, ImportClos, OuvrirLImport, VerserUnFichier};
@@ -203,11 +303,11 @@ mod tests {
 
     #[test]
     fn un_refus_du_fil_rend_500_sans_corps() {
-        // La racine des données est un fichier : l'ouverture est refusée, et chaque demande au
-        // fil rend ce refus, que le protocole ne dit pas.
+        // Une seconde ouverture d'une racine tenue est refusée, et chaque demande au fil rend ce
+        // refus, que le protocole ne dit pas.
         let racine = dossier_jetable("protocole-refus-du-fil").join("donnees");
-        std::fs::write(&racine, b"un fichier, pas un dossier")
-            .unwrap_or_else(|e| panic!("écrire {} : {e}", racine.display()));
+        let premiere = fil::ouvrir(racine.clone());
+        assert!(matches!(premiere, Ouverture::Ouverte(_)));
         let ouverture = fil::ouvrir(racine);
         assert!(matches!(ouverture, Ouverture::Refusee(_)));
 
@@ -222,7 +322,7 @@ mod tests {
 
     /// Le fichier sous `dossier`, en descendant, dont les octets sont `octets` ; il en faut un.
     #[cfg(windows)]
-    fn fichier_de(dossier: &Path, octets: &[u8]) -> PathBuf {
+    fn fichier_de(dossier: &std::path::Path, octets: &[u8]) -> PathBuf {
         let mut a_lire = vec![dossier.to_path_buf()];
         while let Some(courant) = a_lire.pop() {
             let entrees = std::fs::read_dir(&courant)

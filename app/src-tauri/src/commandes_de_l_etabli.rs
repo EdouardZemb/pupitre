@@ -251,11 +251,14 @@ fn oublier(choisi: &DossierChoisi, source: &Arc<SourceSurFichiers>) {
 
 /// La place libre du volume du dossier de l'application, où vit la racine des données
 /// (`systeme::place_libre` ; R19) ; un échec, de `Raison::Disque` : « La place libre ne se lit
-/// pas : <erreur>. ».
+/// pas : <genre>. », le genre de l'erreur (`systeme::genre_de_l_erreur`), jamais son texte.
 fn lire_la_place_libre(application: &Path) -> Result<u64, Refus> {
     systeme::place_libre(application).map_err(|erreur| Refus {
         raison: Raison::Disque,
-        message: format!("La place libre ne se lit pas : {erreur}."),
+        message: format!(
+            "La place libre ne se lit pas : {}.",
+            systeme::genre_de_l_erreur(erreur.kind())
+        ),
     })
 }
 
@@ -297,9 +300,10 @@ pub async fn inspecter_un_dossier<R: tauri::Runtime>(
             let Some(chemin) = boite.blocking_pick_folder() else {
                 return Ok(None);
             };
-            let chemin = chemin.into_path().map_err(|erreur| {
-                impossible(format!("Le dossier choisi ne se lit pas : {erreur}."))
-            })?;
+            // L'erreur de `into_path` n'est pas du système : elle ne se recopie pas non plus.
+            let chemin = chemin
+                .into_path()
+                .map_err(|_| impossible("Le dossier choisi ne se lit pas.".to_string()))?;
             let admis = systeme::admettre_le_dossier(&chemin, &dossier_de_l_application)
                 .map_err(impossible)?;
             SourceSurFichiers::parcourir(&admis)

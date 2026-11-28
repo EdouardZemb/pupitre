@@ -1,5 +1,6 @@
 //! Le système : l'heure, l'aléa, le dossier de l'application et la place libre du disque, les
-//! seuls que l'établi lit ; et le dossier choisi, admis s'il n'est pas celui de l'application.
+//! seuls que l'établi lit ; le dossier choisi, admis s'il n'est pas celui de l'application ; et le
+//! genre d'une erreur du système, que les messages de l'établi disent, jamais son texte.
 
 use std::fs;
 use std::io;
@@ -114,17 +115,36 @@ unsafe extern "system" {
 const DANS_PUPITRE: &str =
     "Ce dossier est celui de Pupitre, le contient ou s'y trouve : il ne se verse pas.";
 
+/// Le genre d'une erreur du système, que disent les messages de l'établi, jamais son texte, comme
+/// le constat du disque du stockage : « absent » (`NotFound`), « refusé par le système »
+/// (`PermissionDenied`), « refusé par le disque » pour tout autre genre.
+pub fn genre_de_l_erreur(genre: io::ErrorKind) -> &'static str {
+    match genre {
+        io::ErrorKind::NotFound => "absent",
+        io::ErrorKind::PermissionDenied => "refusé par le système",
+        _ => "refusé par le disque",
+    }
+}
+
 /// Admet le dossier choisi (question 14) : refusé s'il est le dossier de l'application, le contient
 /// ou s'y trouve, leurs chemins canoniques comparés par segments (`Path::starts_with`), « Ce
 /// dossier est celui de Pupitre, le contient ou s'y trouve : il ne se verse pas. » ; rend son
 /// chemin, tel que choisi. Un chemin qui ne se rend pas canonique (`fs::canonicalize`) : « Le
-/// dossier choisi ne se lit pas : <erreur>. », ou « Le dossier de Pupitre ne se lit pas :
-/// <erreur>. ».
+/// dossier choisi ne se lit pas : <genre>. », ou « Le dossier de Pupitre ne se lit pas :
+/// <genre>. », le genre de l'erreur (`genre_de_l_erreur`), ni le chemin ni le texte du système.
 pub fn admettre_le_dossier(choisi: &Path, application: &Path) -> Result<PathBuf, String> {
-    let canonique = fs::canonicalize(choisi)
-        .map_err(|erreur| format!("Le dossier choisi ne se lit pas : {erreur}."))?;
-    let de_l_application = fs::canonicalize(application)
-        .map_err(|erreur| format!("Le dossier de Pupitre ne se lit pas : {erreur}."))?;
+    let canonique = fs::canonicalize(choisi).map_err(|erreur| {
+        format!(
+            "Le dossier choisi ne se lit pas : {}.",
+            genre_de_l_erreur(erreur.kind())
+        )
+    })?;
+    let de_l_application = fs::canonicalize(application).map_err(|erreur| {
+        format!(
+            "Le dossier de Pupitre ne se lit pas : {}.",
+            genre_de_l_erreur(erreur.kind())
+        )
+    })?;
     if canonique.starts_with(&de_l_application) || de_l_application.starts_with(&canonique) {
         return Err(DANS_PUPITRE.to_string());
     }
