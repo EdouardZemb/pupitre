@@ -44,6 +44,23 @@ fn une_requete_sans_plage_qui_tient_rend_200() {
         (Some("1000"), Some("audio/wav"))
     );
     assert_eq!(entete(&s, "Content-Range"), None);
+    let borne = servir("GET", None, 1_048_576, "audio/wav");
+    assert_eq!(
+        (borne.statut, borne.plage),
+        (
+            200,
+            Some(Plage {
+                debut: 0,
+                fin: 1_048_575
+            })
+        )
+    );
+    assert_eq!(servir("GET", None, 1_048_577, "audio/wav").statut, 206);
+    let vide = servir("GET", None, 0, "audio/wav");
+    assert_eq!(
+        (vide.statut, vide.plage, entete(&vide, "Content-Length")),
+        (200, None, Some("0"))
+    );
 }
 
 #[test]
@@ -84,6 +101,10 @@ fn les_plages_se_bornent() {
     );
     assert_eq!(p("bytes=-5000", 1_000), pl(0, 999));
     assert_eq!(p("Bytes=0-9", 1_000), pl(0, 9));
+    assert_eq!(p("bytes=7-7", 1_000), pl(7, 7));
+    assert_eq!(p("bytes=999-", 1_000), pl(999, 999));
+    assert_eq!(p("bytes=-1", 1_000), pl(999, 999));
+    assert_eq!(p("bytes=0-99999999999999999999999", 1_000), pl(0, 999));
     let s = servir("GET", Some("bytes=100-199"), TROIS_MILLIONS, "audio/wav");
     assert_eq!(
         (
@@ -114,7 +135,9 @@ fn une_plage_impossible_rend_416() {
             "{range}"
         );
     }
+    assert_eq!(plage(Some("bytes=1000-"), 1_000), Demande::Impossible);
     assert_eq!(plage(Some("bytes=0-"), 0), Demande::Impossible);
+    assert_eq!(plage(Some("bytes=-5"), 0), Demande::Impossible);
     let s = servir("GET", Some("bytes=3000000-"), TROIS_MILLIONS, "audio/wav");
     assert_eq!(
         (s.statut, s.plage, entete(&s, "Content-Range")),
