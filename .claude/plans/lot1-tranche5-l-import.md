@@ -3585,7 +3585,10 @@ fn chaque_reponse_porte_nosniff_et_accept_ranges() {
   ouvrir la PR en brouillon. Attendu à « Lint » : `unresolved import noyau::donnees::protocole`.
 - [ ] **Étape 3 : écrire le code.** La lecture de l'en-tête par `split_once('=')`, `split_once('-')` et
   `bytes().all(|o| o.is_ascii_digit())`, sans boucle écrite à la main ; les produits et les sommes en `checked_*`, un
-  débordement valant `Impossible`.
+  débordement valant `Impossible`. `.cargo/mutants.toml`, tout d'un coup, pour la PR entière (balayage Q16) :
+  `crates/noyau/src/donnees/protocole.rs` parmi les globs examinés ; `"--test", "protocole"` dans
+  `additional_cargo_test_args` ; « Vingt-huit » à la ligne 2 et à la ligne 43 ; « le protocole des captations » dans
+  la phrase qui énumère les modules. La tâche 25 ne fait que le vérifier.
 - [ ] **Étape 4 : voir le vert.** Attendu à « Tests » de `verifier` : `protocole.rs` `ok. 9 passed` ; `mutants` sans
   survivant sur le diff.
 - [ ] **Étape 5 : committer** `git add crates/noyau/src/donnees/protocole.rs crates/noyau/src/donnees/mod.rs
@@ -3594,9 +3597,10 @@ fn chaque_reponse_porte_nosniff_et_accept_ranges() {
 ### Tâche 21 : le protocole servi par l'établi, en asynchrone
 
 **Fichiers :** créer `app/src-tauri/src/protocole.rs` ; modifier `app/src-tauri/src/lib.rs`,
-`app/src-tauri/tests/i31.rs`, `crates/services/src/lib.rs`, `crates/services/src/lecture.rs`,
-`crates/services/tests/suite/mod.rs`, `crates/services/tests/commandes_en_memoire.rs`,
-`crates/stockage/tests/commandes_sur_fichiers.rs`.
+`app/src-tauri/src/systeme.rs`, `app/src-tauri/src/commandes_de_l_etabli.rs`, `app/src-tauri/tests/i31.rs`,
+`crates/services/src/lib.rs`, `crates/services/src/lecture.rs`, `crates/services/src/etat_de_l_import.rs`,
+`crates/services/src/source_en_memoire.rs`, `crates/services/tests/suite/mod.rs`,
+`crates/services/tests/commandes_en_memoire.rs`, `crates/stockage/tests/commandes_sur_fichiers.rs`.
 
 **Interfaces — produit :**
 
@@ -3626,6 +3630,31 @@ pub async fn servir_une_captation(ouverture: &Ouverture, requete: &http::Request
   `tauri::async_runtime::spawn`, l'`Ouverture` lue dans l'état de l'application, et répond une fois par
   `repondeur.respond`. La CSP ne change pas (`media-src … http://captation.localhost`).
 
+  **Les gestes de `lib.rs`** (balayage Q11 et Q18) : `mod protocole;` s'y ajoute ; partent `refuser_la_captation`
+  (`:175-184`), la phrase de la doc de `run()` qui dit que le protocole refuse toute requête (`:189`), la fermeture
+  synchrone de `:201`, remplacée par l'enregistrement asynchrone, et le test
+  `le_protocole_des_captations_refuse_toute_requete` (`:215`) : ce sont deux des lieux de LE-3.
+
+  **Les reports du registre**, dans cette PR, puisque la tâche touche déjà ces fichiers (balayage § 5) :
+
+  - `IMPORT_RESTE_OUVERT` (`crates/services/src/lib.rs:1891`, que pousse `etat_du_fonds`) promettait la reprise sans
+    condition, alors que CAP-03 ne la promet que dès que l'import a posé un nom d'origine. Son texte devient, mot pour
+    mot : « Un import est resté ouvert : rechoisir son dossier le reprend, s'il a déjà versé un fichier sous son nom ;
+    sinon, le prochain import le clôt. ». En lecture seule, l'avertissement ne se pousse pas : l'inspection y est
+    refusée, et l'état dit déjà pourquoi. La copie de la suite (`suite/mod.rs:8497`, et son filtre à `:8547`) suit.
+  - Le texte brut d'une `io::Error` ne paraît plus dans un message de l'établi : `systeme.rs:125` et `:127`
+    (`admettre_le_dossier`), `commandes_de_l_etabli.rs:255-260` (`lire_la_place_libre`). Une fonction de `systeme`,
+    `genre_de_l_erreur(genre: io::ErrorKind) -> &'static str`, dit le genre, comme `constat_du_disque` du stockage
+    (`stockage/src/lib.rs:384`, `pub(crate)`) : « absent », « refusé par le système », ou « refusé par le disque » ;
+    le message est « Le dossier choisi ne se lit pas : <genre>. », sans `{erreur}`. À `commandes_de_l_etabli.rs:300-302`,
+    l'erreur de `into_path` n'est pas une `io::Error` : le message, « Le dossier choisi ne se lit pas. », ne la recopie
+    pas non plus.
+  - La lecture refusée au milieu de la copie nomme le fichier : `verser_en_flux` (`lib.rs:1246`) ne rend plus seul « Le
+    fichier à verser, le disque l'a refusé. ». `FluxControle` (`etat_de_l_import.rs:747`) note le genre d'une erreur de
+    lecture de la source ; l'échec qui suit devient `ne_se_lit_pas(chemin, rang, constat)` (`etat_de_l_import.rs:212`),
+    comme à l'inspection (question 38). `SourceEnMemoire` gagne `refuser_apres(rang, octets)` : son flux échoue après
+    ses premiers octets (`refuser`, à `source_en_memoire.rs:95`, ne refuse qu'avant la lecture).
+
 - [ ] **Étape 1 : écrire les tests.** Dans la suite, sur les deux paires :
   - `le_protocole_ne_sert_que_l_audio_d_une_prise_ou_d_un_stem` : après un import d'un WAV de 8 044 octets, d'un jeu de
     deux WAV et d'un MIDI de stem, d'un MIDI versé seul, d'un texte et d'un WAV illisible : la prise rend
@@ -3643,29 +3672,52 @@ pub async fn servir_une_captation(ouverture: &Ouverture, requete: &http::Request
     ouvert ; le premier versé par `demander` ; une requête `GET` du premier, `Range: bytes=0-15`, rend 206 et ses seize
     premiers octets ; les deux autres versés ; la clôture compte trois versés ;
   - `une_requete_sur_un_chemin_mal_forme_rend_404` : `/../x`, l'empreinte en majuscules, 63 chiffres, `/<empreinte>/x` ;
-  - `la_lecture_d_une_plage_ne_garde_aucun_fichier_ouvert` (vigilance 5) : un témoin d'abord, un fichier tenu ouvert
-    sous la racine des données, qui fait échouer le renommage de la racine ; puis, le témoin refermé, une plage servie,
-    et la racine se renomme, puis reprend son nom. Si le témoin ne fait pas échouer le renommage sur le runner, la
-    prémisse ne tient pas : la tâche le dit dans son commit, et le test se récrit sur ce que le runner permet.
-  `le_protocole_des_captations_refuse_toute_requete` (`app/src-tauri/src/lib.rs:197`) se retire, remplacé par ces
+  - `la_lecture_d_une_plage_ne_garde_aucun_fichier_ouvert` (vigilance 5 ; balayage Q3) : le fil reste ouvert, et la
+    racine, que son verrou tient, ne se renomme pas : le témoin et le renommage portent sur `donnees/captations/`, que
+    le fil ne tient pas et où `relire_une_plage` ouvre puis referme. Un témoin d'abord, un fichier tenu ouvert par
+    `File::open`, comme le stockage, sous `donnees/captations/`, qui fait échouer le renommage de ce dossier ; puis, le
+    témoin refermé, une plage servie, et le dossier se renomme, puis reprend son nom. Si le témoin ne fait pas échouer
+    ce renommage sur le runner, la prémisse ne tient pas : la tâche le dit dans son commit, et le test se récrit sur
+    ce que le runner permet.
+  Dans `app/src-tauri/src/systeme.rs` (`mod tests`, dans `windows` ; report des `io::Error`) :
+  - `le_constat_d_une_erreur_dit_le_genre_jamais_le_texte` : `genre_de_l_erreur` rend « absent », « refusé par le
+    système » et « refusé par le disque » pour `NotFound`, `PermissionDenied` et un autre genre ;
+  - `admettre_un_dossier_absent_dit_son_genre` : un chemin qui n'existe pas rend « Le dossier choisi ne se lit pas :
+    absent. », sans le chemin ni le texte du système.
+  Dans la suite, sur les deux paires (reports du registre) :
+  - `un_import_reste_ouvert_dit_ce_que_rechoisir_son_dossier_fait` : un import ouvert, un fichier versé sous son nom ;
+    l'état du fonds porte le texte de la décision, une fois ; le même fonds rouvert en lecture seule n'en porte aucun ;
+  - `une_lecture_refusee_au_milieu_de_la_copie_nomme_le_fichier` : une source dont le flux échoue après ses premiers
+    octets (`refuser_apres`) ; le refus nomme le fichier par son chemin et son rang et dit le genre, comme à
+    l'inspection (question 38), jamais le seul « Le fichier à verser, le disque l'a refusé. ».
+  `le_protocole_des_captations_refuse_toute_requete` (`app/src-tauri/src/lib.rs:215`) se retire, remplacé par ces
   tests ; la PR le dit.
 - [ ] **Étape 2 : voir le rouge.** Committer (`test: le protocole servi, en asynchrone, entre deux unités de
-  l'import`), pousser. Attendu à « Lint » de `verifier` : `no method named captation_a_servir found` ; à « Lint de
-  l'établi » de `windows` : `cannot find function servir_une_captation`.
+  l'import`), pousser. Attendu à « Lint » de `verifier` : `no method named captation_a_servir found` ; dans
+  `windows`, à « Lint du stockage et de la synchronisation » (`cargo clippy -p stockage -p synchro --all-targets`
+  compile `commandes_sur_fichiers.rs`, qui joue la suite) : la même erreur, et le job s'y arrête (balayage Q4). Le
+  rouge de `servir_une_captation` ne se lit pas en CI : « Lint de l'établi » vient après « Construire l'installateur »
+  et ne tourne pas ; le test de l'établi est dans le même commit, et le commit le dit.
 - [ ] **Étape 3 : écrire le code.** La table des stems dans les services, comme l'index (§ 31 · 7) ; le module
-  `protocole` de l'établi n'emploie aucun mot d'I29 ni d'I30 ; aucun chemin deviné : la racine reste au fil.
+  `protocole` de l'établi n'emploie aucun mot d'I29 ni d'I30 ; aucun chemin deviné : la racine reste au fil. Les
+  gestes de `lib.rs` et les trois reports, dits sous les interfaces, s'écrivent ici ; chaque message nouveau dit le
+  genre d'une erreur, jamais son texte.
 - [ ] **Étape 4 : voir le vert.** Attendu à « Tests » de `verifier` : la suite verte sur les deux paires ; dans
   `windows`, `i31.rs`, les tests de `protocole` et la sentinelle d'I30 verts, `commandes_sur_fichiers.rs` vert.
 - [ ] **Étape 5 : committer** `git add app/src-tauri/src/protocole.rs app/src-tauri/src/lib.rs
-  app/src-tauri/tests/i31.rs crates/services/src/lib.rs crates/services/src/lecture.rs
-  crates/services/tests/suite/mod.rs crates/services/tests/commandes_en_memoire.rs
-  crates/stockage/tests/commandes_sur_fichiers.rs` (`feat: le protocole des captations, servi en asynchrone`).
+  app/src-tauri/src/systeme.rs app/src-tauri/src/commandes_de_l_etabli.rs app/src-tauri/tests/i31.rs
+  crates/services/src/lib.rs crates/services/src/lecture.rs crates/services/src/etat_de_l_import.rs
+  crates/services/src/source_en_memoire.rs crates/services/tests/suite/mod.rs
+  crates/services/tests/commandes_en_memoire.rs crates/stockage/tests/commandes_sur_fichiers.rs` (`feat: le
+  protocole des captations, servi en asynchrone`).
 
 ### Tâche 22 : l'écran de l'import
 
-**Fichiers :** créer `app/ui/src/import.rs` ; modifier `app/ui/src/main.rs`, `app/ui/src/boite/etat.rs`
-(`Volet::Import`), `app/ui/src/boite/ecran.rs`, `app/ui/src/boite/vue.rs`, `app/ui/src/boite/volets.rs`,
-`app/ui/src/boite/textes.rs`, `app/ui/src/boite/focus.rs` (`Cible::BoutonDeLImport`), `app/ui/style.css`.
+**Fichiers :** créer `app/ui/src/import.rs` ; modifier `app/ui/src/main.rs`, `app/ui/src/app.rs`,
+`app/ui/src/bandeau.rs` (`Bandeau::ajouter_un_avertissement`), `app/ui/src/boite/etat.rs` (`Volet::Import`,
+`cible_de_fermeture`), `app/ui/src/boite/ecran.rs`, `app/ui/src/boite/vue.rs`, `app/ui/src/boite/volets.rs`,
+`app/ui/src/boite/textes.rs`, `app/ui/src/boite/focus.rs` (`Cible::BoutonDeLImport`, `Cible::TitreDeLImport`),
+`app/ui/style.css`.
 
 **Interfaces — consomme :** les commandes de la tâche 11 ; `natif::invoquer`, `natif::decalage_du_geste`.
 
@@ -3692,19 +3744,27 @@ impl Conduite {
     pub(crate) fn avancee(&self) -> Option<String>;
 }
 
-/// Le choix de l'écran pour un dossier inspecté.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum ChoixDuDossier { Aucune, Stems, Main, Generee(String) }
-// Depuis la tâche 11, `commandes::Declaration` porte le jeu et l'origine à la fois
-// (`{ stems, origine }` ; balayage Q3) : ce choix, `declarations_choisies` et les tests qui nomment
-// `Stems` s'accordent au balayage de la PR (d), où l'écran déclare les deux familles.
+/// Vrai si la réponse à `unite` demande de relire la boîte (point de revue 6 ; balayage Q1) : seule la réponse de
+/// `Unite::Clore`, acceptée, le demande ; un `Fichier` ou une `PriseEnStems`, acceptés, une clôture refusée et
+/// une unité refusée, non. La décision est pure : `Ecran::apres_une_unite` ne relit que sur ce oui.
+pub(crate) fn relire_apres(unite: &Unite, issue: &Result<Option<String>, Refus>) -> bool;
 
-/// Les déclarations à envoyer : chaque choix autre qu'`Aucune` ; un nom de générateur vide refuse
-/// avant l'envoi, « Le nom du générateur est vide. », comme le noyau.
+/// Le choix de l'écran pour un dossier inspecté : les deux familles de `commandes::Declaration`
+/// (`{ stems, origine }` ; balayage Q2), le jeu de stems et l'origine.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ChoixDuDossier { pub(crate) stems: bool, pub(crate) origine: ChoixDOrigine }
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum ChoixDOrigine { Aucune, Main, Generee(String) }
+
+/// Les déclarations à envoyer : chaque choix avec un jeu ou une origine, un choix sans l'un ni l'autre est omis ; un
+/// nom de générateur vide, une fois ses blancs ôtés, refuse avant l'envoi, « Le nom du générateur est vide. »,
+/// comme le noyau (`gestes.rs:200`, `:260`) ; un nom qui porte un caractère de contrôle part tel quel, et le refus
+/// des services va au bandeau.
 pub(crate) fn declarations_choisies(choix: &[(String, ChoixDuDossier)]) -> Result<Vec<DeclarationDUnDossier>, &'static str>;
 
 /// Ce que dit un dossier inspecté : son chemin (« Le dossier versé » pour `""`), ses fichiers audio,
-/// et, en attente, « ~ jeu de stems proposé », ou la déclaration de l'import précédent, reproposée.
+/// et, en attente, « ~ jeu de stems proposé », ou la déclaration de l'import précédent, reproposée, qui porte une
+/// `Declaration` entière et se dit de même, par ses deux parts : « ~ …, déclaré à l'import précédent, en attente ».
 pub(crate) fn lignes_d_un_dossier(dossier: &DossierInspecte) -> Vec<String>;
 
 /// Le texte du volet quand un import est resté ouvert, que ce dossier ne reprend pas, le même
@@ -3712,23 +3772,30 @@ pub(crate) fn lignes_d_un_dossier(dossier: &DossierInspecte) -> Vec<String>;
 pub(crate) const IMPORT_OUVERT_AILLEURS: &str =
     "Un import est resté ouvert, que ce dossier ne reprend pas : verser celui-ci le clôt, avec ce qu'il a versé.";
 
-/// Ce que dit une déclaration reprise, sans choix (R2) : « Jeu de stems, déclaré à l'ouverture de
-/// cet import », « De la main de Sacha, … », « Générée par <nom>, … ».
+/// Ce que dit une déclaration reprise, sans choix (R2), par ses deux parts (balayage Q2) : « Jeu de stems, déclaré à
+/// l'ouverture de cet import », « De la main de Sacha, … », « Générée par <nom>, … », et, pour un dossier qui porte
+/// les deux, « Jeu de stems, générée par <nom>, déclaré à l'ouverture de cet import ».
 pub(crate) fn ligne_d_une_declaration_reprise(declaration: &DeclarationDUnDossier) -> String;
 
 /// Le rapport en lignes, les nombres groupés par trois chiffres, une espace insécable (U+00A0) entre
 /// deux groupes : « Vus : 80 fichiers, 83 009 octets », « Versés : … », « Dédoublonnés : … »,
 /// « Illisibles, parmi les versés : … », « Ignorés : … », « Sans nom, parmi les versés : … (les
-/// fichiers n° 4 et 9) », « Origines déclarées : 2 ».
+/// fichiers n° 4 et 9) », « Origines changées : 2 » (le champ `origines_changees`, et CAP-03 : « le rapport dit
+/// chaque origine qu'un import change » ; balayage Q14).
 pub(crate) fn lignes_du_rapport(rapport: &RapportDImport) -> Vec<String>;
 
 // boite::ecran : `Ecran::apres_une_unite(self, unite: &Unite, issue: Result<Option<String>, Refus>)`
-// note la réponse d'une unité dans la conduite, passe un refus ou un avertissement au bandeau, et ne
-// relit la boîte qu'après la réponse de `Unite::Clore`.
+// note la réponse d'une unité dans la conduite ; ne passe au bandeau qu'un refus, par `apres_un_geste(Err)`, et un
+// avertissement, par `Bandeau::ajouter_un_avertissement` (neuve : elle ajoute sans vider, alors que
+// `apres_un_geste(Ok)` vide les avertissements, et l'unité n + 1 effacerait ceux de l'unité n ; balayage Q5) ;
+// `Ok(None)` ne touche pas le bandeau ; ne relit la boîte que sur le oui de `relire_apres`. Le volet de l'import
+// garde `ImportClos::rapport` dans son propre signal, puis appelle `apres_une_unite` avec
+// `ImportClos::avertissement` (balayage Q6).
 
 // boite::textes : la page d'un fonds vide propose aussi d'importer, hors de la lecture seule.
-pub(crate) struct PageDuFondsVide { pub(crate) constats: [&'static str; 2], pub(crate) importer: bool }
-pub(crate) fn page_du_fonds_vide(considerees: u64, lecture_seule: bool) -> Option<PageDuFondsVide>;
+pub(super) struct PageDuFondsVide { pub(super) constats: [&'static str; 2], pub(super) importer: bool }
+pub(super) fn page_du_fonds_vide(considerees: u64, lecture_seule: bool) -> Option<PageDuFondsVide>;
+// (`pub(super)`, comme `page_du_fonds_vide` l'est déjà : son seul usage est dans `boite/` ; balayage Q15.)
 ```
 
 - [ ] **Étape 1 : écrire les tests** (`app/ui/src/import.rs`, et les parts de `boite/` qui portent ce qu'ils
@@ -3740,25 +3807,40 @@ pub(crate) fn page_du_fonds_vide(considerees: u64, lecture_seule: bool) -> Optio
     `None`, et `Clore` n'a pas été demandé ;
   - `l_avancee_se_dit_toutes_les_dix_unites_et_a_la_fin` : sur 25 fichiers, « 10 fichiers versés sur 25 », « 20
     fichiers versés sur 25 », puis « 25 fichiers versés sur 25 », et `None` entre deux ;
-  - `les_declarations_choisies_et_un_generateur_sans_nom` ;
+  - `les_declarations_choisies_et_un_generateur_sans_nom` : un choix sans jeu et sans origine est omis ; un jeu seul
+    donne `Declaration { stems: true, origine: Aucune }` ; une origine seule, ou avec le jeu, les deux parts ; un nom
+    de générateur vide, ou de blancs seuls, refuse « Le nom du générateur est vide. » ; un nom qui porte un
+    caractère de contrôle part tel quel ;
   - `cap03_8_un_dossier_dit_son_jeu_propose_en_attente` (la part de l'écran ; V13) : « ~ jeu de stems proposé, en
-    attente » ; une déclaration
-    reproposée : « ~ Jeu de stems, déclaré à l'import précédent, en attente » ;
-  - `une_reprise_montre_ses_declarations_sans_choix` (R2) : `ligne_d_une_declaration_reprise` de `Jeu A` (`Stems`)
-    rend « Jeu de stems, déclaré à l'ouverture de cet import », de `Atelier` (`Generee { nom: "Atelier inventé" }`)
-    « Générée par Atelier inventé, déclaré à l'ouverture de cet import » ; `IMPORT_OUVERT_AILLEURS` égale le texte de
-    la question 35 ;
+    attente » ; une déclaration reproposée, qui porte une `Declaration` entière, se dit par ses deux parts : « ~ Jeu
+    de stems, déclaré à l'import précédent, en attente », « ~ Générée par Atelier inventé, déclaré à l'import
+    précédent, en attente », et, avec les deux, « ~ Jeu de stems, générée par …, déclaré à l'import précédent, en
+    attente » ;
+  - `une_reprise_montre_ses_declarations_sans_choix` (R2) : `ligne_d_une_declaration_reprise` de `Jeu A` (`stems`,
+    origine `Aucune`) rend « Jeu de stems, déclaré à l'ouverture de cet import », de `Atelier` (sans jeu, origine
+    `Generee { nom: "Atelier inventé" }`) « Générée par Atelier inventé, déclaré à l'ouverture de cet import », et
+    d'un dossier qui porte les deux « Jeu de stems, générée par Atelier inventé, déclaré à l'ouverture de cet import » ;
+    `IMPORT_OUVERT_AILLEURS` égale le texte de la question 35 ;
   - `le_rapport_se_dit_en_lignes` : les comptes de `les_comptes_de_cap03_1` (tâche 3), « Vus : 80 fichiers,
     83\u{a0}009 octets »,
-    « Versés : 77 fichiers, 80\u{a0}003 octets », « Dédoublonnés : 3 fichiers, 3\u{a0}006 octets » ;
+    « Versés : 77 fichiers, 80\u{a0}003 octets », « Dédoublonnés : 3 fichiers, 3\u{a0}006 octets », et, pour deux
+    origines changées, « Origines changées : 2 » ;
   - `la_page_d_un_fonds_vide_propose_d_importer` : `importer` vrai hors de la lecture seule, faux en lecture seule, les
     deux constats inchangés ; `le_fonds_vide_se_dit_par_des_constats` se récrit sur le type neuf, la PR le dit ;
-  - `l_import_ne_relit_la_boite_qu_a_la_fin` (point de revue 6), au pied de `boite/ecran.rs`, sur l'aide `ecran()` : une
-    requête en cours posée (« pont ») ; le rang des demandes de la boîte (`Demandes::rang`) relevé ; trois réponses
-    `verser_un_fichier` notées par `Ecran::apres_une_unite` : le rang et la requête en cours inchangés ; la réponse de
-    `Clore` : le rang monte d'un, et d'un seul, la requête en cours inchangée.
-- [ ] **Étape 2 : voir le rouge** à « Lint », committer (`test: la conduite de l'import, ses déclarations et son
-  rapport à l'écran`).
+  - `l_import_ne_relit_la_boite_qu_a_la_fin` (point de revue 6 ; balayage Q1), au pied de `import.rs`, sur la
+    décision pure `relire_apres` : trois `Fichier` acceptés rendent non ; une `PriseEnStems` acceptée, non ; `Clore`
+    accepté rend oui, et sur une conduite menée de bout en bout, une seule fois ; `Clore` refusé et une unité
+    refusée rendent non. Le test ne lit pas le rang de `Demandes` : `rang` est privé (`boite/etat.rs:76`), il ne monte
+    que dans `lire_la_boite`, que seul `spawn_local` fait tourner, et la relecture appelle `natif::invoquer` et
+    `document()`, que seul WebAssembly sert. Le corps de la PR le dit : la forme du test change, et il ne garde plus
+    le rang lui-même ; la ligne qui relit ne se verrait qu'à l'essai installé (tâche 26) ;
+  - `les_avertissements_de_deux_unites_restent_tous_les_deux` (balayage Q5), au pied de `bandeau.rs` :
+    `ajouter_un_avertissement` deux fois laisse les deux, alors qu'`apres_un_geste(Ok)` les vide ;
+  - dans `boite/etat.rs`, `echap_ferme_le_volet_et_rend_le_focus_comme_fermer` gagne deux cas (balayage Q7) :
+    `cible_de_fermeture` rend `Cible::BoutonDeLImport` pour `Volet::Import`, et `None` pendant l'import.
+- [ ] **Étape 2 : voir le rouge** à « Lint de l'interface (natif, tests compris) » (`ci.yml:156-157` ; « Lint » de
+  `verifier` ne compile pas l'interface ; balayage Q10), committer (`test: la conduite de l'import, ses déclarations
+  et son rapport à l'écran`).
 - [ ] **Étape 3 : écrire le code.** Le bouton « Importer un dossier… » dans l'en-tête de la boîte, à côté de « Journal
   du fonds », et dans la page d'un fonds vide quand elle le propose ; il demande `inspecter_un_dossier` ; un refus va
   au bandeau, `None` ne fait rien. Le volet de l'import, comme les trois autres : « Importer un dossier » en titre ;
@@ -3767,33 +3849,43 @@ pub(crate) fn page_du_fonds_vide(considerees: u64, lecture_seule: bool) -> Optio
   resté ouvert : les fichiers déjà versés ne se relisent pas. », puis ses déclarations, une ligne chacune
   (`ligne_d_une_declaration_reprise`), sans bouton ni champ : « Verser » les renvoie telles quelles (R2) ; un import
   ouvert ailleurs, `IMPORT_OUVERT_AILLEURS` (question 35) ; hors d'une reprise, chaque dossier en `fieldset`, sa légende son chemin,
-  ses choix en boutons radio, « Aucune déclaration », « Jeu de stems » (s'il a un fichier audio), « De la main de
-  Sacha », « Générée par », un champ « Nom du générateur » à `datalist` des générateurs du fonds ; une proposition en
-  italique avec `~`, dite « en attente » dans son texte, et « Reprendre cette déclaration » pour une déclaration
+  deux familles de choix (balayage Q2) : une case à cocher « Jeu de stems » (s'il a un fichier audio), et un groupe
+  radio d'origine, « Aucune origine », « De la main de Sacha », « Générée par », avec son champ « Nom du générateur »
+  à `datalist` des générateurs du fonds ; une proposition en italique avec `~`, dite « en attente » dans son texte, et
+  « Reprendre cette déclaration » pour une déclaration
   reproposée, qui ne s'applique jamais seule. « Verser » envoie `ouvrir_l_import`, puis chaque unité de la conduite,
   une à la fois, chaque réponse attendue avant la suivante, sans minuterie (I18) ; l'avancée dans une région
-  `role="status"` ; « Arrêter » ; un refus et un avertissement vont au bandeau (I29). La clôture : les lignes du
-  rapport, puis la boîte relue, une fois ; sous le rapport, tant que le volet reste ouvert, chaque dossier inspecté
+  `role="status"` ; « Arrêter » ; un refus va au bandeau, et un avertissement s'y ajoute sans vider ceux des unités
+  d'avant (I29 ;
+  balayage Q5). La clôture : le volet garde les lignes du rapport (`ImportClos::rapport`) dans son propre signal, puis
+  note la réponse par `apres_une_unite` (balayage Q6), qui relit la boîte une fois, sur le oui de `relire_apres` ;
+  sous le rapport, tant que le volet reste ouvert, chaque dossier inspecté
   offre « Déclarer l'origine de ce dossier… » (`Portee::Prefixe`, l'import et le chemin du dossier, question 23),
   résolu sur la table que les services gardent de l'import clos, jusqu'à l'inspection suivante (R6) ; ensuite, une
   origine se déclare captation par captation, depuis sa ligne dans le volet de l'idée (tâche 23 ; R25). Pendant
-  l'import, Échap ne ferme pas le volet ; après, il le ferme et rend le
-  focus au bouton « Importer un dossier… » (`Cible::BoutonDeLImport`). Aucun identifiant ni empreinte à l'écran. Les
-  règles de style : les mêmes que les volets, sans couleur, à 200 %.
+  l'import, Échap ne ferme pas le volet ; après, il le ferme et rend le focus au bouton « Importer un dossier… »
+  (`Cible::BoutonDeLImport`). Le volet a sa cible de titre, `Cible::TitreDeLImport`, comme les trois autres volets
+  (`focus.rs:217-232`), et ses repères `bouton_de_l_import` et `titre_de_l_import` dans `Ecran` (`ecran.rs:197-215`),
+  que l'aide `ecran()` des tests reçoit (`ecran.rs:778-796` ; balayage Q7). Aucun identifiant ni empreinte à l'écran. Les
+  règles de style : les mêmes que les volets, sans couleur, à 200 %. Les deux reports du registre que la tâche touche,
+  pour qu'une seule tâche ouvre ces fichiers : la doc `//!` de `focus.rs` nomme les cibles du volet de l'import ;
+  `Offerts`, `ce_que_le_volet_offre` et `prendre` restent où ils sont ; les deux lignes de doc d'`etat.rs` (`:134` et
+  `:229`) se coupent à 100 colonnes au plus.
 - [ ] **Étape 4 : voir le vert.** Attendu à « Tests » de `verifier` : l'interface verte, `statique.rs` et
   `encre_statique.rs` de l'interface verts ; `clippy -p interface` sur les deux cibles vert.
-- [ ] **Étape 5 : committer** `git add app/ui/src/import.rs app/ui/src/main.rs app/ui/src/boite/etat.rs
-  app/ui/src/boite/ecran.rs app/ui/src/boite/vue.rs app/ui/src/boite/volets.rs app/ui/src/boite/textes.rs
-  app/ui/src/boite/focus.rs app/ui/style.css` (`feat: l'écran de l'import, ses déclarations, son avancée et son
-  rapport`).
+- [ ] **Étape 5 : committer** `git add app/ui/src/import.rs app/ui/src/main.rs app/ui/src/app.rs
+  app/ui/src/bandeau.rs app/ui/src/boite/etat.rs app/ui/src/boite/ecran.rs app/ui/src/boite/vue.rs
+  app/ui/src/boite/volets.rs app/ui/src/boite/textes.rs app/ui/src/boite/focus.rs app/ui/style.css` (`feat: l'écran
+  de l'import, ses déclarations, son avancée et son rapport`).
 
 ### Tâche 23 : la vue d'une idée importée et la lecture simple
 
 **Fichiers :** créer `app/ui/src/ecoute.rs` ; modifier `app/ui/src/main.rs`, `app/ui/src/boite/volets.rs`
 (`VoletDeLIdee`), `app/ui/src/boite/ecran.rs`, `app/ui/style.css`.
 
-**Interfaces — consomme :** `VueDUneIdee::captations_vues`, `CaptationVue`, `StemVu`, `TypeVu` (tâche 11) ;
-`noyau::donnees::protocole::type_du_format` (tâche 20) ; `stems::TypeDeStem::libelle`.
+**Interfaces — consomme :** `VueDUneIdee::captations_vues`, `CaptationVue`, `StemVu`, `TypeVu` (tâche 11), qui porte
+un `commandes::TypeDeStem` ; `noyau::donnees::protocole::type_du_format` (tâche 20). Les deux conversions du type
+d'un stem n'existent que, privées, dans les services : `ecoute.rs` porte les siennes (balayage Q12).
 
 **Interfaces — produit** (`interface::ecoute`) :
 
@@ -3820,6 +3912,10 @@ pub(crate) fn apres_une_erreur(montree: CaptationMontree) -> CaptationMontree;
 pub(crate) fn origine_en_mots(origine: &OrigineDeclaree) -> String;
 /// Le type d'un stem : son texte, son nom accessible, et s'il s'écrit en italique (question 18 ;
 /// § 50 · 4.1 et 4.2).
+/// Les douze types d'un stem, dans les deux sens, douze bras chacun (balayage Q12) : le libellé d'un
+/// `commandes::TypeDeStem` (« chœurs » pour `Choeurs`), et le type que choisit « Choisir le type » d'après son libellé.
+pub(crate) fn libelle_du_type(type_de_stem: TypeDeStem) -> &'static str;
+pub(crate) fn type_du_libelle(libelle: &str) -> Option<TypeDeStem>;
 pub(crate) fn type_en_mots(type_vu: &TypeVu) -> (String, String, bool);
 /// Le texte versé à montrer : le texte tel quel, ou « Ce texte versé est illisible. ».
 pub(crate) fn texte_a_montrer(lu: &TexteLu) -> String;
@@ -3835,7 +3931,8 @@ pub(crate) fn texte_a_montrer(lu: &TexteLu) -> String;
     d'erreur : la captation montrée est une valeur ;
   - `lisible_par_l_appareil_ne_vaut_que_maybe_ou_probably` : `""`, `"no"`, `"MAYBE"` faux ;
   - `les_faits_se_disent_en_mots_et_un_absent_par_un_tiret` : une prise WAV, « Format : wav », « Durée : 0:01 »,
-    « Canaux : 2 », « Fréquence : 44 100 Hz », « Bits : 16 » ; un MIDI, « Format : smf1 », « Division : 480 » ; un
+    « Canaux : 2 », « Fréquence : 44\u{a0}100 Hz » (une espace insécable U+00A0, comme tout nombre groupé à l'écran, tâche
+    22), « Bits : 16 » ; un MIDI, « Format : smf1 », « Division : 480 » ; un
     illisible, `—` à chaque fait ;
   - `l_origine_se_dit_en_mots` ;
   - `le_type_d_un_stem_ne_se_dit_jamais_par_le_seul_glyphe` : proposé, (« ~ voix », « voix, en attente », vrai) ;
@@ -3843,9 +3940,11 @@ pub(crate) fn texte_a_montrer(lu: &TexteLu) -> String;
     « chœurs » ;
   - `un_texte_verse_piege_se_montre_tel_quel` : `<script>alert(1)</script> &amp;` revient octet pour octet ; un
     illisible, « Ce texte versé est illisible. » ;
+  - `les_douze_types_de_stem_se_disent_et_se_choisissent` (balayage Q12) : sur les douze types, `libelle_du_type` puis
+    `type_du_libelle` rendent le type de départ ; `Choeurs` se dit « chœurs » ;
   - `l_adresse_d_une_captation`.
-- [ ] **Étape 2 : voir le rouge** à « Lint », committer (`test: la captation importée dans le volet de l'idée et la
-  lecture simple`).
+- [ ] **Étape 2 : voir le rouge** à « Lint de l'interface (natif, tests compris) » (balayage Q10), committer (`test: la
+  captation importée dans le volet de l'idée et la lecture simple`).
 - [ ] **Étape 3 : écrire le code.** Le volet de l'idée montre, sous ses champs, une ligne par captation : « Prise ·
   wav », « MIDI versé · smf1 », « Texte versé · chordpro », « Prise en stems · 10 stems » en titre ; ses lignes ; une
   prise, son élément `<audio controls preload="none">`, nommé « Écouter « Démo 1.wav » », ou le constat ; un texte
@@ -3865,7 +3964,8 @@ pub(crate) fn texte_a_montrer(lu: &TexteLu) -> String;
 ### Tâche 24 : la boîte : la ligne d'une idée sans texte, le regroupement, les titres à 200 %
 
 **Fichiers :** modifier `app/ui/src/boite/textes.rs`, `app/ui/src/boite/etat.rs`, `app/ui/src/boite/ecran.rs`,
-`app/ui/src/boite/volets.rs`, `app/ui/src/boite/gestes.rs`, `app/ui/src/boite/vue.rs`, `app/ui/style.css`,
+`app/ui/src/boite/volets.rs`, `app/ui/src/boite/gestes.rs`, `app/ui/src/boite/vue.rs`, `app/ui/src/boite/fenetre.rs`,
+`app/ui/style.css`,
 `crates/services/tests/suite/mod.rs`,
 `crates/services/tests/commandes_en_memoire.rs`, `crates/stockage/tests/commandes_sur_fichiers.rs`.
 
@@ -3896,7 +3996,8 @@ pub(crate) fn commandes_de_regroupement(choisies: &[(Captation, i64)], cible: &s
     du 25 octobre 2026 (le décalage de Paris, comme `relier_les_cochees_date_chaque_idee_a_sa_naissance`) ; deux
     `Regrouper`, dans l'ordre, chacun avec ses deux décalages ;
   - `une_captation_deja_dans_la_cible_ne_se_regroupe_pas`.
-  Au pied de `boite/vue.rs`, sur la feuille de style (l'aide `declaree`) :
+  Au pied de `boite/fenetre.rs`, là où sont les autres tests de la feuille de style (l'aide `declaree`, `fenetre.rs:347`
+  ; `boite/vue.rs` n'a pas de `mod tests` ; balayage Q10) :
   - `les_titres_des_colonnes_passent_a_la_ligne` : `.colonnes .cellules > span` et `.colonnes .cocher` déclarent
     `white-space: normal` et `overflow-wrap: anywhere`.
   Dans la suite, sur les deux paires :
@@ -3904,9 +4005,16 @@ pub(crate) fn commandes_de_regroupement(choisies: &[(Captation, i64)], cible: &s
     « demo » ne la trouve pas (question 4) ;
   - `apres_deux_regroupements_annuler_ne_defait_que_le_dernier` (R21) : deux prises regroupées dans une même idée, deux
     `Regrouper` ; le geste à annuler, que `libelle_d_annulation` reçoit, est le message du second ; annuler ne rend que
-    la seconde prise à son idée, la première reste regroupée.
+    la seconde prise à son idée, la première reste regroupée ;
+  - `les_operations_de_l_import` (I28 ; `suite/mod.rs:2780` ; report du registre) gagne deux cas : un second import
+    des mêmes octets sous un autre chemin, qui ajoute un nom (« Import du … : nom d'origine ajouté »), et une
+    origine déclarée sur une captation sans nom (« Origine déclarée pour cette prise : … » ; la paire sur fichiers
+    a `nom_sans_forme_utf8`) ; le compte `19 + 3 + 6` (`:2856`) se recompte, et la doc (`:2840-2848`) le dit.
+  Ces tests de la suite gardent un comportement déjà là (R21 et la question 4 tiennent déjà dans les services) : ils
+  compilent et peuvent passer dès le rouge, et la tâche le dit (balayage Q10).
 - [ ] **Étape 2 : voir le rouge.** Committer (`test: la ligne d'une idée sans texte, le regroupement, les titres à
-  200 %`), pousser. Attendu à « Lint » : `cannot find function commandes_de_regroupement`.
+  200 %`), pousser. Attendu à « Lint de l'interface (natif, tests compris) » (balayage Q10) : `cannot find function
+  commandes_de_regroupement`.
 - [ ] **Étape 3 : écrire le code.** Sur la ligne de chaque captation dans le volet de l'idée, une case « À regrouper » ;
   dans le volet d'une autre idée, « Regrouper ici (2) », qui envoie chaque `Regrouper`, un à la fois ; un refus
   s'arrête au bandeau ; la boîte se relit une fois, à la fin, et les choix se vident après un succès. « Annuler » ne
@@ -3917,8 +4025,8 @@ pub(crate) fn commandes_de_regroupement(choisies: &[(Captation, i64)], cible: &s
 - [ ] **Étape 4 : voir le vert.** Attendu à « Tests » de `verifier` : l'interface et la suite vertes ; dans `windows`,
   `commandes_sur_fichiers.rs` vert.
 - [ ] **Étape 5 : committer** `git add app/ui/src/boite/textes.rs app/ui/src/boite/etat.rs app/ui/src/boite/ecran.rs
-  app/ui/src/boite/volets.rs app/ui/src/boite/gestes.rs app/ui/src/boite/vue.rs app/ui/style.css
-  crates/services/tests/suite/mod.rs crates/services/tests/commandes_en_memoire.rs
+  app/ui/src/boite/volets.rs app/ui/src/boite/gestes.rs app/ui/src/boite/vue.rs app/ui/src/boite/fenetre.rs
+  app/ui/style.css crates/services/tests/suite/mod.rs crates/services/tests/commandes_en_memoire.rs
   crates/stockage/tests/commandes_sur_fichiers.rs` (`feat: la ligne d'une idée sans texte, le regroupement à l'écran,
   les titres à 200 %`).
 
@@ -3927,12 +4035,17 @@ pub(crate) fn commandes_de_regroupement(choisies: &[(Captation, i64)], cible: &s
 **Fichiers :** `docs/20-sfd/21-capter-et-organiser.md` (CAP-03), `docs/40-architecture.md` (§ 7.5),
 `docs/50-interfaces-et-appareils.md` (§ 2, § 3.1, § 4.2), `docs/assets/maquettes/fonds.svg`,
 `docs/70-qualite-et-verification.md` (§ 3, § 4.1, § 8), `docs/80-glossaire.md`, `docs/pistes.md`,
-`docs/registre.md`, `.cargo/mutants.toml`, `CONVENTIONS.md`, `CLAUDE.md`, `ci.yml` (les délais).
+`docs/registre.md`, `CONVENTIONS.md`, `CLAUDE.md`, `ci.yml` (les délais de `verifier` et de `mutants`) ; en code, pour
+les renvois à une revue : `app/src-tauri/src/commandes_de_l_etabli.rs`, `crates/services/src/lecture.rs`,
+`crates/services/src/lib.rs`, `crates/services/tests/suite/mod.rs`. `.cargo/mutants.toml` est déjà fait (tâche 20) :
+la tâche le vérifie.
 
 - [ ] **Étape 1 : la recherche de LE-2**, citée dans la description de la PR : `lecture simple`, `écouter`,
   `protocole`, `plage`, `regrouper`, `rassembler`, `fichier`, `avancée`, chacun aussi sans accent et sur la
   majuscule accentuée ; et, pour LE-3, `refuse toute requête` dans tout le dépôt, maquettes et commentaires SVG
-  compris.
+  compris, sauf `.claude/plans/`, dont les plans de tranches closes portent aussi la phrase et que la clôture du lot
+  supprime ; la PR le dit. Les autres occurrences se récrivent : `CLAUDE.md:24`, `docs/40-architecture.md:518` et
+  `docs/70-qualite-et-verification.md:418` ici ; `lib.rs:175` et `:189` à la tâche 21 (balayage Q18).
 - [ ] **Étape 2 : la SFD et l'architecture.** CAP-03 : la lecture simple, une prise ou un stem à la fois, et « lecture
   impossible sur cet appareil », sans erreur ; l'écran de l'import, ses déclarations, la proposition d'un jeu (CAP-03 ·
   8), son avancée et son rapport. § 40 · 7.5 : le protocole servi, enregistré en asynchrone, chaque requête une
@@ -3945,18 +4058,32 @@ pub(crate) fn commandes_de_regroupement(choisies: &[(Captation, i64)], cible: &s
   défait que le dernier regroupement, celui de la dernière captation (R21 ; V10) ; « Fichier : ». § 50 · 4.2 : le type d'un
   stem en exemple d'un élément importé gardé. La maquette du fonds : le bouton « Importer un dossier… » et le volet de
   l'import, ses commentaires SVG compris.
-- [ ] **Étape 4 : la qualité, le glossaire, les pistes, le registre.** § 70 · 3 : I31, le protocole (ses tests). § 70 ·
+- [ ] **Étape 4 : la qualité, le glossaire, les pistes, le registre.** § 70 · 3 : I31, le protocole (ses tests), et sa
+  ligne (« … qui ne nomme pas une empreinte connue est refusée »), qui se
+  récrit avec ce paragraphe (balayage Q18). § 70 ·
   4.1 : « CAP-03 | 1 à 3, 7 à 13 | INC-1, lot 1 », le 8 et le 12 ajoutés, que l'écran livre (R24). § 70 · 8 : `mutants` (le protocole). Le glossaire : « Lecture
   simple », d'après la recherche. `docs/pistes.md` : « Les titres des colonnes de la boîte à 200 % » sort. LE-17 :
   l'état devient « clos le <date>, à la fusion de la PR (d) #<n>, qui le clôt », suivi des PR (a), (b), (c) et (d) et
-  de leurs numéros, et des sections corrigées par chacune, comme LE-16.
-- [ ] **Étape 5 : les portes.** `.cargo/mutants.toml` : « Vingt-huit modules », la phrase qui les énumère ;
-  `CONVENTIONS.md` : `mutants` (le protocole), `windows` (les tests du protocole) ; `CLAUDE.md` : « Les crates » (le
+  de leurs numéros, et des sections corrigées par chacune, comme LE-16 ; la ligne cite le § 50 · 4.2, que la PR (d)
+  corrige, parmi les sections de la PR (d), bien qu'il ne soit pas dans le critère de sortie de LE-17.
+- [ ] **Étape 5 : les portes.** `.cargo/mutants.toml`, fait à la tâche 20 (balayage Q16) : la tâche ne fait que
+  vérifier « Vingt-huit modules » et la phrase qui les énumère ; `CONVENTIONS.md` : `mutants` (le protocole), `windows`
+  (les tests du protocole) ; `CLAUDE.md` : « Les crates » (le
   noyau : le protocole ; les services : la captation à servir ; l'établi : le protocole servi en asynchrone ;
-  l'interface : l'import, l'écoute). Les délais de `verifier`, de `windows` et de `mutants`, remesurés sur l'exécution
-  de la tête, au double de la mesure, leur commentaire daté.
+  l'interface : l'import, l'écoute). Les délais de `verifier` et de `mutants`, remesurés sur l'exécution de la tête, au
+  double de la mesure, leur commentaire daté ; celui de `windows` se remesure à la tâche 26, après sa construction de
+  l'exemple, que cette mesure-ci ne verrait pas (balayage Q17).
+- [ ] **Étape 5 bis : les renvois à une revue** (report du registre). Chaque « revue de la PR (b) » et chaque « revue
+  de la tâche 6 » du code se récrit en clair : la règle, non la revue qui l'a posée. Les huit « revue de la PR (b) » :
+  `app/src-tauri/src/commandes_de_l_etabli.rs:280` ; `crates/services/src/lecture.rs:727` ;
+  `crates/services/src/lib.rs:1146` et `:1885` ; `crates/services/tests/suite/mod.rs:5668`, `:6652`, `:6904` et
+  `:8029`. Les deux « revue de la tâche 6 » : `lecture.rs:919` et `lib.rs:930`. Les lignes ont pu bouger avec les
+  tâches 21 et 24 : la recherche des deux expressions, dans `crates/` et `app/`, fait foi. Committer à part : `git add
+  app/src-tauri/src/commandes_de_l_etabli.rs crates/services/src/lecture.rs crates/services/src/lib.rs
+  crates/services/tests/suite/mod.rs` (`docs: les renvois à une revue se récrivent en clair`).
 - [ ] **Étape 6 : committer** les documents (`docs: le protocole, l'écran de l'import et la lecture simple à la SFD, à
-  l'architecture et aux écrans`).
+  l'architecture, aux écrans`, 99 caractères : l'en-tête d'un commit en admet 100 au plus, `commits.py:35` ;
+  balayage Q9).
 - [ ] **Étape 7 : la revue de la PR (d).** La revue de la PR entière, sur sa tête, par le modèle le plus capable : le
   tableau du § 70 · 4.1 contre les critères de la tranche (CAP-03 · 8 et 12 inscrits, chacun avec son test nommé :
   `cap03_8_trois_wav_de_meme_duree_proposent_un_jeu_et_sans_declaration_trois_prises` et
@@ -3964,7 +4091,9 @@ pub(crate) fn commandes_de_regroupement(choisies: &[(Captation, i64)], cible: &s
   chaque section
   que nomme LE-17 contre les diffs des quatre PR ; chaque mécanisme annoncé que la PR touche relu ; la recherche de
   LE-2 ; chaque écran mené au clavier, chaque information dite autrement que par la couleur. Puis les corrections,
-  leur relecture sur la tête qui part. Le corps dit que « Annuler » ne défait que le dernier regroupement, celui de la dernière captation (R21 ; V10). La PR
+  leur relecture sur la tête qui part. Le corps dit que « Annuler » ne défait que le dernier regroupement, celui de la
+  dernière captation (R21 ; V10), et que la forme de `l_import_ne_relit_la_boite_qu_a_la_fin` a changé
+  (balayage Q1). La PR
   ne se fusionne qu'après l'essai installé (tâche 26).
 
 ### Tâche 26 : l'essai installé et son relevé
@@ -3974,18 +4103,27 @@ pub(crate) fn commandes_de_regroupement(choisies: &[(Captation, i64)], cible: &s
 
 - [ ] **Étape 1 : le programme de l'essai.** `dossier_a_verser <dossier>` refuse un dossier qui existe et n'est pas
   vide ; il écrit des fichiers inventés, aux octets calculés : `Démos/Démo 1.wav` (8 000 Hz, mono, 8 bits, deux
-  secondes d'un son audible), `Démos/Démo 2.wav`, `Démos/Copie de Démo 1.wav` (le contenu de `Démo 1.wav`),
+  secondes d'un son audible), `Démos/Démo 2.wav` (trois secondes), `Démos/Copie de Démo 1.wav` (le contenu de `Démo
+  1.wav`),
   `Démos/Démo d'hiver 2 - 01_06_2015 18.42.m4a` (une boîte `ftyp` seule), `Démos/Pont.aiff` (un en-tête `FORM AIFF`) ;
   `Jeu A/voix.wav`, `Jeu A/basse.wav`, `Jeu A/batterie.wav` (les mêmes trames, des contenus distincts) et
   `Jeu A/voix.mid` (`smf1`) ; `Textes/Pont du soir.cho` (UTF-8, un ChordPro inventé) et `Textes/Ancien.txt` (Latin-1) ;
-  `Divers/archive.zip` et `Divers/notice.pdf` ; `Générées/Boucle 1.wav` et `Générées/Boucle 2.wav`. Le job `windows`
+  `Divers/archive.zip` et `Divers/notice.pdf` ; `Générées/Boucle 1.wav` (une seconde) et `Générées/Boucle 2.wav` (une
+  seconde et demie). Les durées sont
+  distinctes (balayage Q8) : `jeu_propose` proposerait un jeu dès que deux WAV distincts ont les mêmes trames à la même
+  fréquence, `Démos` et `Générées` compris ; seul `Jeu A` en propose un, et la doc du programme le dit. Le job `windows`
   le construit (`cargo build -p stockage --release --example dossier_a_verser`) et le dépose en artefact
   `dossier-a-verser`, à côté de l'installateur ; `clippy -p stockage --all-targets` de `verifier` le passe déjà.
   `CONVENTIONS.md` le dit. Committer `git add crates/stockage/examples/dossier_a_verser.rs .github/workflows/ci.yml
   CONVENTIONS.md` (`feat: le programme qui engendre le dossier de l'essai installé`), pousser ; attendu : `verifier` et
-  `windows` verts, les deux artefacts présents.
+  `windows` verts, les deux artefacts présents. Puis le délai de `windows` se remesure sur cette exécution, avec la
+  construction de l'exemple et son artefact, que la tâche 25 n'a pas mesurées : au double de la mesure, son
+  commentaire daté ; `git add .github/workflows/ci.yml` (`ci: le délai de windows remesuré avec l'exemple`), pousser
+  (balayage Q17).
 - [ ] **Étape 2 : préparer l'essai.** L'installateur `etabli-installateur` et le programme de l'exécution verte de la
-  tête (étape 1) ; la liste de l'essai, dans le dossier temporaire, à remettre à la maîtrise d'ouvrage. Le fonds
+  tête (étape 1) ; la liste de l'essai, dans le dossier temporaire, à remettre à la maîtrise d'ouvrage ; elle dit que
+  seul `Jeu A`
+  propose un jeu de stems. Le fonds
   d'essai de la tranche 4 se garde : la genèse n'a pas changé.
 - [ ] **Étape 3 (👤) : l'essai.** La maîtrise d'ouvrage installe l'établi par-dessus celui de la tranche 4, sous
   `app.pupitre.etabli`, sur son fonds d'essai, lance le programme vers un dossier neuf hors du dossier de
@@ -3993,7 +4131,8 @@ pub(crate) fn commandes_de_regroupement(choisies: &[(Captation, i64)], cible: &s
   - « Importer un dossier… » ouvre la boîte de dossier au-dessus de l'établi ; la fermer sans choisir ne fait rien ;
     choisir le dossier de l'application est refusé, le bandeau dit pourquoi ;
   - l'inspection : les fichiers par nature, la taille à verser et la place libre ; `Jeu A` « ~ jeu de stems proposé,
-    en attente » ; `Jeu A` déclaré jeu de stems, `Générées` « Générée par Atelier inventé » ;
+    en attente », `Démos` et `Générées` aucun jeu proposé ; `Jeu A` déclaré jeu de stems, `Générées` « Générée par
+    Atelier inventé » ;
   - « Verser » : l'avancée se dit, la fenêtre répond pendant l'import ; « Arrêter » au milieu, puis le même dossier
     rechoisi : la reprise se dit, ses déclarations montrées sans choix, l'import reprend et se clôt ; le rapport : un
     dédoublonné, un illisible, deux ignorés ;
@@ -4020,7 +4159,9 @@ pub(crate) fn commandes_de_regroupement(choisies: &[(Captation, i64)], cible: &s
   Committer (`docs: le relevé de l'essai installé de la tranche 5`).
 - [ ] **Étape 5 : la relecture** du programme, de son étape de CI et du relevé, sur la tête qui part ; le corps final
   (les tests réécrits : `le_protocole_des_captations_refuse_toute_requete` retiré, `le_fonds_vide_se_dit_par_des_constats`
-  récrit ; la table des stems ; « Écarts à la spec : Aucun. ») ; `gh pr ready` ; la fusion par squash,
+  récrit ; la forme de `l_import_ne_relit_la_boite_qu_a_la_fin`, qui garde la décision pure `relire_apres` et non plus
+  le rang de `Demandes` ; la recherche de LE-3 sans `.claude/plans/` ; la table des stems ; « Écarts à la spec :
+  Aucun. ») ; `gh pr ready` ; la fusion par squash,
   `--match-head-commit` nommant cette tête.
 
 ### Tâche 27 : la clôture de la tranche
@@ -4031,7 +4172,9 @@ pub(crate) fn commandes_de_regroupement(choisies: &[(Captation, i64)], cible: &s
   pour la tranche 6, l'archive et la réimportation ; le générateur par l'import pour la tranche 7, le mode
   démonstration ; les clés de l'import et de l'origine, à geler avec la `v0.3.0` et à reporter dans « Ce qui doit
   survivre » à la clôture du lot ; les doutes de ce plan restés ouverts) ; les leçons de la tranche, notées pour le
-  registre, que la clôture du lot porte. Ce plan reste dans `.claude/plans/` jusqu'à la clôture du lot, que la
+  registre, que la clôture du lot porte ; les renvois « balayage Q… » du code (`crates/`, `app/`) se récrivent en clair,
+  la règle et non le numéro, puisque la clôture du lot supprime le plan qu'ils citent (`git grep -n "balayage Q" --
+  crates app` ne rend plus rien). Ce plan reste dans `.claude/plans/` jusqu'à la clôture du lot, que la
   tranche 9 conduit.
 
 ---
@@ -4049,7 +4192,7 @@ pub(crate) fn commandes_de_regroupement(choisies: &[(Captation, i64)], cible: &s
   a son test : CAP-03 · 1 à 3, 7, 10, 11, 13 (12), 9 (13), 8 (12, inscrit avec l'écran qui le propose, 22 et 25 ;
   R24), 12 (23, et l'essai, 26), 4 en part (12) ; I14 et le test 4 sur la copie en flux (9) ; I31 pour le protocole
   (21) ; I01 (10) ; le test 13 (16) ; `mutants` (1 à 6, 20 ; R14) ;
-  les délais (8, 17, 25) ; le chemin long et les deux formes d'un nom dans `windows` (15).
+  les délais (8, 17, 25, 26) ; le chemin long et les deux formes d'un nom dans `windows` (15).
 - **Les types.** `Reconnu`, `FaitsWav`, `FaitsMidi`, `ControleDuTexte`, `Hacheur` (1, 2) servent aux tâches 9 et 12 ;
   `FichierDeLImport`, `Comptes`, `rapport`, `place`, `go` (3) à la tâche 12, et `lire_le_rapport`, `RapportLu` (3) à
   la tâche 13 ; `OriginesLues`, `Ajout`, `Declaration`
