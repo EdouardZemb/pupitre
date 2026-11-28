@@ -97,7 +97,7 @@ pub fn plage(range: Option<&str>, taille: u64) -> Demande {
     if debut > derniere || demandee < debut {
         return Demande::Impossible;
     }
-    let borne = debut.checked_add(REPONSE_AU_PLUS - 1).unwrap_or(u64::MAX);
+    let borne = debut.saturating_add(REPONSE_AU_PLUS - 1);
     Demande::Plage(Plage {
         debut,
         fin: demandee.min(derniere).min(borne),
