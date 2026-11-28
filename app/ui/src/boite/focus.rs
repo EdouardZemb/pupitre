@@ -1,5 +1,7 @@
 //! Où va le focus : la commande gardée d'une ligne, la cible rendue après une perte ou à la
 //! fermeture d'un volet, et celle qui remplace la liste quand la page du fonds vide la cache.
+//! Elle dit aussi ce que le volet offre au clavier, « Rétablir » et « Retirer », et le drapeau du
+//! geste en vol.
 
 use commandes::LigneDeLaBoite;
 use leptos::prelude::*;
