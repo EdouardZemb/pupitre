@@ -51,6 +51,7 @@ use noyau::donnees::import::{self, MidiDuStem, StemAVerser};
 use noyau::donnees::index::{self, Index};
 use noyau::donnees::journal;
 use noyau::donnees::origine;
+use noyau::donnees::protocole::{self, Plage};
 use noyau::donnees::rapport::{self, FichierDeLImport};
 use noyau::donnees::requete;
 use noyau::donnees::stems;
@@ -109,6 +110,11 @@ pub struct Versee {
 /// une écriture faite change les têtes, et la lecture qui suit le rebâtit. Les têtes ne suffisent
 /// à dire l'index à jour que tant qu'`en_boite` ne lit que le document : ce qu'elle lirait
 /// ailleurs pourrait changer sans changer les têtes.
+///
+/// Ils tiennent de même la table des stems que sert le protocole des captations (empreinte →
+/// format, `lecture::formats_des_stems`), un dérivé jetable, avec les têtes du fonds dont elle est
+/// bâtie : à la première demande qui suit un changement des têtes, ou sans table tenue, elle se
+/// rebâtit en entier du fonds lu ; aucune écriture ne la touche (`captation_a_servir`).
 pub struct Services<D: Documents, C: Captations> {
     documents: D,
     captations: C,
@@ -118,6 +124,9 @@ pub struct Services<D: Documents, C: Captations> {
     dernier_geste: Option<GesteDeTri>,
     /// L'index tenu, et les têtes du fonds dont il est bâti ; aucun à l'ouverture des services.
     index: RefCell<Option<(Vec<ChangeHash>, Index)>>,
+    /// La table des stems tenue (empreinte → format), et les têtes du fonds dont elle est bâtie ;
+    /// aucune à l'ouverture des services.
+    stems: Option<(Vec<ChangeHash>, BTreeMap<String, String>)>,
     /// La dernière inspection, gardée jusqu'à l'ouverture qui la reprend, ou jusqu'à une autre.
     inspection: Option<InspectionGardee>,
     /// L'import ouvert par ces services ; `None` hors d'un import.
@@ -131,7 +140,7 @@ pub struct Services<D: Documents, C: Captations> {
 
 impl<D: Documents, C: Captations> Services<D, C> {
     /// Les services de l'appareil `appareil`, sur `documents` et `captations`, sans dernier geste
-    /// de tri ni index tenu.
+    /// de tri, ni index, ni table des stems tenus.
     pub fn new(documents: D, captations: C, appareil: gestes::Appareil) -> Self {
         Services {
             documents,
@@ -139,6 +148,7 @@ impl<D: Documents, C: Captations> Services<D, C> {
             appareil,
             dernier_geste: None,
             index: RefCell::new(None),
+            stems: None,
             inspection: None,
             import: None,
             dernier_clos: None,
@@ -628,16 +638,19 @@ impl<D: Documents, C: Captations> Services<D, C> {
     /// L'état du fonds : né ou non (`documents.fonds().is_some()`), la lecture seule
     /// (`documents.lecture_seule()`), ses avertissements (`documents.avertissements()`), puis
     /// `IMPORT_RESTE_OUVERT` si le fonds porte un import ouvert, sans rapport (`lecture::imports`),
-    /// que ces services ne conduisent pas (question 2) ; et le message de l'opération du dernier
-    /// geste de tri, celui qu'annuler défait. En lecture seule comme ailleurs.
+    /// que ces services ne conduisent pas (question 2), et s'il écrit : en lecture seule,
+    /// l'inspection est refusée, et l'état dit déjà pourquoi ; et le message de l'opération du
+    /// dernier geste de tri, celui qu'annuler défait. En lecture seule comme ailleurs.
     pub fn etat_du_fonds(&self) -> Reponse<EtatDuFonds> {
         let mut avertissements = self.documents.avertissements();
         let conduit = self.import.as_ref().map(|etat| etat.import.as_str());
-        let reste_ouvert = self.documents.fonds().is_some_and(|fonds| {
-            lecture::imports(fonds)
-                .iter()
-                .any(|lu| lu.rapport.is_none() && Some(lu.import.as_str()) != conduit)
-        });
+        let ecrit = self.documents.lecture_seule().is_none();
+        let reste_ouvert = ecrit
+            && self.documents.fonds().is_some_and(|fonds| {
+                lecture::imports(fonds)
+                    .iter()
+                    .any(|lu| lu.rapport.is_none() && Some(lu.import.as_str()) != conduit)
+            });
         if reste_ouvert {
             avertissements.push(IMPORT_RESTE_OUVERT.to_string());
         }
@@ -898,12 +911,14 @@ impl<D: Documents, C: Captations> Services<D, C> {
     /// `lire_en_flux`), un fichier déplacé ou tenu depuis l'inspection : le refus nomme le fichier,
     /// comme à l'inspection (`etat_de_l_import::ne_se_lit_pas` ; question 38). La copie en flux,
     /// sous `import::nom_de_la_copie`, le flux contrôlé (ses octets comptés, un texte par
-    /// `ControleDuTexte` : `FluxControle`) ; ses faits, ceux de l'en-tête lu à l'inspection, ou
-    /// aucun (illisible : un en-tête qui ne se lit pas, un texte que le contrôle refuse). Un
-    /// fichier audio d'un jeu, et le MIDI d'un de ses stems (`stem_du_midi`) : la captation seule,
-    /// `Issue::Stem`. Sinon `import::verser_un_fichier`, son origine celle des déclarations
-    /// (`origine::declaration_du_fichier`), ce que le fonds en porte lu par `lecture::deja_lu`,
-    /// l'ULID de l'idée tiré pour un contenu neuf seulement ; `Issue::Verse` ou
+    /// `ControleDuTexte` : `FluxControle`) ; une lecture refusée en chemin, dont `FluxControle`
+    /// note le genre, nomme aussi le fichier, et dit ce genre, jamais le texte de l'erreur
+    /// (`etat_de_l_import::constat_de_la_lecture`) ; ses faits, ceux de l'en-tête lu à
+    /// l'inspection, ou aucun (illisible : un en-tête qui ne se lit pas, un texte que le contrôle
+    /// refuse). Un fichier audio d'un jeu, et le MIDI d'un de ses stems (`stem_du_midi`) : la
+    /// captation seule, `Issue::Stem`. Sinon `import::verser_un_fichier`, son origine celle des
+    /// déclarations (`origine::declaration_du_fichier`), ce que le fonds en porte lu par
+    /// `lecture::deja_lu`, l'ULID de l'idée tiré pour un contenu neuf seulement ; `Issue::Verse` ou
     /// `Issue::Dedoublonne` ; les empreintes nommées de l'état, tenues à jour.
     pub fn verser_un_fichier<S: Source>(
         &mut self,
@@ -1135,6 +1150,53 @@ impl<D: Documents, C: Captations> Services<D, C> {
         Ok(generateurs_du_fonds(self.documents.fonds()))
     }
 
+    /// Ce que le protocole sert de la captation `empreinte` (question 27) : le type de son format
+    /// (`protocole::type_du_format`) et sa taille (`Captations::taille`), si c'est l'audio d'une
+    /// prise, son format sous `prises` (`lecture::format_d_une_prise`), ou d'un stem, son format
+    /// sous l'entrée du stem, lu dans la table des stems tenue (voir `Services`) ; la table se
+    /// rebâtit en entier (`lecture::formats_des_stems`) à la première demande qui suit un
+    /// changement des têtes du fonds. `None` sans fonds, pour une empreinte inconnue ou mal
+    /// formée, un MIDI, un texte, un manifeste, un rapport, un illisible (sans format), un format
+    /// sans type (`caf`, `wma`), ou une captation que `Captations::taille` ne trouve pas. Une
+    /// lecture : en lecture seule comme ailleurs ; ne touche ni à l'index ni au dernier geste de
+    /// tri.
+    pub fn captation_a_servir(
+        &mut self,
+        empreinte: &str,
+    ) -> Result<Option<(&'static str, u64)>, Refus> {
+        let Some(fonds) = self.documents.fonds() else {
+            return Ok(None);
+        };
+        let format = lecture::format_d_une_prise(fonds, empreinte).or_else(|| {
+            let tetes = fonds.get_heads();
+            if self
+                .stems
+                .as_ref()
+                .is_none_or(|(gardees, _)| *gardees != tetes)
+            {
+                self.stems = Some((tetes, lecture::formats_des_stems(fonds)));
+            }
+            self.stems
+                .as_ref()
+                .and_then(|(_, formats)| formats.get(empreinte).cloned())
+        });
+        let Some(type_mime) = format.as_deref().and_then(protocole::type_du_format) else {
+            return Ok(None);
+        };
+        Ok(self
+            .captations
+            .taille(empreinte)?
+            .map(|taille| (type_mime, taille)))
+    }
+
+    /// La plage `plage` de la captation `empreinte`, ses deux bornes comprises, par
+    /// `Captations::relire_une_plage`, qui referme le fichier ; son refus, tel quel. Une lecture :
+    /// en lecture seule comme ailleurs.
+    pub fn plage_d_une_captation(&self, empreinte: &str, plage: Plage) -> Result<Vec<u8>, Refus> {
+        self.captations
+            .relire_une_plage(empreinte, plage.debut, plage.longueur())
+    }
+
     /// Les cibles d'une déclaration d'origine de portée `portee`, chacune une fois, sous son
     /// empreinte, avec ce qui la nomme, et la portée du message (voir `declarer_une_origine`) :
     /// une captation, nommée par `captation_nommee` ; les captations de la table du dernier import
@@ -1243,11 +1305,21 @@ impl<D: Documents, C: Captations> Services<D, C> {
         }
         let lu = source.lire_en_flux(rang).map_err(illisible_ici)?;
         let mut flux = FluxControle::de(lu, fichier.texte());
-        let versement = self.captations.verser_en_flux(
-            &import::nom_de_la_copie(&etat.import, rang),
-            &mut flux,
-            fichier.empreinte.as_deref(),
-        )?;
+        let versement = self
+            .captations
+            .verser_en_flux(
+                &import::nom_de_la_copie(&etat.import, rang),
+                &mut flux,
+                fichier.empreinte.as_deref(),
+            )
+            .map_err(|refus| match flux.lecture_refusee() {
+                Some(genre) => etat_de_l_import::ne_se_lit_pas(
+                    fichier.chemin.as_deref(),
+                    rang,
+                    etat_de_l_import::constat_de_la_lecture(genre),
+                ),
+                None => refus,
+            })?;
         let lisible = flux.lisible();
         drop(flux);
         if !versement.rangee
@@ -1887,8 +1959,12 @@ const PLUS_INSPECTE: &str = "Ce dossier n'est plus inspecté.";
 const DOSSIER_SANS_CAPTATION: &str = "Ce dossier n'a aucune captation versée par cet import.";
 
 /// L'avertissement de l'état du fonds quand le fonds porte un import ouvert que les services ne
-/// conduisent pas (question 2).
-const IMPORT_RESTE_OUVERT: &str = "Un import est resté ouvert : rechoisir son dossier le reprend.";
+/// conduisent pas (question 2) : rechoisir son dossier ne le reprend que s'il a posé un nom
+/// d'origine (CAP-03 ; `etat_de_l_import::reprend`), et l'ouverture d'un autre le clôt
+/// (question 35).
+const IMPORT_RESTE_OUVERT: &str = "Un import est resté ouvert : rechoisir son dossier le reprend, \
+                                   s'il a déjà versé un fichier sous son nom ; sinon, le prochain \
+                                   import le clôt.";
 
 /// Le refus d'une captation que le fonds ne porte pas : le constat
 /// `Impossible::CaptationAbsente` du noyau, qui ne nomme pas l'empreinte (question 26).

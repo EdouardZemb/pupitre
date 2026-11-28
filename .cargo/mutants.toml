@@ -1,5 +1,5 @@
 # Le test de mutation du noyau (famille 3 des garde-fous de la méthode).
-# Vingt-sept modules sont examinés : la théorie (hauteurs, tonalités, accords, table), la
+# Vingt-huit modules sont examinés : la théorie (hauteurs, tonalités, accords, table), la
 # palette, le clavier et la guitare, et les règles des données. Celles du fonds : la compaction,
 # l'accès d'un document, le démarrage, la version de schéma, la teneur, la comparaison des copies
 # et des lignées, les identifiants, les gestes, les règles d'une idée, la boîte, le repli des
@@ -8,7 +8,7 @@
 # extensions ; les en-têtes d'un WAV et d'un MIDI, et le texte lisible ; le manifeste, le rapport
 # d'import et la place libre ; l'origine déclarée, le premier nom vu et la portée ; les stems (le
 # type proposé, le MIDI d'un stem, le jeu proposé et la durée) ; et les opérations nommées de
-# l'import.
+# l'import ; le protocole des captations (le type d'un format, la plage et la réponse).
 # Le rendu (`rendu/`) n'est pas examiné.
 examine_globs = [
     "crates/noyau/src/hauteur.rs",
@@ -31,6 +31,7 @@ examine_globs = [
     "crates/noyau/src/donnees/index.rs",
     "crates/noyau/src/donnees/journal.rs",
     "crates/noyau/src/donnees/origine.rs",
+    "crates/noyau/src/donnees/protocole.rs",
     "crates/noyau/src/donnees/rapport.rs",
     "crates/noyau/src/donnees/repli.rs",
     "crates/noyau/src/donnees/requete.rs",
@@ -40,7 +41,7 @@ examine_globs = [
     "crates/noyau/src/donnees/version.rs",
 ]
 
-# Chaque mutant ne rejoue que les tests de ces vingt-sept modules, et les tests unitaires : les
+# Chaque mutant ne rejoue que les tests de ces vingt-huit modules, et les tests unitaires : les
 # tests du rendu dessinent les 48 pages de table, les 72 versos et les fiches de chaque case, et la
 # suite complète prend une minute et demie en debug, contre deux secondes et demie sans eux. Ils
 # appellent la théorie sans la vérifier : ses propres tests tuent tous ses mutants (0 survivant
@@ -72,6 +73,7 @@ additional_cargo_test_args = [
     "--test", "origine",
     "--test", "stems",
     "--test", "import",
+    "--test", "protocole",
 ]
 
 # Un mutant réellement équivalent s'exclut ici, nommément, avec sa raison.

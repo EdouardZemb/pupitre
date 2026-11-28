@@ -4,8 +4,9 @@
 //! droits, ils nomment chaque commande de `commandes::NOMS`, une à une, chacun par son seul nom, et
 //! aucun droit du noyau de Tauri ni d'un greffon ; aucun droit ne s'écrit ailleurs, ni en ligne
 //! dans `tauri.conf.json`, ni par `build.rs`, ni par les sources de l'établi ; `build.rs` tire le
-//! manifeste de l'application de `commandes::NOMS`, sans droit par défaut. Chaque contrôle est une
-//! fonction pure, éprouvée sur des entrées plantées.
+//! manifeste de l'application de `commandes::NOMS`, sans droit par défaut ; le protocole des
+//! captations s'enregistre en asynchrone, jamais en synchrone. Chaque contrôle est une fonction
+//! pure, éprouvée sur des entrées plantées.
 
 use serde_json::{Value, json};
 use std::fs;
@@ -291,6 +292,27 @@ fn controler_les_sources(sources: &[(String, String)]) -> Vec<String> {
     fautes
 }
 
+/// Le protocole des captations dans `src/lib.rs`, lignes de commentaire écartées, blancs ignorés :
+/// il s'enregistre en asynchrone, `register_asynchronous_uri_scheme_protocol("captation"`, dont
+/// le gestionnaire répond une fois, hors du fil de la WebView ; aucun protocole ne s'enregistre en
+/// synchrone (`register_uri_scheme_protocol(`), dont le gestionnaire tiendrait ce fil pendant la
+/// demande au fil du fonds.
+fn controler_le_protocole(source_de_lib: &str) -> Vec<String> {
+    let mut fautes = Vec::new();
+    let code = sans_blancs(&sans_lignes_qui_commencent_par(source_de_lib, "//"));
+    if !code.contains("register_asynchronous_uri_scheme_protocol(\"captation\"") {
+        fautes.push(format!(
+            "{LIB_DE_L_ETABLI} n'enregistre pas le protocole captation en asynchrone"
+        ));
+    }
+    if code.contains("register_uri_scheme_protocol(") {
+        fautes.push(format!(
+            "{LIB_DE_L_ETABLI} enregistre un protocole en synchrone"
+        ));
+    }
+    fautes
+}
+
 /// Le `Cargo.toml` d'`etabli` : aucune fonction `protocol-asset`, lignes de commentaire écartées.
 fn controler_le_cargo_toml(cargo_toml: &str) -> Vec<String> {
     let mut fautes = Vec::new();
@@ -562,6 +584,46 @@ fn i31_les_sources_de_l_etabli_n_ajoutent_aucun_droit() {
     );
     let fautes = controler_les_sources(&sources);
     assert!(fautes.is_empty(), "{fautes:?}");
+}
+
+#[test]
+fn i31_le_protocole_s_enregistre_en_asynchrone() {
+    let fautes = controler_le_protocole(&lire_de_l_etabli(LIB_DE_L_ETABLI));
+    assert!(fautes.is_empty(), "{fautes:?}");
+
+    let asynchrone = "        .register_asynchronous_uri_scheme_protocol(\"captation\", |contexte, requete, repondeur| {\n            servir(contexte, requete, repondeur)\n        })\n";
+    assert!(controler_le_protocole(asynchrone).is_empty());
+    // rustfmt peut couper l'appel : les blancs ne comptent pas.
+    let coupe = "        .register_asynchronous_uri_scheme_protocol(\n            \"captation\",\n            |contexte, requete, repondeur| servir(contexte, requete, repondeur),\n        )\n";
+    assert!(controler_le_protocole(coupe).is_empty());
+    let absent = format!("{LIB_DE_L_ETABLI} n'enregistre pas le protocole captation en asynchrone");
+    let synchrone_dit = format!("{LIB_DE_L_ETABLI} enregistre un protocole en synchrone");
+    // L'enregistrement synchrone, seul, puis à côté de l'asynchrone.
+    let synchrone = "        .register_uri_scheme_protocol(\"captation\", |_contexte, requete| {\n            refuser(&requete)\n        })\n";
+    assert_eq!(
+        controler_le_protocole(synchrone),
+        vec![absent.clone(), synchrone_dit.clone()]
+    );
+    refuse_seulement(
+        controler_le_protocole(&format!("{asynchrone}{synchrone}")),
+        &synchrone_dit,
+    );
+    // L'absence d'enregistrement, ou un enregistrement seulement commenté.
+    refuse_seulement(
+        controler_le_protocole("        .invoke_handler(gestionnaire())\n"),
+        &absent,
+    );
+    let commente = asynchrone
+        .lines()
+        .map(|ligne| format!("// {ligne}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    refuse_seulement(controler_le_protocole(&commente), &absent);
+    // L'asynchrone d'un autre protocole ne vaut pas celui des captations.
+    refuse_seulement(
+        controler_le_protocole(&asynchrone.replace("\"captation\"", "\"photos\"")),
+        &absent,
+    );
 }
 
 #[test]

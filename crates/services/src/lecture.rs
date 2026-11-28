@@ -8,7 +8,8 @@
 //! Ce que l'import écrit se lit ici aussi (§ 31 · 2 ; questions 9, 18, 20 à 22) : les noms
 //! d'origine d'un contenu et son premier nom vu, ses origines déclarées, ce que le fonds porte déjà
 //! d'un contenu ou d'une prise en stems, les noms qu'a posés un import, les stems d'une prise, les
-//! imports, la tête de l'ouverture de chacun, leurs déclarations et les générateurs. Les clés
+//! imports, la tête de l'ouverture de chacun, leurs déclarations et les générateurs ; et, pour le
+//! protocole des captations, le format d'une prise et celui de chaque stem. Les clés
 //! d'une captation sont à plat, `<empreinte>/<clé>` : chacune se coupe à sa place (`lire_la_cle`),
 //! et le chemin d'un nom garde ses `/`. Une clé marque, à `true` (l'entrée d'un stem,
 //! `manifeste`, le lien d'un stem à son MIDI, un jeu déclaré, une origine), se lit à sa seule
@@ -1139,6 +1140,49 @@ pub fn stems_de(doc: &Automerge, prise: &str) -> Vec<StemLu> {
             }
         })
         .collect()
+}
+
+/// Le format de la prise `empreinte`, `prises/<empreinte>/format`, que le protocole des captations
+/// sert (question 27). `None` si la clé est absente, si sa valeur n'est pas une chaîne, ou si la
+/// clé, coupée à sa place (`lire_la_cle`), n'est pas le fait `format` d'une empreinte : un chemin,
+/// ou une empreinte qui nommerait le fait d'un stem, ne nomme aucune prise.
+pub fn format_d_une_prise(doc: &Automerge, empreinte: &str) -> Option<String> {
+    let cle = format!("{empreinte}/{FORMAT}");
+    if !matches!(lire_la_cle(&cle), CleDeCaptation::Fait { fait: FORMAT, .. }) {
+        return None;
+    }
+    valeur(doc, &objet(doc, &ROOT, PRISES)?, &cle, chaine).flatten()
+}
+
+/// Le format de chaque stem de chaque prise en stems, sous son empreinte : `<p>/stem/<s>/format`,
+/// le stem énuméré par son entrée `<p>/stem/<s>` (balayage Q4), en un seul passage de `prises`
+/// (question 27). Une valeur qui n'est pas une chaîne se saute ; un conteneur absent, aucun.
+pub fn formats_des_stems(doc: &Automerge) -> BTreeMap<String, String> {
+    let Some(prises) = objet(doc, &ROOT, PRISES) else {
+        return BTreeMap::new();
+    };
+    let mut entrees: BTreeSet<String> = BTreeSet::new();
+    let mut formats: BTreeMap<String, String> = BTreeMap::new();
+    for element in doc.map_range(&prises, ..) {
+        let Value::Scalar(simple) = element.value.into_value() else {
+            continue;
+        };
+        match lire_la_cle(&element.key) {
+            CleDeCaptation::EntreeDuStem { stem, .. } => {
+                entrees.insert(stem.to_string());
+            }
+            CleDeCaptation::FaitDuStem {
+                stem, fait: FORMAT, ..
+            } => {
+                if let Some(format) = chaine(&simple) {
+                    formats.insert(stem.to_string(), format);
+                }
+            }
+            _ => {}
+        }
+    }
+    formats.retain(|stem, _| entrees.contains(stem));
+    formats
 }
 
 /// Un import, tel qu'il se lit sous `imports/<ULID>/…`.

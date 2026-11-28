@@ -137,6 +137,7 @@ impl<'r> Paire for PaireSurFichiers<'r> {
             source,
             chemins,
             ouverts: BTreeMap::new(),
+            coupes: BTreeMap::new(),
         }
     }
 
@@ -175,6 +176,12 @@ impl<'r> Paire for PaireSurFichiers<'r> {
             rendre(&chemin);
         }
     }
+
+    /// Le flux du fichier, que `SourceSurFichiers` lit, se coupe après `octets` octets
+    /// (`FluxCoupe`).
+    fn refuser_la_lecture_apres(&mut self, source: &mut SourceDeTest, rang: u64, octets: u64) {
+        source.coupes.insert(rang, octets);
+    }
 }
 
 /// Le rang de la prochaine source à verser des tests sur fichiers : chacune a son dossier jetable.
@@ -182,12 +189,34 @@ static SOURCES: AtomicU64 = AtomicU64::new(0);
 
 /// La source à verser des tests sur fichiers : le dossier écrit par le test, parcouru par
 /// `SourceSurFichiers`, à qui chaque lecture est confiée ; le chemin de chaque entrée, dans l'ordre
-/// des rangs, pour la changer ou en refuser la lecture ; et chaque fichier gardé ouvert sans
-/// partage, sous Windows, dont la lecture est refusée.
+/// des rangs, pour la changer ou en refuser la lecture ; chaque fichier gardé ouvert sans
+/// partage, sous Windows, dont la lecture est refusée ; et, pour chaque fichier dont le flux se
+/// coupe, les octets qu'il rend avant de se couper.
 struct SourceDeTest {
     source: SourceSurFichiers,
     chemins: Vec<PathBuf>,
     ouverts: BTreeMap<u64, File>,
+    coupes: BTreeMap<u64, u64>,
+}
+
+/// Un flux qui rend au plus `reste` octets de `flux`, puis échoue, de
+/// `io::ErrorKind::PermissionDenied` : une lecture refusée au milieu de la copie.
+struct FluxCoupe<'f> {
+    flux: Box<dyn io::Read + 'f>,
+    reste: u64,
+}
+
+impl io::Read for FluxCoupe<'_> {
+    fn read(&mut self, tampon: &mut [u8]) -> io::Result<usize> {
+        if self.reste == 0 {
+            return Err(io::ErrorKind::PermissionDenied.into());
+        }
+        let au_plus =
+            usize::try_from(self.reste).map_or(tampon.len(), |reste| reste.min(tampon.len()));
+        let lus = self.flux.read(&mut tampon[..au_plus])?;
+        self.reste -= lus as u64;
+        Ok(lus)
+    }
 }
 
 impl SourceDeTest {
@@ -214,8 +243,13 @@ impl Source for SourceDeTest {
         self.source.lire(rang, debut, longueur)
     }
 
+    /// Le flux de `SourceSurFichiers`, coupé après ses premiers octets si le test l'a dit.
     fn lire_en_flux(&self, rang: u64) -> Result<Box<dyn io::Read + '_>, Refus> {
-        self.source.lire_en_flux(rang)
+        let flux = self.source.lire_en_flux(rang)?;
+        Ok(match self.coupes.get(&rang) {
+            Some(&reste) => Box::new(FluxCoupe { flux, reste }),
+            None => flux,
+        })
     }
 
     fn octets_actuels(&self, rang: u64) -> Result<u64, Refus> {
@@ -1098,6 +1132,36 @@ fn rechoisir_un_autre_dossier_ne_reprend_pas_l_import_ouvert() {
     suite::rechoisir_un_autre_dossier_ne_reprend_pas_l_import_ouvert(&mut PaireSurFichiers {
         racine: &racine,
     });
+}
+
+#[test]
+fn un_import_reste_ouvert_dit_ce_que_rechoisir_son_dossier_fait() {
+    let racine = racine_jetable("commandes-import-reste-ouvert-decision");
+    suite::un_import_reste_ouvert_dit_ce_que_rechoisir_son_dossier_fait(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn une_lecture_refusee_au_milieu_de_la_copie_nomme_le_fichier() {
+    let racine = racine_jetable("commandes-import-coupe-en-chemin");
+    suite::une_lecture_refusee_au_milieu_de_la_copie_nomme_le_fichier(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn le_protocole_ne_sert_que_l_audio_d_une_prise_ou_d_un_stem() {
+    let racine = racine_jetable("commandes-protocole-audio");
+    suite::le_protocole_ne_sert_que_l_audio_d_une_prise_ou_d_un_stem(&mut PaireSurFichiers {
+        racine: &racine,
+    });
+}
+
+#[test]
+fn la_plage_d_une_captation_rend_ses_octets() {
+    let racine = racine_jetable("commandes-protocole-plage");
+    suite::la_plage_d_une_captation_rend_ses_octets(&mut PaireSurFichiers { racine: &racine });
 }
 
 #[test]

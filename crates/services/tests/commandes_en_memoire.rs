@@ -88,6 +88,10 @@ impl Paire for PaireEnMemoire {
     fn refuser_la_lecture(&mut self, source: &mut SourceEnMemoire, rang: u64, refusee: bool) {
         source.refuser(rang, refusee);
     }
+
+    fn refuser_la_lecture_apres(&mut self, source: &mut SourceEnMemoire, rang: u64, octets: u64) {
+        source.refuser_apres(rang, octets);
+    }
 }
 
 #[test]
@@ -668,6 +672,26 @@ fn l_etat_du_fonds_dit_qu_un_import_est_reste_ouvert() {
 #[test]
 fn rechoisir_un_autre_dossier_ne_reprend_pas_l_import_ouvert() {
     suite::rechoisir_un_autre_dossier_ne_reprend_pas_l_import_ouvert(&mut PaireEnMemoire);
+}
+
+#[test]
+fn un_import_reste_ouvert_dit_ce_que_rechoisir_son_dossier_fait() {
+    suite::un_import_reste_ouvert_dit_ce_que_rechoisir_son_dossier_fait(&mut PaireEnMemoire);
+}
+
+#[test]
+fn une_lecture_refusee_au_milieu_de_la_copie_nomme_le_fichier() {
+    suite::une_lecture_refusee_au_milieu_de_la_copie_nomme_le_fichier(&mut PaireEnMemoire);
+}
+
+#[test]
+fn le_protocole_ne_sert_que_l_audio_d_une_prise_ou_d_un_stem() {
+    suite::le_protocole_ne_sert_que_l_audio_d_une_prise_ou_d_un_stem(&mut PaireEnMemoire);
+}
+
+#[test]
+fn la_plage_d_une_captation_rend_ses_octets() {
+    suite::la_plage_d_une_captation_rend_ses_octets(&mut PaireEnMemoire);
 }
 
 /// Les services en mémoire de la paire.

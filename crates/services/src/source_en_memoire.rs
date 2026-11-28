@@ -17,7 +17,8 @@ pub(crate) const FICHIER_A_VERSER_REFUSE: &str = "Le fichier à verser, le disqu
 
 /// Une source à verser en mémoire : le nom du dossier, ses entrées telles que le parcours les a
 /// vues, le contenu et la marque de dernière écriture de chacune à cet instant, celles dont la
-/// lecture est refusée, et les octets lus de chacune.
+/// lecture est refusée, celles dont le flux se coupe après ses premiers octets, et les octets lus
+/// de chacune.
 #[derive(Debug)]
 pub struct SourceEnMemoire {
     nom: Option<String>,
@@ -25,6 +26,7 @@ pub struct SourceEnMemoire {
     contenus: Vec<Vec<u8>>,
     marques: Vec<u64>,
     refusees: Vec<bool>,
+    coupees: Vec<Option<u64>>,
     lus: RefCell<Vec<u64>>,
 }
 
@@ -76,6 +78,7 @@ impl SourceEnMemoire {
             contenus,
             marques: vec![1; nombre],
             refusees: vec![false; nombre],
+            coupees: vec![None; nombre],
             lus: RefCell::new(vec![0; nombre]),
         }
     }
@@ -95,6 +98,15 @@ impl SourceEnMemoire {
     pub fn refuser(&mut self, rang: u64, refusee: bool) {
         let indice = self.indice_du_test(rang);
         self.refusees[indice] = refusee;
+    }
+
+    /// Le flux de l'entrée `rang` (`lire_en_flux`) rend ses `octets` premiers octets, puis échoue,
+    /// de `io::ErrorKind::PermissionDenied` : une lecture refusée au milieu de la copie, quand
+    /// `refuser` ne refuse qu'avant la lecture. `lire` n'en change pas. Un rang sans entrée est une
+    /// faute du test : elle panique.
+    pub fn refuser_apres(&mut self, rang: u64, octets: u64) {
+        let indice = self.indice_du_test(rang);
+        self.coupees[indice] = Some(octets);
     }
 
     /// L'indice de l'entrée `rang`, pour un geste du test ; un rang sans entrée panique.
@@ -137,6 +149,7 @@ impl Source for SourceEnMemoire {
         let indice = self.fichier_lisible(rang)?;
         Ok(Box::new(FluxEnMemoire {
             reste: &self.contenus[indice],
+            coupe: self.coupees[indice],
             lus: &self.lus,
             indice,
         }))
@@ -158,17 +171,28 @@ impl Source for SourceEnMemoire {
     }
 }
 
-/// Le flux d'une entrée en mémoire : ce qui reste de son contenu, et les octets lus qu'il compte.
+/// Le flux d'une entrée en mémoire : ce qui reste de son contenu ; s'il se coupe, les octets
+/// qu'il rend encore avant d'échouer (`SourceEnMemoire::refuser_apres`) ; et les octets lus qu'il
+/// compte.
 struct FluxEnMemoire<'s> {
     reste: &'s [u8],
+    coupe: Option<u64>,
     lus: &'s RefCell<Vec<u64>>,
     indice: usize,
 }
 
 impl io::Read for FluxEnMemoire<'_> {
     fn read(&mut self, tampon: &mut [u8]) -> io::Result<usize> {
-        let lus = io::Read::read(&mut self.reste, tampon)?;
+        let au_plus = match self.coupe {
+            Some(0) => return Err(io::ErrorKind::PermissionDenied.into()),
+            Some(encore) => usize::try_from(encore).map_or(tampon.len(), |n| n.min(tampon.len())),
+            None => tampon.len(),
+        };
+        let lus = io::Read::read(&mut self.reste, &mut tampon[..au_plus])?;
         self.lus.borrow_mut()[self.indice] += lus as u64;
+        if let Some(encore) = self.coupe.as_mut() {
+            *encore -= lus as u64;
+        }
         Ok(lus)
     }
 }

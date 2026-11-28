@@ -16,6 +16,7 @@ pub mod import;
 pub mod index;
 pub mod journal;
 pub mod origine;
+pub mod protocole;
 pub mod rapport;
 pub mod repli;
 pub mod requete;
