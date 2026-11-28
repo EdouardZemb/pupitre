@@ -537,9 +537,9 @@ Et des limites, sans test, que les PR disent dans leur corps :
 - `app/src-tauri/tests/statique.rs:158` — `fn controler_i29(` — refuse `.message(` dans l'établi : aucune méthode ne se nomme `message` (tâches 15, 21)
 - `app/src-tauri/tauri.conf.json:18` — `img-src 'self' http://captation.localhost;` — la CSP admet déjà le protocole, et ne change pas (tâche 21)
 - `app/ui/src/natif.rs:50` — `pub(crate) async fn invoquer<R: DeserializeOwned>(` — une promesse par commande, sans progression : l'avancée vient des réponses (tâche 22)
-- `app/ui/src/boite.rs:361` — `fn mot_de_la_provenance(` — « importée » en toutes lettres, jamais `⇣` (tâches 18, 24)
-- `app/ui/src/boite.rs:255` — `pub(crate) fn page_du_fonds_vide(` — deux constats ; la page propose aussi d'importer (tâches 18, 22)
-- `app/ui/src/boite.rs:2382` — `<span>"Provenance"</span>` — le titre qui déborde à 200 % (tâches 18, 24)
+- `app/ui/src/boite/textes.rs:77` — `fn mot_de_la_provenance(` — « importée » en toutes lettres, jamais `⇣` (tâches 18, 24)
+- `app/ui/src/boite/textes.rs:49` — `pub(super) fn page_du_fonds_vide(` — deux constats ; la page propose aussi d'importer (tâches 18, 22)
+- `app/ui/src/boite/vue.rs:533` — `<span>"Provenance"</span>` — le titre qui déborde à 200 % (tâches 18, 24)
 - `app/ui/tests/encre_statique.rs:306` — `"animation",` — refusé jusque dans un commentaire de l'interface (tâches 22 à 24)
 - `.github/workflows/ci.yml:91` — `timeout-minutes: 13` — le délai de `verifier`, remesuré (tâches 8, 17, 25)
 - `.github/workflows/ci.yml:175` — `run: cargo test -p stockage --release --test mesure -- --ignored --nocapture` — l'étape du test 13, en `--release` (tâche 16)
@@ -3361,10 +3361,11 @@ impl DocumentsEnMemoire {
 changement de comportement` (87). **Documents :** `docs/pistes.md` ; `CLAUDE.md`. **Fin :** la tâche 19.
 
 Rien ne change de ce que fait l'interface : ni texte, ni signal, ni commande, ni règle de style ; chaque test garde son
-nom et son corps, à ses `use` près. Une limite, que le corps de la PR dit : la fusion par squash fait de la scission un
-seul commit, où aucune part ne ressemble à plus de la moitié de `boite.rs` ; `git log --follow` sur une part s'arrête
-donc à cette PR. L'histoire d'avant se lit par `git log -- app/ui/src/boite.rs`, et celle d'une ligne par
-`git blame -C -C`, qui suit une ligne d'un fichier à l'autre dans un même commit.
+nom et son corps, à ses `use` près et au chemin des trois `include_str!("../style.css")`, devenu `"../../style.css"`.
+Une limite, que le corps de la PR dit : la fusion par squash fait de la scission un seul commit, où aucune part ne
+ressemble à plus de la moitié de `boite.rs` ; `git log --follow` sur une part s'arrête donc à cette PR. L'histoire
+d'avant se lit par `git log -- app/ui/src/boite.rs`, et celle d'une ligne par `git blame -C -C`, qui suit une ligne
+d'un fichier à l'autre dans un même commit.
 
 ### Tâche 18 : la scission de `boite.rs` en `boite/`
 
@@ -3382,7 +3383,7 @@ Les parts, d'après les éléments de `boite.rs` à `fe918aa` (l'élément nomm�
 | `requetes.rs` | `en_usize`, `au_noyau`, `sans_au_noyau`, `pose_un_critere`, `NOTE_D_UNE_REQUETE_PLUS_RECENTE`, `PRECISION_D_UNE_REQUETE_PLUS_RECENTE`, `constat_des_requetes`, `ce_que_dit_la_requete`, `lancer`, `enregistrer_possible`, `texte_de_la_requete`, `commande_de_la_boite`, `requete_en_cours`, `GesteDeRequete` |
 | `etat.rs` | `BoiteLue`, `RetireesLues`, `JournalLu`, `Volet`, `cible_de_fermeture`, `IdeeOuverte`, `Demandes`, `EtatDeLaBoite` et son `impl`, `fonds_vide_dans` |
 | `focus.rs` | `Liste`, `Commande`, `Gardee`, `Actif`, `Rendu`, `focus_a_rendre`, `cible_du_rendu`, `cible_apres_le_volet`, `defilement_a_remettre`, `Offerts`, `ce_que_le_volet_offre`, `prendre`, `actif`, `rendre_le_focus_perdu`, `Defilement`, `Cible`, `cible_repliee`, `cible_quand_le_fonds_se_vide`, `focus_de_la_ligne` |
-| `ecran.rs` | `Ecran` et son `impl` |
+| `ecran.rs` | `Ecran` et son `impl`, dont les six lectures `async` : `lire_la_boite`, `lire_les_retirees`, `lire_le_journal`, `lire_l_idee`, `lire_les_requetes` et `relire` |
 | `vue.rs` | `choix_d_un_critere`, `champ_de_date`, `BoiteDIdees`, `ligne_de_la_boite` |
 | `volets.rs` | `ligne_retiree`, `VoletDeLIdee`, `VoletDesRetirees`, `VoletDuJournal` |
 
@@ -3403,8 +3404,9 @@ Les parts, d'après les éléments de `boite.rs` à `fe918aa` (l'élément nomm�
   et la seule accolade qui le ferme, et les mots `pub(super) ` et `pub(crate) ` : il imprime toute ligne de plus ou de
   moins, et sort en 1 s'il en trouve.
 - [ ] **Étape 2 : scinder.** Les parts, dans l'ordre du tableau ; `rustfmt --edition 2024` sur chaque fichier, hors du
-  dépôt, comme les contraintes le disent ; le script de l'étape 1 sort en 0 ; la même commande `grep` sur
-  `app/ui/src/boite/*.rs` rend un fichier identique à `t5c-tests-avant.txt` (`diff` vide).
+  dépôt, comme les contraintes le disent ; le script de l'étape 1 sort en 0 à son second niveau, qui regroupe les
+  lignes en unités et normalise les blancs, rustfmt repliant les signatures dont la visibilité change ; la même
+  commande `grep` sur `app/ui/src/boite/*.rs` rend un fichier identique à `t5c-tests-avant.txt` (`diff` vide).
 - [ ] **Étape 3 : committer, pousser, voir le vert.** `git add app/ui/src/boite.rs app/ui/src/boite/mod.rs
   app/ui/src/boite/fenetre.rs app/ui/src/boite/textes.rs app/ui/src/boite/gestes.rs app/ui/src/boite/requetes.rs
   app/ui/src/boite/etat.rs app/ui/src/boite/focus.rs app/ui/src/boite/ecran.rs app/ui/src/boite/vue.rs
@@ -3424,10 +3426,11 @@ Les parts, d'après les éléments de `boite.rs` à `fe918aa` (l'élément nomm�
   boîte de l'interface en module, aux pistes et à CLAUDE.md`).
 - [ ] **Étape 2 : la revue de la PR (c).** La revue de la PR entière, sur sa tête : le script de la tâche 18 et la
   liste des 47 tests rejoués sur la tête ; aucun élément plus visible qu'il ne le faut ; aucun texte montré changé
-  (`git diff origin/main -M -- app/ui/src` ne montre que des lignes déplacées, à la visibilité près). Puis les
-  corrections, leur relecture sur la tête qui part. Le corps dit : la limite de `git log --follow` et ses deux
-  détours ; qu'aucun test n'est réécrit ; « Écarts à la spec : Aucun. ». `gh pr ready`, puis la fusion par squash,
-  `--match-head-commit` nommant la tête relue.
+  (`git diff origin/main -M -- app/ui/src` ne montre que des lignes déplacées, à la visibilité près et au chemin
+  des trois `include_str!("../style.css")`, devenu `"../../style.css"`). Puis les corrections, leur relecture sur la
+  tête qui part. Le corps dit : la limite de `git log --follow` et ses deux détours ; qu'aucun test n'est réécrit ;
+  « Écarts à la spec : Aucun. ». `gh pr ready`, puis la fusion par squash, `--match-head-commit` nommant la tête
+  relue.
 
 ## PR (d) · le protocole des captations, la lecture simple et l'écran de l'import
 
